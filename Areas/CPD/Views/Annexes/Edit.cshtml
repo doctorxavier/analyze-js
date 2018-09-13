@@ -1,0 +1,306 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.CPDModule.ViewModels.Annexes
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Areas.CPD.Models
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model AnnexesViewModel
+
+<div data-section="modals" class="hide">
+    @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-modal\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+    .AddButton(name: "btn-cancel-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+    .AddButton(name: "btn-cancel-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "CancelEditMode",
+                    closeAtEnd: true))
+    <div data-name="cancel-modal" class="hide modalBody">
+        @Localization.GetText("CPD.CSProgressToDate.Cancel.Warning")
+    </div>
+
+    @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"common-remove-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-common-remove",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+        .AddButton(name: "btn-common-remove-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+        .AddButton(name: "btn-common-remove-ok",
+                    text: Localization.GetText("Common.Continue"),
+                    type: CssClass.Button05,
+                    callback: "removeRow",
+                    closeAtEnd: true))
+    <div data-name="common-remove-modal" class="hide modalBody">
+        @Localization.GetText("CPD.CountryProgram.Delete.Warning")
+    </div>
+
+    @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"remove-component-modal\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-remove-component",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+    .AddButton(name: "btn-remove-component-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+    .AddButton(name: "btn-remove-component-reassign",
+                    text: Localization.GetText("Common.Delete"),
+                    type: CssClass.Button05,
+                    callback: "removeComponent",
+                    closeAtEnd: true))
+    <div data-name="remove-component-modal" class="hide modalBody">
+        @Localization.GetText("CPD.CountryProgram.Delete.Warning")
+    </div>
+</div>
+
+@if (Model != null)
+{
+    <div class="row mb30">
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons")
+            @Confluence.LabelMainTitle(Localization.GetText("CPD.Annexes.Title"))
+        </div>
+    </div>
+    <div class="page">
+        @Confluence.Tabs(new Dictionary<string, string>()
+        {{NavigationAttributes.TAB_NAME_RESULTS_MATRIX, Localization.GetText("CPD.Annexes.Navigation.ResultMatrix") },
+        {NavigationAttributes.TAB_NAME_INDICATIVE_PIPELINE, Localization.GetText("CPD.Annexes.Navigation.IndicativePipeline") }})
+
+        <div class="tab-content mt20">
+            @if (Model.ResultMatrixTab != null && ViewBag.ActiveTab == NavigationAttributes.TAB_NAME_RESULTS_MATRIX)
+{
+    <div class="tab-pane pl30" id="@(NavigationAttributes.TAB_NAME_RESULTS_MATRIX)"
+         name="formResultMatrix"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-url="@Url.Action("SaveResultMatrix", "Annexes", new { area = "CPD" })">
+
+        <div data-pagemode="edit">
+            <input type="hidden" value="@ViewBag.SerializedModel" name="serializedModel" />
+        </div>
+
+        @Html.Partial("EditPartial/EditResultMatrixPartial", Model.ResultMatrixTab)
+    </div>
+}
+
+            @if (Model.IndicativePipelineTab != null && ViewBag.ActiveTab == NavigationAttributes.TAB_NAME_INDICATIVE_PIPELINE)
+{
+    <div class="tab-pane pl30" id="@(NavigationAttributes.TAB_NAME_INDICATIVE_PIPELINE)"
+         name="formIndicativePipeline"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-url="@Url.Action("SaveIndicativePipeline", "Annexes", new { area = "CPD" })">
+        <div data-fake-pagemode="edit">
+            <input type="hidden" value="@ViewBag.SerializedViewModel" id="hideIndicativePipelineModel" name="hideIndicativePipelineModel" />
+            @Html.Partial("EditPartial/EditIndicativePipelinePartial", Model.IndicativePipelineTab)
+        </div>
+    </div>
+}
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons")
+        </div>
+    </div>
+}
+
+@section scripts{
+
+    @CPDCommon.ChangeFakePageModeToReal()
+
+    <script type="text/javascript">
+
+        /*--------------- Navigation Tabs --------------- */
+        registerCallback(function () {
+            $(document).ready(function () {
+                SelectTab('@ViewBag.ActiveTab');
+                $('[dd-tab]:not(.active)').addClass('disabled');
+            });
+
+            $(document).on('click', '[name="csResultMatrixLink"]', function () {
+                var url = '@Url.Action("CPDResultsMatrixExportToPDF", "Annexes", new { area = "CPD" })';
+
+                window.open(url, '_blank');
+            });
+
+            function SelectTab(tabName) {
+                switch (tabName) {
+                    case '@(NavigationAttributes.TAB_NAME_RESULTS_MATRIX)':
+                        $('[dd-tab="#@(NavigationAttributes.TAB_NAME_RESULTS_MATRIX)"]').click();
+                        break;
+                    case '@(NavigationAttributes.TAB_NAME_INDICATIVE_PIPELINE)':
+                        $('[dd-tab="#@(NavigationAttributes.TAB_NAME_INDICATIVE_PIPELINE)"]').click();
+                        break;
+                }
+            }
+        });
+
+
+        /*--------------- Table Functions ---------------*/
+        registerCallback(function () {
+            $(document).on('click', '[name="addNewOperation"]', function () {
+                var source = $(this);
+                var tableName = source.attr('data-linked-table');
+                var table = $(String.format('#{0}', tableName));
+                var newId = table.GenerateNewId();
+
+                var template = table.find('tbody tr.template');
+                var newItem = template.clone();
+
+
+                table.find('tbody tr:last').after(newItem);
+
+                newItem.removeClass('template');
+                newItem.removeClass('hide');
+                newItem.attr('data-id', String.format('new-{0}', newId));
+
+                var inputs = newItem.find('input, select, textarea, div.inputSearch.ctlAsyncr > button, div.dropdown > button');
+                inputs.removeAttr('disabled');
+
+                bindHandlers(newItem);
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+
+            $(document).on('click', '[name="RemoveRow"]', function () {
+                var source = $(this);
+                var buttonModal = $('[name="btn-open-popup-common-remove"]');
+
+                buttonModal.data('pressed-by', source);
+                buttonModal.click();
+            });
+        });
+
+
+        /*--------------- Save/Cancel Mode ---------------*/
+        registerCallback(function () {
+            $(document).on('click', '[name="cancel-RM"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+            $(document).on('click', '[name="cancel-IP"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+            $(document).on('click', '[name="save-IP"]', function (e) {
+                var formSelector = '#@(NavigationAttributes.TAB_NAME_INDICATIVE_PIPELINE)';
+                var hiddenViewModelSelector = '#hideIndicativePipelineModel';
+                Save(formSelector, hiddenViewModelSelector);
+            });
+
+            $(document).on('click', '[name="save-RM"]', function () {
+                var promise = Save('[name="formResultMatrix"]', '[name="serializedModel"]');
+                return promise;
+            });
+        });
+
+        function Save(formSelector, hiddenViewModelSelector) {
+            var promise = $.Deferred();
+            var response = saveContainer($(formSelector), hiddenViewModelSelector, false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+                    promise.resolve();
+                });
+            }
+
+            return promise;
+        }
+
+        function CancelEditMode() {
+            var promise = $.Deferred();
+            var url = '@Url.Action("Cancel", "Annexes", new { area = "CPD"})';
+            var tabName = $('.tabs li.active').attr('dd-tab').substr(1);
+            url = url + '?tabName=' + tabName;
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+
+        function removeRow(event, source) {
+            var promise = $.Deferred();
+            var tableName = source.closest('table').attr('id');
+            var table = $('table[id="' + tableName + '"]');
+            var prefix = tableName.substring(0, 3);
+            var modalityId = $('[name="HeaderHiddenModalityId"]').val();
+
+            source.closest('tr').remove();
+
+            promise.resolve();
+            return promise;
+        }
+
+        function removeComponent(e, source) {
+            var promise = $.Deferred();
+
+            var sourceComponentContainer = source.closest('[data-component-id]');
+            var sourceComponentId = sourceComponentContainer.attr('data-component-id');
+            var modalContainer = $('[data-name="remove-component-modal"]');
+            var trs = modalContainer.find('#reasignTable tbody tr:not(.hide)');
+
+            trs.each(function () {
+                var tr = $(this);
+                var objectiveId = tr.attr('data-objectiveid');
+                var targetComponentId = tr.find('input').val();
+
+                if (targetComponentId != "") {
+                    genericReassignObjective(sourceComponentId, objectiveId, targetComponentId, false);
+                }
+            });
+
+            //var nextsComponents = sourceComponentContainer.nextAll();
+            sourceComponentContainer.remove();
+
+            //sumToComponentOrderNumber(nextsComponents, -1);
+            resetAllOrderNumber();
+
+            promise.resolve();
+            return promise;
+        }
+
+        function setOrderNumber(objective, value) {
+            objective.find('.objective-order-number').html(value);
+            objective.find('[name="orderNumber"]').val(value);
+        }
+
+        function resetAllOrderNumber() {
+            var objectiveContainer = $('[data-section="formContent"]');
+            var allObjective = objectiveContainer.children('[data-section="objective"]');
+            allObjective.each(function (ix, item) {
+                var objective = $(item);
+                setOrderNumber(objective, ix + 1);
+            });
+        }
+    </script>
+}

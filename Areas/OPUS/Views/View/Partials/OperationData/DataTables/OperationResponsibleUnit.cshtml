@@ -1,0 +1,181 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using System.Globalization
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Models
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Domain.Values;
+
+@model List<IDB.MW.Application.OPUSModule.ViewModels.OperationDataService.ResponsibleRowViewModel>
+
+@{
+    var jquerySelector = "{\"ElementFilter\":{\"closest\":\"tr\",\"find\":\"[name='responsibleUnitsRole']\"}}";
+}
+
+@if (Model != null)
+{
+    var formatDecimalThree = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimalThree;
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+
+    <div class="row row-header">
+        <div class="col-md-12 subtitleGroup">
+            <br />
+            <p style="float:left">
+                @Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.Title")
+            </p>
+            <span class="tc-abstract-not-editable-message pull-left hide">
+                <span class="information-circle-gray"></span>
+                <span class="information">
+                    @Localization.GetText("TCAbstract.Service.NotEditable.ResponsibleAndUDR.InformationMessage")
+                </span>
+            </span>
+
+            @if(ViewBag.IsApproved)
+            {
+                <span style="float:right" name="approvedResponsabilityData">
+                    @Confluence.LabelLink(Localization.GetText("OP.CR.ResponsabilityDataApproved"))
+                </span>
+            }
+        </div>
+    </div>
+    <div class="row row-body-20">
+        <div class="col-md-12">
+            <input type="hidden"
+                   id="hidResponsibilityDataViewModel"
+                   value="@ViewBag.SerializedViewModelResponsibilityData"/>
+            @if (ViewBag.ResponsabilityDataPermission == true)
+            {
+                var configOperationResponsibleUnitsTable = Html.RenderDataTable(Model);
+                configOperationResponsibleUnitsTable.Name("responsibleUnitsTable")
+                    .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                    .AddPrimaryKeyToName(false)
+                    .Columns(columns =>
+                    {
+                        columns.Bound(c => c.RowId)
+                            .EditableTemplate(
+                                @<input type="hidden" name="responsibleUnitId" value="@item.RowId.ToString()"/>)
+                            .Hidden(true);
+                        columns.Template(c =>
+                            Confluence.LabelGetDropDown(c.Role.ToString(), ViewBag.ResponsibleUnitsRoleList))
+                            .EditableTemplate(row => SecurityHelper.IsVisibleByDefault(ViewBag.FieldAccessList, "ddlResponsibleUnitsRole") ?
+                                Confluence.InputDropDown(
+                                    row.Role.ToString(),
+                                    "responsibleUnitsRole",
+                                    ViewBag.ResponsibleUnitsRoleList,
+                                    dataAttributes: new Dictionary<string, string>() {
+                                        { "idb-fieldname", "ddlResponsibleUnitsRole"}
+                                    }) : null)
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.Role"));
+                        columns.Template(c =>
+                            Confluence.LabelGetDropDown(
+                                c.OrganizationalUnit.ToString(),
+                                ViewBag.ResponsibleUnitsOrganizationalUnitList))
+                            .EditableTemplate(row => SecurityHelper.IsVisibleByDefault(ViewBag.FieldAccessList, "ddlResponsibleOrgUnit") ?
+                                Confluence.InputDropDownAsync(
+                                    row.OrganizationalUnit.ToString(),
+                                    "responsibleUnitsOrganizationalUnit",
+                                    Url.Action("GetOrganizationalUnits", "View", new
+                                    {
+                                        area = "Opus",
+                                        actualDivision = row.OrganizationalUnit,
+                                        origin = OPUSGlobalValues.OPERATION_DATA
+                                    }),
+                                    textSelected: (ControlTemplates.DropDownGetSelectedString(
+                                        row.OrganizationalUnit.ToString(),
+                                        ViewBag.ResponsibleUnitsOrganizationalUnitList)),
+                                    disabled: SecurityHelper.IsReadOnly(ViewBag.FieldAccessList, "ddlResponsibleOrgUnit"),
+                                    required: SecurityHelper.IsRequired(ViewBag.FieldAccessList, "ddlResponsibleOrgUnit"),
+                                    dataAttributes: new Dictionary<string, string>() {
+                                        { "idb-fieldname", "ddlResponsibleOrgUnit"}},
+                                    evalGuaranteed: true,
+                                    dependenceComponentSelectors: jquerySelector):null)
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.OrgUnit"));
+                        columns.Template(c => Confluence.Label(c.EffortInDays.ToString()))
+                            .EditableTemplate(row => SecurityHelper.IsVisibleByDefault(ViewBag.FieldAccessList, "txtResponsibleUnitsEffortDays") ?
+                                Confluence.InputNumber(
+                                    row.EffortInDays,
+                                    "responsibleUnitsEffortInDays",
+                                    minValue:"1",
+                                    maxValue:"360",
+                                    required: false,
+                                    dataAttributes: new Dictionary<string, string>() {
+                                        { "idb-fieldname", "txtResponsibleUnitsEffortDays"}
+                                    }) : null)
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.EffortInDays"))
+                            .Right();
+                        columns.Template(c => Confluence.LabelDecimal(c.FTEcontribution)).Right()
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.FTEContrib"))
+                            .Attribute("data-id", x => "contribution").Persistent();
+                        columns.Bound(c => FormatHelper.Format(c.ContributionPerCent, formatDecimal) + "%".HtmlEncode())
+                            .CssClass("text-right")
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.ContribPercent"))
+                            .Attribute("data-id", x => "contributionPercent").Persistent();
+                        columns.Bound(c => String.Empty)
+                            .EditableTemplate(row => SecurityHelper.IsVisibleByDefault(ViewBag.FieldAccessList, "btnRemoveResponsibleRow") ?
+                                Confluence.ButtonTrash(
+                                    null,
+                                    null,
+                                    "removeRow",
+                                    disabled: SecurityHelper.IsReadOnly(ViewBag.FieldAccessList, "btnRemoveResponsibleRow"),
+                                    required: SecurityHelper.IsRequired(ViewBag.FieldAccessList, "btnRemoveResponsibleRow"),
+                                    dataAttributes: new Dictionary<string, string>() {
+                                        { "idb-fieldname", "btnRemoveResponsibleRow"}
+                                    }) : null)
+                            .Center();
+                    });
+                configOperationResponsibleUnitsTable.TableClass = "tableNormal endSpacing";
+                @Html.Partial("Controls/DataTable", configOperationResponsibleUnitsTable)
+                if (SecurityHelper.IsVisibleByDefault(ViewBag.FieldAccessList, "btnNewResponsibleUnit"))
+                {
+                    <div class="col-md-12" data-idb-fieldname="btnNewResponsibleUnit">
+                        <div data-pagemode="edit" class="text-center">
+                            @Confluence.ButtonAddNewRows(
+                             Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.AddUnit"),
+                             "responsibleUnitsTable", null, "newResponsibleUnit",
+                             dataAttributes: new Dictionary<string, string>() {
+                            { "idb-fieldname", "btnNewResponsibleUnit" }
+                             })
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                var configOperationResponsibleUnitsTable = Html.RenderDataTable(Model);
+                configOperationResponsibleUnitsTable.Name("responsibleUnitsTable")
+                    .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                    .AddPrimaryKeyToName(false)
+                    .Columns(columns =>
+                    {
+                        columns.Bound(c => c.RowId).Hidden(true);
+                        columns.Template(c =>
+                            Confluence.LabelGetDropDown(c.Role.ToString(), ViewBag.ResponsibleUnitsRoleList))
+                            .Persistent()
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.Role"));
+                        columns.Template(c =>
+                            Confluence.LabelGetDropDown(
+                                c.OrganizationalUnit.ToString(),
+                                ViewBag.ResponsibleUnitsOrganizationalUnitList))
+                            .Persistent()
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.OrgUnit"));
+                        columns.Template(c =>
+                            Confluence.LabelGetDropDown(
+                                c.EffortInDays.ToString(),
+                                ViewBag.ResponsibleUnitsEffortInDaysList))
+                            .Persistent()
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.EffortInDays"))
+                            .CssClass("text-right");
+                        columns.Bound(c => FormatHelper.Format(c.FTEcontribution, formatDecimalThree).HtmlEncode())
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.FTEContrib"))
+                            .Attribute("data-id", x => "contribution").Persistent().CssClass("text-right");
+                        columns.Bound(c => FormatHelper.Format(c.ContributionPerCent, formatDecimal) + "%".HtmlEncode())
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.ResponsibilityUnit.ContribPercent"))
+                            .Attribute("data-id", x => "contributionPercent").Persistent().CssClass("text-right");
+                        columns.Bound(c => String.Empty);
+                    });
+                configOperationResponsibleUnitsTable.TableClass = "tableNormal endSpacing";
+                @Html.Partial("Controls/DataTable", configOperationResponsibleUnitsTable)
+            }
+        </div>
+    </div>
+}

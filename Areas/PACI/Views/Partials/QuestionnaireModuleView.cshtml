@@ -1,0 +1,328 @@
+﻿@using System.Web.Mvc.Html
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Areas.PACI.Models
+@using IDB.Presentation.MVC4.MVCExtensions
+
+@model QuestionnaireViewModel
+@{
+    string questionPoint = "";
+    int bulletPoint = 0;
+    int bulletPointSecond = 0;
+    int bulletPointThird = 0;
+    var lastCond = Model.DisplayModule.Conditions.LastOrDefault();
+    var lastConditionId = lastCond != null ? lastCond.PaciConditionId : int.MaxValue;
+    var lastQuestion = lastCond != null ? lastCond.Questions.LastOrDefault() : new IDB.MW.Application.PACI.ViewModels.PaciQuestionViewModel();
+    var lastQuestionId = lastQuestion != null ? lastQuestion.QuestionId : int.MaxValue;
+}
+@*UI-PA-002-READ*@
+@using (Ajax.BeginForm("Edit", "Questionnaire", new { operationNumber = Model.OperationNumber, moduleTabId = Model.ModuleTabId, questionnaireId = Model.QuestionnaireId, pageNumber = Model.DisplayModule.PageNumber }, 
+    new AjaxOptions() { UpdateTargetId = "main_section_questionnaire", HttpMethod = "Post", OnComplete = "questionnaireAjaxOnComplete", OnBegin = "questionnaireAjaxOnBegin", OnFailure = "questionnaireAjaxOnFailure" }, 
+    new { id = "frmPaciViewMode" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.Hash)
+    @Html.HiddenFor(model => model.OperationNumber)
+    @Html.HiddenFor(model => model.QuestionnaireId)
+    @Html.HiddenFor(model => model.ModuleTabId)
+    @Html.HiddenFor(model => model.DisplayModule.PaciId)
+    @Html.HiddenFor(model => model.DisplayModule.PageNumber)
+
+    <div class="col-md-12 pl0 pr0">
+        <div class="col-md-8">
+            @Confluence.LabelMainSubTitle(Model.InstitutionName, htmlClass: "mt0")
+            @Html.HiddenFor(model => model.InstitutionName)
+            @Html.HiddenFor(model => model.InstitutionId)
+            <div class="col-md-12 pl0 pr0">
+                @Localization.GetText("PACI.STATUS")
+            </div>
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.LabelBold(Model.PaciStage)
+                @Html.HiddenFor(model => model.PaciStage)
+            </div>
+        </div>
+        <div class="col-md-4 pr0">
+            @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnQuestionnaireEdit", Model.Security.Security))
+            {
+                <button class="buttonBlue pull-right" type="submit" id="btnQuestionnaireEdit">@Localization.GetText("PACI.EDIT")</button>
+            }
+        </div>
+    </div>
+
+    <div class="col-md-12 pl0 pr0">
+        @Html.Partial("~/Areas/PACI/Views/Controls/ModulesTab.cshtml", Model)
+    </div>
+
+    <div class="col-md-12 pl0 pr0">
+        <div class="col-md-3">
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.Label(Localization.GetText("PACI.MODULE.STATUS"))
+            </div>
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.LabelBold(Model.DisplayModule.Stage)
+                @Html.HiddenFor(model => model.DisplayModule.Stage)
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.Label(Localization.GetText("PACI.CONTACT"))
+            </div>
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.LabelBold(Model.DisplayModule.ContactName)
+                @Html.HiddenFor(model => model.DisplayModule.ContactName)
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.Label(Localization.GetText("PACI.DEPARTMENT"))
+            </div>
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.LabelBold(Model.DisplayModule.DepartamentName)
+                @Html.HiddenFor(model => model.DisplayModule.DepartamentName)
+            </div>
+        </div>
+        <div class="col-md-3 pr0 pull-right">
+            @Confluence.ButtonExcel("btnExportExcelQuestionnaire", action: "exportFileQuestionnaire", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "xls" }, { "id", Model.QuestionnaireId.ToString() } })
+            @Confluence.ButtonWord("btnExportWordQuestionnaire", action: "exportFileQuestionnaire", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "doc" }, { "id", Model.QuestionnaireId.ToString() } })
+            @Confluence.ButtonPdf("btnExportPdfQuestionnaire", action: "exportFileQuestionnaire", clase: "pull-right", dataAttributes: new Dictionary<string, string> { { "fileType", "pdf" }, { "id", Model.QuestionnaireId.ToString() } })
+        </div>
+    </div>
+    @Html.HiddenFor(model => model.DisplayModule.ItIsInactivated)
+    @Html.HiddenFor(model => model.DisplayModule.IsInactivate)
+    if (Model.DisplayModule.ItIsInactivated)
+    {
+        <div class="col-md-12 pl0 padding1215">@Confluence.InputCheckbox(isChecked: Model.DisplayModule.IsInactivate, name: "nameCheckInactive", id: "idCheckInactive", label: Localization.GetText("PACI.MODULE.INACTIVE"), htmlClass: "pl15", labelBold: true, disabled: true)</div>
+    }
+    <div class="col-md-12 pl0">@Confluence.ButtonColapseAll(new List<string>())</div>
+    <br />
+    <div class="col-md-12 pl0 pb10" id="ContentCondition">
+        @*Conditions*@
+        @for (int i = 0; i < Model.DisplayModule.Conditions.Count; i++)
+        {
+            bulletPoint = i;
+            bulletPoint++;
+            @Html.HiddenFor(model => model.DisplayModule.Conditions[i].PaciConditionId)
+            <div class="col-md-12 mb10 pb20 padding1215 divContainerCondition" id="@Model.DisplayModule.Conditions[i].PaciConditionId">
+                @Confluence.ButtonCollapseContainer("Questionnairemodulecontainer_" + @bulletPoint, htmlClass: "pt0 pb0 floatLeft", expandText: string.Empty, collapseText: string.Empty)
+                <div id="Condition_@bulletPoint" class="float-left mt0 ml30">
+                    @Confluence.LabelBold(Localization.GetText("PACI.CONDITION") + " " + bulletPoint + ".") @Confluence.Label(Model.DisplayModule.Conditions[i].Description)
+                    @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Description)
+                </div>
+                @*Questions*@
+                <div id="Questionnairemodulecontainer_@bulletPoint" class="questionnairemodulecontainer">
+                    @{
+                        var lengthCondition = Model.DisplayModule.Conditions[i].Questions.Count;
+                        var lastcondition = string.Empty;
+                        bulletPointSecond = 0;
+                        bulletPointThird = 0;
+                    }
+
+                    @for (int j = 0; j < Model.DisplayModule.Conditions[i].Questions.Count; j++)
+                    {
+                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionId)
+                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Question)
+                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Information)
+                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionExport)
+                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].SingleAnswer)
+                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionLevel)
+                        if (string.IsNullOrEmpty(Model.DisplayModule.Conditions[i].Questions[j].Question)) { continue; }
+
+                        bool isLastQuestion = Model.DisplayModule.Conditions[i].PaciConditionId == lastConditionId
+                            && Model.DisplayModule.Conditions[i].Questions[j].QuestionId == lastQuestionId;
+                        var notLastQuestionStyle = isLastQuestion ? string.Empty : "borderbottom2solideeedee";
+
+                        <div class="col-md-12 ml10 pt10 pr10 pb10 pl10">
+                            <div class="col-md-8">
+                                @{
+                                    if (Model.DisplayModule.Conditions[i].Questions[j].QuestionLevel == 3)
+                                    {
+
+                                        bulletPointThird++;
+                                        questionPoint = bulletPointSecond + "." + bulletPointThird + ".";
+
+                                    }
+                                    else
+                                    {
+
+                                        bulletPointSecond++;
+                                        bulletPointThird = 0;
+                                        questionPoint = bulletPointSecond + ".";
+                                    }
+                                }
+                                <div class="col-md-12 pl0 pr0 mb15">
+                                    @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Information)
+                                    @{
+                                        if (!string.IsNullOrEmpty(Model.DisplayModule.Conditions[i].Questions[j].Information))
+                                        {
+                                            @Confluence.Information("<div>" + Model.DisplayModule.Conditions[i].Questions[j].Information + "</div>")
+                                            <div class="float-left mt5 ml35">
+                                                @Confluence.LabelBold(bulletPoint + "." + questionPoint) @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].Question)
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="float-left mt5">
+                                                @Confluence.LabelBold(bulletPoint + "." + questionPoint) @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].Question)
+                                            </div>
+                                        }
+                                    }
+
+
+                                </div>
+
+
+
+                                @*Options*@
+                                @for (int k = 0; k < Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions.Count; k++)
+                                {
+                                    @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].OptionId)
+                                    @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].Option)
+                                    @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].IsSelected)
+                                    if (string.IsNullOrEmpty(Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].Option)) { continue; }
+                                    var idComponet = string.Format("Model.DisplayModule.Conditions[{0}].Questions[{1}].QuestionOptions[{2}].IsSelected", i, j, k);
+                                    <div class="col-md-12 mb10">
+                                        @if (Model.DisplayModule.Conditions[i].Questions[j].SingleAnswer)
+                                        {
+                                            @Confluence.InputRadioButton(value: Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].IsSelected.ToString(),
+                                                  name: Model.DisplayModule.Conditions[i].Questions[j].QuestionId.ToString(),
+                                                  isChecked: Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].IsSelected,
+                                                  label: Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].Option,
+                                                  dataAttributes: new Dictionary<string, string> { { "id", idComponet } }, disabled: true, htmlClass: "floatLeft")
+                                        }
+                                        else
+                                        {
+                                            @Confluence.InputCheckbox(isChecked: Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].IsSelected,
+                                                 name: Model.DisplayModule.Conditions[i].Questions[j].QuestionId.ToString(),
+                                                 value: true,
+                                                 label: Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].Option,
+                                                 dataAttributes: new Dictionary<string, string> { { "id", idComponet } }, disabled: true, htmlClass: "floatLeft")
+                                        }
+
+                                        @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].IsRequiredDescription)
+                                        @if (Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].IsRequiredDescription)
+                                        {
+                                            <span class="ml15 floatLeft">
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].Description)
+                                                @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].QuestionOptions[k].Description, htmlClass: "ml10")
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <div class="col-md-4 pl0" title="@Localization.GetText("PACI.EXPORTABLE.INFORMATION")">
+                                <label class="labelNormal">@Localization.GetText("PACI.EXPORTABLE")</label>
+                                @Confluence.InputCheckbox(Model.DisplayModule.Conditions[i].Questions[j].IsExportable, "exportableCondition", disabled: true, htmlClass: "mb15 pull-left pr5")
+                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].IsExportable)
+                            </div>
+                        </div>
+                        <div class="col-md-12 ml30 pt10 pr10 pb0 pl0">
+                            @Confluence.LabelBold(Localization.GetText("PACI.CLARIFICATIONS") + ":")
+                            @if (!string.IsNullOrEmpty(Model.DisplayModule.Conditions[i].Questions[j].Clarification))
+                            {
+                                <ul>
+                                    <li>@Model.DisplayModule.Conditions[i].Questions[j].Clarification</li>
+                                    @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Clarification)
+                                </ul>
+                            }
+                        </div>
+                        <div class="col-md-12 ml30 pt10 pr10 pb0 pl0" name="noteFather">
+                            <div class="col-md-8 mb10 pl0">
+                                @Confluence.LabelBold(Localization.GetText("PACI.NOTES") + ":")
+                            </div>
+                            <div class="col-md-4">
+                                @*BUtton*@
+                            </div>
+                            <br />
+                            <div class="col-md-12 mt15 pr0 pl0">
+                                <div class="col-md-12 pr0 pl0 textAreaNote textAreaNewNote"></div>
+                                @for (int m = 0; m < Model.DisplayModule.Conditions[i].Questions[j].Comments.Count; m++)
+                                {
+                                    for (int k = 0; k < Model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments.Count; k++)
+                                    {
+                                        <div class="col-md-12 pr0 pl0 textAreaNote">
+                                            <div class="col-md-12 pl0 pr0 internalNote">
+                                                <div class="col-md-4">
+                                                    @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments[k].CreatedBy, htmlClass: "ml20 mr20")
+                                                </div>
+                                                <div class="col-md-8">
+                                                    @Confluence.LabelGetDate(Model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments[k].Created)
+                                                </div>
+                                                <br /><br />
+                                                @Confluence.InputTextArea(Model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments[k].Text, null, width: "100%", height: "100px", htmlClass: "", disabled: true, required: false)
+                                                <br /><br />
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments[k].Created)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments[k].CreatedBy)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Comments[m].UserComments[k].Text)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Comments[m].CommentId)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Comments[m].QuestionId)
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-12 ml30 mb10 pt10 pr0 pb10 pl0 @notLastQuestionStyle">
+                            <div class="col-md-8 mt10 pl0">
+                                @Confluence.LabelBold(Localization.GetText("PACI.DOCUMENTS"))
+                            </div>
+                            <div class="col-md-4 mb10">
+                            </div>
+                            <table id="@Model.DisplayModule.Conditions[i].Questions[j].QuestionId@j" class="tableNormal mb15">
+                                <thead>
+                                    <tr>
+                                        <th class="sort">@Localization.GetText("PACI.USER")</th>
+                                        <th class="sort">@Localization.GetText("PACI.DOCUMENT.DATE")</th>
+                                        <th class="sort">@Localization.GetText("PACI.DOCUMENT.NUMBER")</th>
+                                        <th class="sort">@Localization.GetText("PACI.DOCUMENT.DESCRIPTION")</th>
+                                        <th>@Localization.GetText("PACI.ACTIONS")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int l = 0; l < Model.DisplayModule.Conditions[i].Questions[j].Documents.Count; l++)
+                                    {
+                                        <tr data-id="">
+                                            <td align="left">
+                                                @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].Documents[l].CreatedBy)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].CreatedBy)
+                                            </td>
+                                            <td align="center">
+                                                @Confluence.LabelGetDate(Model.DisplayModule.Conditions[i].Questions[j].Documents[l].Created)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].Created)
+                                            </td>
+                                            <td align="left">
+                                                @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentReference)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentReference)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentId)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentName)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].QuestionId)
+                                            </td>
+                                            <td align="left">
+                                                @Confluence.Label(Model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentDescription)
+                                                @Html.HiddenFor(model => model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentDescription)
+                                            </td>
+                                            <td align="center">
+                                                @{var secureDownload = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(Model.DisplayModule.Conditions[i].Questions[j].Documents[l].DocumentReference);}
+
+                                                <a href="@Html.Encode(secureDownload)" target="_blank">
+                                                    <div class="buttonDownload documentDownloadSize">
+                                                        <span class="icon"></span>
+                                                        <span></span>
+                                                    </div>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+                                                    }
+    </div>
+    <div class="col-md-12 mt30 mb20 pr0">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnQuestionnaireEdit", Model.Security.Security))
+        {
+            <button class="buttonBlue pull-right" type="submit" id="btnQuestionnaireEdit">@Localization.GetText("PACI.EDIT")</button>
+        }
+    </div>
+                                                    }

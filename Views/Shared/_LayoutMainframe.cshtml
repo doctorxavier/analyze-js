@@ -1,0 +1,214 @@
+﻿@using System.Configuration
+@using IDB.Architecture.Language
+@using IDB.MW.Domain.Session
+@model IDB.Presentation.MVC4.Models.Mainframe.MainframeViewModel
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>@ViewBag.Title</title>
+    <link href="~/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+    @*<meta name="viewport" content="width=device-width" />*@
+    @Styles.Render("~/Content/mainframecss")
+    <link href="~/Content/Mainframe/non-responsive.css" rel="stylesheet" />
+    @{Html.RenderPartial("~/Views/Shared/TrackingHeader.cshtml");}
+    @RenderSection("styles", false)
+</head>
+<body>
+
+    @Scripts.Render("~/bundles/mainframecore")
+
+    <!-- Language settings for Select2 component -->
+    <script src="~/Scripts/select2/i18n/@Html.Raw(Localization.CurrentLanguage + ".js")"></script>
+
+    <!-- Language settings for bootstrap-datepicker component -->
+    @if (Localization.CurrentLanguage != "en")
+    {
+        <script src="~/Scripts/mainframe/bootstrap-datepicker/locales/bootstrap-datepicker.@(Html.Raw(Localization.CurrentLanguage)).min.js"></script>
+    }
+
+    <!--Required for SignalR-->
+    <script src="~/signalr/hubs"></script>
+
+    @Scripts.Render("~/bundles/mainframe")
+
+    @*@Scripts.Render("~/bundles/jqueryval")*@
+
+    <script type="text/javascript">
+
+        //Initialization and configuration of Convergence HELP
+
+        ConvergenceHelp.InitializeURL = '@Url.Action(
+            actionName: "InitializeJSData",
+            controllerName: "Help",
+            routeValues: new { area = "AdministrationSecondPhase" })';
+
+        ConvergenceHelp.Initialization();
+
+        //Variables to be used by javascripts
+
+        //All javascript referenced URLs should be stored here
+        var UrlManager = {
+            Operation: '@Url.Action("Operation", "Mainframe", new { operationNumber = "" })/',
+            CachedGetUserPhotoThumbnail: "@Url.Action("CachedGetUserPhotoThumbnail", "Mainframe")",
+            SaveUserSettings: '@Url.Action("SaveUserSettings", "Mainframe")',
+            TaskDetail: '@Url.Action("TaskDetail", "Mainframe")/',
+            NotificationDetail: '@Url.Action("Operation", "Mainframe")/?operationNumber=',
+            AnnouncementDismiss: '@Url.Action("Dismiss", "Announcements", new { area = "Announcements" })',
+            ReloadOperationDetails: '@Url.Action("ReloadOperationDetails", "Mainframe", new { operationNumber = "" })',
+            UpdateCounter: '@Url.Action("UpdateCounter", "MainFrame", new { operationNumber = "" })'
+
+        };
+
+        var changeBasePath = @Model.ChangeBasePath.ToString().ToLower();
+        var hideHeader = @Model.HideOperationHeader.ToString().ToLower();
+
+        var UserSettings = {
+            DoNotShowAnnouncements: '@Model.UserSettings.Settings.AnnouncementsPreferences.DoNotShowAnnouncements.ToString().ToLower()' == 'true'
+        };
+
+        function Mainframe_ReloadOperationHeaderData(operationNumber) {
+            $.ajax({
+                url: UrlManager.ReloadOperationDetails,
+                type: "POST",
+                dataType: 'html',
+                cache: false,
+                data: {
+                    operationNumber: operationNumber
+                }
+            })
+           .done(function (response) {
+               $("#mainOperationDetailsContainer").html(response);
+           })
+           .fail(function (jqXhr, textStatus, errorThrown) {
+               Alert.ShowError("Error occurred:" + errorThrown);
+           });
+        }
+
+        function AjaxOnBegin() {
+        }
+
+        function AjaxOnFailure() {
+            hideLoaderOptionalMain();
+        }
+
+        function IframeLoadSuccess(iframe) {
+            iframe.style.height = iframe.contentWindow.document.body.scrollHeight + 'px';
+            hideLoaderOptionalMain();
+        }
+
+        function AjaxOnComplete() {
+            var hideShowLoader = false;
+            var content;
+
+            try {
+                if ($('#mainLayoutOperationContent').find('iframe').length > 0) {
+                    content = $('#mainLayoutOperationContent').find('iframe').get(0).contentWindow;
+
+                    if (content.document !== null) {
+                        content = content.document;
+
+                        if (content.body !== null) {
+                            content = content.body.innerHTML;
+
+                            if (content.length > 0) {
+                                hideShowLoader = true;
+                            }
+                        }
+                    }
+                }
+                else {
+                    content = $('#mainLayoutOperationContent');
+                    if (content.html().length> 0){
+                        hideShowLoader = true;
+                    }
+                }
+            } catch(err) {
+                hideShowLoader = true;
+            }
+
+            if (hideShowLoader){
+                hideLoaderOptionalMain();
+                menuLeftAnimation();
+            }
+            else {
+                setTimeout(function() {
+                    resizeLoader();
+                    AjaxOnComplete();
+                }, 1000);
+            }
+
+            if(changeBasePath == true)
+            {
+                var basePath = '@ConfigurationManager.AppSettings["BasePath"]';
+                history.pushState({},'', basePath)
+            }
+        }
+
+        $(document).ready(function () {
+            AjaxOnComplete();
+            $('#topMenuTwo a[data-ajax="true"]').click(function () {
+                $('#mainLayoutOperationContent').empty();
+                showLoaderOptional();
+            });
+
+            menuLeftAnimation();
+        });
+
+        function menuLeftAnimation() {
+            $('#sidebarList a[data-ajax="true"]').click(function () {
+                var element = $(this);
+                element.closest('ul#sidebarList')
+                    .find('.subMenuSelected')
+                    .removeClass('subMenuSelected');
+                element.addClass('subMenuSelected');
+
+                $('#mainLayoutOperationContent').empty();
+                showLoaderOptional();
+            });
+        }
+
+        function IframeLoadError(iframe) {
+            Alert.ShowError("Error Loading Iframe");
+            hideLoaderOptionalMain();
+        }
+
+        function cancelLoad() {
+            window.stop();
+            hideLoaderOptionalMain();
+        }
+
+    </script>
+
+    @RenderSection("scripts", false)
+
+    <header class="container-fluid">
+        @Html.Partial("~/Views/Mainframe/Partials/MainTopHeader.cshtml", Model)
+        @Html.Partial("~/Views/Mainframe/Partials/MainTopMenu.cshtml", Model)
+    </header>
+    <div class="container-fluid" id="body">
+        <div id="main" class="mainframe_main">
+            @Confluence.Loader(showPermanentOptional: true)
+            <div id="layoutMainContent">
+                @RenderBody()
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="col-md-12 pull-right mainFooter">
+            <span class="footerLogo">
+                @Localization.GetText("Environment"): @Model.AppEnvironment |
+                @Localization.GetText("Version"): @Model.AppVersion
+            </span>
+        </div>
+    </footer>
+
+   
+    @Html.Partial("~/Views/Shared/Controls/ShowError.cshtml")
+
+</body>
+
+</html>

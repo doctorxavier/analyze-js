@@ -1,0 +1,288 @@
+﻿@using System.Web.UI.WebControls
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.General
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+
+@{
+    ViewBag.Subtitle = @Localization.GetText("TC.SingleWindowOperations.Title");
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var expRegDate = appSettings.ValidationDataPickerExpReg;
+    var formatDate = appSettings.FormatDate;
+}
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService.SingleWindowOperationsViewModel
+
+@if (devMode)
+{
+    <div class="header">
+        <div class="row row-header">
+            <div class="col-md-12">
+                <button class="btn btn-primary" data-action="setReadAccess">Read Access</button>
+                <button class="btn btn-warning" data-action="setWriteBasicAccess">
+                    Single Window Operations Write Permission
+                </button>
+                <button class="btn btn-primary" data-action="removePermission">Remove/Refresh Permissions</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ViewBag.ReadRole)
+{
+    @Html.Partial("Partials/Headers/SingleWindowOperationsTitle")
+}
+<div class="page">
+    @if (ViewBag.ReadRole)
+    {
+        <div id="dateReceived">
+            <div class="row row-body-50">
+                <div class="col-md-12">
+                    <div class="col-md-12 container-filter">
+                        <div class="col-md-1 font-header" style="min-width:126px;">
+                            @Localization.GetText("TC.SingleWindowOperations.TypeOfDecision").HtmlEncode()
+                        </div>
+                        <div class="col-md-2">
+                            <span>@ViewBag.TypeOfDecision</span>
+                            @Input.DropDown( (int?)Model.SWTypeDecision, "typeDecision" , @ViewBag.TypeOfDecisionFilterList , required: false , showEmptyOption: false )
+                        </div>
+                        <div class="col-md-1 font-header text-right">
+                            @Localization.GetText("TC.SingleWindowMeeting.From")
+                        </div>
+                        <div class="col-md-2">
+                            @ControlTemplates.InputDatePicker(Model.SWDateFrom, "fromDateFilter", required: false, expReg: expRegDate,
+                    format: formatDate, disabled: false,
+                    dataAttributes: new Dictionary<string, string> { { "parsley-lessOrEqualDate", "[name=toDateFilter]" } })
+                        </div>
+
+                        <div class="col-md-1 font-header text-right">
+                            @Localization.GetText("TC.SingleWindowMeeting.To")
+                        </div>
+                        <div class="col-md-2">
+                            @ControlTemplates.InputDatePicker(Model.SWDateTo, "toDateFilter", required: false, expReg: expRegDate,
+                    format: formatDate, disabled: false,
+                    dataAttributes: new Dictionary<string, string> { { "parsley-greaterOrEqualDate", "[name=fromDateFilter]" } })
+                        </div>
+
+                        <div class="col-md-2 text-center">
+                            @Display.Button01(Localization.GetText("TC.SingleWindowMeeting.Filter"), attributes: new Dictionary<string, string>() { { "id", "buttonSingleWindowDateFilter" } })
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row-body-50">
+            <div id="operationsData" class="row-body-50"  data-is-edit-mode="false" data-loadurl="@Url.Action("SingleWindowOperationsFilter", "View", new { area = "TC" })">
+
+                @Html.Partial("Partials/DataTables/SingleWindowOperationsTable", Model)
+
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    @Html.Partial("Partials/Controls/SingleWindowOperationsDownload")
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    @Html.Partial("Partials/Controls/SingleWindowOperationsButtons")
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section scripts{
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AddCompareDatesValidator()
+    @ModuleScripts.SingleWindowCommon()
+    @if (k2Mode)
+    {
+        @ModuleScripts.K2UIIntegration()
+    }
+
+    <script type="text/javascript">
+
+    registerCallback(function () {
+        $("body").css("min-height", "700px");
+
+        $(document).on('click', '#buttonSingleWindowDateFilter', reloadTable);
+
+        $(document).on('click', '[name=generalComments]', function () {
+            var source = $(this);
+            var tr = source.parents("tr").first();
+            var tcId = tr.attr("data-id");
+            var url = '@Url.Action("SWOperationsGeneralComments", "View", new { area = "TC" })';
+            var response = postUrl(url, { tcAbstractId: tcId });
+            var container = source.next("[data-name=generalCommentsContainer]");
+
+            response.done(function (response, textStatus, jqXHR) {
+                if (response.IsValid == null) {
+                    var title = '@Localization.GetText("TC.SingleWindowMeeting.GeneralComment.Title")';
+                    container.html(response);
+                    showCustomOverlayControl(source, title, container, '@CssClass.OverlayBlue', null, true, true);
+                }
+                else {
+                    showMessage(response.ErrorMessage);
+                }
+            });
+        });
+
+        $(document).on('paste', '[name=fromDateFilter],[name=toDateFilter] ', function (e) {
+            e.preventDefault();
+        });
+
+        addOnClickEvent();
+
+        InitialStateCollapsableRows();
+    });
+
+    function InitialStateCollapsableRows() {
+        var listBtnCollapsable = $('.expandable-triangle');
+
+        listBtnCollapsable.each(function () {
+            var source = $(this);
+            var auxExpandableProperty = source.data("btn-expandable");
+            auxExpandableProperty.Switch();
+        });
+    }
+
+    function reloadTable() {
+        var dateFrom = $('input[name="fromDateFilter"]');
+        var dateTo = $('input[name="toDateFilter"]');
+
+        if (validateInputList(dateFrom, dateTo)) {
+            reloadContainer($('#operationsData'), true, 'edit', { typeDecision: $('[name="typeDecision"]').val(), fromDate: dateFrom.val(), toDate: dateTo.val() });
+            InitialStateCollapsableRows();
+        }
+    }
+
+    function editOperations(source) {
+        var success = enterEditMode(true, $('#operationsData'), true, { typeDecision: $('[name="typeDecision"]').val(), fromDate: $('input[name="fromDateFilter"]').val(), toDate: $('input[name="toDateFilter"]').val() });
+        if (success) {
+            enterEditMode(false, $('#dateReceived'), false);
+            enterEditMode(false, $('.singleWindowOperationsButtons'), false);
+            configDatepicker();
+            InitialStateCollapsableRows();
+        }
+    }
+
+    function configDatepicker() {
+        var today = new Date();
+        var tomorrow = new Date();
+        tomorrow.setDate(today.getDate() + 1);
+
+        $(".datepciker-inline").each(function () {
+            var dateP = $(this);
+            var datePHandler = dateP.data("datepicker");
+            if (datePHandler != null) {
+                datePHandler.settings = $.extend(datePHandler.settings, { minDate: null });
+            }
+        });
+    }
+
+    function cancelOperations(source) {
+        closeAllOverlay();
+        exitEditMode(false, $('#dateReceived'), false);
+        exitEditMode(true, $('#operationsData'), true, true);
+        exitEditMode(false, $('.singleWindowOperationsButtons'), false, false);
+        InitialStateCollapsableRows();
+    }
+
+    function saveOperations(source) {
+        cancelOperations(source);
+    }
+
+    function closeAllOverlay() {
+        var otherOverlays = $(".overlay .overlay-close");
+        otherOverlays.click();
+    }
+
+
+    function downloadWord(source) {
+        //console.log('Download Word');
+        var fromDate = $('input[name="fromDateFilter"]').val();
+        var toDate = $('input[name="toDateFilter"]').val();
+        var typeDedicion = $('[name="typeDecision"]').val();
+
+        var url = '@Url.Action("SingleWindowOperationsExportToWord", "View", new { area = "TC" })' + '?typeDecision=' + typeDedicion + '&fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+    }
+
+    function downloadPdf(source) {
+        //console.log('Download Pdf');
+        var fromDate = $('input[name="fromDateFilter"]').val();
+        var toDate = $('input[name="toDateFilter"]').val();
+        var typeDedicion = $('[name="typeDecision"]').val();
+
+        var url = '@Url.Action("SingleWindowOperationsExportToPDF", "View", new { area = "TC" })' + '?typeDecision=' + typeDedicion + '&fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+    }
+
+    function downloadXls(source) {
+        //console.log('Download Xls');
+        var fromDate = $('input[name="fromDateFilter"]').val();
+        var toDate = $('input[name="toDateFilter"]').val();
+        var typeDedicion = $('[name="typeDecision"]').val();
+
+        var url = '@Url.Action("SingleWindowOperationsExportToExcel", "View", new { area = "TC" })' + '?typeDecision=' + typeDedicion + '&fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+    }
+
+    function filter(source) {
+        console.log('Filter');
+    }
+
+    //Testing
+
+    function FlexNotNull(source) {
+        var dataToSend = { strOpNumber: $('[name=DropOperationNumberUsed]').val(), strDate: $('[name=dateReceived]').val(), type: "@(ViewBag.EnumMapping[ SWTypeOperationEnum.FlexOperation ])" };
+        var response = postUrlWithOptions("@Url.Action("MockUpdateTCAbstractStatus008", "View", new { area = "TC" })", { dataType: 'json' }, dataToSend);
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function GapNotNull(source) {
+        var dataToSend = { strOpNumber: $('[name=DropOperationNumberUsed]').val(), strDate: $('[name=dateReceived]').val(), type: "@(ViewBag.EnumMapping[ SWTypeOperationEnum.FundingGap ])" };
+        var response = postUrlWithOptions("@Url.Action("MockUpdateTCAbstractStatus008", "View", new { area = "TC" })", { dataType: 'json' }, dataToSend);
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function setReadAccess(source) {
+        var response = postUrlWithOptions("@Url.Action("ChangeGlobalActionOrRole", "View", new { area = "TC", workspace = string.Empty, actionEnum = (int)ActionEnum.SingleWindowOperationsReadPermission })", { dataType: 'json' });
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function setWriteBasicAccess(source) {
+        var response = postUrlWithOptions("@Url.Action("ChangeGlobalActionOrRole", "View", new { area = "TC", workspace = string.Empty, actionEnum = (int)ActionEnum.SingleWindowOperationsWritePermission })", { dataType: 'json' });
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function removePermission(source) {
+        var response = postUrlWithOptions("@Url.Action("RemovePermission", "View", new { area = "TC" })", { dataType: 'json' });
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function returnOperationToSWM(returnToSWMbutton) {
+        var tcAbstractId = $(returnToSWMbutton).attr('data-id');
+        returnToSWMbutton.hide();
+
+        var url = '@Url.Action("ReturnToSWM", "Save", new { area = "TC" })?tcAbstractId=' + tcAbstractId;
+        var response = postUrl(url, tcAbstractId);
+
+        showMessage(response.responseJSON.ErrorMessage, true);
+
+        if (response.responseJSON.ErrorMessage === null) {
+            returnToSWMbutton.closest("tr").remove();
+        }
+    }
+    </script>
+}

@@ -1,0 +1,239 @@
+﻿@model IDB.MW.Application.AdministrationModule.ViewModels.Delegation.DelegationSearchViewModel
+
+@section CSS {
+    @Styles.Render("~/Content/overrides/tableFilterSearch.css")
+}
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<div class="col-md-12 mb40">
+    @Confluence.LabelMainTitle(Localization.GetText("OP.DE.RE.Title"))
+</div>
+
+<div class="page">
+    @Html.Partial("Partial/Search/DelegationSearchFilter", Model.DisplayOptions)
+    <div id="tableDelegationContent">
+        @Html.Partial("Partial/Search/Tables/TableFilterDelegation", Model.TableSearch)
+    </div>
+    <div class="col-md-12 mt20 mb30">
+        <div class="pull-right">
+            @Confluence.ButtonExcel("xls", "downloadDelegatorFilteredFileExport", false, new Dictionary<string, string> { { "idb-fieldname", "btnXls" } }, "floatRight")
+        </div>
+        <div class="pull-right">
+            @Confluence.ButtonPdf("pdf", "downloadDelegatorFilteredFileExport", false, new Dictionary<string, string> { { "idb-fieldname", "btnPdf" } }, "floatRight")
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var iframe = window.parent.document.getElementById('mainframe_ContentIframe');
+            if (iframe != null && iframe.style != null) {
+                iframe.style.height = document.body.clientHeight + "px";
+            }
+
+            $(document.body).resize(function () {
+                var iframe = window.parent.document.getElementById('mainframe_ContentIframe');
+                if (iframe != null && iframe.style != null) {
+                    iframe.style.height = document.body.clientHeight + "px";
+                }
+            });
+            $('#DelegationTable').paginationConfluense(5).sortableConfluense();
+
+            hideLoader();
+        });
+
+        $(document).on('ready', function () {
+            var type = $(this).attr("dd-value");
+            $('#id-TypeUser').FirstorDefault();
+            if (type !== "") {
+                var result = postUrl("@Url.Action("GetUSerType", "DelegationView", new { area = "AdministrationSecondPhase" })", { type: type });
+                result.done(function(response) {
+                    if (response.IsValid) {
+                        $('input[name=TypeUser]').siblings("ul").find("li:not(:first)").remove();
+                        var listdata = $.map(response.Data, function(item) {
+                            return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                        });
+
+                        $('input[name=TypeUser]').siblings("ul").append(listdata);
+                        $('#id-TypeUser').removeAttr('disabled');
+                    }
+                });
+            } else {
+                    var result = postUrl("@Url.Action("GetUSerType", "DelegationView", new { area = "AdministrationSecondPhase" })");
+                    result.done(function(response) {
+                        if (response.IsValid) {
+                            $('input[name=TypeUser]').siblings("ul").find("li:not(:first)").remove();
+                            var listdata = $.map(response.Data, function(item) {
+                                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                            });
+
+                            $('input[name=TypeUser]').siblings("ul").append(listdata);
+                            $('#id-TypeUser').removeAttr('disabled');
+                        }
+                    });
+            }
+            $('[data-toggle="popover"]').popover({ trigger: "hover", container: 'body' });
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-ddlDelegationTablePagination"] a', function () {
+            var value = $(this).attr('dd-value');
+            if (value === "All") {
+                value = $("#DelegationTable tbody tr").length;
+            }
+            $('#DelegationTable').paginationConfluense(parseInt(value));
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-TypeDelegation"] a', function () {
+            var type = $(this).attr("dd-value");
+            $('#id-TypeUser').FirstorDefault();
+            if (type !== "") {
+                var result = postUrl("@Url.Action("GetUSerType", "DelegationView", new { area = "AdministrationSecondPhase" })", { type: type });
+                result.done(function(response) {
+                    if (response.IsValid) {
+                        $('input[name=TypeUser]').siblings("ul").find("li:not(:first)").remove();
+                        var listdata = $.map(response.Data, function(item) {
+                            return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                        });
+
+                        $('input[name=TypeUser]').siblings("ul").append(listdata);
+                        $('#id-TypeUser').removeAttr('disabled');
+                    }
+                });
+            } else {
+                var result = postUrl("@Url.Action("GetUSerType", "DelegationView", new { area = "AdministrationSecondPhase" })");
+            result.done(function(response) {
+                if (response.IsValid) {
+                    $('input[name=TypeUser]').siblings("ul").find("li:not(:first)").remove();
+                    var listdata = $.map(response.Data, function(item) {
+                        return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                    });
+
+                    $('input[name=TypeUser]').siblings("ul").append(listdata);
+                    $('#id-TypeUser').removeAttr('disabled');
+                }
+            });
+            }
+        });
+
+        $(document).on('click', 'button[data-navigate]', function () {
+            showLoader();
+        });
+
+        $(document).on("click","#DelegationTable thead tr th", function () {
+            $('[data-toggle="popover"]').popover({ trigger: "hover", container: 'body' });
+        });
+
+        function clear() {
+            $('input[name=StartDateSearch]').val('');
+            $('input[name=EndDateSearch]').val('');
+            if (!$('input[name=User_text]').prop('disabled')) {
+                $('input[name=User_text]').val('');
+            }
+            $('#id-TypeDelegation').FirstorDefault();
+            $('#id-TypeUser').FirstorDefault();
+            $('[name=InactiveRegister]').prop('checked', false);
+            $('input[name=User]').val('');
+            $('[data-toggle="popover"]').popover({ trigger: "hover", container: 'body' });
+            $("#DelegationTable").find("tbody > tr").remove();
+            $(".Pagination").addClass("hide");
+        }
+
+        function filterMain() {
+            var userTypeDelegation = $('input[name=TypeUser]').val();
+            var userDelegation = $('input[name=User]').val();
+            var startDate = $('input[name=StartDateSearch]').val();
+            var endDate = $('input[name=EndDateSearch]').val();
+            var inactiveDelegate = $('[name=InactiveRegister]').prop('checked');
+
+            postUrlWithOptions("@Url.Action("FilterMainTableDelegator", "DelegationView", new {Area="AdministrationSecondPhase"})", { async: false }, { 'startDate': startDate, 'endDate': endDate, 'userTypeDelegation': userTypeDelegation, 'userDelegation': userDelegation, 'inactiveDelegate': inactiveDelegate })
+            .done(function(data) {
+                var resultSearchPanel = $('#tableDelegationContent');
+                resultSearchPanel.html(data);
+                bindHandlers(resultSearchPanel);
+                $('#DelegationTable').paginationConfluense(5).sortableConfluense();
+                $('[data-toggle="popover"]').popover({ trigger: "hover" });
+            });
+        return false;
+        }
+
+        $(document).on('change', 'input[name="EndDateSearch"]', function () {
+            var startDate = new Date($("[name='StartDateSearch']").val());
+            var endDate = new Date($("[name='EndDateSearch']").val());
+            if (startDate > endDate) {
+                showMessage("@Localization.GetText("The end date can't be lower than start date")");
+                $("[name='EndDateSearch']").focus();
+                $("[name='EndDateSearch']").val('');
+            }
+        });
+
+        $(document).on('change', 'input[name="StartDateSearch"]', function () {
+            var startDate = new Date($("[name='StartDateSearch']").val());
+            var endDate = new Date($("[name='EndDateSearch']").val());
+
+            if ($('input[name=EndDateSearch]').val() === "") {
+                $('input[name=EndDateSearch]').datepicker('setDate', $(this).val());
+            }
+
+            if (startDate > endDate) {
+                showMessage("@Localization.GetText("The end date can't be lower than start date")");
+                $("[name='StartDateSearch']").focus();
+                $("[name='StartDateSearch']").val('');
+            }
+        });
+
+        function expireNow(source) {
+            var delegationId = $(source).next('[name=delegationToBeExpiredId]').val();
+            var result = postUrl("@Url.Action("ExpireDelegation", "DelegationSave", new { area = "AdministrationSecondPhase" })" + '?delegationId=' + delegationId);
+
+            var currentPaginator = $("#ddlDelegationTablePagination").val();
+            if (currentPaginator === "All" || currentPaginator == undefined) {
+                currentPaginator = $("#DelegationTable tbody tr").length;
+            }
+
+            result.done(function (response) {
+                if (response.IsValid) {
+                    $(source).parents('tr').find("td.endDate").find("label").html(response.ExpirationDate);
+                    $(source).parents('tr').remove();
+                    showMessage("@Localization.GetText("R6.DEL.Message.ExpirationSuccess")");
+                    $('#DelegationTable').paginationConfluense(parseInt(currentPaginator)).sortableConfluense();
+                } else {
+                    showMessage(response.ErrorMessage);
+                }
+            });
+        }
+
+        function downloadReport(source) {
+            var url = '@Url.Action("DownloadDelegationReport", "DelegationView", new { area = "AdministrationSecondPhase" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadReportOriginal(source) {
+            var url = '@Url.Action("DownloadDelegationReportOriginal", "DelegationView", new { area = "AdministrationSecondPhase" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadDelegatorFilteredFileExport(source) {
+            var formatType = source.attr('name');
+            var userTypeDelegation = $('input[name=TypeUser]').val();
+            var userDelegation = $('input[name=User]').val();
+            var startDate = $('input[name=StartDateSearch]').val();
+            var endDate = $('input[name=EndDateSearch]').val();
+            var inactiveDelegate = $('[name=InactiveRegister]').prop('checked');
+            var url =
+                '@Url.Action("DownloadDelegatorFilteredFileExport", "DelegationView", new {area = "AdministrationSecondPhase"})?formatType=' +
+                    formatType +
+                    '&userTypeDelegation=' +
+                    userTypeDelegation +
+                    '&userDelegation=' +
+                    userDelegation +
+                    '&startDate=' +
+                    startDate +
+                    '&endDate=' +
+                    endDate +
+                    '&inactiveDelegate=' +
+                    inactiveDelegate;
+            window.open(url, '_blank');
+        }
+    </script>
+}

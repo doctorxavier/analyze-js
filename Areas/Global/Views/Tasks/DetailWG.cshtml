@@ -1,0 +1,808 @@
+﻿@model IDB.MW.Domain.Models.Global.CompleteTaskViewModel
+@{
+    ViewBag.Title = "Index";
+    string SearchModalId = "tableDocumentsGW";
+    bool MultipleSelection = false;
+    string TargetFunction = "renderizeRow";
+}
+
+@{
+    var k2Mode = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    @Confluence.InputHidden(value: ViewBag.principalTaskName, name: "principalTaskName", required: false)
+}
+@section CSS
+{
+    @Styles.Render("~/Content/Confluence")
+}
+
+@Html.Hidden("hdnSaveChangesUrl", Url.Action("Message", "Tasks", new { area = "Global" }))
+
+@section JavaScript
+{
+@Scripts.Render("~/bundles/scripts")
+@Scripts.Render("~/Scripts/Modules/Global/ModalsGW.js")
+@if (!string.IsNullOrWhiteSpace(ViewBag.ErrorMessage))
+{
+    <script type="text/javascript">
+        ShowMessageFunctions.CurrentFunction = ShowMessageFunctions.GenericFunction;
+        registerCallback(function () {
+            showMessage("@ViewBag.ErrorMessage", false);
+        });
+    </script>
+}
+else
+{
+    <script type="text/javascript">
+        ShowMessageFunctions.CurrentFunction = ShowMessageFunctions.GenericFunction;
+    </script>
+}
+
+    <script type="text/javascript">
+
+    var load_ = false;
+    var initialInterval = false;
+    $(function () {
+        $(document).tooltip({
+            items: ".input-validation-error",
+            content: function () {
+                if ($(this).attr('data-val-range'))
+                    return $(this).attr('data-val-range');
+                if ($(this).attr('data-val-required'))
+                    return $(this).attr('data-val-required');
+            }
+        });
+    });
+
+    function initializeSplitViewState() {
+        newButton = '<div class="col-md-3 text-right floatRight">';
+        newButton += '@Confluence.LabelLink(IDB.Architecture.Language.Localization.GetText("GLOBAL.K2.LINK.MaximizeTask"), name: "minMaxFloatTask", action: "minMaxFloatTask").ToString().Replace("\r\n", "").Replace("\n", "")';
+        newButton += '@Confluence.ButtonClose(name: "closeFloatTask", action: "closeFloatTask", clase: "pb5").ToString().Replace("\r\n", "").Replace("\n", "")';
+        newButton += '</div>';
+
+        newCommentButton = '@Confluence.ButtonWhite(IDB.Architecture.Language.Localization.GetText("Comments"), name: "newCommentFloatTask", action: "newCommentFloatTask").ToString().Replace("\r\n", "").Replace("\n", "")';
+
+        newInstruction = '<div class="col-sm-9 nopadding mt5 mb10" id="instructionFT">';
+        newInstruction += '<label class="labelnormal">@Html.Raw(ViewBag.instructionsFT)</label></div>';
+
+        $('#fullTaskContainer').prepend(newButton.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+        $(".box_subtitle").prepend(newInstruction.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+
+        $('.blueButtonsBlock').append(newCommentButton.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+
+        $('#fullTaskContainer').find('.headingh2').eq(0).width("10%");
+
+        $('body').css('overflow', 'hidden');
+        $('body').css('-ms-scroll-limit-y-max', '0');
+    }
+
+    function cleanComment() {
+        $("div.inputComment").each(function () {
+            if ($(this).find('[name=newComment]').val() == "") {
+                $(this).parent().remove();
+            }
+        });
+
+        if ($('[name=newComment]').text().trim() == '') {
+            $('[name=newComment]').siblings("div.inputComment").parent().remove();
+        }
+    }
+
+    function setSplitViewState(collapsed) {
+
+        if (collapsed) {
+            $('iframe[name="splitFrame"]').show();
+            $('.taskBodyContainer').hide();
+            $('#fullTaskContainer').addClass("floatBox");
+            $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Cancel"))').hide();
+            $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Edit"))').hide();
+            $('#fullTaskContainer').find('button').filter(function () {
+                return $(this).text().trim() === "@IDB.Architecture.Language.Localization.GetText("OP.MS.Save")";
+            }).hide();
+            $('#instructionFT').show();
+            $('[name=minMaxFloatTask]').text("@IDB.Architecture.Language.Localization.GetText("GLOBAL.K2.LINK.MaximizeTask")");
+            $('[name=closeFloatTask]').show();
+            $('[name=newCommentFloatTask]').show();
+
+            cleanComment();
+
+            $('[name=minMaxFloatTask]').removeClass("plus");
+            $('.tMissionCode').hide();
+
+            $('.title_tag').insertAfter($('#fullTaskContainer').find('.headingh2').eq(0)).addClass("pt5").addClass("pl5");
+            $('#fullTaskContainer').find('.headingh2').eq(0).hide();
+            $('.box_subtitle').addClass('mt10');
+
+            parent.parent.$(".lista_desplegable_b").find("a").attr("target", "splitFrame");
+            return;
+        }
+
+        $('iframe[name="splitFrame"]').hide();
+        $('.taskBodyContainer').show();
+        $('#fullTaskContainer').removeClass("floatBox");
+        $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Cancel"))').show();
+        $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Edit"))').show();
+        $('#fullTaskContainer').find('button').filter(function () {
+            return $(this).text().trim() === "@IDB.Architecture.Language.Localization.GetText("OP.MS.Save")";
+        }).show();
+        $('#instructionFT').hide();
+        $('[name=minMaxFloatTask]').text("@IDB.Architecture.Language.Localization.GetText("GLOBAL.K2.LINK.MinimizeTask")");
+        $('[name=closeFloatTask]').hide();
+        $('[name=newCommentFloatTask]').hide();
+
+        $('[name=minMaxFloatTask]').addClass("plus");
+        $('.tMissionCode').show();
+
+        $('#fullTaskContainer').find('.headingh2').eq(0).show();
+        $('.box_subtitle').prepend($('.title_tag').removeClass("pt5").removeClass("pl5")).removeClass("mt10")
+
+        parent.parent.$(".lista_desplegable_b").find("a").attr("target", "someFrame");
+    }
+
+    function newCommentFloatTask(source) {
+        minMaxFloatTask(source);
+        newComment(source);
+        $('[name=newComment]').focus();
+    }
+
+    function closeFloatTask(source) {
+        parent.parent.$(".lista_desplegable_b").find("a").attr("target", "someFrame");
+        $('#fullTaskContainer').hide();
+    }
+
+    function minMaxFloatTask(source) {
+        setSplitViewState(source.hasClass("plus"));
+    }
+
+    $(document).ready(function () {
+        @{
+            @:initializeSplitViewState();
+                    @:setSplitViewState(@Model.OpenCollapsed.ToString().ToLower());
+                    @:$(".operationData").css("padding-left", "0.5%")
+         }
+
+        parent.parent.$(".menu_max").click();
+
+        var newUrl = null;
+        var urlcasefinish = null;
+
+        $("#ConvergencePartialForm").attr("action", newUrl);
+
+
+        if (urlcasefinish != null) {
+            $("#caseFinishRoute").attr("href", urlcasefinish);
+        }
+
+        $('.operationData.genericWorkflow').css('width', '100%');
+        $('.box_subtitle').css('width', '100%');
+
+    });
+
+    </script>
+
+<script type="text/javascript">
+
+    function editRequest() {
+        enterEditMode(false, $('#workflowComments'), true);
+        enterEditMode(false, $('.blueButtonsBlock'), true);
+        enterEditMode(false, $('#workflowValidators'), true);
+        enterEditMode(false, $('#workflowDocuments'), true);
+    }
+
+    function cancelRequestMissions() {
+        exitEditMode(false, $('#workflowComments'), true, true);
+        exitEditMode(false, $('.blueButtonsBlock'), true, true);
+        exitEditMode(false, $('#workflowValidators'), true, true);
+        exitEditMode(false, $('#workflowDocuments'), true, true);
+    }
+
+    function cancelMissionsTask() {
+        exitEditMode(false, $('#workflowComments'), true, true);
+        exitEditMode(false, $('.blueButtonsBlock'), true, true);
+        exitEditMode(false, $('#workflowValidators'), true, true);
+        exitEditMode(false, $('#workflowDocuments'), true, true);
+    }
+
+    function cancelCreateworkflow() {
+        @*window.location.href = '@Url.Action("MissionCompleteView", "View", new { area = "OpusMissions", missionId = Model.missionId })';*@
+    }
+
+    function confirmModal(source) {
+        confirmAction(source.attr("data-modal-message")).done(function (selectionOk) {
+            if (selectionOk)
+                if (source.attr("data-action-ok") != null) eval(source.attr("data-action-ok") + "()");
+                else
+                    if (source.attr("data-action-Nok") != null) eval(source.attr("data-action-Nok") + "()");
+        });
+    }
+
+    function saveAndStartWorkflow() {
+        $("[name=changeStatus]").val("StartWorkflow");
+        var url = '@Url.Action("Missions", "View", new { area = "OpusMissions"})';
+        processWorkFlow(url);
+
+    }
+
+    function saveOnly() {
+        $("[name=changeStatus]").val("none");
+        var url = '@Url.Action("DetailWG", "Tasks", new { area = "Global", id = (Model != null) ? Model.TaskId : 0 })';
+        processWorkFlow(url);
+    }
+
+    function setTaskAction(source) {
+        var modals = $(source.currentTarget).parents('div[data-id=mainContainer]').find('div.modalBody');
+        var action = "";
+        if (modals.length > 0) {
+            cleanComment();
+            action = modals[0].id.substr(5);
+            if (modals.data("validcomment") == "True" && $("div.inputComment").length < 1) {
+                confirmAction('@Localization.GetText("GLOBAL.K2.CommentMandatoryReject")');
+                return;
+            }
+        }
+
+        $("[name=changeStatus]").val(action);
+        var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = (Model != null) ? Model.OperationNumber : ViewBag.operationNumber })';
+        processWorkFlow(url);
+    }
+
+    function processWorkFlow(url) {
+        showLoader();
+        var vexModal = $('.missionsModal').parents('.vex');
+        if (vexModal.length > 0){
+            vex.closeByID(vexModal.data().vex.id);
+        }
+
+        window.setTimeout(function (url) {
+            var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, false);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null || data.ErrorMessage != '')
+                            showMessage(data.ErrorMessage);
+                        else
+                            showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Messsage.ErrorSavingMission")');
+                    }
+                    else
+                        window.location.href = url;
+                });
+            } else {
+                hideLoader();
+            }
+        }, 10, url);
+    }
+
+    function addValidator(source) {
+        var newRoleId = $("[aria-labelledby=id-newRole]").GetValue();
+        var firstLi = $("[aria-labelledby=id-newRole] li a").first();
+
+        if (newRoleId) {
+            var next, lastAdd;
+
+            if ($("#tableWorkflowValidators tr td:contains('Additional')").length > 0) {
+                lastAdd = $("#tableWorkflowValidators tr td.status").filter(function () {
+                    return $(this).html().trim() === "";
+                }).last().parent();
+
+                next = parseInt(lastAdd.find("td").first().text()) + 1;
+            } else {
+                next = 1;
+            }
+
+            var a = $('#tableWorkflowValidators tbody tr').filter(function (index) {
+                return $(this).find('td.status').html().trim() === "";
+            })
+
+            var b = $('#tableWorkflowValidators tbody tr').filter(function (index) {
+                return $(this).find('td.status').html().trim() === "Pending" && $(this).find('td').eq(1).html().trim() !== a.find('td').eq(1).html().trim();
+            })
+
+            var newRole = $("[aria-labelledby=id-newRole] li a[dd-selected]").text();
+            var newRow = '<tr data-id><td>' + next + '</td>';
+            var PrincipalTaskName = $("[name=principalTaskName]").val();
+            newRow = newRow + "<td >" + PrincipalTaskName + "</td>";
+            newRow = newRow + "<td >" + newRole + '<div><span data-pagemode="edit"><input type="hidden" value="' + newRole + '" required=required name="newUserProfile"></span></div>' + "</td>";
+            newRow = newRow + "<td class ='status'>Pending</td>" + "<td>Additional Validator</td>";
+            newRow = newRow + "<td>" + '@Confluence.ButtonTrash(text: "", action: "deleteValidator", dataAttributes: new Dictionary<string, string> { { "pagemode", "edit" }, { "order", "" }, { "idb-fieldname", "btndeleteValidator01" } }).ToString().Replace("\r\n", "").Replace("\n", "")';
+            newRow + "</td></tr>";
+
+            b.first().prev().after(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+            lastAdd = $("#tableWorkflowValidators tbody tr").first();
+
+            //if (next > 1)
+            //    $(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177')).insertAfter(lastAdd);
+            //else {
+            //    $("#tableWorkflowValidators").prepend(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+            //    lastAdd = $("#tableWorkflowValidators tbody tr").first();
+            //}
+
+            enumValidators(lastAdd, 1);
+
+            enterEditMode(false, lastAdd, false);
+            bindHandlers(lastAdd);
+
+            $("[aria-labelledby=id-newRole] li a[dd-selected]").parent().remove();
+            firstLi.attr("dd-selected");
+            $("[aria-labelledby=id-newRole]").SetValue(firstLi.val(), firstLi.text().trim());
+        }
+        else {
+            showMessage('@Localization.GetText("OP.MS.MissionWorkflowValidators.SelectRole")');
+        }
+
+    }
+
+    function deleteValidator(source) {
+        if (source.attr("data-order")) {
+            $("[name=deleteValidators]").val($("[name=deleteValidators]").val() + source.attr("data-order") + "|");
+        }
+
+        $("[aria-labelledby=id-newRole] li:eq(0)").after("<li><a dd-value=2>" + source.parents("tr").find("td").eq(2).text() + "</a></li>");
+
+        enumValidators(source.parents("tr"), 0);
+
+        source.parents("tr").remove();
+    }
+
+    function enumValidators(trChange, plus) {
+        var next = parseInt(trChange.find("td").first().text()) + plus;
+
+        trChange.nextAll("tr").each(function () {
+            $(this).find("td").first().text(next);
+            next++;
+        });
+    }
+
+    function newComment(source) {
+        newComment
+        var newBlock = '<div data-pagemode="edit"  class="pb20">' +
+            '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+        section2: Confluence.Label(IDBContext.Current.UserName), section3: null, value: "", name: "newComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+        '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+        $("[name=commentsCount]").val($("[name=commentsCount]").val() + 1);
+        $("#divWorkflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+
+        enterEditMode(false, $("#divWorkflowComments"), false);
+        bindHandlers($("#divWorkflowComments"));
+    }
+
+    function deleteComment(source) {
+        if (source.attr("data-commentId")) {
+            $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+        }
+        $("[name=commentsCount]").val($("[name=commentsCount]").val() - 1);
+        source.siblings("div.inputComment").parent().remove();
+    }
+
+    function downloadDocument(source) {
+        var docNumber = source.attr('data-DocNumber');
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+        window.open(url, '_blank');
+
+    }
+
+    function renderizeRow(documentList, sourceType, fileNames) {
+        var docNumber;
+        var fileName;
+        if (documentList.length <= 0)
+            return;
+        if (sourceType === "selected") {
+            if (documentList.length > 0) {
+                docNumber = documentList[0].DocumentNumber;
+                fileName = documentList[0].DocumentName;
+            }
+        }
+        else {
+            if (documentList.length > 0) {
+                docNumber = documentList[0];
+            }
+            if (fileNames.length > 0) {
+                fileName = fileNames[0];
+            }
+        }
+
+        var urlf = '@Url.Action("AddNewDocument", "Tasks")';
+
+        var result = postUrl(urlf, { documentNumber: docNumber });
+        var newRow = '<tr role="row" data-id="">' +
+                    '<td>' + result.responseJSON.data.User + '</td>' +
+                    '<td>' + result.responseJSON.data.Date + '</td>' +
+                    '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+                    '<td> ' + fileName +
+                    '<span data-pagemode="edit"> @Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "") </span>' +
+                   '</td><td>' +
+                   '@Confluence.ButtonDownload(text: "", action: "downloadDocument", name: "downloadDocument", dataAttributes: new Dictionary<string, string> { { "docnumber", "docNumberValue" }, { "idb-fieldname", "btnDownloadDocumentWF" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                   '</td></tr>';
+
+        $('#tblWFDocuments').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber).replace(/documentDefaultDescription/g, fileName));
+        $('#tblWFDocuments tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+    }
+
+    function bindHandlersDocs() {
+        $("[data-tab-action=@SearchModalId]").off('click');
+        $("[data-tab-action=@SearchModalId]").click(function () {
+            var source = $(this);
+            var tabId = source.attr("data-tab-id");
+
+            var modalContent = source.parents("[data-id=tabContainer]").siblings("[data-id=modalContent]");
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+            var actionButtonText = '';
+
+            if (tabId === "add") {
+                actionButtonText = '@Localization.GetText("Document.Button.Add")';
+                tabContainer.load('@Url.Action("AddIDBDocForm", "DocumentModal", new { area = "" })?New=yes');
+            } else if (tabId === "search") {
+                actionButtonText = '@Localization.GetText("Document.Button.Search")';
+                tabContainer.load('@Url.Action("SearchIDBDocSearchForm", "DocumentModal", new { area = "" })?New=yes');
+                bindHandlersDocs();
+            }
+            button.html(actionButtonText);
+        });
+
+        $("[data-id=@SearchModalId] [name=chkInputCorrespondence]").off('click');
+        $("[data-id=@SearchModalId] [name=chkInputCorrespondence]").click(function () {
+            var content = $(this).closest('[data-id-selector="search-form"]').find('[data-id-selector="inputCorrespondenceContainer"]');
+            if ($(this).prop('checked')) {
+                content.removeClass('hide');
+                bindHandlers();
+            } else {
+                content.addClass('hide');
+            }
+        });
+
+        $("[data-id=@SearchModalId] [name=chkOutputCorrespondence]").off('click');
+        $("[data-id=@SearchModalId] [name=chkOutputCorrespondence]").click(function () {
+            var content = $(this).closest('[data-id-selector="search-form"]').find('[data-id-selector="outputCorrespondenceContainer"]');
+            if ($(this).prop('checked')) {
+                content.removeClass('hide');
+                bindHandlers();
+            } else {
+                content.addClass('hide');
+            }
+        });
+
+        $("[data-id=@SearchModalId] [data-id=performButton]").off('click');
+        $("[data-id=@SearchModalId] [data-id=performButton]").click(function (event) {
+            var button = $(this);
+            var modalContent = button.parents("[data-id=modalContent]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+            var isSearchForm = tabContainer.find("[data-id-selector=search-form]").length !== 0;
+            var isSearchFormResults = tabContainer.find("[data-id-selector=search-form-results]").length !== 0;
+            var isAddDocForm = tabContainer.find("[data-id-selector=add-form]").length !== 0;
+
+            if (isSearchForm) {
+                executeSearch(tabContainer, button, '@Localization.GetText("Document.Button.Send")');
+            } else if (isSearchFormResults) {
+                executeSendSelected(tabContainer, button);
+            } else if (isAddDocForm) {
+                var form = tabContainer.find('form');
+                var inputFile = form.find("input[type=file]")[0];
+
+                button.attr('disabled', 'disabled');
+
+                var modalContainer = button.parents("[data-id=@SearchModalId]");
+                var vexModal = modalContainer.parents(".vex");
+                var errorRegion;
+                if (inputFile.files.length === 0) {
+                    errorRegion = $(inputFile).siblings("[data-name=file-empty]");
+                    errorRegion.removeClass("hide");
+
+                    setTimeout(
+                        function () {
+                            button.removeAttr('disabled');
+                            errorRegion.addClass("hide");
+                        }, 600);
+                    return false;
+                }
+
+                var validExtensions = true;
+                var extensions = ['.pdf', '.xls', '.xlsx', '.pst', '.ppt', '.pptx', '.mpp', '.pub', '.vsd', '.vss', '.vst', '.vdx', '.vsx', '.vtx', '.doc', '.docx', '.wpd', '.msg'];
+
+                var dataForm = new FormData();
+                var fileNames = [];
+                jQuery.each(inputFile.files, function (i, file) {
+                    var index = file.name.lastIndexOf(".");
+                    if (index >= 0) {
+                        fileName = file.name.substring(0, file.name.lastIndexOf("."));
+                        fileNames.push(fileName);
+                        var extension = file.name.substr(index).toLowerCase();
+                        if ($.inArray(extension, extensions) < 0) {
+                            validExtensions = false;
+                        }
+                        dataForm.append('files', file);
+                    }
+                });
+
+                if (validExtensions) {
+                    postUrlWithOptions('@Url.Action("IDBDocUploadDocument", "DocumentModal", new {area = ""})', {
+                        data: dataForm,
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        type: 'POST',
+                        async: true
+                    }).done(function (data) {
+
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== ""
+                                                        && data.ErrorMessage.substring(0, 12) !== '@Localization.GetText("GLOBAL.SERVICE.IDBDOC.MAXREQUESTLENGTH")'.substring(0, 12)) {
+                            showMessage(data.ErrorMessage);
+                        }
+                        else if (!data.IsValid && data.ErrorMessage.substring(0, 12) === '@Localization.GetText("GLOBAL.SERVICE.IDBDOC.MAXREQUESTLENGTH")'.substring(0, 12)) {
+                            button.removeAttr('disabled');
+                            $('input[name="file"]').val("");
+                            showMessage(data.ErrorMessage);
+                        } else if (data.IsValid) {
+                            @if (!string.IsNullOrEmpty(TargetFunction))
+                            {
+                                @:window["@TargetFunction"](data.DocumentNumbers, 'added', fileNames);
+                                                        }
+                            vex.closeByID(vexModal.data().vex.id);
+                        }
+                    });
+                } else {
+                    errorRegion = $(inputFile).siblings("[data-name=file-error]");
+                    errorRegion.removeClass("hide");
+                }
+
+                $('input[name="file"]').val("");
+            }
+            event.stopPropagation();
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            bindHandlersDocs();
+        });
+
+        $("[data-id=@SearchModalId] [data-id=cancelButton]").off('click');
+        $("[data-id=@SearchModalId] [data-id=cancelButton]").click(function () {
+            var button = $(this);
+            var modalContainer = button.parents("[data-id=@SearchModalId]");
+            var vexModal = modalContainer.parents(".vex");
+            vex.closeByID(vexModal.data().vex.id);
+        });
+
+        $("[data-id=@SearchModalId] [data-id=clearFilters]").off('click');
+        $("[data-id=@SearchModalId] [data-id=clearFilters]").click(function () {
+            var source = $(this);
+            var modalContent = source.parents("[data-id=modalContent]");
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            var buttonSearchFormText = '@Localization.GetText("Document.Button.Search")';
+            button.html(buttonSearchFormText);
+
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+            tabContainer.load('@Url.Action("SearchIDBDocSearchForm", "DocumentModal", new { area = "" })?New=yes');
+        });
+
+        $("[data-id=@SearchModalId] [data-id=selectableDocument]").off('click');
+        $("[data-id=@SearchModalId] [data-id=selectableDocument]").click(function () {
+            var source = $(this);
+            var document = source.children(".documentLabel");
+
+            @if (!MultipleSelection)
+            {
+                @:source.siblings(".document-box").find(".documentLabel").removeClass("selected");
+                        }
+
+            document.toggleClass('selected');
+
+            var preview = source.parents("[data-id-selector=result-container-main]").children(".documentPreview");
+
+            if (document.hasClass('selected')) {
+                try {
+                    var documentData = $.parseJSON(source.attr('data-json'));
+                    preview.find('[data-id-selector=documentName]').text(documentData.DocumentName != null ? documentData.DocumentName : '');
+                    preview.find('[data-id-selector=documentDate]').text(documentData.CreationDate != null ? documentData.CreationDate : '');
+                    preview.find('[data-id-selector=idbNumber]').text(documentData.DocumentNumber != null ? documentData.DocumentNumber : '');
+                    preview.find('[data-id-selector=docDescription]').text(documentData.Description != null ? documentData.Description : '');
+                    preview.find('[data-id-selector=docAuthor]').text(documentData.FullName != null ? documentData.FullName : '');
+                    preview.find('[data-id-selector=operationNumber]').text(documentData.MultiLoans != null ? documentData.MultiLoans : '');
+                    preview.find('[data-id-selector=contractNumber]').text(documentData.MultiLoans != null ? documentData.MultiLoans : '');
+                }
+                catch (e) {
+                }
+            }
+            else {
+                preview.find('[data-id-selector=documentName]').text('');
+                preview.find('[data-id-selector=documentDate]').text('');
+                preview.find('[data-id-selector=idbNumber]').text('');
+                preview.find('[data-id-selector=docDescription]').text('');
+                preview.find('[data-id-selector=docAuthor]').text('');
+                preview.find('[data-id-selector=operationNumber]').text('');
+                preview.find('[data-id-selector=contractNumber]').text('');
+            }
+        });
+    }
+
+    function executeSearch(tabContainer, button, actionButtonText) {
+        postUrl('@Url.Action("SearchIDBDocuments", "DocumentModal", new {area = ""})?New=yes', serializeContainer(tabContainer))
+            .done(function (data) {
+                tabContainer.html(data);
+                button.html(actionButtonText);
+            });
+    }
+
+    function executeSendSelected(tabContainer, button) {
+
+        var documentContainer = tabContainer.find("[data-id-selector=documents-container]");
+        var documentList = documentContainer.children(".document-box").children(".selected").parent();
+
+        var documentsObject = [];
+        documentList.each(function (index, element) {
+            documentsObject.push($.parseJSON($(element).attr('data-json')));
+        });
+
+        @if (!string.IsNullOrEmpty(TargetFunction))
+        {
+            @:window["@TargetFunction"](documentsObject, 'selected');
+                }
+
+        var modalContainer = button.parents("[data-id=@SearchModalId]");
+        var vexModal = modalContainer.parents(".vex");
+        vex.closeByID(vexModal.data().vex.id);
+    }
+
+    bindHandlersDocs();
+
+    registerCallback(function () {
+        bindHandlersDocs();
+    });
+
+    function modalOk(btn) {
+        cleanComment();
+
+        var element = btn.data("validcomment");
+        var action = btn.data("modalaction");
+
+        if (element === "True" && $("div.inputComment").length < 1) {
+            confirmAction('@Localization.GetText("GLOBAL.K2.CommentMandatoryReject")');
+            return;
+        }
+
+        $("[name=changeStatus]").val(action);
+        var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = (Model != null) ? Model.OperationNumber : ViewBag.operationNumber })';
+        processWorkFlow(url);
+    }
+
+    $(document).ready(function () {
+        $("#modalCancelInfo, #modalCancelInfoClose").bind("click", function () {
+            $('[name="modalTag"]').val("");
+        })
+        $(".ModalTaskInfo").bind("click", function () {
+            var urlTemplate = this.attributes['data-url'].value;
+
+            $.ajax({
+                method: "GET",
+                url: urlTemplate,
+            })
+                .done(function (result) {
+                    $("#modalContent").html(result);
+                    bindHandlersModal();
+                });
+
+            $("#modalValidate").removeAttr("disabled");
+        });
+    })
+
+    function resizeIframeTasks(framePartialHeight) {
+        resizeIframeCloud(framePartialHeight)
+    }
+</script>
+}
+
+<input type="hidden" id="hdnValidationMessagePath" value="@Url.Action("ValidationMessage", "Tasks")" />
+<input type="hidden" id="clasification_" value="0" /><input type="hidden" id="Accept_" value="0" />
+<input type="hidden" id="Reject_" value="0" /><input type="hidden" id="Edit_" value="0" />
+<input type="hidden" id="EditMessage_" value="0" />
+
+<section class="central">
+    <div id="fullTaskContainer" class="mod_contenido_central generic_tasks">
+        <!--contracts_and_clauses-->
+        <h3 class="headingh2">
+            <a class="tipo1" href="javascript:void(0)" title="Tasks">@Localization.GetText("Tasks")</a>
+        </h3>
+        <!--Actions Save-->
+        <a id="UrlPostClauseExtension" href="@Url.Action("SaveExtensionClauseTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostClauseFinalStatus" href="@Url.Action("SaveFinalAprovalClauseTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostClauseEligibility" href="@Url.Action("SavePostEligibilityClause", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostClauseRevolving" href="@Url.Action("SavePostRevolvingClause", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostSeptember" href="@Url.Action("SaveTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostMarch" href="@Url.Action("SaveTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostSupervisionPlan" href="@Url.Action("SaveSupervisionPlanVersionComments", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPMIFinishTask" href="@Url.Action("FinishPMITask", "Tasks")" hidden="hidden"></a>
+        <a id="UrlFinishPMITaskAndSave" href="@Url.Action("FinishPMITaskAndSave", "Tasks")" hidden="hidden"></a>
+        <a id="caseFinishRoute" href="javascript:void(0)" hidden="hidden"></a>
+        @Html.HiddenFor(x => x.Code)
+        @Html.HiddenFor(x => x.TaskId)
+
+        <div class="row row-body-40">
+            <div class="col-md-12 pt20">
+                <div class="pull-left box_subtitle"><h4 class="headingh2 title_tag">@Model.TaskName</h4></div>
+                <div class="pull-right">
+                    @Html.Partial("Partials/Controls/WorkflowTaskButtons", Model)
+                </div>
+            </div>
+        </div>
+            <div class="taskBodyContainer">
+                <h3 class="hide">Contenido central</h3>
+                <div class="operationData dataDetails marginTop2Bottom1">
+                    <div class="data4">
+                        <p class="dataTitle">@Localization.GetText("Creation on")</p>
+                        <p>@(Model.Created.HasValue ? Model.Created.Value.Date.ToString("dd MMMM yyyy") : "-")</p>
+                    </div>
+                    <div class="data4">
+                        <p class="dataTitle">@Localization.GetText("Due on") </p>
+                        <p>@(Model.Due.HasValue ? Model.Due.Value.ToString("dd MMMM yyyy") : "-")</p>
+                    </div>
+                    <div class="data2">
+                        <p class="dataTitle">@Localization.GetText("Workflow")</p>
+                        <p class="icon workflow">@Localization.GetText(Model.TaskWorkflow)</p>
+                    </div>
+
+                    <div class="data4">
+                        <p class="dataTitle">@Localization.GetText("Priority")</p>
+                        @switch (@Model.TaskPriority)
+                        {
+                            case 0:
+                                <p class="item icon low"></p>
+                                break;
+                            case 1:
+                            <p class="item icon medium"></p>
+                                break;
+                            case 2:
+                            <p class="item icon hight"></p>
+                                break;
+                        }
+                    </div>
+                </div>
+
+                <div class="operationData dataDetails marginTop2Bottom1">
+                    @{
+                        if (ViewBag.ConvarIdbRequest != null)
+                        {
+                            <div class="data4">
+                                <p class="dataTitle">@Localization.GetText("Requested months")</p>
+                                <p>@ViewBag.ConvarIdbRequest</p>
+                            </div>
+                            <div class="data4">
+                                <p class="dataTitle">@Localization.GetText("Executor Requested months")</p>
+                                <p>@ViewBag.ConvarExecutorRequest</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <br>
+                            if (ViewBag.ConvarRequestedDate != null)
+                            {
+                                <div class="data4">
+                                    <p class="dataTitle">@Localization.GetText("Requested date")</p>
+                                    <p>@String.Format("{0:dd MMM yyy}", @ViewBag.ConvarRequestedDate.ToString())</p>
+                                </div>
+                            }
+
+                        }
+                    }
+                </div>
+
+                <div class="taskBodyContainer">
+                    <div>
+                        <div>
+
+                            <div>
+                                @{ Html.RenderPartial("Partials/WorkflowTaskData"); }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.SplitViewUrl))
+        {
+            <div class="splitView">
+                <iframe name="splitFrame" src="@Html.Raw(String.Format(IDB.Architecture.Globals.GetSetting("BasePath") + Model.SplitViewUrl, Model.OperationNumber, ViewBag.elementId))" seamless=" seamless" width="100%" scrolling="no" height="auto"></iframe>
+            </div>
+        }
+</section>

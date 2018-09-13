@@ -1,0 +1,305 @@
+@using System.Globalization;
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Architecture.ApplicationParameter
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Architecture.DataTables.Common
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.Container
+@using IDB.MW.Application.SGPModule.Enums
+@using IDB.Architecture.Language
+
+@using IDB.MW.Domain.StoredProcedures.Outputs.SGP
+@using IDB.MW.Domain.StoredProcedures.Outputs.SGP.Enums
+
+@model ProcurementLevelViewModel
+
+@{
+    
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "ProcurementPlanForAgency";
+
+    var supervisionMethodList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("SupervisionMethod").ConvertToSelectListItems();
+    var procurementTypeList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementType").ConvertToSelectListItems();
+    var statusDictionary = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("Status");
+    var statusList = statusDictionary.ConvertToSelectListItems();
+    var componentList = Model.ViewContainer.GetValue<List<ListItemViewModel>>("Components").ConvertToSelectListItems();
+    var procurementMethodList = Model.ViewContainer.GetValue<List<MasterDataViewModel>>("ProcurementMethod").ConvertToSelectListItems();
+    
+    var config = Html.RenderDataTable(Model.Procurements)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.PepProcurementId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .RowCssClass(x => CalculateBackground(x, Model.ViewContainer))
+        .Columns(columns =>
+        {
+            columns.Template(c => ProcessId(c, Model.ViewContainer))
+                .Orderable(false)
+                .CssClass("text-align-left")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("SGP.Label.ProcessID"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(c.ProcurementTypeId, procurementTypeList, false))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("SGP.Label.ProcurementType"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(c.ComponentId, componentList, false))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("SGP.Label.Component"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ProcurementName(c))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("SGP.Label.ProcurementName"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => TotalCost(c))
+                .Orderable(false)
+                .CssClass("no-wrap-space textalign-right")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.SVQ.TotalCost"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(c.ProcurementMethodId, procurementMethodList, false))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("SGP.Label.ProcurementMethod"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(c.SupervisionMethodId, supervisionMethodList, false))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("SGP.Label.SupervisionMethod"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Status(c))
+                 .Orderable(false)
+                 .CssClass("")
+                 .CssHeaderClass("")
+                 .Header(Localization.GetText("COMMON.Status"))
+                 .HeaderAttribute("style", "")
+                 .Hidden(false);
+            columns.Template(c => Actions(c))
+                .Orderable(false)
+                .CssClass("columnActionOnlyCollapse")
+                .CssHeaderClass("")
+                .Header("")
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+        })
+            .RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.AllRows, t => Detail(t)); 
+            })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(String.Format(Localization.GetText("SGP.Label.ProcurementPlanFor"), Model.ExecutingAgencyName))
+                </div>
+            </td>
+            <td class="table-transparent-buttons pr0 pl20 align-subtitle">
+                <div class="col-xs-12">
+                    <div class="col-xs-12 pr0">
+                        @Confluence.Label(Localization.GetText("SGP.Label.ActiveProcurementProcesses"))
+                    </div>
+                    <div class="col-xs-12" style="text-align:left;">
+                        @Confluence.Label(Model.ActiveProcess.ToString() + "/" + Model.Procurements.Count, htmlClass: "bold")
+                    </div>
+                </div>
+            </td>
+            <td class="table-transparent-buttons align-subtitle">
+                @(Html.CollapseAll("collapseAllProcurements")
+                                .CollapseSingleSelector("tr:not(.template) [data-name=\"collapseDetails\"]"))
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.InputHidden(Model.BucketId.ToString(), "bucketId")
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper Actions(ProcurementRowViewModel row)
+{
+    <div class="textalign-center collapse-container">
+        @(Html.CollapseSingle("collapseDetails")
+                .HtmlClass("arrow")
+                .TargetRegionSelector(x => x.Closest("tr").Next())
+                .UseClassToHide("custom-hide")
+                .AsociatedCollapseAllSelector("[data-name=\"collapseAllProcurements\"]"))
+    </div>
+}
+
+@helper ProcessId(ProcurementRowViewModel row, GenericContainer viewContainer)
+{
+    var url = Url.Action("Read", "ProcurementDetail", new
+    {
+        area = "SGP",
+        procurementId = row.PepProcurementId,
+    });
+    
+    var attributes = new Dictionary<string, string>()
+    {
+        { "url", url }
+    };
+
+    var statusInfoList = viewContainer.GetValue<List<GetProcurementStatusInfoOutput>>("StatusInfoList");
+    var procurementMethodList = Model.ViewContainer.GetValue<List<MasterDataViewModel>>("ProcurementMethod");
+    var statusInfo = statusInfoList.SingleOrDefault(x => x.STATUS_ID == row.StatusId);
+    var processFundedByAgencyId = Model.ViewContainer.GetValue<int>("processFundedByAgencyId");
+
+    if ((statusInfo != null) && (statusInfo.LEYEND_CODE == LeyendEnum.PENDING))
+    {
+        attributes.Add("warning-message", Localization.GetText("SGP.Message.EnterProcurementProcessNotCompleted"));
+    }
+    else if (string.IsNullOrWhiteSpace(row.ProcurementName))
+    {
+        attributes.Add("warning-message", Localization.GetText("SGP.Message.EnterProcurementProcessName"));
+    }
+    else if (row.ProcurementMethodId == processFundedByAgencyId)
+    {
+        attributes.Add("warning-message", Localization.GetText("SGP.Message.UnableSeeDetailsPFA"));
+    }
+    
+    @Confluence.ButtonLink(text: row.ProcessId, name: "processIdLink", dataAttributes: attributes)    
+}
+
+@helper ProcurementType(ProcurementRowViewModel row)
+{
+    @Confluence.Label(row.ProcurementTypeId.ToString())
+}
+
+@helper ProcurementName(ProcurementRowViewModel row)
+{
+    @Confluence.Label(row.ProcurementName)
+}
+
+@helper TotalCost(ProcurementRowViewModel row)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var FormatIntegerDolar = appSettings.FormatIntegerDolar;
+    
+    @Confluence.Label(FormatHelper.Format(row.TotalCost, FormatIntegerDolar))
+}
+
+@helper SupervisionMethod(ProcurementRowViewModel row)
+{
+    @Confluence.Label(row.SupervisionMethodId.ToString())
+}
+
+@helper Status(ProcurementRowViewModel row)
+{
+    var statusList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("Status").ConvertToSelectListItems();
+
+    @Confluence.LabelGetDropDown(row.StatusId, statusList, false)
+
+}
+
+@helper Detail(ProcurementRowViewModel row)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var id = row.PepProcurementId;
+
+    <tr data-id="@id" data-detail class="extexd-custom">
+        <td colspan="9">
+
+            <div>
+                <div class="proc-row--detail-col">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.PepId"),
+                        contentAlways: row.PepId.ToString())
+                </div>
+                <div class="proc-row--detail-col">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.PEPTaskName"),
+                        contentAlways: row.PepTaskName)
+                </div>
+                <div class="clearfix"></div>
+            </div>
+
+            <div>
+                <div class="proc-row--detail-col-ProcActivities" ">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.ProccessStartDate"),
+                        contentAlways: FormatHelper.Format(row.ProcessStartDate, formatDate))
+                </div>
+                <div class="proc-row--detail-col-ProcActivities" ">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.ProcessEndDate"),
+                        contentAlways: FormatHelper.Format(row.ProcessEndDate, formatDate))
+                </div>
+                <div class="proc-row--detail-col-ProcActivities">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.PercentIDBCost"),
+                        contentAlways: row.IDBCostPercent)
+                </div>
+                <div class="proc-row--detail-col-ProcActivities">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.PercentCounterpart"),
+                        contentAlways: row.CounterpartPercent)
+                </div>
+                <div class="proc-row--detail-col-ProcActivities">
+                    @Confluence.LabelsGroup(
+                        Localization.GetText("SGP.Label.PercentCoFinancer"),
+                        contentAlways: row.CoFinancerPercent)
+                </div>
+                <div class="clearfix"></div>
+            </div>
+            
+            @Confluence.LabelSubTitleGroup(Localization.GetText("COMMON.Description"))
+            @Confluence.LabelsGroup("", contentAlways: row.Description)
+
+            @Html.Partial("ReadPartial/PlanForAgencyComment", row.Comments)
+        </td>
+
+    </tr>
+}
+
+@functions {
+    static string CalculateBackground(ProcurementRowViewModel row, GenericContainer viewContainer)
+    {
+        var statusInfoList = viewContainer.GetValue<List<GetProcurementStatusInfoOutput>>("StatusInfoList");
+
+        var result = string.Empty;
+
+        var statusInfo = statusInfoList.SingleOrDefault(x => x.STATUS_ID == row.StatusId);
+        if ((statusInfo != null) && (statusInfo.LEYEND_CODE == LeyendEnum.PENDING))
+        {
+            result = "row-yellow";
+        }
+        else if ((statusInfo != null) && (statusInfo.LEYEND_CODE == LeyendEnum.CLOSED))
+        {
+            result = "row-grey";
+        }
+        
+        return result;
+    }
+}

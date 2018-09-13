@@ -1,0 +1,124 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using System.Globalization
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.HighRisk
+
+@model HighRiskDashboardViewModel
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.LabelsGroup(Localization.GetText("MrBlue.CustomReport.HighRiskRating"), contentAlways : Model.LastHigRiskRating)
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <div class="float-left">
+            @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.HighRisk.History.HistoryTitle"))
+        </div>
+        <div class="float-right">
+            @if(ViewBag.WriteRole)
+            {
+                if(Model.History.Count > 0)
+                {
+                    @Confluence.ButtonBlue(Localization.GetText("MrBlue.HighRisk.History.NewFromMostRecentButton"),
+                        name : "buttonNewFromMostRecent",
+                        action : "newReportFromMostRecent")
+                }
+                else
+                {
+                    @Confluence.ButtonBlue(Localization.GetText("MrBlue.HighRisk.History.NewFromMostRecentButton"),
+                            name : "buttonNewFromMostRecent",
+                            action : "newReportFromMostRecent",
+                            disabled : true)
+                }
+
+                @Confluence.ButtonBlue(Localization.GetText("MrBlue.HighRisk.History.New"),
+                        name : "buttonNew",
+                        action : "newReport")
+            }
+            else
+            {
+                @Confluence.ButtonBlue(Localization.GetText("MrBlue.HighRisk.History.NewFromMostRecentButton"),
+                        name : "buttonNewFromMostRecent",
+                        action : "newReportFromMostRecent",
+                        disabled : true)
+
+                @Confluence.ButtonBlue(Localization.GetText("MrBlue.HighRisk.History.New"),
+                        name : "buttonNew",
+                        action : "newReport",
+                        disabled : true)
+            }
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12 contextualHelp" style="margin-bottom:5px;">
+        <p>@MrBlue.LabelHelper(Localization.GetText("MrBlue.HighRisk.History.ClickMessage"))</p>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        @{
+            var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+            var config = Html.RenderDataTable(Model.History);
+            config.Name("historyTable")
+            .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+
+                columns.Bound(c => c.CreatedOn)
+                .Header(Localization.GetText("MrBlue.HighRisk.History.CreatedOnColumn"))
+                .Persistent();
+
+                columns.Bound(c => c.ReportedBy)
+                    .Header(Localization.GetText("MrBlue.HighRisk.History.ReportedByColumn"))
+                    .Persistent();
+
+                columns.Bound(c => c.HighRiskRating)
+                    .Header(Localization.GetText("MrBlue.CustomReport.HighRiskRating"))
+                    .Persistent();
+
+                columns.Template(CreateActions)
+                  .Header(Localization.GetText("MrBlue.HighRisk.History.ActionColumn"))
+                  .Persistent()
+                  .Center();
+
+                columns.Template(mostRecent).Persistent().Hidden(true);
+
+            });
+
+            config.TableClass = "tableNormal selectedRowTable";
+
+        }
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper CreateActions(HighRiskHistoryRowViewModel viewModel)
+{
+
+    @Confluence.ButtonPdf(
+        name : "historyDownload" + viewModel.RowId,
+        action : "downloadHistoryReport")
+
+    if(ViewBag.WriteRole)
+    {
+        @MrBlue.TableButonTrash(Url.Action("HightRiskDeleteReport", "HighRisk", new { area = "MrBlue", versionId = viewModel.RowId }))
+    }
+}
+
+
+@helper mostRecent(HighRiskHistoryRowViewModel viewModel)
+{
+    @Confluence.InputHidden(value : viewModel.RowId.ToString(),
+    name : "isMostRecent",
+    required : false,
+    dataAttributes : new Dictionary<string, string> { { "isMostRecent",
+        viewModel.isMostRecent.ToString() } }
+    )
+}

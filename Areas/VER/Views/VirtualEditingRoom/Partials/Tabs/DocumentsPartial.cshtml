@@ -1,0 +1,621 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.VERModule.ViewModels
+@using IDB.MW.Domain.Models.Security
+@using IDB.MW.Domain.Values.Ver
+@using Areas.VerVmr
+
+
+@model VerDocumentViewModel
+
+@{
+    var documentParticipant = (List<FieldAccessModel>)ViewBag.SecurityDocument;
+
+    var editButton = documentParticipant.FirstOrDefault(o => o.FieldName == "btnEditDocumentsTab");
+    editButton = editButton ?? new FieldAccessModel();
+    var btnNewDocument = documentParticipant.FirstOrDefault(o => o.FieldName == "btnNewDocument");
+    var chkPackage = documentParticipant.FirstOrDefault(o => o.FieldName == "chkPackage");
+    var btnDeleteDocument = documentParticipant.FirstOrDefault(o => o.FieldName == "btnDeleteDocument");
+    var colTranslation = documentParticipant.FirstOrDefault(o => o.FieldName == "colTranslation");
+    var colClearance = documentParticipant.FirstOrDefault(o => o.FieldName == "colClearance");
+    var colPublish = documentParticipant.FirstOrDefault(o => o.FieldName == "colPublish");
+    var chkPublish = documentParticipant.FirstOrDefault(o => o.FieldName == "chkPublish");
+    var instructionTask = documentParticipant.FirstOrDefault(o => o.FieldName == "instructionValidationAttorney");
+    ViewBag.BtnGenerateAnnex = documentParticipant.FirstOrDefault(o => o.FieldName == "btnGenerateAnnex");
+    ViewBag.BtnRefresh = documentParticipant.FirstOrDefault(o => o.FieldName == "btnRefresh");
+    var instructionContainer = documentParticipant.FirstOrDefault(o => o.FieldName == "instructionContainer");
+    var colClearanceToPdf = documentParticipant.FirstOrDefault(o => o.FieldName == "colClearanceToPdf");
+    ViewBag.btnGeneratePdf = documentParticipant.FirstOrDefault(o => o.FieldName == "btnGeneratePdf");
+    ViewBag.hasBoardWorkFlow = Model.IsBoardWorkFlow;
+    var operationNumber = Model.OperationNumber;
+    var isVisibleColTranslation = colTranslation != null && colTranslation.IsVisible;
+    var isVisibleInstructionTask = instructionTask != null && instructionTask.IsVisible;
+    var isVisibleColClearance = colClearance != null && colClearance.IsVisible;
+    var isVisibleColPublish = colPublish != null && colPublish.IsVisible;
+    var isReadChkGenerateAnnex = ViewBag.BtnGenerateAnnex == null;
+    var isVisibleColClearanceToPdf = colClearanceToPdf != null && colClearanceToPdf.IsVisible;
+    var isVisibleInstruction = instructionContainer != null && instructionContainer.IsVisible;
+    var isVisibleNegInformation = !string.IsNullOrEmpty(Model.NegInformation);
+}
+
+@Confluence.InputHidden(ViewBag.SerializedDocumentViewModel, id: "documentsViewModel")
+@Confluence.InputHidden(Model.IsLpppBeforeNeg.ToString(), id: "isLpppBeforeNeg")
+@Confluence.InputHidden(Model.IsGeneratedAnnex.ToString(), id: "isGeneratedAnnex")
+<div data-pagemode="edit">
+    @Confluence.InputHidden("", "documentsListForDelete", id: "documentsListForDelete")
+</div>
+
+
+@if (isVisibleInstruction || isVisibleInstructionTask)
+{
+    <div class="mb15">
+        <div class=" col-md-12">
+            <div class="row">
+                <div class="col-md-8">
+                    @Confluence.Label(Localization.GetText("VER.GLOBAL.Instructions"))
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    @Html.Raw(isVisibleInstructionTask ? Localization.GetText("VER.DOCUMENT.INSTRUCTION.LEGAL") : Model.DocumentsInstruction )
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isVisibleNegInformation)
+{
+    <div class="mb15">
+        <div class="col-md-12 mt10">
+            <div class="row">
+                <div class="col-md-12" name="negInformation">
+                    @Html.Raw(Model.NegInformation)
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="col-md-12 mt50">
+    <div class="pull-left">
+        @Confluence.Label(Localization.GetText("GLOBAL.RESUTLS.PER.PAGE"))
+        @Confluence.InputDropDown("999999", "ddlResultsDocuments",
+            (List<SelectListItem>)ViewBag.ResultsPerPageList, placeholder: null, showEmptyOption: false,
+            orderAsc: false, required: false)
+    </div>
+    <div class="" data-button-container="DocumentTop">
+        @Html.Partial("Partials/DataTables/Buttons/DocumentButtonsPartialTop", editButton)
+    </div>
+
+</div>
+<div class="col-md-12 mb20 mt10">
+    @{
+        var documentsTable = Html.RenderDataTable(Model.Documents);
+        documentsTable.Name("documentsTable")
+            .Columns(columns =>
+            {
+                columns.Template(c => Confluence.LabelInteger(c.SLno))
+                    .CssClass("SLno")
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.SL.No"))
+                    .CssHeaderClass("w70 sort")
+                    .HeaderAttribute("order-type", "numeric")
+                    .EditableTemplate(c => Confluence.LabelInteger(c.SLno));
+                columns.Template(c => GetCheckBoxClearanceToPdf(c, true))
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Clearance"))
+                    .CssHeaderClass("w70")
+                    .EditableTemplate(c => GetCheckBoxClearanceToPdf(c, false))
+                    .Hidden(isVisibleColClearanceToPdf == false || Model.IsBoardWorkFlow);
+                columns.Template(c => GetCheckBoxClearance(c, true))
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Document.To.Submit"))
+                    .CssHeaderClass("w70 clearance")
+                    .EditableTemplate(c => GetCheckBoxClearance(c, false))
+                    .Hidden(isVisibleColClearance == false || Model.IsBoardWorkFlow);
+                columns.Template(c => GetCheckBoxTranslation(c, true))
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Document.To.Translate"))
+                    .CssHeaderClass("w70 ")
+                    .EditableTemplate(c => GetCheckBoxTranslation(c, false))
+                    .Hidden(isVisibleColTranslation == false);
+                columns.Template(c => GetCheckBoxPublish(c, chkPublish, true))
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Publish"))
+                    .EditableTemplate(row => GetCheckBoxPublish(row, chkPublish, false))
+                    .CssHeaderClass("w100 sort")
+                    .Hidden(isVisibleColPublish == false);
+                columns.Template(c => Confluence.LabelGetDropDown(c.DocumentType, ViewBag.DocumentTypeList))
+                  .Header(Localization.GetText("VER.Homepage.TabDocuments.DocumentType"))
+                  .CssHeaderClass("w200 sort")
+                  .HeaderAttribute("order-type", "text")
+                  .EditableTemplate(c => Confluence.LabelGetDropDown(c.DocumentType, ViewBag.DocumentTypeList));
+                columns.Template(c => GetDocumentName(c, Model.DocumentLink, Model.Urlsharepoint))
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.DocumentName"))
+                    .HeaderAttribute("order-type", "text")
+                    .EditableTemplate(c => GetDocumentName(c, Model.DocumentLink, Model.Urlsharepoint))
+                    .CssHeaderClass("w800 sort");
+                columns.Template(c => Confluence.Label(c.DocumentNumber))
+                    .CssHeaderClass("w200 sort")
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.DocNumber"))
+                    .HeaderAttribute("order-type", "text")
+                    .EditableTemplate(row => Confluence.Label(row.DocumentNumber,
+                                new Dictionary<string, string> { { "DocumentNumberUpload", "documentsNumb" } }));
+                columns.Template(c => Confluence.Label(c.PackageVersion))
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Version"))
+                    .CssHeaderClass("w120")
+                    .Center()
+                    .Persistent();
+                columns.Template(c => Confluence.LabelGetDate(c.LastUpdate))
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.LastUpdated"))
+                    .Center()
+                    .CssHeaderClass("w170 sort")
+                    .HeaderAttribute("order-type", "date")
+                    .EditableTemplate(row => Confluence.LabelGetDate(row.LastUpdate))
+                    .CssClass("LastUpdated");
+                columns.Template(c => Confluence.Label(c.UserName))
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.ModifiedBy"))
+                    .CssHeaderClass("w140 sort")
+                    .HeaderAttribute("order-type", "text")
+                    .EditableTemplate(row => Confluence.Label(row.UserName,
+                        new Dictionary<string, string> { { "DocumentUserName", "UserName" } }));
+                columns.Template(c => Confluence.InputCheckbox(c.IncInPackage, "packageDoc", disabled: true,
+                    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "chkPackage" } }))
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Package"))
+                    .EditableTemplate(row => GetCheckBoxButton(row, chkPackage))
+                    .CssHeaderClass("w100 sort");
+                columns.Template(c => GetCheckBoxGenerateAnnex(c, true))
+                    .Center()
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.GenerateAnnex"))
+                    .EditableTemplate(row => GetCheckBoxGenerateAnnex(row, isReadChkGenerateAnnex))
+                    .CssHeaderClass("w100 sort")
+                    .Hidden(Model.IsGeneratedAnnex == false);
+                columns.Template(c => GetDocumentButtons(c, true, Model.Urlsharepoint, btnDeleteDocument, operationNumber))
+                    .Right()
+                    .CssClass("mr0")
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.Actions"))
+                    .EditableTemplate(row => GetDocumentButtons(row, false, Model.Urlsharepoint, btnDeleteDocument, operationNumber))
+                    .CssHeaderClass("w130 minw130");
+                columns.Bound(c => c.DocumentType)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentType.ToString(), "documentType"))
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.DocumentType"))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentNumber)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentNumber.ToString(), "documentNumber", required: false, dataAttributes:
+                        new Dictionary<string, string> { { "DocumentNumberHidden", "documentsNumbHidden" } }))
+                    .Header(Localization.GetText("VER.Homepage.TabDocuments.DocNumber"))
+                    .Hidden(true);
+                columns.Bound(c => c.LastUpdate)
+                   .EditableTemplate(row => Confluence.InputText(row.LastUpdate.ToString(), "LastUpdate", required: false, dataAttributes:
+                       new Dictionary<string, string> { { "DocumentLastUpdateHidden", "LastUpdateHidden" } }))
+                   .Header(Localization.GetText("VER.Homepage.TabDocuments.LastUpdated")).Hidden(true);
+                columns.Bound(c => c.UserName)
+                   .EditableTemplate(row => Confluence.InputText(row.UserName, "UserName", required: false, dataAttributes:
+                       new Dictionary<string, string> { { "DocumentUserNameHidden", "UserNameHidden" } }))
+                   .Header(Localization.GetText("VER.Homepage.TabDocuments.ModifiedBy")).Hidden(true);
+                columns.Bound(c => c.DocumentId)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentId.ToString(), "documentId", dataAttributes:
+                        new Dictionary<string, string> { { "DocumentIdHidden", "documentsIdHidden" } }, required: false))
+                    .Hidden(true);
+                columns.Bound(c => c.VerDocumentId)
+                    .EditableTemplate(row => Confluence.InputText(row.VerDocumentId.ToString(), "verDocumentId", id: "RowData", required: false))
+                    .Hidden(true);
+                columns.Bound(c => c.IsRequired)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsRequired, "isRequired", id: "isRequired"))
+                    .Hidden(true);
+                columns.Bound(c => c.IncInPackage)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsPrimary, "isPrimary", id: "isPrimary"))
+                    .Hidden(true);
+                columns.Bound(c => c.ShpTemplateVersion)
+                    .EditableTemplate(row => Confluence.InputText(row.ShpTemplateVersion, "shpTemplate", id: "shpTemplate", required: false))
+                   .Hidden(true);
+                columns.Bound(c => c.ShpUrlDocument)
+                    .EditableTemplate(row => Confluence.InputText(row.ShpUrlDocument, "shpUrlDocument", id: "shpUrlDocument", required: false))
+                   .Hidden(true);
+                columns.Bound(c => c.IsGenerated)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsGenerated, "isGenerated", id: "isGenerated"))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentName)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentName, "documentName", id: "documentName", required: false))
+                    .Hidden(true);
+                columns.Bound(c => c.IsVer)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsVer, "isVer", "isVer"))
+                    .Hidden(true);
+                columns.Bound(c => c.IsVisibleChkPublish)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsVisibleChkPublish, "IsVisibleChkPublish", "IsVisibleChkPublish"))
+                    .Hidden(true);
+                columns.Bound(c => c.IsOther)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsOther, "isOther", "isOther"))
+                    .Hidden(true);
+                columns.Bound(c => c.IsVersionHistory)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsVersionHistory, "isVersionHistory", "isVersionHistory"))
+                    .Hidden(true);
+                columns.Bound(c => c.UpdatedCheckForClearance.GetValueOrDefault())
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.UpdatedCheckForClearance.GetValueOrDefault(), "checkForClearance", "checkForClearance"))
+                    .Hidden(true);
+                columns.Bound(c => false)
+                    .EditableTemplate(row => Confluence.InputCheckbox(false, "IsNewDocumentForSave", "IsNewDocumentForSave", dataAttributes:
+                        new Dictionary<string, string> { { "DocumentReference", row.DocumentNumber }, { "DocumentName", row.DocumentName}, { "DocumentNameTemp", row.DocumentNameTemp } }))
+                    .Hidden(true);
+                columns.Bound(c => c.IsNewDocument)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsNewDocument, "IsNewDocument", "IsNewDocument"))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentNameTemp)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentNameTemp, "DocumentNameTemp", id: "DocumentNameTemp", required: false))
+                    .Hidden(true);
+            });
+        documentsTable.TableClass = "tableNormal endSpacing";
+
+        @Html.Partial("Controls/DataTable", documentsTable)
+
+        if (btnNewDocument != null && btnNewDocument.IsVisible)
+        {
+            <div class="col-md-12" data-idb-fieldname="btnNewDocument">
+                <div data-pagemode="edit" class="text-center">
+                    @VerVmrHelpers.ButtonNewRowOffice365(
+                        Localization.GetText("VER.GLOBAL.Add"),
+                        "office365ButtonAdd",
+                        Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                        "modal365Add",
+                        null,
+                        operationNumber,
+                        action: "AddDocumentRow")
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<div class="LabelsGroup col-md-12" data-button-container="DocumentBottom">
+    @Html.Partial("Partials/DataTables/Buttons/DocumentButtonsPartialBottom", editButton)
+</div>
+
+@helper GetDocumentButtons(
+    VerDocumentRowViewModel row,
+    bool isRead,
+    string urlFolder,
+    FieldAccessModel btnDeleteDocument,
+    string operationNumber)
+{
+var modalId = string.Format("{0}-{1}", "modal365Upload", row.VerDocumentId);
+if (row.DocumentId == null)
+{
+    if (!isRead && !row.IsPrimary && !row.IsGenerated)
+    {
+            @VerVmrHelpers.ButtonUploadOffice365(
+                "",
+                "office365ButtonUpload",
+                Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                modalId,
+                null,
+                row.DocumentName,
+                operationNumber,
+                action: "UploadDocumentRow",
+                htmlClass: "mr0",
+                acceptFormat: string.IsNullOrEmpty(row.SpecificExtension) ? null : row.SpecificExtension
+                )
+
+            @Confluence.ButtonDownload(null,
+                null,
+                "downloadDocumentVer",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        {"idb-fieldname", "btnDownloadDocument"},
+                        {"documentid", row.DocumentNumber},
+                        {"urlFolder", urlFolder}
+                    })
+
+            @Confluence.ButtonTrash(
+                "",
+                action: !row.IsOther ? "cleanMandatoryDocuments" : "removeRowDocument",
+                htmlClass: "mr0",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        {"DocumentRemove", "documentsRemoveHidden"},
+                        {"idb-fieldname", "btnDeleteDocument"},
+                        {"idDocument", row.VerDocumentId.ToString()},
+                        {"DocumentName" , row.DocumentName },
+                        {"DocumentNameTemp" , row.DocumentNameTemp },
+                        {"DocumentReference" , row.DocumentNumber },
+                        {"isDocumentTemp" , row.IsNewDocument.ToString() }
+                    })
+    }
+}
+else
+{
+    if (row.DocumentNumber != null)
+    {
+            @Confluence.ButtonDownload(
+                null,
+                null,
+                "downloadDocumentVer",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        {"idb-fieldname", "btnDownloadDocument"},
+                        {"documentid", row.DocumentNumber},
+                        {"urlFolder", urlFolder}
+                    })
+        }
+
+        if (!isRead && !row.IsPrimary)
+        {
+            switch (row.IsOther)
+            {
+                case true:
+                    switch (row.IsGenerated)
+                    {
+                        case false:
+                            if (btnDeleteDocument != null && btnDeleteDocument.IsVisible || row.IsAuthor)
+                            {
+                                if (!row.UploadedAutomatic)
+                                {
+                                    @Confluence.ButtonTrash(
+                                    "", 
+                                    action: "removeRowDocument",
+                                    htmlClass: "mr0",
+                                    dataAttributes:
+                                        new Dictionary<string, string>
+                                        {
+                                            {"DocumentRemove", "documentsRemoveHidden"},
+                                            {"idb-fieldname", "btnDeleteDocument"},
+                                            {"idDocument", row.VerDocumentId.ToString()},
+                                            {"DocumentName" , row.DocumentName },
+                                            {"DocumentNameTemp" , row.DocumentNameTemp },
+                                            {"DocumentReference" , row.DocumentNumber },
+                                            {"isDocumentTemp" ,  row.IsNewDocument.ToString() }
+                                        })
+                                }
+
+                                @VerVmrHelpers.ButtonUploadOffice365(
+                                    "",
+                                    "office365ButtonUpload",
+                                    Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                                    modalId,
+                                    null,
+                                    row.DocumentName,
+                                    operationNumber,
+                                    action: "UploadDocumentRow",
+                                    htmlClass: "mr0 hide",
+                                    acceptFormat: string.IsNullOrEmpty(row.SpecificExtension) ? null : row.SpecificExtension)
+                            }
+                            break;
+                        case true:
+                            if (btnDeleteDocument != null && btnDeleteDocument.IsVisible || row.IsAuthor)
+                            {
+                                if (!row.UploadedAutomatic)
+                                {
+                                    @Confluence.ButtonTrash(
+                                        "",
+                                        action: "cleanMandatoryDocuments",
+                                        htmlClass: "mr0",
+                                        dataAttributes:
+                                            new Dictionary<string, string>
+                                            {
+                                                {"DocumentRemove", "documentsRemoveHidden"},
+                                                {"idb-fieldname", "btnDeleteDocument"},
+                                                {"idDocument", row.VerDocumentId.ToString()},
+                                                {"DocumentName" , row.DocumentName },
+                                                {"DocumentNameTemp" , row.DocumentNameTemp },
+                                                {"DocumentReference" , row.DocumentNumber },
+                                                {"isDocumentTemp" ,  row.IsNewDocument.ToString() }
+                                            })
+                                }
+
+                                @VerVmrHelpers.ButtonUploadOffice365(
+                                    "",
+                                    "office365ButtonUpload",
+                                    Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                                    modalId,
+                                    null,
+                                    row.DocumentName,
+                                    operationNumber,
+                                    action: "UploadDocumentRow",
+                                    htmlClass: "mr0 hide",
+                                    acceptFormat: string.IsNullOrEmpty(row.SpecificExtension) ? null : row.SpecificExtension)
+                            }
+                            break;
+                    }
+                    break;
+                case false:
+                    if (!row.IsGenerated && (btnDeleteDocument != null && btnDeleteDocument.IsVisible || row.IsAuthor))
+                    {
+                        if (!row.UploadedAutomatic)
+                        {
+                            @Confluence.ButtonTrash(
+                                "",
+                                action: "cleanMandatoryDocuments",
+                                htmlClass: "mr0",
+                                dataAttributes:
+                                    new Dictionary<string, string>
+                                    {
+                                        {"DocumentRemove", "documentsRemoveHidden"},
+                                        {"idb-fieldname", "btnDeleteDocument"},
+                                        {"idDocument", row.VerDocumentId.ToString()},
+                                        {"DocumentName" , row.DocumentName },
+                                        {"DocumentNameTemp" , row.DocumentNameTemp },
+                                        {"DocumentReference" , row.DocumentNumber },
+                                        {"isDocumentTemp" , row.IsNewDocument.ToString() }
+                                    })
+                        }
+
+                        @VerVmrHelpers.ButtonUploadOffice365(
+                            "",
+                            "office365ButtonUpload",
+                            Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                            modalId,
+                            null,
+                            row.DocumentName,
+                            operationNumber,
+                            action: "UploadDocumentRow",
+                            htmlClass: "mr0 hide",
+                            acceptFormat: string.IsNullOrEmpty(row.SpecificExtension) ? null : row.SpecificExtension)
+                }
+                break;
+        }
+    }
+}
+}
+
+@helper GetCheckBoxButton(VerDocumentRowViewModel row, FieldAccessModel chkPackage)
+{
+if ((!row.IsRequired && !row.IsPrimary))
+{
+        @Confluence.InputCheckbox(
+            row.IncInPackage,
+            "packageDoc",
+            dataAttributes:
+                new Dictionary<string, string>
+                {
+                    { "DocPackageCheck", "DocPackageChecks" },
+                    { "idb-fieldname", "chkPackage" }
+                },
+            disabled: chkPackage != null && chkPackage.IsReadOnly)
+}
+else
+{
+        @Confluence.InputCheckbox(
+            row.IncInPackage,
+            "packageDoc",
+            disabled: true,
+            dataAttributes:
+                new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "chkPackage" }
+                })
+}
+}
+
+
+@helper GetCheckBoxGenerateAnnex(VerDocumentRowViewModel row, bool isRead)
+{
+if (!row.IsPrimary && row.IsGenerated && row.DocumentId.HasValue == false
+    && (row.DocumentTypeName != VerDocumentTypeCode.QRR_REPORT
+    || row.DocumentTypeName != VerDocumentTypeCode.ERM_MINUTES))
+{
+        @(isRead
+        ? Confluence.InputCheckbox(false, "isGeneratedAnnex", "isGeneratedAnnex", disabled: true)
+        : Confluence.InputCheckbox(false, "isGeneratedAnnex", "isGeneratedAnnex"))
+}
+}
+
+
+@helper GetDocumentName(VerDocumentRowViewModel row, bool isLocked, string urlFolder)
+{
+if (row.IsPrimary)
+{
+        @Confluence.ButtonLink(
+            row.DocumentName,
+            action: !string.IsNullOrEmpty(row.ShpUrlDocument) ? "officeOnlineMainDocument" : null,
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "url", row.ShpUrlDocument },
+                { "idb-fieldname", "btnLinkName" }
+            },
+            htmlClass: "text-left " + (string.IsNullOrEmpty(row.ShpUrlDocument) ? "unlinkedDocument" : string.Empty),
+            name: "urlPrimaryDocument")
+}
+else
+{
+        @Confluence.ButtonLink(
+            row.DocumentName,
+             action: !string.IsNullOrEmpty(row.ShpUrlDocument) ? "officeOnline" : null,
+             htmlClass: "text-left " + (string.IsNullOrEmpty(row.ShpUrlDocument) ? "unlinkedDocument" : string.Empty),
+            dataAttributes:
+                new Dictionary<string, string>
+                {
+                    { "url", string.IsNullOrEmpty(row.ShpUrlDocument) ? string.Empty : row.ShpUrlDocument },
+                    { "DocumentNameUpload", "documentsName" },
+                    { "idb-fieldname", "btnLinkName" }
+                })
+}
+}
+
+@helper GetCheckBoxPublish(VerDocumentRowViewModel row, FieldAccessModel chkPublish, bool isRead)
+{
+if (row.IsVisibleChkPublish != null && row.IsVisibleChkPublish == true)
+{
+        @(isRead
+        ? Confluence.InputCheckbox(row.IncInPublish,
+                                    "publishDoc",
+                                    disabled: true,
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                            { "idb-fieldname", "chkPublish" }
+                                    }
+                )
+        : Confluence.InputCheckbox(row.IncInPublish,
+                                   "publishDoc",
+                                   disabled: row.IsEditable == false || chkPublish == null || chkPublish.IsReadOnly,
+                                   dataAttributes: new Dictionary<string, string>
+                                    {
+                                            { "DocPublishCheck", "DocPublishChecks" },
+                                            { "idb-fieldname", "chkPublish" }
+                                    }
+                                   )
+        )
+}
+else
+{
+        @Confluence.InputCheckbox(row.IncInPublish,
+                                "publishDoc",
+                                disabled: true,
+                                dataAttributes: new Dictionary<string, string>
+                                {
+                                            { "idb-fieldname", "chkPublish" }
+                                },
+                                htmlClass: "hide");
+}
+}
+
+@helper GetCheckBoxTranslation(VerDocumentRowViewModel row, bool isRead)
+{
+    if (isRead)
+    {
+            @Confluence.LabelGetBool(row.IsSubmittedForTranslation);
+    }
+    else
+    {
+        @Confluence.InputCheckbox(
+            Model.IsSubmittedForTranslation.GetValueOrDefault() == false && row.IsSubmittedForTranslation,
+            "documentToSubmitTranslation",
+            disabled: row.IsDisableCheckTranslate.GetValueOrDefault())
+    }
+}
+
+@helper GetCheckBoxClearance(VerDocumentRowViewModel row, bool isRead)
+{
+    if (isRead)
+    {
+        @Confluence.LabelGetBool(row.UpdatedCheckForClearance == null
+                                    ? row.IsSubmittedForClearance
+                                    : row.UpdatedCheckForClearance.GetValueOrDefault())
+    }
+    else
+    {
+        @Confluence.InputCheckbox(
+            row.UpdatedCheckForClearance == null 
+                ? row.IsSubmittedForClearance
+                : row.UpdatedCheckForClearance.GetValueOrDefault(),
+            "updatedCheckForClearance")
+    }
+}
+
+@helper GetCheckBoxClearanceToPdf(VerDocumentRowViewModel row, bool isRead)
+{
+    if (isRead)
+    {
+        @Confluence.LabelGetBool(row.IsCheckClearancePdf)
+        ;
+    }
+    else
+    {
+        @Confluence.InputCheckbox(
+            row.IsCheckClearancePdf,
+            "documentToClearancePdf",
+            disabled: !row.IsEnableClearancePdf.GetValueOrDefault())
+    }
+}

@@ -1,0 +1,177 @@
+
+@using System.Web.Mvc
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Architecture.DataTables.Common;
+
+@model ParameterizationViewModel
+
+@{
+    var appSetting = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSetting.FormatDate;
+    var formatDecimal = appSetting.FormatDecimal;
+}
+
+@if (Model != null)
+{
+    @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"Parametrization-CustomProc-removeRow-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-CustomProc",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+        .AddButton(name: "btn-common-remove-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+        .AddButton(name: "btn-common-remove-ok",
+                    text: Localization.GetText("Common.Continue"),
+                    type: CssClass.Button05,
+                    callback: "removeProcPlanRow",
+                    closeAtEnd: true))
+    <div data-name="Parametrization-CustomProc-removeRow-modal" class="hide modalBody">
+        @Localization.GetText("SGP.Message.ThisActionCannotBeUndone")
+    </div>
+
+    <div class="">
+
+        <div class="row mb10">
+            <div class="col-xs-12">
+                @Confluence.LabelMainTitle(Localization.GetText("SGP.Label.FiduciaryArrangement"), htmlClass: "subTitleSG mb10")
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xs-10">
+                @Confluence.LabelBold(Localization.GetText("SGP.Label.Note"))
+                @Confluence.Label(Localization.GetText("SGP.Label.ThisInformationWillNeed"))
+            </div>
+            <div class="col-xs-2 text-right">
+                @(Html.CollapseAll("collapseAllParameterization").CollapseSingleSelector("[data-name=\"collapseComponent\"]"))
+            </div>
+        </div>
+
+        <div class="page-with-collapse">
+            @Html.Partial("EditPartial/ParametrizationExecutingAgencyDatatable", Model)
+        </div>
+
+        <div class="page-with-collapse mb10">
+            @Html.Partial("EditPartial/ParametrizationCustomProcurementDatatable", Model)
+        </div>
+        <div class="page-with-collapse mb10">
+            @Html.Partial("EditPartial/ParametrizationNationalSystemDatatable", Model)
+        </div>
+
+    </div>
+
+    <script type="text/javascript">
+
+        function removeProcPlanRow(event, source) {
+            var promise = $.Deferred();
+            source.closest('tr').remove();
+            promise.resolve();
+            return promise;
+        }
+
+        registerCallback(function () {
+
+            window.ParsleyValidator
+                  .addValidator('noRepeatValueCustom', function (value, requirement) {
+                      var combos = $(requirement);
+                      if ((combos != null) && (combos.length > 0)) {
+                          var combosWithValue = combos.filter(function (index, item) {
+                              var $item = $(item);
+                              if ($item.attr('disabled') === 'disabled') {
+                                  return false;
+                              }
+                              var result = false;
+                              if ($.trim($item.val() == $.trim(value)) && $.trim($item.val().toLowerCase()) == $.trim(value.toLowerCase())) {
+                                  result = true;
+                              }
+
+                              return result;
+                          });
+
+                          var numElements = combosWithValue.length;
+                          return numElements <= 1;
+                      }
+                      return true;
+                  }, 32)
+                  .addMessage('en', 'noRepeatValueCustom', '@Localization.GetText("SGP.Label.ValidationNameNationality")');
+
+            $(document).on('click', '[name="cancel-Parameterization"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+            //To Parametrization EditPartial
+            $(document).on('click', '[name="addNewCustomProcurementMethod"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var trTemplate = $('#tableCustomMethods tbody tr:first');
+                var newTr = trTemplate.clone(false);
+
+                newTr.appendTo('#tableCustomMethods tbody');
+                newTr.removeClass('hide');
+                newTr.removeClass('template');
+                newTr.attr('data-id', String.format('new-{0}', newId))
+                newTr.find('input, button, select').removeAttr('disabled');
+                newTr.find('[data-parsley-multiple]').removeAttr('data-parsley-multiple');
+                newTr.find('[name="parametrization-custom-ProcurementMethod"]').removeAttr('required');
+                newTr.find('[name="DefaultSupervisiontMethod"] input').attr('name', String.format('parametrization-custom-superVisionMethodRB-new-{0}', newId));
+
+                var multiSelect = newTr.find('select[data-bind]');
+                multiSelect.attr('data-bind', 'true');
+
+                bindHandlers(newTr);
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            })
+
+            $(document).on('click', '[name="RemoveCustomProcurementMethod"]', function () {
+                var source = $(this);
+                var table = source.closest('table');
+                var rows = table.find('> tbody > tr:not(.template)');
+                var tableName = source.closest('table').attr('id');
+                var prefix = tableName.substring(0, 3);
+                var button = $('[name="btn-open-popup-CustomProc"]');
+                button.data('pressed-by', source);
+                button.click();
+            });
+
+            $(document).on('change', '[name="selectAll-nationalSystem"]', function (e) {
+                var source = $(this);
+                var isChecked = source.is(':checked');
+                var itemsCheckboxs = $('[name="parametrization-national-chb"]');
+                itemsCheckboxs.prop('checked', isChecked);
+            });
+
+            $(document).on('change', '[name="parametrization-national-chb"]', function (e) {
+                var checkedItems = $('[name="parametrization-national-chb"]:checked');
+                var uncheckedItems = $('[name="parametrization-national-chb"]:not(:checked)');
+                var itemsCheckboxMaster = $('[name="selectAll-nationalSystem"]');
+
+                if ((checkedItems.length > 0) && (uncheckedItems.length == 0)) {
+                    itemsCheckboxMaster.prop('checked', true);
+                } else if (uncheckedItems.length > 0) {
+                    itemsCheckboxMaster.prop('checked', false);
+                }
+
+            });
+
+        });
+
+    </script>
+}

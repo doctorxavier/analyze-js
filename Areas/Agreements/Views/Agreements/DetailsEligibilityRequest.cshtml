@@ -1,0 +1,240 @@
+﻿@using IDB.MW.Domain.Models.Architecture.MasterDefinitions;
+@model  IDB.MW.Domain.Models.Clauses.OperationRelatedModel
+@{
+    ViewBag.Title = "CreateEligibilityRequest";
+    bool canBeRequest = this.ViewBag.canBeRequest;
+    bool showRequest = this.ViewBag.showRequest;
+	DateTime eligibilityDate = DateTime.MinValue;
+	foreach(var cl in Model.ListHibridClauseClauseIndividual){
+		if(cl.Approval.HasValue && cl.Approval>eligibilityDate){
+			eligibilityDate = cl.Approval.Value;
+		}
+	}
+}
+
+
+@section JavaScript {
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Document/addDocument.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/thumbnail/thumbnail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Agreements/Condition/editApprovalRequest.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/addComment.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Global/GlobalScript.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/FindingRecomendations/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/concurrence.js" + @System.Configuration.ConfigurationManager.AppSettings["cache"].ToString())"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Agreements/Agreement/validationRequest.js")"></script>
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var grid = new GridComponent(".grid", 20, false, true);
+            $(".datepicker").kendoDatePicker({
+                format: "dd MMM yyyy"
+            });
+            $(".validRequest").click(function () {
+                var route = $("#DetailsEligibilityApprovalRequest").val();
+                redirectPage(route);
+            });
+            $(".deniedRequest").click(function () {
+                $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="dinamicModal"></div>');
+                var route = $("#WarningMessageURL").val();
+                var title = "Warning";
+                var dialog = $(".dinamicModal").kendoWindow({
+                    width: "800px",
+                    title: title,
+                    draggable: false,
+                    resizable: false,
+                    content: route,
+                    pinned: true,
+                    actions: [
+                        "Close"
+                    ],
+                    modal: true,
+                    visible: false,
+                    close: function () {
+                        $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                        $(".ui-widget-overlay").remove();
+                        $(".k-window").remove();
+                    }
+                }).data("kendoWindow");
+                $(".k-window-titlebar").addClass("warning");
+                $(".k-window-title").addClass("ico_warning");
+                dialog.center();
+                dialog.open();
+            });
+        });
+    </script>
+}
+
+@Html.Hidden("WarningMessageURL", Url.Action("IndexWarningMessage", "Agreements", new { area = "Agreements", message = Localization.GetText("To create a request for validation All “Prior Condition” clauses should be in a final validation status") }))
+@Html.Hidden("DetailsEligibilityApprovalRequest", Url.Action("DetailsEligibilityApprovalRequest", "Agreements", new { area = "Agreements", operationId = Model.OperationId, contractId = Model.Contracts[0].ContractId, mainOperationNumber = Model.mainOperationNumber, eligibilityDate = Model.Contracts[0].EligibilityDate }))
+@Html.Hidden("TLSendRequestUrl", Url.Action("TLAnulationRequestAction", "Agreements", new { area = "Agreements" }))
+@Html.Hidden("TLValidators", (object)ViewBag.SendRequest)
+
+<section class="central">
+    <h2 class="hide">@Localization.GetText("Seccion central de Contenido")</h2>
+    <div class="mod_contenido_central contracts_and_clauses elegibility_date">
+        <h3 class="headingh2 w50">
+            <a href="@(Url.Action("Index", "Agreements", new { area = "Agreements", operationNumber = Model.mainOperationNumber }))" title=" @Localization.GetText("Contracts And Clauses")" class="tipo1">@Model.Contracts[0].ContractNumber</a>
+        </h3>
+        <div class="editingButtonsEdit up">
+            @if (Html.HasPermission(Permission.ELEGIBILITY_WRITE))
+            {
+                if (showRequest && canBeRequest)
+                {
+                    <label for="saveandrequest">
+                        <input type="button" class="btn-primary_2 saveandrequest validRequest"
+                                name="Request" value="@Localization.GetText("Request")">
+                    </label>
+                }
+
+                <label for="edit1">
+                    <a class="btn-secondary" href="@Url.Action("DetailsEligibilityRequestEdit", "Agreements",
+                        new
+                        {
+                            area = "Agreements",
+                            operationId = Model.OperationId,
+                            contractId = Model.Contracts[0].ContractId,
+                            mainOperationNumber = Model.mainOperationNumber
+                        })" title="Edit">@Localization.GetText("Edit")</a>
+                </label>
+            }
+        </div>
+        <div class="desheadingh3 w94">
+            <p class="description"><span class="descriptionBold">@Model.Contracts[0].ContractNumber </span>@Model.OperationNameEn</p>
+        </div>
+        <h4 class="headingh3 min_bottom_headingh3 ffamilyRegular">@Localization.GetText("ELIGIBILITY DATE")</h4>
+        <fieldset>
+            <legend class="hide">@Localization.GetText("Eligibility Date")</legend>
+            <div class="operationData custom">
+                <div class="data4">
+                    <div class="dateSelect">
+                        <label for="datepicker0">
+                            <span class="dataTitle inputTitle">@Localization.GetText("Eligibility Date")</span>
+							@if(!showRequest){
+								if (Model.Contracts[0].EligibilityDate.HasValue && Model.Contracts[0].IsEligible)
+								{
+									@String.Format("{0:dd MMM yyy}", Model.Contracts[0].EligibilityDate)
+								} else if (eligibilityDate != DateTime.MinValue)
+								{
+									@String.Format("{0:dd MMM yyy}", eligibilityDate)
+								}
+							}
+                        </label>
+                    </div>
+                </div>
+                <div class="data4">
+                    <p class="dataTitle">@Localization.GetText("Eligibility date validation status")</p>
+                    <p>@ViewBag.ContractStatus</p>
+                </div>
+            </div>
+        </fieldset>        
+
+
+        <div class="mod_tabla" style="width: 95%">
+            <table class="grid">
+                <thead>
+                    <tr>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseNumber">@Localization.GetText("Clause Number")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseDescription">@Localization.GetText("Description")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseCategory">@Localization.GetText("Category")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseType">@Localization.GetText("Type")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseSpecial">@Localization.GetText("Special")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseLocation">@Localization.GetText("Location")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="Expiration">@Localization.GetText("Expiration")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="Submit">@Localization.GetText("Submission")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseApproval">@Localization.GetText("Approval")</th>
+                        <th class="btn_azul_oscuro_flecha" data-field="ClauseStatus">@Localization.GetText("Status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var itemClauseInfo in Model.ListHibridClauseClauseIndividual)
+                    {
+                        <tr>
+                            <td>@itemClauseInfo.ClauseNumber</td>
+                            <td>@itemClauseInfo.Description</td>
+                            <td>@itemClauseInfo.Category</td>
+                            <td>@itemClauseInfo.Type</td>
+                            <td>@itemClauseInfo.Special</td>
+                            <td>@itemClauseInfo.Location</td>
+                            <td>@itemClauseInfo.Expiration</td>
+                            <td>@itemClauseInfo.Clauses</td>
+                            <td>@Convert.ToDateTime(itemClauseInfo.Approval).ToString("dd MMM yyyy")</td>
+                            <td>@itemClauseInfo.Status</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+         @*Inicio Documentos*@
+
+        <div class="operationData width_Off min_padding_left dataSocial  ">
+                <h4 class="headingh3 cero_left">@Localization.GetText("Documents") </h4>
+            </div>
+            @*<div class="editingButtonsEdit" style="margin-bottom: 4%; position: relative; right: 3%;">
+                <input type="button" class="btn-primary marginOff lnkModal" value="@Localization.GetText("Add")" title="@Localization.GetText("Add")" data-title="@Localization.GetText("Add a document")" data-route="@(Url.Action("IndexDocumentRelationship", "Document", new { area = string.Empty, operationId = Model.OperationId, mainOperationNumber = Model.mainOperationNumber, parentEntityId = Model.Contracts[0].ContractId, subParentEntityId = 0, subsubParentEntityId = 0, entityRelated = "CLAUSE_CONTRACT_ELIGIBILITY_NOREQUEST", entityRegisterId = Model.Contracts[0].ContractId, isFirstTime = true }))">
+            </div>*@
+            <div class="mod_tabla icon_entypo tableDocuments" style="width: 94%">
+                <table class="grid w100 noInnerPadding fixedValues ">
+                    <thead>
+                        <tr>
+                            <th class="btn_azul_oscuro_flecha" data-field="User">@Localization.GetText("User")</th>
+                            <th class="btn_azul_oscuro_flecha" data-field="Date">@Localization.GetText("Date")</th>
+                            <th class="btn_azul_oscuro_flecha" data-field="IDBDocNum">@Localization.GetText("IDB Doc number")</th>
+                            <th class="btn_azul_oscuro_flecha" data-field="Content">@Localization.GetText("Content")</th>
+                            <th class="btn_azul_oscuro" data-field="Current">&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var document in Model.Contracts[0].Documents)
+                        {
+                            <tr>
+                                <td>@document.CreatedBy</td>
+                                <td>@String.Format("{0:dd MMM yyy}", document.Created)</td>
+                                <td>@document.DocumentReference</td>
+                                <td>@document.Description</td>
+                                <td>
+                                    @{
+                                        var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocumentReference);
+                                    }
+                                    <a class="btn_entypo" title=" @Localization.GetText("Download")" href=@secureUrl target="_blank" style="position: relative;left: 25%;min-height: 0.9em;min-width: 1.5em;">&#58544;</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+        @*Fin documentos*@
+
+        <div class="editingButtonsEdit">
+            @if (Html.HasPermission(Permission.ELEGIBILITY_WRITE))
+            {
+                if (showRequest && canBeRequest)
+                {
+                    <label for="saveandrequest2">
+                        <input type="button" class="btn-primary_2 saveandrequest validRequest"
+                               name="Request" value="@Localization.GetText("Request")">
+                    </label>
+                }
+
+                <label for="edit1">
+                    <a class="btn-secondary" href="@Url.Action("DetailsEligibilityRequestEdit", "Agreements",
+                        new
+                        {
+                            area = "Agreements",
+                            operationId = Model.OperationId,
+                            contractId = Model.Contracts[0].ContractId,
+                            mainOperationNumber = Model.mainOperationNumber
+                        })" title="Edit">@Localization.GetText("Edit")</a>
+                </label>
+            }
+        </div>
+    </div>
+
+</section>

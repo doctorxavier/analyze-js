@@ -1,0 +1,658 @@
+﻿@using IDB.Presentation.MVC4.Helpers;
+@using IDB.Architecture.Language;
+
+@model IDB.MW.Application.MissionsModule.ViewModels.MissionsViewModel
+
+<input hidden data-idb-pagename="Missions-SearchView-Mode" />
+<input hidden name="operationNumber" value="@Model.Header.operationNumber"/>
+
+<div data-pagemode="read" id="viewMissions">
+
+    <div class="row row-body-40" id="header-section" data-loadurl="@Url.Action("MissionsHeader", "View", new { area = "Opus" })">
+        <div class="col-md-12">
+            @Html.Partial("Partials/MissionsHeader", Model)
+        </div>
+    </div>
+    <div class="row row-body-40">
+        <div class="col-md-12 text-right">
+            @if (ViewBag.HasWritePermission)
+            {
+                @Confluence.ButtonBlue(text: Localization.GetText("OP.MS.New"), action: "newMissions", name: "newMissions", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnNewMissions" } })
+            }
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12" id="resultSearchFilter">
+            @Html.Partial("Partials/DataListViews/MissionData", Model.Missions)
+        </div>
+    </div>
+</div>
+
+<div class="col-md-6 text-right">
+    <div id="MissionDocuments-modal-add" class="hide">
+        @Html.Partial("Controls/IDBDocsNew/AddIDBDoc", new IDB.Presentation.MVC4.Models.Documents.SearchDocumentModalViewModel { SearchModalId = "tablaPagContentMission", MultipleSelection = false, TargetFunction = "addDocumentInTable", BusinessAreaCode = "BA_MISSIONS", OperationNumber = Model.Header.operationNumber })     
+    </div>
+
+</div>
+
+
+@Confluence.Loader()
+
+<input type="hidden" id="missionIdForDocumentHelp"/>
+
+<div id="divVerifyContent" hidden="hidden">
+    <button data-id="buttonComplete" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="MissionCompletionModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("TCM.VerifyContent.Header")"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="MissionCompletionModal" class="hide modalBody"></div>
+</div>
+<div data-id="ModalRegion">
+    <button data-id="butttonNewRelationModal" class="buttonBlue hide"
+            data-modal-allowclose="true"
+            data-custom-modal="completedModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("SP.MS.MissionCompletion")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["cancel","save"]'
+            data-custom-button-save-id="send"
+            data-custom-button-save="@Localization.GetText("SP.MS.Complete")"
+            data-custom-button-save-style="btn btn-primary"
+            data-custom-button-save-callback="AssociateActivitiesMissions"
+            data-custom-button-save-closeatend="true"
+            data-custom-button-cancel-id="cancel"
+            data-custom-button-cancel="@Localization.GetText("SP.MS.Cancel")"
+            data-custom-button-cancel-style="btn btn-link"
+            data-custom-button-cancel-callback=""
+            data-custom-modal-onclose="addNewRelatedOperation"
+            data-custom-modal-closeonoverlayclick="false">
+        Modal
+    </button>
+    <div id="completedModal" class="hide new-modal-content">
+        <p> @Localization.GetText("SP.MS.CompletedModal")</p>
+        <br />
+        @Confluence.InputDropDown(null, "activityInputSave",null,width:"400px")
+        <input id="idMissionActivity" type="hidden" />
+    </div>
+
+</div>
+
+<button data-id="CancelPosponeModal" class="btn-warning hide"
+        data-modal-allowclose="true"
+        data-custom-modal="cancelPospone"
+        data-custom-modal-style=""
+        data-custom-modal-title="Please provide a justification before continuing"
+        data-custom-modal-validate="false"
+        data-custom-buttons='["Continue", "Cancel"]'
+        data-custom-button-continue-id="btnContinue"
+        data-custom-button-continue="Continue"
+        data-custom-button-continue-style="btn btn-primary"
+        data-custom-button-continue-callback="validateSubmit"
+        data-custom-button-continue-closeatend="true"
+        data-custom-button-cancel-id="btnCancel"
+        data-custom-button-cancel="Cancel"
+        data-custom-button-cancel-style="btn btn-link"
+        data-custom-button-cancel-callback=""
+        data-custom-modal-onclose="modalOnClose"
+        data-custom-modal-closeonoverlayclick="true">
+    test
+</button>
+<div id="cancelPospone" class="hide" data-parsley-validate="data-parsley-validate" data-submit-popup="true">
+    <div class="" style="border: none;margin:10px">
+        @Confluence.InputTextArea(
+            value: "",
+            maxLength: 3000,
+            name: "mission-justification",
+            width: "100%",
+            height: "150px",
+            required: true,
+            placeholder: Localization.
+                GetText("Please enter justification"))
+    </div>
+    @Confluence.InputHidden(string.Empty, "mod-mission-status")
+    @Confluence.InputHidden(string.Empty, "mod-mission-id")
+</div>
+@section scripts
+{
+    <script type="text/javascript">
+
+        function MissionCompletion() {
+            var url = '@Url.Action("MissionCompletion", "View", new { area = "OpusMissions"})';
+            postUrlWithOptions(url, { async: false })
+                .done(function (data) {
+                    $('#MissionCompletionModal').html(data);
+                    $('[data-id="buttonComplete"]').click();
+                })
+                .fail(function (jqXhr, textStatus, errorThrown) {
+                    showMessage(errorThrown);
+                });
+        }
+        function newMissions(source) {
+            var operationNumber = $("input[name='operationNumber']").val();
+            var url = '@Url.Action("NewMission", "View", new { area = "OpusMissions" })?operationNumber=' + operationNumber;
+            window.open(url, "_self");
+        }
+
+        function cancelNewMissions(source) {
+
+            exitEditMode(false, $('#viewMissions'), true, true);
+        }
+
+
+        $(".btnAddNewRowTable").click(function () {
+            var container = $(this).parent().siblings('table').find('tbody');
+            var template = $(this).parent().siblings("table.templateNewRow").find("tr");
+            $(container).append(template);
+            //$(".ctrl.selectFilter").dropDownSeachBox();
+        });
+
+        $(".btnDelNewRowTable").click(function () {
+            var container = $(this).parent().parent().remove();
+        });
+
+        $('select[name=MembersTeam]').change(function () {
+            var operationNumber = $("input[name='operationNumber']").val();
+            var element = this;
+            var OperationTeamDataId = element.value;
+            var result = postUrl("@Url.Action("GetRoleMember", "View", new { area = "OpusMissions" })",
+                { OperationTeamDataId: OperationTeamDataId, operationNumber: operationNumber });
+            result.done(function (response) {
+                if (response.IsValid) {
+                    var item = response.Data.Role
+                    var organizational = response.Data.organizationalId
+                    $(element.closest('tr')).find('#teamRole').text(item);
+                    $(element.closest('tr')).find('#teamOrganizational').text(organizational);
+                }
+            });
+
+        });
+
+
+        $(document).ready(function () {
+            enterEditMode(false, $('#header-section'), true);
+            enterEditMode(false, $('#footer-section'), true);
+            enterEditMode(false, $('.page'), true);
+
+            $("#tablaPaginationMission").paginationConfluense(10).sortableConfluense();
+            $('#missionIdNumber').click();
+            $('#organizationalUnitText').attr('readonly', true);
+            defineOrganizationalUnitShow();
+        });
+
+        $("[aria-labelledby=id-countryDepartment] li a").click(function (source) {
+            var countryDepartment = source.target.attributes["dd-value"].value;
+            $('ul[aria-labelledby=id-country] li a[dd-parent-id=' + countryDepartment + ']').removeClass('hide');
+            $('ul[aria-labelledby=id-country] li a[dd-parent-id!=' + countryDepartment + ']').addClass('hide');
+            $('[name=country]').FirstorDefault();
+        });
+
+        function defineOrganizationalUnitShow() {
+            var hasOnlyOneOrgUnit = $("#hasOnlyOneOrgUnit").val();
+            if (hasOnlyOneOrgUnit == "true") {
+                $("#organizationalUnitText").val($("#organizationalUnitTextHidden").val());
+                $('[name="organizationalUnit"]').hide();
+                $("#organizationalUnitText").show();
+
+            }
+            else {
+                $('[name="organizationalUnit"]').show();
+                $("#organizationalUnitText").hide();
+            }
+
+        }
+
+        $('select[name=Type]').change(function () {
+            var element = this;
+            var typeId = element.value;
+
+            if (typeId == $("#typeESGIdHidden").val()) {
+                $("#organizationalUnitText").val("VPS/ESG");
+                $('[name="organizationalUnit"]').hide();
+                $("#organizationalUnitText").show();
+            }
+            else {
+                defineOrganizationalUnitShow();
+            }
+
+            $("#tablaPaginationMission").paginationConfluense(10).sortableConfluense();
+            $('#missionIdNumber').click();
+        });
+
+        function ClearMissions(source) {
+
+            $("[name='StartDateMission']").val("");
+            $("#id-StatusMission").FirstorDefault();
+            $("#id-TypeMission").FirstorDefault();
+            $("[name='EndDateMission']").val("");
+            $('div.Pagination[dd-table=tablaPaginationMission]').remove();
+
+            FilterMissions();
+        }
+
+        function urlParams()
+        {
+            var operationNumber = $("input[name='operationNumber']").val();
+            var statusListFront = $('input[name=StatusMission]').val();
+            var typeListFront = $('input[name=TypeMission]').val();
+            var countryDepartmentListFront = $('input[name=countryDepartment]').val();
+            var countryListFront = $('input[name=country]').val();
+            var startDate = $('input[name=StartDateMission]').val() != null ? $('input[name=StartDateMission]').val().replace(" ", "-").replace(" ", "-") : '';
+            var endDate = $('input[name=EndDateMission]').val() != null ? $('input[name=EndDateMission]').val().replace(" ", "-").replace(" ", "-") : '';
+
+            if ((countryDepartmentListFront != null) && (countryListFront == "")) {
+                var arrayCountry = $.map($('select[name=country]').find('[class=""]'), function (e) { return e.value; });
+                arrayCountry.shift();
+                countryListFront = arrayCountry;
+            }
+            if (countryDepartmentListFront == undefined) {
+                countryDepartmentListFront = "";
+            }
+            if (countryListFront == undefined) {
+                countryListFront = "";
+            }
+
+            var params = {
+                operationNumber: operationNumber,
+                status: statusListFront,
+                type: typeListFront,
+                countryDepartment: countryDepartmentListFront,
+                country: countryListFront,
+                startDateMission: startDate,
+                endDateMission: endDate
+            }
+
+            return params;
+        }
+
+        function FilterMissions() {
+            if (validateDates()) {
+                if (validateStartDateLessEndDate()) {
+                    var params = urlParams();
+                    $("#resultSearchFilter").empty();
+                    $('#resultSearchFilter').load('@Url.Action("FilterSearchMissions", "View", new { area = "OpusMissions" })',
+                        {
+                            operationNumber: params.operationNumber,
+                            status: params.status,
+                            type: params.type,
+                            countryDepartment: params.countryDepartment,
+                            country: params.country,
+                            startDateMission: params.startDateMission,
+                            endDateMission: params.endDateMission
+                        }
+                    );
+                    $("#tablaPaginationMission").paginationConfluense(10).sortableConfluense();
+                    $('#missionIdNumber').click();
+                } else {
+                    showMessage('@Localization.GetText("OP.MS.MissionData.Message.DateMinor")');
+                }
+            } else {
+                $("#resultSearchFilter").empty();
+            }
+        }
+
+        function actionDeleteMission(source) {
+            confirmAction('@Localization.GetText("OP.MS.MissionData.WarningDeleteMission")').done(function (selectionOk) {
+                if (selectionOk) {
+                    var params = urlParams();
+                    $("#resultSearchFilter").empty();
+                    var missionId = source.attr("data-mission-id");
+                    $('#resultSearchFilter').load('@Url.Action("DeleteMission", "View", new { area = "OpusMissions" })',
+                        {
+                            operationNumber: params.operationNumber,
+                            status: params.statusListFront,
+                            type: params.typeListFront,
+                            countryDepartment: params.countryDepartmentListFront,
+                            country: params.countryListFront,
+                            startDateMission: params.startDate,
+                            startDateMission: params.startDateMission,
+                            endDateMission: params.endDateMission,
+                            missionId: missionId
+                        });
+                    $("#tablaPaginationMission").paginationConfluense(10).sortableConfluense();
+                    $('#missionIdNumber').click();
+                }
+            });
+        }
+
+        function saveNewRequestMissions() {
+            location.pathname = "@Url.Action("MissionsWorkflow", "View", new { area = "OpusMissions" })";
+        }
+
+        function addDocumentInTable(documentList, sourceType, fileNames) {
+
+            var missionId = $('#missionIdForDocumentHelp').val();
+            var docNumber;
+            var fileName;
+
+            if (documentList == undefined)
+                return;
+            if (documentList.length <= 0)
+                return;
+            showLoader();
+            if (sourceType === "selected") {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0].DocumentNumber;
+                    fileName = documentList[0].DocumentName;
+                }
+            }
+            else {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0];
+                }
+                if (fileNames.length > 0) {
+                    fileName = fileNames[0];
+                }
+            }
+
+            var url = $('#tablaPagContentMission').attr('data-url');
+            var response = postUrl(url, { documentNumber: docNumber, missionId: missionId, fileName: fileName })
+                .success(function (data) {
+                    if (data.IsValid) {
+                        hideLoader()
+                        FilterMissions();
+                    }
+                })
+                .error(function (response) {
+                    hideLoader();
+                    showMessage(response.ErrorMessage);
+                });
+            closeModal();
+            hideLoaderOptional();
+        }
+
+        function closeModal() {
+            var vexModal = $('#MissionDocuments-modal-add').parents('.vex');
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+
+        $(document).on('click', '[data-btn_add_document_help]', function () {
+            var missionId = $(this).attr('data-mission-id');
+            $('#missionIdForDocumentHelp').val(missionId);
+        });
+
+        function validateDates() {
+            var validData = true;
+            cleanErrorsList();
+            var expreg = /^(((0?[1-9])|([1-2][0-9])|3(0|1)) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4})$/;
+
+            if ($('input[name="StartDateMission"]').val() != "") {
+                $('input[name="StartDateMission"]').each(function () {
+                    if (!expreg.test($(this).val())) {
+                        $('input[name=StartDateMission]').parent().append("<ul class='parsley-errors-list'</ul>");
+                        addErrors($(this))
+                        validData = false;
+                    }
+                });
+            }
+
+            if ($('input[name="EndDateMission"]').val() != "") {
+                $('input[name="EndDateMission"]').each(function () {
+                    if (!expreg.test($(this).val().trim())) {
+                        $('input[name=EndDateMission]').parent().append("<ul class='parsley-errors-list'</ul>");
+                        addErrors($(this));
+                        validData = false;
+                    }
+                });
+            }
+            return validData;
+        }
+
+
+        function addErrors(source) {
+            var msj = '<li class="parsley-required">' + '@Localization.GetText("OP.MS.Message.ValueInvalid")' + ' </li>';
+            source.next("ul.parsley-errors-list").addClass('filled').append(msj);
+        }
+
+        function cleanErrorsList() {
+            $('#viewMissions').find("ul.parsley-errors-list").children().remove()
+            $('#viewMissions').find("ul.parsley-errors-list").removeClass('filled')
+        }
+
+        function validateStartDateLessEndDate() {
+            var validData = true;
+            var startDateSelected = ($('input[name=StartDateMission]').val() != null) ? $('input[name=StartDateMission]').val() : "";
+            var endDateSelected = ($('input[name=EndDateMission]').val() != null) ? $('input[name=EndDateMission]').val() : "";
+            if (startDateSelected != "" && endDateSelected != "") {
+                var dateStart = new Date(startDateSelected);
+                var dateEnd = new Date(endDateSelected);
+                if (dateStart > dateEnd) {
+                    validData = false;
+                }
+            }
+            return validData;
+        }
+
+        var preserveFunct = false;
+        function ChangeStatusCompletedPending(source) {
+            var today = new Date();
+            var operationNumber = $("input[name='operationNumber']").val();
+            var missionEndDate = source.attr("data-mission-endDate");
+            var dateSelected = new Date(missionEndDate);
+            var yearActivities = dateSelected.getFullYear();
+            var missionId = source.attr("data-mission-id");
+            $("#idMissionActivity").val(missionId);
+            var type = source.attr("data-type");
+            var typeSpv = source.attr("data-typeSpv");
+            if (dateSelected > today) {
+                confirmAction('@Localization.GetText("OP.MS.MissionCompleteView.Message.EndDateFuture")').done(function (selectionOk2) {
+                    if (selectionOk2) {
+                        if (type == "Administration" && typeSpv == "DETL_SP") {
+                            preserveFunct = true;
+                            var url = "@Url.Action("GetActivities", "View", new { area = "OpusMissions" })";
+                            var response = postUrl(url, { operationNumber: operationNumber, yearActivities: yearActivities });
+                            response.done(function (data) {
+                                $("[aria-labelledby='id-activityInputSave']").empty();
+                                for (x = 0; x <= data.length - 1; x++) {
+                                    var value = data[x].Value;
+                                    var text = data[x].Text;
+                                    $("[aria-labelledby='id-activityInputSave']").append('<li><a dd-value=' + value + ' dd-parent-id="" dd-selected="">' + text + '</a></li>');
+                                }
+                                $("[data-id='butttonNewRelationModal']").trigger("click");
+                            });
+                        }
+                        executeComplete(missionId);
+                    }
+                });
+                return false;
+            }
+
+            confirmAction('@Localization.GetText("OP.MS.MissionData.ChangeStatusCompletedPending")').done(function (selectionOk) {
+                if (selectionOk) {
+                    if (type == "Administration" && typeSpv == "DETL_SP") {
+                        preserveFunct = true;
+                        var url = "@Url.Action("GetActivities", "View", new { area = "OpusMissions" })";
+                        var response = postUrl(url, { operationNumber: operationNumber, yearActivities: yearActivities });
+                        response.done(function (data) {
+                            $("[aria-labelledby='id-activityInputSave']").empty();
+                            for (x = 0; x <= data.length-1; x++) {
+                                var value = data[x].Value;
+                                var text = data[x].Text;
+                                $("[aria-labelledby='id-activityInputSave']").append('<li><a dd-value=' + value + ' dd-parent-id="" dd-selected="">' + text + '</a></li>');
+                            }
+                            $("[data-id='butttonNewRelationModal']").trigger("click");
+
+                        });
+                    }
+                    executeComplete(missionId);
+                }
+            });
+        }
+
+
+
+        function executeComplete(missionId) {
+            var operationNumber = $("input[name='operationNumber']").val();
+            var url = "@Url.Action("ChangeStatusCompletedPending", "Save", new { area = "OpusMissions" })";
+            var response = postUrl(url, { operationNumber: operationNumber, missionId: missionId })
+                .success(function (data) {
+                    if (data.IsValid) {
+                        FilterMissions();
+                    }
+                    else {
+                        showMessage(data.ErrorMessage);
+                    }
+                })
+                .error(function (response) {
+                    showMessage(response);
+                });
+        }
+
+        function cancelOrPosponedMission(element) {
+            var missionId = element.data('mission-id');
+            var missionStatus = element.data('mission-status');
+            var message = element.data('mission-message');
+            var urlCancelOrPospone = '@Url.Action("CancelOrPosponedMission","View", new { area = "OpusMissions" })';
+
+            confirmAction(message)
+                .done(function (selectionOk) {
+                    if (selectionOk)
+                    {
+                        $('[data-id="CancelPosponeModal"]').click();
+                        $('[name="mission-justification"]').val('');
+                        destroyParsley();
+                        $('[name="mod-mission-status"]').val(missionStatus);
+                        $('[name="mod-mission-id"]').val(missionId);
+                    }
+                });
+        }
+
+        function sendEmail(data) {
+            var body = "";
+            var find = /i:0#.w(\|)idb\\/;
+            var recipients = data.MissionMailTemplateViewModel.RecipientList;
+            recipients = recipients !== "" ? recipients : " ";
+            recipients = recipients.replace(new RegExp(find.source, 'gi'), '');
+            var sends = data.MissionMailTemplateViewModel.SendToList;
+            sends = sends !== "" ? sends : " ";
+            sends = sends.replace(new RegExp(find.source, 'gi'), '');
+            var separator = drawSeparator();
+            var mailSubject = data.MissionMailTemplateViewModel.MailSubject;
+            body = data.MissionMailTemplateViewModel.MailBodyPartOne + separator
+                + '\n \n' + data.MissionMailTemplateViewModel.MailBodyPartTwo;
+            var mail = String.format("mailto:{0}?cc={1}&subject={2}&body={3}",
+                sends, recipients, mailSubject, encodeURIComponent(body));
+
+            if (mail.length <= 2000) {
+                window.location.href = mail;
+            } else {
+                showMessage('@Localization.GetText("OP.AP.Mailto.ErrorContenido")');
+            }
+        }
+
+        function drawSeparator()
+        {
+            var letter = "";
+            for (var i = 1; i < 50; i++) {
+                letter = letter.concat("_");
+            }
+            return letter;
+        }
+
+
+        function AssociateActivitiesMissions() {
+            var idActivity = $("[name='activityInputSave']").val();
+            var idMission = $("#idMissionActivity").val();
+            if (preserveFunct) {
+                executeComplete(idMission);
+                preserveFunct = false;
+            }
+            if (idActivity != "") {
+                var url = "@Url.Action("AssociateActivitiesMissions", "View", new { area = "OpusMissions" })";
+                postUrl(url, { idMission: idMission, idActivity: idActivity })
+                .success(function (data) {
+                    if (data.IsValid) {
+                        $("[dd-value='" + idActivity + "']").hide();
+                        vex.close();
+                        location.reload();
+                    }
+                    else {
+                        showMessage(data.ErrorMessage);
+                    }
+                })
+                .error(function (response) {
+                    showMessage(response);
+                });
+            } else {
+                vex.close();
+            }
+        }
+
+        function UndoDetailed(source) {
+            var missionId = source.attr("data-mission-id");
+            var url = "@Url.Action("undoDetailed", "View", new { area = "OpusMissions" })";
+            postUrl(url, { missionId: missionId })
+            .success(function (data) {
+                if (data.IsValid) {
+                    location.reload();
+                }
+                else {
+                    showMessage(data.ErrorMessage);
+                }
+            })
+            .error(function (response) {
+                showMessage(response);
+            });
+        }
+
+        function UndoSimplified(source) {
+            var operationNumber = $("input[name='operationNumber']").val();
+            var missionId = source.attr("data-mission-id");
+            var url = "@Url.Action("UndoSimplified", "View", new { area = "OpusMissions" })";
+            postUrl(url, { operationNumber: operationNumber, missionId: missionId })
+            .success(function (data) {
+                if (data.IsValid) {
+                    location.reload();
+                }
+                else {
+                    showMessage(data.ErrorMessage);
+                }
+            })
+            .error(function (response) {
+                showMessage(response);
+            });
+        }
+
+        function validateSubmit(element)
+        {
+            if (!validateContainer($('#cancelPospone')))
+                return;
+
+            var urlCancelOrPospone = '@Url.Action("CancelOrPosponedMission","View", new { area = "OpusMissions" })';
+            var missionId = $('[name="mod-mission-id"]').val();
+            var missionStatus = $('[name="mod-mission-status"]').val();
+            var params = urlParams();
+            var justification = $('[name="mission-justification"]').val();
+
+            postUrlWithOptions(
+                urlCancelOrPospone,
+                { async: true },
+                {
+                    operationNumber: params.operationNumber,
+                    status: params.status,
+                    type: params.type,
+                    countryDepartment: params.countryDepartment,
+                    country: params.country,
+                    startDateMission: params.startDateMission,
+                    endDateMission: params.endDateMission,
+                    missionId: missionId,
+                    missionStatus: missionStatus,
+                    justification: justification
+                }).done(function (result) {
+                    vex.close();
+                    if (result.IsValid == false) {
+                        showMessage(result.ErrorMsg);
+                    }
+                    else {
+                        $('#resultSearchFilter').html(result.Partial);
+                    }
+                }).error(function (result) {
+                    showMessage(result);
+                });
+        }
+    </script>
+}
+

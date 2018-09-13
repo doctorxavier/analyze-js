@@ -1,0 +1,111 @@
+﻿@using System.Globalization
+@using System.Web.WebPages
+@using System.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.CPDModule.ViewModels.CSProgressToDate
+
+@model List<OperationDetailViewModel>
+
+@if (Model.Any())
+{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var isIIC = Model.Select(x => x.IsIIC).LastOrDefault();
+
+    var config = Html.RenderDataTable(Model);
+    config.TableClass = "tableNormal";
+    config.Name("operationDetailsTable")
+    .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Template(c => LinkProductNumber(c.OperationNumber, c.IsLink))
+        .Header(Localization.GetText("CS.OperationDetails.OperationDetailsTable.OperationNumber"))
+        .CssClass("min-width-120")
+        .Persistent();
+
+        columns.Bound(c => c.OperationName)
+        .Header(Localization.GetText("CS.OperationDetails.OperationDetailsTable.OperationName"))
+        .CssClass("cellVerticalCenterLeft")
+        .Persistent();
+
+        columns.Bound(c => c.OperationYear)
+        .Header(Localization.GetText("CS.OperationDetails.OperationDetailsTable.OperationYear"))
+        .CssClass("cellVerticalCenterRight")
+        .Persistent();
+
+        columns.Bound(c => c.StatusOverallStage)
+        .Header(Localization.GetText(isIIC ? "CS.OperationDetails.OperationDetailsTable.StatusOverallStage" : "CS.Monitoring.StatusOverallStage"))
+        .CssClass("cellVerticalCenterLeft")
+        .Persistent();
+
+        columns.Bound(c => FormatHelper.Format(c.Amount ?? 0, formatDecimal))
+        .CssClass("text-right")
+        .Header(Localization.GetText(isIIC ? "CPD.PortfolioDetail.OriginalAmount" : "CPD.PortfolioDetail.CurrentAmount"))
+        .CssClass("cellVerticalCenterRight")
+        .Persistent();
+
+        columns.Template(c => ObjectiveList(c.Objectives.ToList()))
+        .HeaderAttribute("style", "width: 25%;")
+        .Attribute("style", c => "width: 25%;")
+        .Header(Localization.GetText("CS.Portfolio.AlignmentCountryStrategyObjective"))
+        .CssClass("cellVerticalCenterLeft")
+        .Persistent();
+    });
+
+    @Html.Partial("Controls/DataTable", config)
+}
+
+@helper ObjectiveList(List<string> objectivesList)
+{
+    var i = 1;
+
+    foreach (var objectives in objectivesList)
+    {
+        if (objectivesList.Count() > 1 && i != objectivesList.Count())
+        {
+            <div style="margin-bottom:15px;">
+                @objectives.HtmlEncode()
+            </div>
+        }
+
+        if (objectivesList.Count() == 1)
+        {
+            <div>
+                @objectives.HtmlEncode()
+            </div>
+        }
+
+        if (objectivesList.Count() == i && objectivesList.Count() > 1)
+        {
+            <div style="margin-bottom:5px;">
+                @objectives.HtmlEncode()
+            </div>
+        }
+
+        i++;
+    }
+}
+
+@helper LinkProductNumber(string operationNumber, bool isLink)
+{
+    if (isLink)
+    {
+        var url = "/Operation/" + operationNumber;
+
+        @Confluence.LabelLink((operationNumber ?? ""),
+        name: "operationNumberLink",
+        dataAttributes: new Dictionary<string, string> { { "url", url } },
+        htmlClass: "linkStyle")
+    }
+    else
+    {
+        @Confluence.Label(operationNumber ?? "");
+    }
+}

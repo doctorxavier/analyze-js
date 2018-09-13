@@ -1,0 +1,243 @@
+﻿@model IDB.MW.Domain.Models.Clauses.OperationRelatedModel
+@{
+    ViewBag.Title = "CreateRevolvingFundRequest";
+
+}
+
+@section CSS{
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Risks/esmartGeneral.css")"/>
+}
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Document/addDocument.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/thumbnail/thumbnail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Agreements/Condition/editApprovalRequest.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/addComment.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/concurrence.js" + @System.Configuration.ConfigurationManager.AppSettings["cache"].ToString())"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Agreements/Agreement/validationRequest.js")"></script>        
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Global/popUpBuilder.js")"></script>
+    <script type="text/javascript">
+
+        $(function () {
+            $(document).tooltip({
+                items: ".input-validation-error",
+                content: function () {
+                    if ($(this).attr('data-val-required') && $(this).val().length <= 0)
+                        return $(this).attr('data-val-required');
+                    if ($(this).attr('data-val-range') && (parseInt($(this).val()) < 0 || parseInt($(this).val()) > 100))
+                        return $(this).attr('data-val-range');
+                }
+            });
+        });
+
+        $(document).ready(function () {
+            var grid = new GridComponent(".grid", 50, false, false);
+            
+        });
+
+        $(window).load(function () {
+            $("#target").on("submit", function () {
+                if ($("#target").valid()) {
+                    idbg.lockUi(null, true);
+                }
+            });
+        });
+
+        function saveAndRequest () {
+            var contractIdResult = @Model.Contracts[0].ContractId;
+            var ajaxResult = new Object();
+            var jsonModel = JSON.stringify({
+                contractId: @Model.Contracts[0].ContractId,
+                revolvingFundPercent: $('#Revolving').val(),
+            });
+
+            $.ajax({
+                url: $("#hdnRevolvingFundWarningPercent").val(),
+                data: jsonModel,
+                dataType: "json",
+                contentType: "application/json",
+                type: 'POST',
+                timeout: 360000,
+                success: function (revolvingFundWarningPercent) {
+                    ajaxResult.revolvingFundWarningPercent = revolvingFundWarningPercent;
+
+                    if(ajaxResult.revolvingFundWarningPercent.PassMax)
+                    {
+                        $('#popUpContent').text(
+                            "@Localization.GetText("CL.RevolvingFund.Message.MaxPercentagePass.P1")" +
+                            " " + ajaxResult.revolvingFundWarningPercent.PercentValue +
+                            "@Localization.GetText("CL.RevolvingFund.Message.MaxPercentagePass.P2")");
+
+                        $("#target").on("submit", function () { return false });
+                        PopupBuilderWarning("Warning", $('#popUpMaxPercentValue'));
+                        $('#popUpMaxPercentValue').height(150);
+                        $('#popUpMaxPercentValue').removeClass("hidden");
+                    }
+                    else
+                    {
+                        $('#submitButton').attr('name','action:SaveRevolvingFund&Request');
+                        $("#submitButton").click();
+                    }
+                },
+                error: function () {
+                    alert("An error occurred.");
+                },
+            });
+        };
+    </script>
+   
+}
+
+<div class="hidden", id="popUpMaxPercentValue">
+    <p id="popUpContent"
+       style="margin-top: 50px; 
+       margin-left: 80px"></p>
+    <div class="pie pieReassign">
+        <div class="botones">
+            <label for="AnulationAction">
+                <input type="button" value="@Localization.GetText("OK")" class="btn-primary" id="noActionPopUp" onclick="noActionPopUp()">
+            </label>
+        </div>
+    </div>
+</div>
+
+@Html.Hidden("hdnRevolvingFundWarningPercent",
+                Url.Action("RevolvingFundWarningPercent", "Contracts", new { area = "Clauses" }))
+
+<section class="central">
+    <h2 class="hide">Seccion central de Contenido</h2>
+    <div class="mod_contenido_central contracts_and_clauses request_revolving_fund">
+        @using (Html.BeginForm("EditRevolvingFund", "Agreements", FormMethod.Post, new { area = "Agreements", id = "target" }))
+        { 
+            @Html.HiddenFor(x => x.OperationId)
+            @Html.HiddenFor(x => x.mainOperationNumber)
+            @Html.HiddenFor(x => x.Contracts[0].ContractId)
+
+            for (int index = 0; index < Model.Contracts[0].RevolvingFund.Count - 1; index++)
+            {
+            @Html.HiddenFor(x => x.Contracts[0].RevolvingFund[index].PercentageValue)
+            @Html.HiddenFor(x => x.Contracts[0].RevolvingFund[index].RevolvingFundId)
+            @Html.HiddenFor(x => x.Contracts[0].RevolvingFund[index].UpdateLMSStatus)   
+            }
+            
+            <h3 class="headingh2 w50">
+                <a href="@(Url.Action("Index", "Agreements", new { area = "Agreements", operationNumber = Model.mainOperationNumber }))" title=" @Localization.GetText("CC.RevolvingFund.CC")" class="tipo1">@Model.Contracts[0].ContractNumber</a>
+            </h3>                        
+            <div class="editingButtonsEdit up">
+                <a class="cancel" id="Cancelar1" href="@Url.Action("DetailsRevolvingFund", "Agreements", new { area = "Agreements", operationId = Model.OperationId, contractId = Model.Contracts[0].ContractId, mainOperationNumber = Model.mainOperationNumber })" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+                <label for="save">
+                    <input type="submit" class="btn-secondary save" name="action:SaveRevolvingFund" value="@Localization.GetText("Save")" id="Save">
+                </label>
+                <label for="saveandrequest">
+                    <input type="button" class="btn-primary_2 saveandrequest" name="action:SaveRevolvingFund&Request" value=" @Localization.GetText("OP.MS.MissionsWorkflow.SendRequest")" id="saveandrequest" OnClick="saveAndRequest()">
+                </label>
+            </div>                         
+            <div class="desheadingh3 w94">
+                <p class="description"><span class="descriptionBold">@Model.Contracts[0].ContractNumber </span>@Model.OperationNameEn</p>
+            </div>
+            <h4 class="headingh3 min_bottom_headingh3 ffamilyRegular"> @Localization.GetText("Revolving fund") %</h4>                                
+            <div class="operationData custom">
+                <div class="data4">
+                    <label class=" editLabel input" for="Resolving">
+                        <span class="dataTitle inputTitle"> @Localization.GetText("Set revolving fund %")</span>
+                        @Html.TextBoxFor(x => x.Contracts[0].RevolvingFund[Model.Contracts[0].RevolvingFund.Count - 1].PercentageValue, new Dictionary<string, Object> { { "class", "input normal numberOnly" }, { "id", "Revolving" }, { "name", "Revolving" }, { "placeholder", "" }, { "maxlength", "4" } })
+                        @{Html.ValidateFor(x => x.Contracts[0].RevolvingFund[Model.Contracts[0].RevolvingFund.Count - 1].PercentageValue);}
+                    </label>
+                </div>
+                <div class="data4">
+                    <p class="dataTitle"> @Localization.GetText("Revolving fund validation status")</p>
+                    <p>@Localization.GetText(ViewBag.LastRevolvingFundStatus)</p>
+                </div>
+            </div>
+
+            <div class="mod_tabla w90">
+                    <span class="dataTitle"> @Localization.GetText("Revolving fund historic information")</span>
+                    <table class="grid" style="width: 74%;">
+                        <thead>
+                            <tr>
+                                <th class="btn_azul_oscuro_flecha" data-field="Approval"> @Localization.GetText("Approval date")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="Resolving"> @Localization.GetText("Revolving fund")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var funds = 0; funds < Model.Contracts[0].RevolvingFund.Count - 1; funds++)
+                            {
+                                if (Model.Contracts[0].RevolvingFund[funds].ValidationStageId == ViewBag.ApprovedRevolvingFundId)
+                                {
+                                <tr>
+                                    <td>@String.Format("{0:dd MMM yyy}", Model.Contracts[0].RevolvingFund[funds].ValidateDate)</td>
+                                    <td>@Model.Contracts[0].RevolvingFund[funds].PercentageValue</td>
+                                </tr> 
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+               
+             @*Inicio documento*@
+            if (ViewBag.CountRevolvingFund>0)
+            {                   
+             <div class="operationData width_Off min_padding_left dataSocial  ">
+                <h4 class="headingh3 cero_left">@Localization.GetText("OP.IN.SI.Documents") </h4>
+            </div>
+            <div class="editingButtonsEdit" style="margin-bottom: 4%; position: relative; right: 3%;">
+                <input type="button" class="btn-primary marginOff lnkModal" value="@Localization.GetText("DM.Add.Document")" title="@Localization.GetText("DM.Add.Document")" data-title="@Localization.GetText("Add a document")" data-route="@(Url.Action("IndexDocumentRelationship", "Document", new { area = string.Empty, operationId = Model.OperationId, mainOperationNumber = Model.mainOperationNumber, parentEntityId = Model.Contracts[0].ContractId, subParentEntityId = Model.Contracts[0].RevolvingFund[0].RevolvingFundId, subsubParentEntityId = 0, entityRelated = "CLAUSE_CONTRACTS_REVOLVING_NOREQUEST", entityRegisterId = Model.Contracts[0].RevolvingFund[0].RevolvingFundId, isFirstTime = true, BusinessAreaCode = "BA_CONTRACTS" }))">
+            </div>
+            <div class="mod_tabla icon_entypo tableDocuments" style="width: 94%">
+                <table class="grid2">
+                    <thead>
+                        <tr>
+                            <th class="btn_azul_oscuro_flecha" data-field="User">@Localization.GetText("OP.MS.Documents.User")</th>
+                            <th class="btn_azul_oscuro_flecha" data-field="Date">@Localization.GetText("OP.MS.Documents.Date")</th>
+                            <th class="btn_azul_oscuro_flecha" data-field="IDBDocNum">@Localization.GetText("OP.AP.Documents.IDBDocNumber")</th>
+                            <th class="btn_azul_oscuro_flecha" data-field="Content">@Localization.GetText("OP.NOT.Notification.Content")</th>
+                            <th class="btn_azul_oscuro" data-field="Current">&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var document in Model.Contracts[0].RevolvingFund[0].Documents)
+                        {
+                            <tr>
+                                <td>@document.CreatedBy</td>
+                                <td>@String.Format("{0:dd MMM yyy}", document.Created)</td>
+                                <td>@document.DocumentReference</td>
+                                <td>@document.Description</td>
+                                <td>
+                                    @{
+                                        var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocumentReference);
+                                    }
+                                    <a class="btn_entypo" title=" @Localization.GetText("Download")" href=@secureUrl target="_blank" style="position: relative;left: 25%;min-height: 0.9em;min-width: 1.5em;">&#58544;</a>
+
+                                    <a class="btn_entypo" onclick="deleteItem(this)" title="@Localization.GetText("Delete")" data-route="@Url.Action("DeleteItem", "Conditions", new { area = "Agreements", operationId = Model.OperationId, contractId = Model.Contracts[0].ContractId, clauseId = 0, clauseIndividualId = 0, extensionId = 0, RevolvingFund = Model.Contracts[0].RevolvingFund[0].RevolvingFundId, entityRelated = "CLAUSE_CONTRACTS_REVOLVING_NOREQUEST", year = 0, entityRegisterId = Model.Contracts[0].RevolvingFund[0].RevolvingFundId, visualProjectId = 0, visualProjectVersionId = 0, documentId = @document.DocumentId, userCommentId = 0, itemToDelete = "Document", mainOperationNumber = Model.mainOperationNumber })" style="position: relative; left: 25%; min-height: 0.9em; min-width: 1.5em;">&#59177;</a>
+                                </td>
+                            </tr>
+                        }                       
+                    </tbody>
+                </table>
+              </div>
+              
+            }
+
+        @*Fin documento*@
+            
+            
+                             
+            <div class="w100 ftl">
+                <div class="editingButtonsEdit">
+                    <a class="cancel" id="Cancelar2" href="@Url.Action("DetailsRevolvingFund", "Agreements", new { area = "Agreements", operationId = Model.OperationId, contractId = Model.Contracts[0].ContractId, mainOperationNumber = Model.mainOperationNumber })" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+                    <label for="save2">
+                        <input type="submit" class="btn-secondary save" name="action:SaveRevolvingFund" value="@Localization.GetText("Save")" id="Save2">
+                    </label>
+                    <label for="saveandrequest2">
+                        <input type="button" class="btn-primary_2 saveandrequest" name="action:SaveRevolvingFund&Request" value=" @Localization.GetText("OP.MS.MissionsWorkflow.SendRequest")" id="saveandrequest2" OnClick="saveAndRequest()">
+                    </label>
+                </div>
+            </div>
+            <div>
+                <input type="submit" class="hidden" id="submitButton" />
+            </div>
+        }
+    </div>
+</section>

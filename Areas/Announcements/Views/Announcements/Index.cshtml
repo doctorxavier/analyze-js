@@ -1,0 +1,202 @@
+﻿@using System.Activities
+@using IDB.Architecture.Annotations
+@using IDB.Architecture.Language
+@using MvcExtensions
+@model IDB.Presentation.MVC4.Areas.Announcements.Models.AnnouncementSearchViewModel
+
+@{
+    Layout = null;
+}
+
+@section scripts {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/mainframe/bootstrap-datepicker/bootstrap-datepicker.js")"></script>
+}
+
+<div class="col-md-12">
+    <div class="col-md-12">
+
+
+        <div class=" col-md-12">
+            @using (Ajax.BeginForm("Search", new { area = "Announcements", controller = "Announcements" }, new AjaxOptions
+            {
+                UpdateTargetId = "announcementResult",
+                InsertionMode = InsertionMode.Replace,
+                OnBegin = "AjaxOnBegin",
+                OnSuccess = "AjaxOnSuccess",
+                OnFailure = "AjaxOnFailure"
+            }))
+            {
+                @Html.HiddenFor(model => model.ActualPage, new { @Value = 1 })
+                <div class="row ">
+                    <div class="col-md-12 ">
+                        <div class="col-md-11 ">
+                            <h2>@Localization.GetText("SP.ANNOUNCEMENT.ANNOUNCEMENTS")</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row colorSearchAnnouncement ">
+
+                    <div class="col-md-11  ">
+                        <div class="col-md-10">
+                            <label>@Localization.GetText("SP.ANNOUNCEMENT.TITLE")</label>
+                            @Html.EditorFor(model => model.SearchFilters.Title, new { HtmlAttributes = new { placeHolder = Localization.GetText("SP.ANNOUNCEMENT.TITLE_ANNOUNCEMENT"), @class = "form-control col-md-3" } })
+                        </div>
+                    </div>
+                    <div class="col-md-11  marginAnnouncementMainSearch ">
+                        <div class="col-md-2">
+                            <label for="startDatePicker">@Localization.GetText("SP.ANNOUNCEMENT.START_DATE")</label>
+                            <div class="input-group date" name="date"data-provide="datepicker" data-date-format="dd-M-yyyy" data-date-language=@Localization.CurrentLanguage id='startDatePicker'>
+                                @Html.EditorFor(model => model.SearchFilters.StartDate, new { HtmlAttributes = new { placeHolder = Localization.GetText("SP.ANNOUNCEMENT.SELECT_DATE"), @class = "form-control" } })
+                                <div class="input-group-addon">
+                                    <span class="glyphicon glyphicon-calendar"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class=" col-md-2 " style="">
+                            <label for="expirationDatePicker">@Localization.GetText("SP.ANNOUNCEMENT.EXPIRATION_DATE")</label>
+                            <div class="input-group date" data-provide="datepicker" data-date-format="dd-M-yyyy" data-date-language=@Localization.CurrentLanguage id='expirationDatePicker'>
+                                @Html.EditorFor(model => model.SearchFilters.ExpirationDate, new { HtmlAttributes = new { placeHolder = Localization.GetText("SP.ANNOUNCEMENT.SELECT_DATE"), @class = "form-control" } })
+                                <div class="input-group-addon">
+                                    <span class="glyphicon glyphicon-calendar"></span>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="col-md-2  " style="">
+                            <label for="createdByAnnouncement">@Localization.GetText("SP.ANNOUNCEMENT.CREATED_BY")</label>
+                            @Html.EditorFor(model => model.SearchFilters.CreatedBy, new { HtmlAttributes = new { placeHolder = "", @class = "form-control " } })
+                        </div>
+                        <div class="col-md-2  " style="">
+                            <label for="">@Localization.GetText("SP.ANNOUNCEMENT.MODIFIED_BY")</label>
+                            @Html.EditorFor(model => model.SearchFilters.ModifiedBy, new { HtmlAttributes = new { placeHolder = "", @class = "form-control " } })
+                        </div>
+                        <div class="col-md-4 pull-left marginButtonAnnouncementFilter">
+                            <button id="btnCleanAnnouncement" type="reset" class="pull-right btnCleanAnnouncement btn btn-primary btn-group-lg ">@Localization.GetText("SP.ANNOUNCEMENT.CLEAR_ALL")</button>
+                            @if (Model.HasReadPermission || Model.HasWritePermission)
+                            {<button id="btnSearchAnnouncement" type="submit" class="pull-right btnSearchAnnouncement btn btn-primary btn-group-lg">@Localization.GetText("SP.ANNOUNCEMENT.FILTER")</button>
+                            }
+
+
+                        </div>
+                    </div>
+                </div>
+            }
+            <div class="row">
+                <div class="col-md-2 col-md-offset-10">
+                    @if (Model.HasWritePermission)
+                    {@Ajax.ActionLink(Localization.GetText("SP.ANNOUNCEMENT.NEW"), "Create"
+                         , "Announcements"
+                         , null
+                         , new AjaxOptions
+                         {
+                             HttpMethod = "GET",
+                             UpdateTargetId = "modalEditAnnouncement",
+                             InsertionMode = InsertionMode.Replace,
+                             //OnBegin = "return validateAjaxForm();",
+                             OnSuccess = "AnnouncementLoadSuccess",
+                             OnComplete = "AnnouncementCreateLoad",
+                             OnFailure = "AjaxOnFailure"
+                         }
+                         , new { @class = "pull-right btnNewAnnouncement btn btn-primary btn-group-lg " }
+                         )
+                    }
+
+                </div>
+            </div>
+
+            <div id="announcementResult" class="hide">
+                @Html.Partial("~/Areas/Announcements/Views/Partials/SearchResults.cshtml", Model)
+            </div>
+
+
+            <!-- Modal -->
+            <div class="modal" id="modalEditAnnouncement" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" data-backdrop="static">
+                @*  @Html.Partial("~/Areas/Announcements/Views/Partials/CreateOrEditAnnouncement.cshtml", new AnnouncementViewModel { ScopeTypes = Model.ScopeTypes, IsNew = true })*@
+            </div>
+        </div>
+
+    </div>
+</div>
+<script type="text/javascript">
+
+    function validateAjaxForm() {
+        $("#AnnouncementsSaveForm").removeData("validator");
+        $("#AnnouncementsSaveForm").removeData("unobtrusiveValidation");
+        $.validator.unobtrusive.parse("#AnnouncementsSaveForm");
+        return $('#AnnouncementsSaveForm').valid();
+    }
+
+    function AnnouncementLoadSuccess(response) {
+        $("#modalEditAnnouncement").modal();
+        hidePartialLoader();
+        validateAjaxForm();
+    }
+    function AnnouncementEditSuccess(response) {
+        $("#modalEditAnnouncement").modal();
+        hidePartialLoader();
+        validateAjaxForm();
+    }
+    function AnnouncementSaveSuccess(response) {
+        if (response.IsValid) {
+            hidePartialLoader();
+            $("#modalEditAnnouncement").modal('hide');
+            $('#btnSearchAnnouncement').trigger('click');
+        }
+        //else {
+        //    //alert(response.ErrorMessage);
+        //    //$('#myModalExpirationDate').modal('show');
+        //}
+    }
+    function AnnouncementDeleteSuccess(response) {
+        if (response.IsValid) {
+            hidePartialLoader();
+            $("#modalEditAnnouncement").modal('hide');
+            $('#btnSearchAnnouncement').trigger('click');
+
+        }
+        else {
+            alert(response.ErrorMessage);
+        }
+    }
+
+    function AnnouncementDeleteLoadSuccess(response) {
+        $("#modalEditAnnouncement").modal();
+        hidePartialLoader();
+
+    }
+    function AnnouncementCreateLoad(response) {
+        $('#Announcement_StartDate').datepicker({
+                                                    format: "dd-M-yyyy"
+                                                })
+                                     .datepicker('setDate', new Date())
+                                     .on('change', function () {
+                                                                $('.datepicker').hide();
+                                                               });
+      
+        $("#Announcement_ExpirationDate").datepicker({
+                                                        mimdate: new Date()
+                                                        })
+                                         .on('change', function () {
+                                            $('.datepicker').hide();
+                                                                    });
+    }
+
+    $(document).ready(function() {
+        $('#btnSearchAnnouncement').click(function() {
+            $('#announcementResult').removeClass('hide');
+            $('#announcementResult').addClass('show');
+        });
+        //$('#btnExpirationDate').click(function() {
+        //    $('#myModalExpirationDate').modal('hide');
+        //});
+        $('#SearchFilters_StartDate').datepicker()
+                                     .on('change', function () {
+                                        $('.datepicker').hide();
+                                     });
+        $('#SearchFilters_ExpirationDate').datepicker()
+                                     .on('change', function () {
+                                         $('.datepicker').hide();
+                                     });
+    });
+</script>

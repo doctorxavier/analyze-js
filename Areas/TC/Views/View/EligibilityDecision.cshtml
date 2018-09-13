@@ -1,0 +1,446 @@
+﻿@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Areas.TC.Models
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.TCAbstractModule.ViewModels.EligibilityDecision
+
+@model EligibilityDecisionViewModel
+
+@section Header {
+    <div class="header">
+        @Html.Partial("Partials/Headers/EligibilityDecisionTitle")
+        @Html.Partial(
+            "_HeaderP4",
+            new TCHeaderP4ViewModel
+            {
+                Instructions = @Localization.GetText("TC.EligibilityDecision.DescriptionInstructions"),
+                Fund = Model.Fund,
+                FundCoordinator = Model.FundCoordinator,
+                OperationNumber = @IDBContext.Current.Operation,
+            })
+    </div>
+    <div id="saveAndSendEligibilityByDelegationModal" class="hide modalBody">
+        @Localization.GetText("TC.AwardFundEligibility.Button.CommitFund.Confirm")
+    </div>
+    <div id="changeStatusModal" class="hide"></div>
+}
+
+@if (Model.EligibilityJustification != null && ViewBag.ReadRole)
+{
+    @Html.Partial("Partials/_EligibilityJustification", Model.EligibilityJustification);
+}
+
+<div id="ShowFundAvailability">
+    <span>&nbsp;</span>
+    @Html.Partial(
+        "Partials/ElegibilityDecision/_FundAvailabilityBlockPartial",
+        Model.AwardFundEligibility)
+</div>
+
+<div class="page">
+    <div id="EligibilityDecisionData"
+         class="row-body-40"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-loadurl="@Url.Action(
+            "EligibilityDecisionEdit",
+            "View",
+            new { area = "TC", trustFundId = Model.TrustFundId })"
+         data-url="@Url.Action("EligibilityDecision", "Save", new { area = "TC" })">
+        @Html.Partial("Partials/EligibilityDecision", Model)
+    </div>
+    @Html.Partial("Partials/Controls/PartialButtonsDownloadReport")
+    <span class="text-right">@Html.Partial("Partials/Controls/EligibilityDecisionButtons")</span>
+</div>
+
+<div data-id="ModalRegion" class="modalBody hide">
+    <div id="sendEligibilityModalDistincs" class="hide modalBody">
+        @Localization.GetText("TC.AwardFundEligibility.Button.CommitFundDistinct.Confirm")
+    </div>
+    <div id="sendEligibilityModal" class="modalBody hide">
+        @Localization.GetText("TC.AwardFundEligibility.Button.CommitFund.Confirm")
+    </div>
+    <div id="sendDonorModal" class="modalBody hide">
+        @Localization.GetText("TC.EligibilityDecision.Message.Donor")
+    </div>
+    <div id="sendESCModal" class="modalBody hide">
+        @Localization.GetText("TC.EligibilityDecision.Message.Esc")
+    </div>
+    <div id="sendHoldModal" class="modalBody hide">
+        @Localization.GetText("TC.EligibilityDecision.Message.Place.Operation.On.Hold")
+    </div>
+    <div id="saveAndSendWithdrawModal" class="hide modalBody">
+        @Localization.GetText("TC.Decision.StatusMessageWithdraw")
+    </div>
+    <div id="operationStatusModal">
+    </div>
+</div>
+
+<div data-id="HiddenButtonRegion" class="hide">
+    @Display.AddModalButton(
+        new ModalViewModel(name: "sendEligibility",
+            allowClose: true,
+            contentSelector: "#sendEligibilityModal",
+            type: CssClass.ModalWarning,
+            title: Localization.GetText("TC.TCAbstractModalSave.Title"),
+            validateForm: true,
+            actionOnClose: "showOperationStatusModal",
+            closeOnOverlay: false,
+            text: Localization.GetText("TC.AwardFundEligibility.Button.CommitFund"))
+        .AddButton(name: "cancel",
+            id: "Eligibility_Cancel",
+            text: Localization.GetText("TC.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "")
+        .AddButton(name: "commit",
+            id: "Eligibility_Commit",
+            text: Localization.GetText("TC.AwardFundEligibility.Button.CommitFund"),
+            type: CssClass.Button01,
+            callback: "saveAndSend",
+            closeAtEnd: true))
+
+    @Display.AddModalButton(
+        new ModalViewModel(name: "sendEligibilityDistinct",
+            allowClose: true,
+            contentSelector: "#sendEligibilityModalDistincs",
+            type: CssClass.ModalWarning,
+            title: Localization.GetText("TC.TCAbstractModalSave.Title"),
+            validateForm: true,
+            actionOnClose: "showOperationStatusModal",
+            closeOnOverlay: false,
+            text: Localization.GetText("TC.AwardFundEligibility.Button.CommitFund"))
+        .AddButton(name: "cancel",
+            id: "Eligibility_Cancel",
+            text: Localization.GetText("TC.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "")
+        .AddButton(name: "commit",
+            id: "Eligibility_Commit",
+            text: Localization.GetText("TC.AwardFundEligibility.Button.CommitFund"),
+            type: CssClass.Button01,
+            callback: "saveAndSend",
+            closeAtEnd: true))
+
+    @Display.AddModalButton(
+        new ModalViewModel(name: "sendDonor",
+            allowClose: true,
+            contentSelector: "#sendDonorModal",
+            type: CssClass.ModalWarning,
+            title: Localization.GetText("TC.TCAbstractModalSave.Title"),
+            validateForm: true)
+        .AddButton(name: "cancel",
+            id: "Donor_Cancel",
+            text: Localization.GetText("TC.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "")
+        .AddButton(name: "send",
+            id: "Donor_Send",
+            text: Localization.GetText("TC.Send"),
+            type: CssClass.Button01,
+            callback: "saveAndSend",
+            closeAtEnd: true))
+
+    @Display.AddModalButton(
+        new ModalViewModel(name: "sendESC",
+            allowClose: true,
+            contentSelector: "#sendESCModal",
+            type: CssClass.ModalWarning,
+            title: Localization.GetText("TC.TCAbstractModalSave.Title"),
+            validateForm: true)
+        .AddButton(name: "cancel",
+            id: "ESC_Cancel",
+            text: Localization.GetText("TC.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "")
+        .AddButton(name: "send",
+            id: "ESC_Send",
+            text: Localization.GetText("TC.Send"),
+            type: CssClass.Button01,
+            callback: "saveAndSend",
+            closeAtEnd: true))
+
+    @Display.AddModalButton(
+        new ModalViewModel(name: "sendHold",
+            allowClose: true,
+            contentSelector: "#sendHoldModal",
+            type: CssClass.ModalWarning,
+            title: Localization.GetText("TC.TCAbstractModalSave.Title"),
+            validateForm: true,
+            actionOnClose: "showOperationStatusModal",
+            closeOnOverlay: false)
+        .AddButton(name: "cancel",
+            id: "Hold_Cancel",
+            text: Localization.GetText("TC.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "")
+        .AddButton(name: "send",
+            id: "Hold_Send",
+            text: Localization.GetText("TC.AwardFundEligibility.Button.Hold"),
+            type: CssClass.Button01,
+            callback: "saveAndSend",
+            closeAtEnd: true))
+
+    @Display.AddModalButton(
+        new ModalViewModel(name: "sendWithdraw",
+            allowClose: true,
+            contentSelector: "#saveAndSendWithdrawModal",
+            type: CssClass.ModalWarning,
+            title: Localization.GetText("TC.TCAbstractModalSend.Title"),
+            validateForm: true,
+            actionOnClose: "showOperationStatusModal",
+            closeOnOverlay: false,
+            text: Localization.GetText("TC.Header.SaveAndSend"))
+        .AddButton("cancel",
+            id: "Withdraw_Cancel",
+            text: Localization.GetText("TC.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "")
+        .AddButton("send",
+            id: "Withdrawn_Send",
+            text: Localization.GetText("TC.Send"),
+            type: CssClass.Button01,
+            callback: "saveAndSend",
+            closeAtEnd: true)
+    )
+
+    @Display.AddModalButton(
+        new ModalViewModel(name: "operationStatusModalButton",
+            allowClose: true,
+            contentSelector: "#operationStatusModal",
+            type: CssClass.ModalInformation,
+            title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+            validateForm: false))
+</div>
+
+@section scripts{
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AwardFundEligibilityCommon()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/TC/Common/download.js")"></script>
+    <script type="text/javascript">
+        registerCallback(function () {
+            SetVisibilityCommitButton($('[name="sendButton"]'));
+            setStatusByEligibility(false);
+            setSendOrCommitButton();
+
+            $(document).on("click", "[name=decision]", function () {
+                setStatusByEligibility(true);
+                setSendOrCommitButton();
+            });
+        });
+
+        function setStatusByEligibility(isEdit) {
+            var awardEligibilitySubFund = $('#awardEligibilitySubFund');
+            var placeOperationPanel = $('#placeOperation');
+            var elegibilityByDelegationPanel = $('#elegibilityByDelegation');
+            var withdrawOperation = $('#withdrawOperation');
+            var allPanels = $()
+                .add(awardEligibilitySubFund)
+                .add(placeOperationPanel)
+                .add(elegibilityByDelegationPanel)
+                .add(withdrawOperation);
+
+            allPanels.hide();
+            disableContainer(allPanels);
+
+            if (isEdit == true) {
+                allPanels.hide();
+                disableContainer(allPanels);
+                var type = $("[name=decision]:checked").val();
+                switch (type) {
+                    case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.EligibilityByDelegation])":
+                        awardEligibilitySubFund.show();
+                        enableContainer(awardEligibilitySubFund);
+                        elegibilityByDelegationPanel.show();
+                        enableContainer(elegibilityByDelegationPanel);
+                        break;
+                    case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.PlaceOperationOnHold])":
+                        placeOperationPanel.show();
+                        enableContainer(placeOperationPanel);
+                        break;
+                    case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.WithdrawOperation])":
+                        withdrawOperation.show();
+                        enableContainer(withdrawOperation);
+                        break;
+                }
+            }
+        }
+
+        function setSendOrCommitButton() {
+            var sendButton = $('[name="sendButton"]');
+            sendButton.removeAttr("disabled");
+            if ($("[name=decision]:checked").val() ==
+                    "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.EligibilityByDelegation])") {
+                sendButton.html('@Localization.GetText("TC.AwardFundEligibility.Button.CommitFund")');
+                SetVisibilityCommitButton(sendButton);
+            } else {
+                sendButton.html('@Localization.GetText("TC.SaveAndSend")');
+            }
+        }
+
+        function AddDocuments(documentList, sourceType) {
+            var documentTable = $("#EligibilityDecisionDocuments");
+            AddDocumentsGeneric(sourceType, documentTable, documentList);
+        }
+
+        function editEligibility(source) {
+            var success = enterEditMode(true, $('#EligibilityDecisionData'), true);
+            if (success == true) {
+                setStatusByEligibility(true);
+                enterEditMode(false, $('[data-id=EligibilityButtons]'), false);
+                $('#refreshFundAvailability').removeClass('hide').addClass('showDataEdit');
+                UpdateTargetQuantity();
+                setSendOrCommitButton();
+            }
+        }
+
+        function cancelEligibility(source) {
+            exitEditMode(true, $('#EligibilityDecisionData'), true, true);
+            exitEditMode(false, $('[data-id=EligibilityButtons]'), false, false);
+            $('#refreshFundAvailability').addClass('hide');
+            setStatusByEligibility(false);
+        }
+
+        function saveEligibility(source) {
+            var deferred = genericSubmit(source, '@SaveControllerTypeEnum.Save');
+            return deferred;
+        }
+
+        function compareTotal() {
+            var totalRequest = $('[name="input-total-requested"]').val();
+            var totalAmount = $('[name="input-total-approved"]').val();
+            return totalRequest == totalAmount;
+        }
+
+        function sendEligibility(source) {
+            var type = $("[name=decision]:checked").val();
+            var isAllCompleted = $('[name="CompleteOthers"]').val() == "True";
+            switch (type) {
+                case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.EligibilityByDelegation])":
+                    if (compareTotal() || !isAllCompleted) {
+                        $("[name=sendEligibility]").click();
+                    } else {
+                        $('[name=sendEligibilityDistinct]').first().click();
+                    }
+                    break;
+                case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.SentToDonor])":
+                    $("[name=sendDonor]").click();
+                    break;
+                case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.SentToESC])":
+                    $("[name=sendESC]").click();
+                    break;
+                case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.PlaceOperationOnHold])":
+                    $("[name=sendHold]").click();
+                    break;
+                case "@(ViewBag.EnumMapping[EligibilityDecisionTypeEnum.WithdrawOperation])":
+                    $("[name=sendWithdraw]").click();
+                default:
+                    validateContainer($('#EligibilityDecisionData'));
+                    break;
+            }
+        }
+
+        function saveAndSend(source) {
+            var deferred = genericSubmit(source, '@SaveControllerTypeEnum.SaveAndSend');
+            return deferred;
+        }
+
+        function genericSubmit(source, submitType) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val(submitType);
+            var resp = $.Deferred();
+            var response = saveContainer(
+                    $('#EligibilityDecisionData'),
+                    '#hidViewModel',
+                    true,
+                    $('[data-id=EligibilityButtons]'),
+                    $(source.target),
+                    true,
+                    false);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+
+                        if (data.ContentHTML != null) {
+                            setOperationStatusModal(data.ContentHTML);
+                        }
+
+                        if (data.UrlRedirect != null) {
+                            setModalRedirectUrl(data.UrlRedirect);
+                        }
+                        setStatusByEligibility(false);
+
+                        var modals = vex.getAllVexes();
+                        var messages = modals.filter(function () {
+                            var item = $(this);
+                            var isMessage = item.find("[data-showmessage=GenericFunction]").length > 0;
+                            return isMessage;
+                        });
+
+                        if (messages.length > 0) {
+                            setPositionModal(messages);
+                        }
+                    }
+                    resp.resolve(data);
+                });
+            }
+            return resp;
+        }
+
+        function setModalRedirectUrl(url) {
+            $("#operationStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+        }
+
+        function setOperationStatusModal(data) {
+            var modal = $('#operationStatusModal');
+            modal.html(data);
+        }
+
+        function showOperationStatusModal(target) {
+            if (target === "Eligibility_Commit" || target === "Withdrawn_Send" || target == "Hold_Send") {
+                $("[name=operationStatusModalButton]").first().click();
+            }
+        }
+
+        function email() {
+            var url = '@Url.Action(
+                        "SendEmailEligibility",
+                        "Save",
+                        new { area = "TC", trustFundId = Model.TrustFundId})';
+            var response = postUrl(url);
+            response.done(function (data) {
+                if (data.IsValid) {
+                    showMessage(data.Data);
+                } else {
+                    showMessage(data.ErrorMessage);
+                }
+            });
+        }
+
+        function selectReasonForOnHoldStatusItems(origin) {
+            var selectedItem = $(origin.value);
+            var explanationCommentsLabel = $(origin).closest('[class=col-md-12]')
+                .find('#labelElegibilityExplanation');
+            var sentToProjectTeamLabel = $(origin).closest('[class=col-md-12]')
+                .find('#labelSentToProjectTeam');
+            switch (selectedItem.selector) {
+                case '@MasterDefinitions.GetMaster("SW_REASON_HOLD_STATUS_PROJECT_TEAM_CHANGES").MasterId':
+                    sentToProjectTeamLabel.removeAttr('hidden');
+                    explanationCommentsLabel.attr('hidden', 'hidden');
+                    break;
+                default:
+                    explanationCommentsLabel.removeAttr('hidden');
+                    sentToProjectTeamLabel.attr('hidden', 'hidden');
+                    break;
+            }
+        }
+
+    </script>
+}

@@ -1,0 +1,134 @@
+@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Architecture.DataTables.Common
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+
+@model ParameterizationViewModel
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var textNational = Model.ViewContainer.GetValue<string>("textNational");
+    var selectAllChecked = "";
+    if (Model.SelectNationalSystem.All(x => x.IsSelected))
+    {
+        selectAllChecked = "checked=\"checked\"";
+    }
+
+    var config = Html.RenderDataTable(Model.SelectNationalSystem)
+        .Name("tableSelectNationalSystem")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.MethodId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => SelectCheck(c))
+            .HeaderAttribute("style", "min-width:45px")
+            .Orderable(false)
+            .CssClass("colNationalSystemSelect")
+            .CssHeaderClass("")
+            .Hidden(false);
+
+            columns.Template(c => TypeMultiDropdown(c))
+            .Orderable(false)
+            .CssClass("")
+            .CssHeaderClass("")
+            .Hidden(false);
+
+            columns.Bound(c => c.ProcurementMethodText)
+            .Orderable(false)
+            .CssClass("")
+            .CssHeaderClass("")
+            .Hidden(false);
+
+            columns.Template(c => ColumnSupervisionMethod(c, textNational))
+            .Orderable(false)
+            .CssClass("colNationalSystemSupervisionMethod")
+            .CssHeaderClass("colNationalSystemSupervisionMethod")
+            .Hidden(false);
+        });
+    config.TableClass = "tableNormal";
+
+    if (!Model.SelectNationalSystem.Any())
+    {
+        config.RowTemplates(x => x.Create(RowTemplateType.FirstRow, EmptyTable));
+    }
+    
+    config.UseCustomHeader = true;
+
+    config.CustomHeader = (@<thead>
+        <tr>
+            <th>
+                <div class="row w100 verticalAlignMiddle">
+                    @Localization.GetText("SGP.Label.Select")
+                    <input type="checkbox" @selectAllChecked class="ml5" name="selectAll-nationalSystem" id="selectAll-nationalSystem" />
+                </div>
+            </th>
+            <th>@Localization.GetText("SGP.Label.ProcurementType").HtmlEncode()</th>
+            <th>@Localization.GetText("SGP.Label.ProcurementMethod").HtmlEncode()</th>
+            <th>@Localization.GetText("SGP.Label.SupervisionMethod").HtmlEncode()</th>
+        </tr>
+    </thead>);
+}
+
+@helper SelectCheck(SelectNationalSystemViewModelRow item)
+{
+    var check = "";
+    if (item.IsSelected)
+    {
+        check = "checked=\"checked\"";
+    }
+    
+    <input type="checkbox" value="True" name="parametrization-national-chb" @check />
+}
+
+@helper TypeMultiDropdown(SelectNationalSystemViewModelRow row)
+{
+    var procurementType = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementTypeParametrization").ConvertToSelectListItems();
+
+    @(Html.MultiDropDown("parametrization-national-ProcurementType")
+      .Items(procurementType)
+      .CanSelectGroup()
+      .Required()
+      .SelectedItems(row.ProcurementTypeId)
+      .DrawAsItemsSeparatedByCommas())
+}
+
+@helper ColumnSupervisionMethod(SelectNationalSystemViewModelRow row, string text) 
+{ 
+    @Confluence.InputHidden(row.SupervisionMethod.ToString(), "parametrization-national-supervisionId")
+    @Confluence.Label(text)
+}
+
+
+@helper EmptyTable(SelectNationalSystemViewModelRow row)
+{
+    <tr>
+        <td colspan="4" class="text-center">
+            @Localization.GetText("SGP.Label.NoNationalSystemAvaliable")
+        </td>
+    </tr>
+}
+
+
+<div class="aligment mb10">
+    @(Html.CollapseSingle("collapseComponent")
+            .HtmlClass("component-collapse alignSubtitle")
+            .AsociatedCollapseAllSelector("[data-name=\"collapseAllParameterization\"]")
+            .TargetRegionSelector("#section-tableSelectNationalSystem")
+    )
+    @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.NationalSystem"), htmlClass: "component-collapse-h3")
+</div>
+
+<div id="section-tableSelectNationalSystem" class="mb30">
+    @Html.Partial("Controls/DataTable", config)
+</div>

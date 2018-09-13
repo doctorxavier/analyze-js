@@ -1,0 +1,497 @@
+@using System.Globalization;
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.ApplicationParameter
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.MW.Application.BEOProcurementModule.Enums;
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.Helpers;
+
+@model NegotiationViewModel
+
+@{
+    var newId = 0;
+    foreach (var item in Model.ContractDates)
+    {
+        if (item.ContractId == 0)
+        {
+            newId = newId - 1;
+            item.ContractId = newId;
+        }
+    }
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "ContractDates";
+
+    var config = Html.RenderDataTable(Model.ContractDates)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => (x.ContractId < 0 ? "new" : "") + x.ContractId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .RowCssClass(x => x.IsWinner ? string.Empty : "hide")
+        .Columns(columns =>
+        {
+            columns.Template(c => Confluence.InputText(value: c.FirmId.ToString(), name: tableName + "-firmId"))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText(""))
+                .Attribute("name", c => "firmId")
+                .Hidden(true);
+            columns.Template(c => Confluence.LabelGetDropDown(c.FirmId, ViewBag.FirmList, false))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmWinner"))
+                .Hidden(false);
+            columns.Template(c => contractSignDate(c, tableName))
+               .Orderable(false)
+               .CssClass("colDate")
+               .CssHeaderClass("colDate")
+               .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.SignDate"))
+               .Hidden(false);
+            columns.Template(c => startDate(c, tableName))
+                .Orderable(false)
+                .CssClass("colDate")
+                .CssHeaderClass("colDate")
+                .Header(Localization.GetText("COMMON.StartDate"))
+                .Hidden(false);
+            columns.Template(c => endDate(c, tableName))
+                .Orderable(false)
+                .CssClass("colDate")
+                .CssHeaderClass("colDate")
+                .Header(Localization.GetText("COMMON.EndDate"))
+                .Hidden(false);
+            columns.Template(c => ColumnCurrency(c, tableName))
+               .Orderable(false)
+               .CssClass("colCurrencyEdit")
+               .CssHeaderClass("colCurrencyEdit")
+               .Header(Localization.GetText("COMMON.Currency"))
+               .Hidden(Model.Modality == Modality.Framework);
+            columns.Template(c => ColumnCurrencyEvaluation(c, tableName))
+               .Orderable(false)
+               .CssClass("colCurrencyEdit hide")
+               .CssHeaderClass("colCurrencyEdit hide")
+               .Hidden(Model.Modality == Modality.Framework);
+            columns.Template(c => ColumnAmount(c, tableName))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount")
+                .CssHeaderClass("colAmount")
+                .Header(Localization.GetText("COMMON.Amount"))
+                .Hidden(Model.Modality == Modality.Framework);
+            columns.Template(c => ColumnEvaluationAmount(c, tableName))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount hide")
+                .CssHeaderClass("colAmount hide")
+                .Hidden(Model.Modality == Modality.Framework);
+            columns.Template(c => Actions(c, tableName))
+                .Orderable(false)
+                .CssClass("colAction120")
+                .CssHeaderClass("colAction120")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+
+        })
+        .RowTemplates(r =>
+        {
+            r.Create(RowTemplateType.AllRows, c => Detail(c, tableName));
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb10 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.ContractAward"))
+                </div>
+                <div class="font-14">
+                    @Confluence.LabelSubTitleGroup(Localization.GetText("TCP.FirmProcurement.TableTitle.ContractAward.ContractDocuments"))
+                </div>
+                @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ContractAwardDocuments"))
+            </td>
+
+            <td class="table-transparent-buttons">
+                @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+                                    name: "viewTemplatesLink",
+                                    url: AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+                                    htmlClass: "bold")
+            </td>
+            <td class="table-transparent-buttons">
+                <button class="buttonBlue pull-right"
+                        type="button"
+                        onclick="showDocumentModalBEO(event)"
+                        data-linked-table="@tableName"
+                        data-doc-multiple="false"
+                        data-target-add="AddIDBDocREOIAwardProc">
+                    @Localization.GetText("DM.Add.Document")
+                </button>
+                @(Html.CollapseAll("collapseAllContractDates")
+                            .CollapseSingleSelector("tr:not(.template,.hide) [data-name=\"collapseContractDatesDetail\"]"))
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xs-12">
+        @Confluence.InputCheckbox(
+                isChecked: Model.IsCertifyContract,
+                name: "ContractIsCertify",
+                label: Localization.GetText("TCP.FirmProcurement.CheckboxText.ParticipatingFirm"),
+                disabled: false)
+        @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.AccessSanctionsList"),
+            name: "accessSanctionsListLink",
+            url: AppParameter.GetText("Template.Site.Url.BEO.Templates.Sanction.List"),
+            htmlClass: "ml20 fontSize13")
+    </div>
+</div>
+
+@helper VendorIDColumn(ContractDateRowViewModel row, string tableName)
+{
+    @Confluence.InputText(
+        row.VendorID,
+        tableName + "-VendorID",
+        disabled: !row.IsWinner,
+        width: "100%",
+        maxLength: 50,
+        required: false)
+}
+
+@helper contractSignDate(ContractDateRowViewModel row, string tableName)
+{
+var id = row.ContractId < 0 ? "new" + row.ContractId : row.ContractId.ToString();
+var selectorStartDate = string.Format("tr[data-id=\"{0}\"] [name=\"{1}-startDate\"]", id, tableName);
+    @Confluence.InputDatePicker(
+                    value: row.ContractSignDate,
+                    name: tableName + "-contractSignDate",
+                    format: "formatDate",
+                    disabled: !row.IsWinner,
+                    required: false,
+                    width: "100%",
+                    dataAttributes: new Dictionary<string, string> {
+                        { "parsley-lessOrEqualDate", selectorStartDate },
+                        { "optional-required", "true" } })
+
+}
+
+@helper startDate(ContractDateRowViewModel row, string tableName)
+{
+
+var id = row.ContractId < 0 ? "new" + row.ContractId : row.ContractId.ToString();
+var selectorEndDate = string.Format("tr[data-id=\"{0}\"] [name=\"{1}-endDate\"]", id, tableName);
+var selectorContractDate = string.Format("tr[data-id=\"{0}\"] [name=\"{1}-contractSignDate\"]", id, tableName);
+
+    @Confluence.InputDatePicker(
+                    value: row.StartDate,
+                    name: tableName + "-startDate",
+                    format: "formatDate",
+                    disabled: !row.IsWinner,
+                    required: false,
+                    width: "100%",
+                    dataAttributes: new Dictionary<string, string> {
+                        { "parsley-greaterOrEqualDate", selectorContractDate },
+                        { "parsley-lessOrEqualDate", selectorEndDate },
+                        { "optional-required", "true" } })
+
+}
+
+@helper endDate(ContractDateRowViewModel row, string tableName)
+{
+
+var id = row.ContractId < 0 ? "new" + row.ContractId : row.ContractId.ToString();
+var selector = string.Format("tr[data-id=\"{0}\"] [name=\"{1}-startDate\"]", id, tableName);
+
+    @Confluence.InputDatePicker(
+                    value: row.EndDate,
+                    name: tableName + "-endDate",
+                    format: "formatDate",
+                    disabled: !row.IsWinner,
+                    required: false,
+                    width: "100%",
+                    dataAttributes: new Dictionary<string, string> {
+                        { "parsley-greaterOrEqualDate", selector },
+                        { "optional-required", "true" } })
+
+}
+
+@helper ColumnCurrency(ContractDateRowViewModel row, string tableName)
+{
+    <div name="currencyChange">
+        @Confluence.InputDropDown(
+                value: row.CurrencyId.ToString(),
+                name: tableName + "-Currency",
+                elements: ViewBag.CurrencyList,
+                orderAsc: false,
+                disabled: !row.IsWinner,
+                width: "100%",
+                required: false)
+    </div>
+}
+
+@helper ColumnCurrencyEvaluation(ContractDateRowViewModel row, string tableName)
+{
+    <div name="currencyChange">
+        @Confluence.InputDropDown(
+                value: row.EvaluationCurrencyId.ToString(),
+                name: tableName + "-EvaluationCurrency",
+                elements: ViewBag.CurrencyList,
+                orderAsc: false,
+                disabled: !row.IsWinner,
+                width: "100%",
+                required: false)
+    </div>
+}
+
+@helper ColumnAmount(ContractDateRowViewModel row, string tableName)
+{
+    @Confluence.InputDecimal(row.Amount,
+        tableName + "-Amount",
+        disabled: !row.IsWinner,
+        width: "100%",
+        maxValue:
+        "999999999999",
+        decimalPrecision: 2,
+        required: false)
+    
+    if (Model.Modality != ProcurementModalityEnum.Framework.GetEnumCode()) 
+    {
+        @Confluence.InputText("value1", 
+        "amountMaxi",
+        htmlClass: "hide",
+        dataAttributes: new Dictionary<string, string> { { "parsley-maxAmount", "true"} })
+    }
+   
+}
+
+@helper ColumnEvaluationAmount(ContractDateRowViewModel row, string tableName)
+{
+    @Confluence.InputDecimal(row.EvaluationAmount,
+        tableName + "-EvaluationAmount",
+        disabled: !row.IsWinner,
+        width: "100%",
+        maxValue:
+        "999999999999",
+        decimalPrecision: 2,
+        required: false,
+        htmlClass: "hide",
+        dataAttributes: new Dictionary<string, string> { { "", "" } })
+}
+
+
+@helper Actions(ContractDateRowViewModel row, string tableName)
+{
+    var detailExpandable = tableName + "-Detail-" + row.FirmId;
+
+    <div class="mt5">
+        <div class="col-xs-6 text-right pl0 pr0">
+            @Confluence.ButtonTrash("", "RemoveDocContractAward")
+        </div>
+        <div class="col-xs-2 pl0 pr0">
+            @(Html.CollapseSingle("collapseContractDatesDetail")
+                  .AsociatedCollapseAllSelector("[data-name=\"collapseAllContractDates\"]")
+                  .HtmlClass("arrow collapse-ContractDate")
+                  .TargetRegionSelector(string.Format("tr[data-detail=\"{0}\"]", detailExpandable))
+
+            )
+        </div>
+        <div class="col-xs-4"></div>
+    </div>
+}
+
+@helper Detail(ContractDateRowViewModel row, string tableName)
+{
+var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+var formatDate = appSettings.FormatDate;
+var user = string.IsNullOrEmpty(row.User) ? ViewBag.CurrentUser : row.User;
+var date = string.IsNullOrEmpty(row.DocumentNumber) ? DateTime.Today : row.Date;
+var visibility = row.IsWinner ? string.Empty : "hide";
+var id = row.ContractId < 0 ? "new" + row.ContractId : row.ContractId.ToString();
+var detailExpandable = tableName + "-Detail-" + row.FirmId;
+
+var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" },
+        { "parsley-required-message", Localization.GetText("TCP.FirmProcurement.Negotiation.RequiredContractDocDate") }
+    };
+
+    <tr class="@visibility extend-custom" data-id="@id" data-detail="@detailExpandable">
+        <td colspan="7" id="@(tableName)-Details-@(row.FirmId)">
+            <div class="row mb20">
+                <div class="col-xs-2 text-center">
+                    @Confluence.LabelBold(Localization.GetText("TCP.FirmProcurement.TableHeader.VendorID"))
+                </div>
+                <div class="col-xs-2 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Id"))
+                </div>
+                <div class="col-xs-4 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Name"))
+                </div>
+                <div class="col-xs-2 ml20 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.User"))
+                </div>
+                <div class="col-xs-1 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Date"))
+                </div>
+            </div>
+            <div class="row mb10">
+                <div class="col-xs-2 text-center vendor-value">
+                    @Confluence.InputText(
+                        row.VendorID,
+                        tableName + "-VendorID",
+                        disabled: !row.IsWinner,
+                        width: "100%",
+                        maxLength: 50,
+                        required: false)
+                </div>
+                <div class="col-xs-2 text-center document-number-text">
+                    <a href="@IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(row.DocumentNumber)" target="_blank">@row.DocumentNumber</a>
+                </div>
+                <div class="col-xs-4 text-center document-name">
+                    @row.Description
+                    @Confluence.InputText(
+                            row.Description,
+                            tableName + "-Description",
+                            disabled: !row.IsWinner,
+                            width: "100%",
+                            required: false,
+                            htmlClass: "document-description hide")
+                </div>
+                <div class="col-xs-2 ml20 text-center document-user">
+                    @user
+                </div>
+                <div class="col-xs-1 text-center document-date-text">
+                    @(string.IsNullOrEmpty(row.DocumentNumber) ? string.Empty : FormatHelper.Format(row.Date, formatDate))
+                </div>
+                <div class="hide">
+                    @Confluence.InputText(FormatHelper.Format(DateTime.Today, formatDate), tableName + "-CurrentDate", disabled: !row.IsWinner, width: "100%", required: false, htmlClass: "hide document-current-date")
+                    @Confluence.InputText(FormatHelper.Format(date, formatDate), tableName + "-Date", disabled: !row.IsWinner, width: "100%", required: false, htmlClass: "hide")
+                    @Confluence.InputHidden(row.Id.ToString(), tableName + "-DocumentId")
+                </div>
+                <div class="col-xs-12">
+                    @Confluence.InputText(
+                        row.DocumentNumber,
+                        tableName + "-DocumentIDBDoc",
+                        disabled: !row.IsWinner,
+                        width: "100%",
+                        required: false,
+                        htmlClass: "hide document-number",
+                        dataAttributes: dataAttr)
+                </div>
+            </div>
+        </td>
+
+    </tr>
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        function cancelRemoveAmount(event, tr) {
+            var promise = $.Deferred();
+
+            var contractAmount = tr.not('.hide').find('[name="ContractDates-Amount"]');
+            contractAmount.val('');
+            contractAmount.change();
+
+            promise.resolve();
+            return promise;
+        }
+
+        registerCallback(function () {
+
+            function viewBackGroundAmount(source) {
+                var tr = source.closest('tr');
+                var evaluationAmount = tr.not('.hide').find('[name="ContractDates-EvaluationAmount"]').val();
+                var evaluationCurrency = tr.not('.hide').find('[name="ContractDates-EvaluationCurrency"]').val();
+                var contractAmount = tr.not('.hide').find('[name="ContractDates-Amount"]');
+                var contractCurrency = tr.not('.hide').find('[name="ContractDates-Currency"]').val();
+
+                var parseContractAmount = parseFloatFormated(contractAmount.val());
+                var parseEvaluationAmount = parseFloatFormated(evaluationAmount);
+                contractAmount.removeClass('bkg-red');
+
+                if (contractCurrency == evaluationCurrency) {
+
+                    if (parseContractAmount > parseEvaluationAmount) {
+                        contractAmount.addClass('bkg-red');
+
+                    } else if (parseContractAmount < 0) {
+                        contractAmount.addClass('bkg-red');
+
+                    } else if (contractAmount.val() == '') {
+                        contractAmount.removeClass('bkg-red');
+                    }
+                }
+            }
+
+            function limitAmountNegotiation(source) {
+
+                var tr = source.closest('tr');
+                var evaluationAmount = tr.not('.hide').find('[name="ContractDates-EvaluationAmount"]').val();
+                var evaluationCurrency = tr.not('.hide').find('[name="ContractDates-EvaluationCurrency"]').val();
+                var contractAmount = tr.not('.hide').find('[name="ContractDates-Amount"]');
+                var contractCurrency = tr.not('.hide').find('[name="ContractDates-Currency"]').val();
+               
+                var parseContractAmount = parseFloatFormated(contractAmount.val());
+                var parseEvaluationAmount = parseFloatFormated(evaluationAmount);
+                contractAmount.removeClass('bkg-red');
+
+                if (contractCurrency == evaluationCurrency) {
+
+                    if (parseContractAmount > parseEvaluationAmount) {
+                        viewBackGroundAmount(source);
+                        
+                        var modalButton = $('[name="btn-open-popup-amountMax-continue-Info"]');
+                        modalButton.data('pressed-by', tr);
+                        modalButton.click();
+
+                    } else if (parseContractAmount < 0) {
+                        viewBackGroundAmount(source);
+
+                        var modalButton = $('[name="btn-open-popup-negotiation-amount"]');
+                        modalButton.click();
+
+                    } else if (contractAmount.val() == '') {
+                        viewBackGroundAmount(source);
+                    }
+                }
+            }
+
+            $(document).on('change', '[name="ContractDates-Currency"]', function (e) {
+                var source = $(this);
+                limitAmountNegotiation(source);
+            });
+
+            $(document).on('change', '[name="ContractDates-Amount"]', function (e) {
+                var source = $(this);
+                limitAmountNegotiation(source);
+            });
+
+            $(document).ready(function () {
+                var source = $('[name="ContractDates-Currency"]');
+                viewBackGroundAmount(source);
+            });
+
+        });
+
+    </script>
+        )

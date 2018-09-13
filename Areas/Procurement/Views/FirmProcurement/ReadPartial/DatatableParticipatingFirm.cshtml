@@ -1,0 +1,185 @@
+@using System.Globalization;
+
+@using IDB.Architecture.ApplicationParameter
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.MW.Domain.EntityHelpers
+
+@model ParticipatingFirmViewModel
+
+@{
+    if (ViewBag.FirmNationalityList == null)
+    {
+        ViewBag.FirmNationalityList = new List<SelectListItem>();
+    }
+    
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "ParticipatingFirm";
+
+    var config = Html.RenderDataTable(Model.Rows)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.OfferId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(true)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => Confluence.InputCheckbox(
+                    c.IsShortlisted, "CheckIncludeInShortList", disabled: true))
+                .Orderable(false)
+                .CssClass("text-center ideFirmColShort")
+                .CssHeaderClass("ideFirmColShort")
+                .Header(Localization.GetText(
+                    Model.Modality != Modality.SingleSourceSelection &&
+                    Model.Modality != Modality.TaskSingleSourceSelection ?
+                        "TCP.FirmProcurement.TableHeader.IncludedInShortList" :
+                        "TCP.FirmProcurement.TableHeader.SelectOneFirm"))
+                .Hidden(false);
+            columns.Bound(c => c.FirmName)
+                .Orderable(false)
+                .CssClass("w300 text-center")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmName"))
+                .HeaderAttribute("style", "min-width:300px")
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(
+                    c.NationalityId, ViewBag.FirmNationalityList, false))
+                .Orderable(false)
+                .CssClass("ideFirmColNationality text-center")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmNationality"))
+                .Hidden(false);
+            columns.Template(c => Actions(c, tableName))
+                .Orderable(false)
+                .CssClass("colAction150")
+                .CssHeaderClass("colAction150")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+        })
+        .RowTemplates(r =>
+        {
+            r.Create(RowTemplateType.AllRows, c => Detail(c, tableName));
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText(
+                        Model.Modality != Modality.TaskSingleSourceSelection &&
+                        Model.Modality != Modality.SingleSourceSelection ?
+                            "TCP.FirmProcurement.TableTitle.ParticipatingFirms" :
+                            "TCP.FirmProcurement.TableTitle.ParticipatingFirmsSingle"))
+                </div>
+                <div class="pr5">
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.Shortlist"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.LeastThreeFirms"), htmlClass: "bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.In"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.FullCompetitiveSelection"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.Or"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.TwoFirms"), htmlClass: "bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.For"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.SimplifiedCompetitiveSelection"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.For"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.Framework"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.CompetitionRequired"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.ConsultCurrentAproved"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.Operation"), htmlClass: "bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.Guidelines"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.InCaseEOIReceived"))
+                </div>
+            </td>
+
+            @if (Model.Modality != Modality.TaskSimplifiedSelection && Model.Modality != Modality.TaskSingleSourceSelection)
+            {
+                <td class="table-transparent-buttons">
+                        @(Html.CollapseAll("collapseAllParticipantsEdit")
+                            .CollapseSingleSelector("[data-name=\"collapseDetail\"]"))
+                </td>
+            }
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb10">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="mb20">
+    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirms"))
+</div>
+
+@helper Actions(ParticipatingFirmRowViewModel row, string tableName)
+{
+    if (Model.Modality != Modality.TaskSimplifiedSelection && Model.Modality != Modality.TaskSingleSourceSelection)
+    {
+        var detailExpandable = tableName + "-Detail-" + row.OfferId;
+        <div class="row">
+            <div class="col-xs-4"></div>
+            <div class="col-xs-2"></div>
+            <div class="col-xs-4">
+                @(Html.CollapseSingle("collapseDetail")
+                .AsociatedCollapseAllSelector("[data-name=\"collapseAllParticipantsEdit\"]")
+                .HtmlClass("arrow")
+                .TargetRegionSelector(string.Format("tr[data-Detail=\"{0}\"]", detailExpandable)))
+            </div>
+        </div>
+    }
+}
+
+@helper Detail(ParticipatingFirmRowViewModel row, string tableName)
+{
+    if (Model.Modality != Modality.TaskSimplifiedSelection && Model.Modality != Modality.TaskSingleSourceSelection)
+    {
+        var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+        var formatDate = appSettings.FormatDate;
+        var detailExpandable = tableName + "-Detail-" + row.OfferId;
+
+        <tr class="template extend-custom" data-detail="@(detailExpandable)">
+            <td colspan="4">
+                <div class="row mb20">
+                    <div class="col-xs-2 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Id"))
+                    </div>
+                    <div class="col-xs-6 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Name"))
+                    </div>
+                    <div class="col-xs-2 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.User"))
+                    </div>
+                    <div class="col-xs-2 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Date"))
+                    </div>
+                </div>
+                <div class="row mb10">
+                    <div class="col-xs-2 text-center">
+                        <a href="@DownloadDocumentHelper.GetDocumentLink(row.DocumentNumber)" target="_blank">@row.DocumentNumber</a>
+                        @Confluence.InputText(row.DocumentNumber, tableName + "-DocumentIDBDoc", disabled: false, width: "100%", required: false, htmlClass: "document-number hide")
+                    </div>
+                    <div class="col-xs-6 text-center">
+                        @row.Description
+                    </div>
+                    <div class="col-xs-2 text-center">
+                        @row.User
+                    </div>
+                    <div class="col-xs-2 text-center">
+                        @(string.IsNullOrEmpty(row.DocumentNumber) ? string.Empty : FormatHelper.Format(row.Date, formatDate))
+                    </div>
+                </div>
+            </td>
+        </tr>
+    }
+}

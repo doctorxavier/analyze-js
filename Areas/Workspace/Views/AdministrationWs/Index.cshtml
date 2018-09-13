@@ -1,0 +1,120 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Business.WorkSpaceModule.ViewModels
+
+@model List<ChartRowViewModel>
+
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+<div class="header">
+    <div class="row">
+        <div class="col-md-12">
+            <h3 class="titlePrincipal">@Localization.GetText("Workspace.Chart.Title")</h3>
+        </div>
+    </div>
+</div>
+<br />
+<div class="row filterNormal mb20" name="searchContent">
+    <div class="row">
+        <div class="col-md-6">
+            @Confluence.LabelsGroup(Localization.GetText("Workspace.Filter.ChartName"),
+                Confluence.InputText(string.Empty, "GraphName", required: false, width: "100%", maxLength: 50), false)
+        </div>
+
+        <div class="col-md-6">
+            @Confluence.LabelsGroup(Localization.GetText("Workspace.Filter.ChartType"),
+                @Confluence.InputDropDown(null, "GraphType", (List<SelectListItem>) ViewBag.ListChartType, required: false, placeholder: "", width: "100%"), false)
+        </div>
+    </div>
+    <br/>
+    @if (SecurityHelper.GetPermission(ViewBag.Secirity, "btnEditWsAdministration"))
+    {
+        <div class="row" data-idb-fieldname="btnEditWsAdministration">
+            <div class="col-md-12">
+                <div class="floatRight">
+                    @Confluence.ButtonBlue(Localization.GetText("Workspace.Buttons.Search"), action: "searchChartList")
+                    @Confluence.ButtonBlue(Localization.GetText("Workspace.Buttons.ClearAll"), action: "clean")
+                </div>
+            </div>
+        </div>
+    }
+</div>
+@if (SecurityHelper.GetPermission(ViewBag.Secirity, "btnEditWsNew"))
+{
+    <div class="row" data-idb-fieldname="btnEditWsNew">
+        <div class="col-md-12">
+            <div class="floatRight">
+                @Confluence.ButtonBlue(Localization.GetText("Workspace.Buttons.New"), action: "newChart")
+            </div>
+        </div>
+    </div>
+}
+               
+<br/>
+<div id="tableChartList">
+</div>
+@section scripts{
+    <script type="text/javascript">
+        function searchChartList(source) {
+            var content = $(source).closest('[name="searchContent"]');
+            var graphName = content.find('[name="GraphName"]').val();
+            var graphTypeId = content.find('[name="GraphType"]').val();
+
+            $('#ChartTable').remove();
+            $('div.Pagination[dd-table=ChartTable]').remove();
+
+            postUrlWithOptions("@Url.Action("SearchChartList", "AdministrationWs")", { async: false }, { 'graphName': graphName, 'graphTypeId': graphTypeId })
+                .done(function(data) {
+                    var resultSearch = $('#tableChartList');
+                    resultSearch.html(data);
+                    bindHandlers(resultSearch);
+                    $("#ChartTable").paginationConfluense(5);
+                });
+            return false;
+        }
+
+        function newChart() {
+            window.location.href = '@Url.Action(controllerName: "AdministrationWs", actionName: "Chart", routeValues: new { chartId = 0 })';
+        }
+
+        function clean() {
+            $("[name='GraphType']").FirstorDefault();
+            $("[name='GraphName']").val("");
+            $('#tableChartList').html('');
+        }
+
+        function removeRowChart(element) {
+            var msg = '@Localization.GetText("Workspace.Chart.ConfirmRemove")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var row = $(element).closest('tr');
+                    var id = row.find('td').first().find('span').text();
+
+                    postUrlWithOptions("@Url.Action("ChartDelete", "AdministrationWs")", { async: false }, { 'chartId': id })
+                        .done(function(data) {
+                            if (data.ErrorMessage === null || data.ErrorMessage === '') {
+                                showMessage("@Localization.GetText("Workspace.Chart.SuccessDelete")");
+                                $(row).remove();
+                                $("#ChartTable").paginationConfluense(5);
+
+                                if (document.domain !== 'localhost') {
+                                    var $frame = $(window.parent.document).find('iframe[name=someFrame]');
+                                    $frame.css("height", "996px");
+                                }
+
+                            } else {
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+
+
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            applyFieldsBehavior('0', '0');
+        });
+    </script>
+}

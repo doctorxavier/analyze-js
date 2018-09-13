@@ -1,0 +1,114 @@
+﻿@using IDB.MW.Business.WorkSpaceModule.ViewModels
+
+@model TemplateViewModel
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+<div class="header">
+    <div class="row">
+        <div class="col-md-12">
+            @if (ViewBag.TemplateId > 0)
+            {
+                <div class="titlePrincipal">
+                    @Confluence.Navigation(Confluence.LabelMainTitle(""),
+                         Url.Action(controllerName: "AdministrationWs", actionName: "Template"))
+                    @Localization.GetText("Workspace.Template.TitleEdit")
+                </div>
+            }
+            else
+            {
+                <h3 class="titlePrincipal">@Localization.GetText("Workspace.Template.TitleCreate")</h3>
+            }
+
+            @Html.Partial("Partials/EditChartButtons")
+        </div>
+    </div>
+</div>
+<br />
+<div class="page">
+    <div name="ContentEdit" id="ContentEdit" data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-url="@Url.Action("TemplateEditSave", "AdministrationWs", new { area = "Workspace", templateId = ViewBag.TemplateId })"
+         data-loadurl="@Url.Action("TemplateEditReload", "AdministrationWs", new { area = "Workspace", id = ViewBag.TemplateId })">
+        <div id="PageContent">
+            @Html.Partial("Partials/TemplateForm", Model)
+        </div>
+
+    </div>
+</div>
+@Html.Partial("Partials/EditChartButtons")
+
+@section scripts{
+<script type="text/javascript">
+    $(document).ready(function () {
+        $("#TableRoles").paginationConfluense(5);
+        if (parseInt($("[name='TemplateId']").val()) === 0) {
+            edit();
+        }
+
+    });
+    function edit() {
+        enterEditMode(false, $('#ContentEdit'), false);
+        enterEditMode(false, $('[data-id=headerButtons]'), false);
+    }
+
+    function cancel() {
+        var msg = "@Localization.GetText("Workspace.Template.CancelMsg")";
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                if ($("[name='TemplateId']").val() === "0") {
+                    window.location.href = '@Url.Action(controllerName: "AdministrationWs", actionName: "Template")';
+                } else {
+                    exitEditMode(false, $('#ContentEdit'), true, true);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                }
+
+            }
+        });
+    }
+
+    function save() {
+        if (validateContainer($('#ContentEdit'))) {
+            if ($("[name='TemplateId']").val() === 0) {
+                var msg = "@Localization.GetText("Workspace.Template.CreateMsg")";
+                confirmAction(msg)
+                    .done(function (pressOk) {
+                        if (pressOk) {
+                            saveAttributeInDb(false);
+                        }
+                    });
+            } else {
+                saveAttributeInDb(false);
+            }
+        }
+    }
+
+    function saveAttributeInDb() {
+        var modelSerialized = '#SerializedViewModel';
+        var templateId = parseInt($("[name='TemplateId']").val());
+        var response = saveContainer($('#ContentEdit'), modelSerialized, true, $('#headerButtons'), null, !(templateId === 0));
+        if (response !== false) {
+            response.done(function (data) {
+                if (data.ErrorMessage == null || data.ErrorMessage === "") {
+                    if (templateId !== 0) {
+                        exitEditMode(true, $('#ContentEdit'), true, true);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                        $("#TableRoles").paginationConfluense(5);
+                    }
+
+                    if (templateId === 0) {
+                        var url = '@Url.Action(controllerName: "AdministrationWs", actionName: "TemplateEdit")' + "?templateId=" + data.TemplateId;
+                        showMessage("@Localization.GetText("Workspace.CreateTemplate.MessageSuccess")", true, url);
+                    } else {
+                        showMessage("@Localization.GetText("Workspace.UpdateTemplate.MessageSuccess")");
+                    }
+                } else {
+                    showMessage(data.ErrorMessage);
+                }
+            });
+        }
+    }
+
+</script>
+}

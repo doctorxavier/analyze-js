@@ -1,0 +1,249 @@
+@using System.Globalization;
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.BEOProcurementModule.Enums
+
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Controllers
+
+@model ProcurementViewModel
+
+@if (Model != null)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDollar = appSettings.FormatIntegerDolar;
+
+    var config = Html.RenderDataTable(Model.ProcurementList)
+        .Name("ProcurementList")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(ColumnId)
+                .CssHeaderClass("procListId")
+                .CssClass("procListId")
+                .Header(Localization.GetText("COMMON.Id"));
+            columns.Bound(c => c.Name)
+                .CssHeaderClass("procListName")
+                .CssClass("procListName")
+                .Header(Localization.GetText("COMMON.Name"));
+            columns.Template(c => Confluence.LabelGetDropDown(
+                    c.StageId.ToString(),
+                    ViewBag.StageList)
+                )
+                .CssHeaderClass("procListStage")
+                .CssClass("procListStage")
+                .Header(Localization.GetText("COMMON.Stage"));
+            columns.Template(c => Confluence.LabelGetDropDown(
+                    c.StatusId.ToString(),
+                    ViewBag.StatusList)
+                )
+                .CssHeaderClass("procListStatus")
+                .CssClass("procListStatus")
+                .Header(Localization.GetText("COMMON.Status"));
+            columns.Template(c => Confluence.LabelGetDropDown(
+                    c.ModalityId.ToString(),
+                    ViewBag.ModalityList)
+                )
+                .CssHeaderClass("procListModality")
+                .CssClass("procListModality")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.ProcessModality"));
+            columns.Template(c => Confluence.LabelGetBool(c.Confidential)
+                )
+                .CssHeaderClass("procListConfidential")
+                .CssClass("procListConfidential")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.Confidential"));
+            columns.Template(c => Actions(c))
+                .Orderable(false)
+                .CssHeaderClass("colAction90")
+                .CssClass("colAction90")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+        })
+        .RowTemplates(r => r.Create(RowTemplateType.AllRows, Detail))
+    ;
+    config.TableClass = "tableNormal";
+
+    <input hidden data-idb-pagename="UI-OCS-001-BEOFirmProcurementList" />
+    <div>
+        @Html.Partial("ProcurementListReadPartial/Buttons")
+        @Confluence.LabelMainTitle(Localization.GetText("TCP.FirmProcurement.MainTitle"))
+    </div>
+
+    <div>
+        @(Html.CollapseAll("collapseAllRow")
+            .CollapseSingleSelector("[data-name=collapseDetail]")
+            .HtmlClass("float-right")
+        )
+        @Confluence.ButtonPdf(name: "downloadPDF", clase: "float-right")
+        @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.ProcurementList"), htmlClass: "subTitlePrincipalOv")
+    </div>
+
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Html.Partial("Controls/DataTable", config)
+        </div>
+    </div>
+
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Confluence.ButtonPdf(name: "downloadPDF", clase: "float-right")
+        </div>
+    </div>
+
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Html.Partial("ProcurementListReadPartial/Buttons")
+        </div>
+    </div>
+
+
+    @section scripts{
+        <script type="text/javascript">
+
+            registerCallback(function () {
+
+                collapseDefaultState();
+
+                $(document).on('click', '[name="edit"]', function () {
+                    var url = '@Url.Action("EditProcurementList", "FirmProcurement", new { area = "Procurement" })';
+                    LocationAssign(url);
+                });
+
+                $(document).on('click', '[name="downloadPDF"]', function () {
+                    var url = '@Url.Action("ProcurementListExportToPDF", "FirmProcurement", new { area = "Procurement" })';
+
+                    window.open(url, '_blank');
+                });
+            });
+
+            function collapseDefaultState() {
+                var buttonColapse = $('div[data-name="collapseAllRow"]');
+                buttonColapse.click();
+            }
+
+        </script>
+    }
+
+}
+
+@helper Detail(ProcurementRowViewModel row)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+    <tr data-id="@row.Id" class="read-only extend-custom">
+        <td colspan="9">
+            <div class="row mb20">
+                @if ((row.ModalityId == cmdCollection[ProcurementModalityEnum.Framework].MasterId) ||
+                     (row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSimplifiedSelection].MasterId) ||
+                     (row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId))
+                {
+                    <div class="col-xs-8">
+                        @Confluence.LabelsGroup(Localization.GetText("COMMON.Comments"), contentAlways: Confluence.InputTextArea(row.Comments, "comments", width: "100%", height: "100px", disabled: true))
+                    </div>
+                    <div class="col-xs-4 valign-top">
+                        @if (row.ModalityId == cmdCollection[ProcurementModalityEnum.Framework].MasterId)
+                        {
+                            @Confluence.LabelsGroup(
+                                Localization.GetText("TCP.FirmProcurement.TableTitle.AssociatedTasks"),
+                                contentAlways: Confluence.InputTextArea(
+                                    string.Join("\r\n", row.AssociatedTasksRO),
+                                    "associatedTasks",
+                                    width: "100%",
+                                    height: "100px",
+                                    disabled: true))
+                        }
+                        else if ((row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSimplifiedSelection].MasterId) ||
+                                 (row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId))
+                        {
+                            @Confluence.LabelsGroup(Localization.GetText("TCP.FirmProcurement.TableHeader.AssociatedFramework"),
+                                contentAlways: Confluence.LabelBold(row.AssociatedFrameworkText))
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="col-xs-12">
+                        @Confluence.LabelsGroup(Localization.GetText("COMMON.Comments"), contentAlways: Confluence.InputTextArea(row.Comments, "comments", width: "100%", height: "100px", disabled: true))
+                    </div>
+                }
+            </div>
+        </td>
+
+    </tr>
+}
+@helper Actions(ProcurementRowViewModel row)
+{
+    <div class="textalign-center">
+        @(Html.CollapseSingle("collapseDetail")
+              .HtmlClass("arrow")
+              .TargetRegionSelector(string.Format("tr[data-id=\"{0}\"]:not(:first)", row.Id))
+                //.TargetRegionSelector(x => x.Closest("tr").Next())
+              .AsociatedCollapseAllSelector("[data-name=collapseAllRow]"))
+    </div>
+}
+
+@helper ColumnId(ProcurementRowViewModel row)
+{
+    var tabName = FirmProcurementController.TAB_NAME_IDENTIFICATION;
+
+    var masterCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Identification, row.StageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_IDENTIFICATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Preparation, row.StageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_PREPARATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Evaluation, row.StageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_EVALUATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Negotiation, row.StageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_NEGOTIATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Execution, row.StageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_EXECUTION;
+    }
+
+    var url = Url.Action("Read", "FirmProcurement", new
+    {
+        area = "Procurement",
+        operationNumber = row.OperationNumber,
+        procurementId = row.Id,
+        tabName = tabName,
+        isReadOnly = row.IsReadOnly
+    });
+
+    @Confluence.LabelLink(row.VisibleId, dataNavigation: url, action: "showLoading")
+}
+
+
+@helper Text(string text)
+{
+    @text.HtmlEncode()
+}
+
+@functions{
+    static bool CheckIdInConvergence(CustomEnumDictionary<MasterDataViewModel> convergence, Enum enumValue, int masterId)
+    {
+        if (!convergence.ContainsKey(enumValue))
+        {
+            return false;
+        }
+
+        return convergence[enumValue].MasterId == masterId;
+    }
+}

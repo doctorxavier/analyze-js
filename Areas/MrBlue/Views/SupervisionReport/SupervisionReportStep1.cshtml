@@ -1,0 +1,199 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Areas.MrBlue.Models
+@using IDB.MW.Application.MrBlueModule.Enums
+
+@model SupervisionReportStep1ViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@Html.Partial("_MockReadWritePermissions", IDB.Presentation.MVC4.Models.Mock.MockReadWritePermissionsViewModel.Create(Permission.ESG_SPECIALIST_WRITE_PERMISSIONS))
+
+
+<div class="row mb20">
+    <div id="Data" class="col-md-12"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-url="@Url.Action("SaveSupervisionReport1", "SupervisionReport", new { area = "MrBlue" })">
+
+        @if (Model != null)
+        {
+            @Html.Partial("Partials/Step1/SupervisionReport1Partial", Model)
+        }
+    </div>
+
+</div>
+
+
+@section scripts{
+
+    @MrBlue.HistoryTablesCommon()
+    @MrBlue.SupervisionReportCommon()
+    @MrBlue.SelectRow()
+    @MrBlue.ParsleyOptionalFunctions()
+    @ModuleScripts.AddNoRepeatValueValidator()
+    @ModuleScripts.AddCompareDatesValidator()
+    @ModuleScripts.TableFunctions()
+    @MrBlue.RadioButtonFix()
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+            enterEditMode(false, $('#Data'), false);
+
+            $("[data-action=newParticipant]").data("autoincrement", getMostRecentRowId('esgPersonTable'));
+
+            window.ParsleyValidator
+              .addValidator('minnumberparticipants', function (value, requirement) {
+
+                  var selector = requirement;
+                  var inputsParticipants = $('input[name="' + selector + '"]:not([disabled])');
+                  return inputsParticipants.length > 0;
+
+              }, 32)
+              .addMessage('en', 'minnumberparticipants', 'There must be at least one Participant');
+
+            $(document).on("keyup", '.inputSearch.lupa input[name="esgPersonRow_text"]', function () {
+                var inputText = $(this);
+                var inputValue = inputText.parent().find('input:last');
+
+                var inputTextValue = inputText.val();
+
+                if (inputTextValue.length > 0) {
+                    inputValue.val('0');
+                    inputValue.attr('value', inputTextValue);
+                } else {
+                    inputValue.val('');
+                    inputValue.removeAttr('value')
+                }
+            });
+        });
+
+        function save(source) {
+            var container = $('#Data');
+            transformRequiredToOptional(container);
+            disabledValidationParticipants(container);
+            var response = saveContainer(container, '#hidViewModel', false, null, null, false);
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid == true) {
+                        var url = '@Html.Raw(Url.Action("SupervisionReportDashboard","SupervisionReport", new { area = "MrBlue" }))';
+                        window.location.assign(url);
+                    }
+                });
+            }
+            return response;
+        }
+
+        function next(source) {
+            var container = $('#Data');
+            transformOptionalRequiredToRequired(container);
+            enableValidationParticipants(container);
+            var isParticipant = validateParticipantExist(container);
+            var response;
+
+            if (!isParticipant) {
+                showMessage('@Localization.GetText("MrBlue.SupervisionReport.AddValidParticipant")');
+                response = false;
+            } else {
+                response = saveContainer(container, '#hidViewModel', false, null, null, false);
+
+                var isNew = '@Model.IsNew' == 'True';
+                var id = '@Model.SupervisionReportId';
+
+                if (response !== false) {
+                    response.done(function (data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        else if (data.IsValid == true) {
+                            var url = '';
+
+                            if (isNew && id == 0) {
+                                //New
+                                url = '@Html.Raw(Url.Action("SupervisionReportStep2", "SupervisionReport", new { area = "MrBlue",}))?versionId=' + data.VersionId + '&isNew=true';
+                            } else if (isNew && id != 0) {
+                                //New From Most Recent
+                                url = '@Html.Raw(Url.Action("SupervisionReportStep2", "SupervisionReport", new { area = "MrBlue",}))?versionId=' + data.VersionId + '&isNew=false&parentId=' + id;
+                            } else {
+                                //Draft
+                                url = '@Html.Raw(Url.Action("SupervisionReportStep2", "SupervisionReport", new { area = "MrBlue",}))?versionId=' + data.VersionId + '&isNew=false';
+                            }
+                            window.location.assign(url);
+                        }
+                    });
+
+                    return response;
+                }
+            }
+
+            return response;
+        }
+
+        function disabledValidationParticipants(container) {
+            var input = $('input[name="validatorParticipants"]');
+            input.removeAttr('data-parsley-minnumberparticipants');
+        }
+
+        function enableValidationParticipants(container) {
+            var input = $('input[name="validatorParticipants"]');
+            input.attr('data-parsley-minnumberparticipants', 'esgPersonRow_text');
+        }
+
+        function removeRequired(container) {
+            var elements = container.find('[data-parsley-optionalrequired="True"]');
+            elements
+
+            elements.removeAttr('');
+        }
+
+        function newParticipant(source) {
+
+            var templateTr = $('#esgPersonTable tbody tr:first');
+            var clonedTr = templateTr.clone(false).appendTo("#esgPersonTable tbody");
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            clonedTr.removeClass("hide");
+            clonedTr.find("input, select").attr("data-persist-new", newId);
+            clonedTr.attr("data-new-id", "new");
+            clonedTr.find("input, select,button").removeAttr('disabled');
+
+            bindHandlers(clonedTr);
+        }
+
+        function validateParticipantExist() {
+            var $currentTable = $("#esgPersonTable > tbody");
+            var isParticipant;
+
+            if ($currentTable.find('tr:not(.hide)').length == 0) {
+                isParticipant = false;
+            } else {
+                var $items = $currentTable.find('tr:not(.hide) [name = "esgPersonRow_text"]');
+
+                $.each($items, function (index, input) {
+                    if ($(input).attr("data-persist-is-active-directory") === "False") {
+                        isParticipant = false;
+                    } else {
+                        isParticipant = true;
+                    }
+                })
+            }
+            return isParticipant;
+        }
+
+    </script>
+}

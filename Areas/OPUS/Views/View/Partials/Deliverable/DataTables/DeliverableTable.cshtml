@@ -1,0 +1,364 @@
+@using System.Configuration
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using System.Globalization
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.OPUSModule.ViewModels.DeliverableService
+@using IDB.MW.Infrastructure.Configuration
+
+@model List<DeliverableRowViewModel>
+@{
+    var language = Localization.CurrentLanguage;
+
+    var deliverablesTableName = "deliverablesTable";
+    var configDeliverables = Html.RenderDataTable(Model);
+
+    configDeliverables.Name(deliverablesTableName)
+        .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.RowId)
+                .EditableTemplate(row => Confluence.InputText(row.RowId.ToString(), "deliverableId", disabled: true, htmlClass: "w80", dataAttributes: new Dictionary<string, string>() { { "keep-disabled", "true" } }))
+                .Header(Localization.GetText("OP.DL.DELIVERABLEID"))
+                .CssHeaderClass("w80")
+                .Hidden(true);
+
+            columns.Bound(c => c.RowId)
+                .EditableTemplate(row => Confluence.Label(row.RowId.ToString()))
+                .Header(Localization.GetText("OP.DL.DELIVERABLEID"))
+                .CssHeaderClass("w85 text-center");
+
+            columns.Bound(c => c.YearPlanned)
+                .EditableTemplate(row => Confluence.InputDropDown(row.YearPlanned.ToString(), "deliverablesYearPlanned", ViewBag.DeliverableYearList, width: "100%", disabled: row.IsDismiss || row.ProposalOperationId != null || row.PublicationId.HasValue))
+                .Header(Localization.GetText("OP.DL.YearPlanned"))
+                .CssHeaderClass("w80");
+
+            columns.Bound(c => c.ProposalYear != 0 ? c.ProposalYear.ToString() : string.Empty)
+                .EditableTemplate(
+                    row => Confluence.InputText(
+                        row.ProposalYear != 0 ? row.ProposalYear.ToString() : string.Empty,
+                        "proposalYear",
+                        disabled: true,
+                        htmlClass: "w70"))
+                .Header(Localization.GetText("OP.DL.ProposalYear"))
+                .CssHeaderClass("w80");
+
+            columns.Template(c => Confluence.LabelGetDropDown(
+                c.Type.ToString(),
+                MvcHelpers.ConvertToSelectListItemNameAsText(c.DeliverableCategories)))
+                .EditableTemplate(row => Confluence.InputDropDown(
+                    row.Type.ToString(),
+                    "deliverableType",
+                    MvcHelpers.ConvertToSelectListItemNameAsText(row.DeliverableCategories),
+                    width: "100%",
+                    disabled: row.IsDismiss || !IDBContext.Current.HasPermission(Permission.DELIVERABLES_WRITE) || (row.ProposalOperationId != null) || !string.IsNullOrWhiteSpace(row.Publication.PublicationName)))
+                 .Header(Localization.GetText("OP.DL.Category"))
+                 .CssHeaderClass("w160");
+
+            columns.Template(c => Confluence.Label(c.Name.ToString()))
+                .EditableTemplate(row => Confluence.InputText(row.Name, "deliverableName",maxLength: 200 , width: "100%", disabled: row.IsDismiss || row.ProposalOperationId != null || row.PublicationId.HasValue))
+                .Header(Localization.GetText("OP.DL.Name"))
+                .CssHeaderClass("w160");
+
+            columns.Template(c => Confluence.LabelGetDate(c.PlanedDate))
+                .EditableTemplate(row => Confluence.InputDatePicker(row.PlanedDate, "planedDate", width: "100%", disabled: row.IsDismiss || row.PublicationId.HasValue))
+                .Header(Localization.GetText("OP.DL.PlanedDate"))
+                .CssHeaderClass("w140 text-center");
+
+            columns.Template(c => Confluence.Label(c.Status))
+                .EditableTemplate(row => Confluence.Label(row.Status, new Dictionary<string, string> { { "id-val-status", "" } }, htmlClass: "DeliverableLabelStatus"))
+                .Header(Localization.GetText("OP.DL.Status"))
+                .CssHeaderClass("w85");
+
+            columns.Template(c => PublicationNumber(c))
+                .Header(Localization.GetText("OP.DL.PUBLICATIONID"))
+                .EditableTemplate(c => PublicationNumber(c))
+                .CssHeaderClass("w85");
+
+            columns.Bound(c => c.DocumentId)
+                .EditableTemplate(row => Confluence.InputText(row.DocumentId.ToString(), "deliverableDocumentId"))
+                .Header(Localization.GetText("OP.DL.DELIVERABLEID")).Hidden(true);
+
+            columns.Template(c => Confluence.ButtonShowRow(htmlClass: "floatRight"))
+                .EditableTemplate(row => GetDeliverablesExpandedButton(row, row.IsDismiss, true, row.ProposalOperationId))
+                .CssHeaderClass("w95");
+        })
+    .RowTemplates(rows => rows.Create(RowTemplateType.AllRows, DeliverablesNamesRow));
+
+    configDeliverables.TableClass = "tableNormal endSpacing";
+}
+
+@Html.Partial("Controls/DataTable", configDeliverables)
+<div class="row row-body-40">
+    @if (ViewBag.DeliverablePermission ?? false)
+    {
+        <div class="col-md-12">
+            <div data-pagemode="edit" class="text-center">
+                @Confluence.ButtonAddNewRows(Localization.GetText("OP.DL.AddDeliverable"), deliverablesTableName, null, "addRowDeliverale")
+            </div>
+        </div>
+    }
+</div>
+
+@helper PublicationNumber(DeliverableRowViewModel row)
+{
+    if (!string.IsNullOrWhiteSpace(row.PublicationNumber) && row.PublicationId.HasValue)
+    {
+        var baseUrl = ConfigurationManager.AppSettings["BasePath"];
+        var operation = IDBContext.Current.Operation;
+        var url = string.Format("{0}operation/{1}/pages/default?deliverableId={2}", baseUrl, operation, row.RowId);
+
+        <a href="@url" target="_parent" class="buttonLink">@row.PublicationNumber</a>
+    }
+}
+
+@helper GetDeliverablesExpandedButton(IDB.MW.Application.OPUSModule.ViewModels.DeliverableService.DeliverableRowViewModel row, bool isDismiss, bool isEdit, int? proposalOperationId)
+{
+    if (ViewBag.DeliverablePermission == true && isEdit && proposalOperationId == null && !row.PublicationId.HasValue)
+    {
+        @Confluence.ButtonTrash(null, null, "removeRowDeliverable", disabled: isDismiss)
+    }
+
+    @Confluence.ButtonShowRow(htmlClass: "floatRight")
+}
+
+@helper DeliverablesNamesRow(IDB.MW.Application.OPUSModule.ViewModels.DeliverableService.DeliverableRowViewModel row)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var templateUrl = appSettings.DocumentTemplate_TemplateUrl;
+    var publicationFolder = appSettings.DocumentTemplate_PublicationFolder;
+    var language = Localization.CurrentLanguage;
+
+    var attributes = new Dictionary<string, string>() { { "id", row.RowId.ToString() } };
+    var hasPublication = !string.IsNullOrWhiteSpace(row.Publication.PublicationName);
+    var writePermission = (bool)(ViewBag.DeliverablePermission == true);
+    var publicationWritePermission = (bool)(ViewBag.PublicationPermission == true);
+
+    List<SelectListItem> CountriesCodes = (List<SelectListItem>)ViewBag.CountryCodeList;
+
+    <tr class="template" data-persist="true" data-row-parent-id=@row.RowId>
+        <td colspan="9">
+            <div class="col-xs-2">
+                @Confluence.LabelsGroup(Localization.GetText("OP.DL.Responsible"),
+                    Confluence.LabelGetDropDown(row.Responsible.ToString(), ViewBag.ResponsibleList),
+                    Confluence.InputDropDownAsync(row.Responsible.ToString(), "deliverablesResponsible", Url.Action("GetListResponsibleDeliverable", "View", new { area = "Opus" }), textSelected: ControlTemplates.DropDownFilterGetSelectedString(row.Responsible.ToString(), ViewBag.ResponsibleList), disabled: row.IsDismiss || row.ProposalOperationId != null || row.PublicationId.HasValue))
+            </div>
+            <div class="col-xs-1">
+                @Confluence.Label(Localization.GetText("R6.Proposal.Deliverables.Type"))
+                <div class="pt5">
+                    @Confluence.Label(row.Classification)
+                </div>
+            </div>
+            <div class="col-xs-2">
+                @Confluence.LabelsGroup(Localization.GetText("OP.DL.Country"),
+                    Confluence.LabelGetDropDown(
+                        row.Country.ToString(),
+                        MvcHelpers.ConvertToSelectListItemCodeAsText(row.DeliverableCountries)),
+                    Confluence.InputDropDown(
+                        row.Country.ToString(),
+                        "deliverablesCountry",
+                        MvcHelpers.ConvertToSelectListItemCodeAsText(row.DeliverableCountries),
+                        width: "100%",
+                        disabled: row.IsDismiss || row.ProposalOperationId != null || row.PublicationId.HasValue))
+            </div>
+            <div class="col-xs-4">
+
+                <div>@Confluence.Label(Localization.GetText("R6.Proposal.Deliverables.DocumentID"))</div>
+
+                <div data-pagemode="read" style="float: left;">
+                    @Confluence.ButtonLink(
+                            row.DocumentNumberToShow,
+                            name: "deliverablesDocumentNumber",
+                            action: "downloadDocument",
+                            htmlClass: "ButtonLinkIdNumberDeliverables link-document-id",
+                            dataAttributes: new Dictionary<string, string>
+                            {
+                                { "docnumber", @row.DocumentNumberToShow }
+                            })
+                </div>
+
+                <div data-pagemode="edit" style="float: left;">
+                    @Confluence.ButtonLink(
+                            row.DocumentNumberToShow,
+                            name: "deliverablesDocumentNumber",
+                            action: "downloadDocument",
+                            htmlClass: "ButtonLinkIdNumberDeliverables link-document-id",
+                            dataAttributes: new Dictionary<string, string>
+                            {
+                                { "docnumber", @row.DocumentNumberToShow }
+                            })
+                </div>
+
+                <div data-pagemode="edit" class="lgCont" style="float: right;">
+
+                    @Confluence.InputHidden(row.DocumentNumber, name: "documentNumberHidden",
+                            dataAttributes: new Dictionary<string, string> { { "docnumber", row.DocumentNumber } })
+
+                    @if (!hasPublication)
+                    {
+                        <span>
+                            @Confluence.ButtonUpload(text: "", name: "buttonModalDocument", action: "showWarningDocument", disabled: row.IsDismiss)
+                            <span class="hide">
+                                @Confluence.ButtonUpload(text: "", name: "deliverableDocumentsAdd", dataAttributes: new Dictionary<string, string> { { "id", "DeliverableDocuments-add" }, { "custom-modal", "DeliverableDocuments-modal-add" }, { "modal-allowclose", "true" }, { "custom-modal-validate", "false" }, { "custom-modal-title", Localization.GetText("OP.AP.Documents.Search") }, { "deliverableRow-id", Convert.ToString(@row.RowId) }, { "btn_add_document_Help", "true" } })
+                            </span>
+                        </span>
+
+                        <span>
+                            @Confluence.ButtonTrash(null, name: "deleteButtonDeliverable", action: "actionDeleteDeliverable", disabled: (@row.DocumentNumber == "" || row.IsDismiss) ? true : false, dataAttributes: new Dictionary<string, string> { { "deliverableRow-delete-id", Convert.ToString(@row.RowId) } })
+                        </span>
+                    }
+                </div>
+            </div>
+            <div class="col-xs-2">
+                @Confluence.LabelsGroup(Localization.GetText("OP.DL.CompletedDate"),
+                        Confluence.LabelGetDate(row.CompletedDate != DateTime.MinValue ? row.CompletedDate : null),
+                        Confluence.InputDatePicker(
+                            row.CompletedDate != DateTime.MinValue ? row.CompletedDate : null, "completedDate",
+                            required: false, width: "100%", disabled: row.IsDismiss || row.PublicationId.HasValue))
+            </div>
+            @{
+                string tooltipDismiss = hasPublication ? Localization.GetText("OP.DL.NODIMISSEDDELIVERABLE") : null;
+            }
+            <div class="col-xs-1 text-center">
+                @Confluence.LabelsGroup(Localization.GetText("OP.DL.Dismiss"),
+                Confluence.InputCheckbox(row.IsDismiss, "IsDismiss", disabled: true),
+                Confluence.InputCheckbox(row.IsDismiss, "IsDismiss", disabled: hasPublication))
+            </div>
+        </td>
+    </tr>
+
+    if (row.Publication.CanPublishByOperationType && publicationWritePermission)
+    {
+        <tr class="template" data-persist="true" data-row-parent-id=@row.RowId>
+            <td colspan="9">
+                <div class="col-xs-12 text-right">
+                    <span class="mr40">
+                        @if (row.Publication.PublicationTypeName != null)
+                        {
+                            @Confluence.LabelLinkBlank(Localization.GetText("OP.DL.DOWNLOADTEMPLATE"), string.Format("{0}{1}/{2}/", templateUrl, publicationFolder, row.Publication.PublicationTypeName), name: "DownloadTemplateLink")
+                        }
+                        else
+                        {
+                            @Confluence.LabelLinkBlank(Localization.GetText("OP.DL.DOWNLOADTEMPLATE"), name: "DownloadTemplateLink", htmlClass: "hide")
+                        }
+                    </span>
+
+                    <span data-pagemode="edit">
+                        @if (row.Publication.CanPublish && !hasPublication)
+                        {
+                            if (writePermission)
+                            {
+                                @Confluence.ButtonBlue(Localization.GetText("OP.DL.PUBLICATION"), "StartPublication", disabled: row.IsDismiss)
+                            }
+                            else
+                            {
+                                var keepDisabled = new Dictionary<string, string>() { { "keep-disabled", "true" } };
+                                @Confluence.ButtonBlue(Localization.GetText("OP.DL.PUBLICATION"), null, "StartPublication", disabled: true, dataAttributes: keepDisabled)
+                            }
+                        }
+                        else if (row.IsCompleted)
+                        {
+                            @Confluence.ButtonBlue(Localization.GetText("OP.DL.PUBLICATION"), "StartPublication", disabled: row.IsDismiss, htmlClass: "hide")
+                        }
+                    </span>
+                </div>
+            </td>
+        </tr>
+    }
+
+    if (row.IsCompleted)
+    {
+
+        var styleRow = "";
+        if (!hasPublication)
+        {
+            styleRow = "display:none !important;";
+        }
+
+        <tr class="template" style="@styleRow" data-publication-row="true" data-persist="true" data-is-row-visible="false" data-row-parent-id=@row.RowId>
+            <td colspan="9">
+                <span style="float:left; position:relative; top: 11px; background-color:white">
+                    @Confluence.LabelBold(Localization.GetText("OP.DL.PUBLICATION"))
+                </span>
+                <hr />
+                <div class="row">
+                    <div class="col-md-4">
+                        @if (writePermission)
+                        {
+                            <span data-pagemode="edit">
+                                @Confluence.InputText(row.Publication.PublicationId.ToString(), "PublicationId", htmlClass: "hide", dataAttributes: attributes)
+                                @Confluence.InputText(row.Publication.PublicationTypeId.ToString(), "PublicationTypeId", htmlClass: "hide", dataAttributes: attributes)
+                            </span>
+                            @Confluence.LabelsGroup(Localization.GetText("OP.DL.PUBLICATIONNAME"),
+                                Confluence.Label(row.Publication.PublicationName),
+                                Confluence.InputText(row.Publication.PublicationName, "PublicationName", width: "100%", disabled: true, dataAttributes: attributes))
+                        }
+                        else
+                        {
+                            @Confluence.LabelsGroup(Localization.GetText("OP.DL.PUBLICATIONNAME"),
+                                contentAlways: Confluence.Label(row.Publication.PublicationName))
+                        }
+                    </div>
+                    <div class="col-md-2">
+                        @if (writePermission)
+                        {
+                            @Confluence.LabelsGroup(Localization.GetText("OP.DL.COPUBLICATION"),
+                                Confluence.InputCheckbox(row.Publication.CoPublication, "CoPublicationDis", disabled: true),
+                                Confluence.InputCheckbox(row.Publication.CoPublication, "CoPublication", disabled: true, dataAttributes: attributes))
+                        }
+                        else
+                        {
+                            @Confluence.LabelsGroup(Localization.GetText("OP.DL.COPUBLICATION"),
+                                contentAlways: Confluence.InputCheckbox(row.Publication.CoPublication, "CoPublicationDis", disabled: true))
+                        }
+                    </div>
+
+                    <div class="col-md-2">
+                        @if (writePermission)
+                        {
+                            @Confluence.LabelsGroup(Localization.GetText("OP.DL.MAINLANGUAJE"),
+                                Confluence.LabelGetDropDown(row.Publication.MainLanguageId.ToString(), ViewBag.LanguageList),
+                                Confluence.InputDropDown(row.Publication.MainLanguageId.ToString(), "MainLanguaje", ViewBag.LanguageList, width: "100%", disabled: true, dataAttributes: attributes))
+                        }
+                        else
+                        {
+                            @Confluence.LabelsGroup(Localization.GetText("OP.DL.MAINLANGUAJE"),
+                                contentAlways: Confluence.LabelGetDropDown(row.Publication.MainLanguageId.ToString(), ViewBag.LanguageList))
+                        }
+                    </div>
+
+                    <div class="col-md-2">
+                        @Confluence.LabelsGroup(Localization.GetText("OP.DL.PUBLICATIONDATE"),
+                            contentAlways: Confluence.LabelGetDate(row.Publication.PublicationDate))
+                    </div>
+
+                    <div class="col-md-1">
+                        @Confluence.Label(Localization.GetText("OP.DL.FINALPRODUCT"))
+                        <div class="lgCont">
+                            @if (row.Publication.FinalProductId != null)
+                            {
+                                @Confluence.ButtonLink(row.Publication.FinalProduct,
+                                           htmlClass: "ButtonLinkIdNumberDeliverables link-document-id",
+                                           action: "downloadDocument",
+                                           dataAttributes: new Dictionary<string, string>{{ "docnumber", @row.Publication.FinalProductId.ToString() }
+                                           })
+                            }
+                        </div>
+                    </div>
+
+                    <div data-pagemode="edit">
+                        <div class="col-md-2 text-right">
+                            @if (publicationWritePermission && string.IsNullOrWhiteSpace(row.Publication.PublicationName))
+                            {
+                                @Confluence.ButtonTrash(null, "removeRowPublication")
+                            }
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    }
+}

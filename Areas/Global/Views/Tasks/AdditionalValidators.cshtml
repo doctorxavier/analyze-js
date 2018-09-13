@@ -1,0 +1,151 @@
+﻿@using System.Collections.Generic
+@{
+    var validators = (List<Tuple<int, string, string, string, string>>)ViewBag.Validators;
+    bool renderAdditionals = false;
+    Layout = null;
+}
+
+<script>
+    console.log("CURRENT ROLES: @ViewBag.CurrentRoles");
+</script>
+
+<div class="validator-list">
+    @if(ViewBag.IsRequiredValidator){
+        <input type="hidden" id="validator_list_additional_list" name="validator_list_additional_list" value="-mandatory" />
+ }else{
+        <input type="hidden" id="validator_list_additional_list" name="validator_list_additional_list" />
+    }
+    <h4>@Localization.GetText("Validators")</h4>
+    <table class="grid w100 noInnerPadding fixedValues" id="validator_list" style="width: 100%">
+        <thead>
+            <tr>
+                <th class="center">@Localization.GetText("Order")</th>
+                <th class="center">@Localization.GetText("Role")</th>
+                <th class="center">@Localization.GetText("Type")</th>
+                <th class="center">@Localization.GetText("Status")</th>
+                <th class="center">@Localization.GetText("Action")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if(!validators.Any(exp=>!string.IsNullOrEmpty(exp.Item5))){
+                @(Html.Raw("<tr class='validator_list_insert' style='display:none'></tr>"))
+                renderAdditionals = true;
+            }
+            @foreach (var validator in validators) {
+                string status = validator.Item5;
+                //validate if current user have the needed profile to validate task
+                if (status == "insert-validators") {
+                    status = string.Empty;
+                }
+                if (string.IsNullOrEmpty(status) && !renderAdditionals) {
+                @(Html.Raw("<tr class='validator_list_insert'>"))
+                    renderAdditionals = true;
+                } else {
+                @(Html.Raw("<tr>"))
+                }
+            <td>@validator.Item1</td>
+            <td>@Localization.GetText(validator.Item2)</td>
+            <td>@Localization.GetText(validator.Item4)</td>
+            <td>@Localization.GetText(status)</td>
+            <td></td>
+            @(Html.Raw("</tr>"))
+
+            }
+            </tbody>
+        </table>
+        @if (ViewBag.Editable) {
+            <div class="validator-list-add">
+                <select id="validator_list_additional" class="kendo-dropdown">
+                    @foreach (var validator in (List<string>)ViewBag.AvailableRoles) {
+                        <option>@validator</option>
+                }
+                </select>
+                <input type="button" class="btn-primary button" id="validator_list_additional_add" value="@Localization.GetText("Add validator")" />
+            </div>
+    }
+    </div>
+
+    <script>
+        @{
+            var validatorName = Localization.GetText("Additional Validator");
+            if(ViewBag.IsRequiredValidator){
+                validatorName = Localization.GetText("Mandatory Validator");
+            }
+        }
+    var additionalString = '@validatorName';
+        $(document).ready(function () {
+            $('#validator_list_additional_add').click(function () {
+                var current_value = $('#validator_list_additional').find(":selected");
+                if (!current_value) {
+                    return;
+                }
+                var validatorRow = $('<tr/>');
+                validatorRow.addClass('validator_list_insert');
+                var validatorColumn = $('<td/>');
+                validatorRow.append('<td></td>');
+                validatorRow.append('<td class="validator_list_additional_validator">' + current_value.val() + '</td>');
+                validatorRow.append('<td>' + additionalString + '</td>');
+                validatorRow.append('<td></td>');
+                validatorRow.append('<td><a href="#" onclick="javascript:validator_list_remove(this)">@Localization.GetText("Delete")</a></td>');
+                validatorRow.css('display', 'none');
+                $('.validator_list_insert:last').after(validatorRow);
+                validatorRow.show(500, function () {
+                    resizeIframeCloud(10);
+                });
+                var dropDown = $("#validator_list_additional").data("kendoDropDownList");
+                dropDown.dataSource.remove(dropDown.dataSource.at($("#validator_list_additional")[0].selectedIndex));
+
+                validator_list_setvar();
+
+
+            });
+
+
+        });
+        function validator_list_remove(element) {
+            var aElement = $(element);
+            var tr = aElement.parent().parent();
+            var role = tr.find('.validator_list_additional_validator').text();
+            $("#validator_list_additional").data("kendoDropDownList").dataSource.add({ text: role });
+            tr.remove();
+            validator_list_setvar();
+            window.setTimeout(function () {
+                resizeIframeCloud();
+            }, 3);
+        }
+        function validator_list_setvar() {
+            var varValue = '';
+            $('.validator_list_additional_validator').each(function (i, e) {
+                e = $(e);
+                varValue += e.text() + '|';
+            });
+            @if(ViewBag.IsRequiredValidator){
+			@Html.Raw("varValue+='-mandatory';");
+            }
+            $('#validator_list_additional_list').val(varValue);
+        }
+    </script>
+@{//disable the send request events and add the overlay on click event
+	if (ViewBag.IsRequiredValidator) {
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var elements = ".Request, .RequestEdit, .saveandrequest, label[for='SendRequest'] > .btn-primary";
+            $(elements).attr('title', '@Localization.GetText("This workflow requires at least one mandatory validator, please select one in the validators list.")');
+            $(elements).tooltip();
+            $('#validator_list_additional_add').click(function () {
+                $(elements).tooltip("disable");
+                window.setTimeout(function () {
+                    resizeIframeCloud(100);
+                }, 3);
+            });
+            $(elements).bindFirst('click', function (event) {
+                var validators = $('#validator_list_additional_list').val();
+                if (validators.length < 11) {
+                    event.stopImmediatePropagation();
+                    event.preventDefault();
+                }
+            });
+        });
+    </script>
+	}
+}

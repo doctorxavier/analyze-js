@@ -1,0 +1,157 @@
+﻿@model IDB.Presentation.MVC4.Models.CustomReassingOutputModel
+
+
+<script>
+    $(document).ready(function () {
+
+        var interval = new Object();
+        interval.IntervalId = $("#hdnIntervalId").val();
+        interval.CycleId = $("#hdnCycleId").val();
+
+        $(".ReassigSelect").width('500px');
+
+        $('.k-dropdown-wrap.k-state-default').addClass('btn');
+
+        $(".cancelReassingOutput").click(function () {
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $(".ui-widget-overlay").remove();
+            $(".k-window").remove();
+        });
+
+        $("#saveReassingOutput").click(function () {
+
+            if (interval.IntervalId == 3) {
+                if ($("#ReassingOuputContent").is(":visible")) {
+                    $(".k-window-titlebar").addClass("warning");
+                    $(".k-window-title").addClass("ico_warning");
+                    $("#ReassingOuputContent").hide();
+                    $("#OutputChangeMatrixMessage").show();
+                    return;
+                }
+            }
+
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $(".ui-widget-overlay").remove();
+            $("#targetReassingOutput").submit();
+        });
+
+        var isIntegratedWithPep = $("#hdn-is-integrated-with-pep").val();
+        
+        if (isIntegratedWithPep.toLowerCase() == 'true')
+        {
+            $("#ReassingOuputContent").on('change', '.optionSelect.ReassigSelect', function () {
+                handleReassignChangeCopy($('option:selected', this).val(), $(this).attr("id"));
+            });
+        }
+    });
+
+    function handleReassignChangeCopy(selectedOptionId, dropDownId) {
+        var dropDownId = dropDownId;
+        var selectedValue = selectedOptionId;
+
+        if (dropDownId == "SelectedComponentId") {
+
+            if (selectedValue != "-1") {
+                var path = '@Url.Action("GetSubComponentsByComponentId", "Outputs", new { area = "ResultsMatrix" })';
+                $.ajax({
+                    url: path,
+                    data: JSON.stringify({ componentId: selectedValue }),
+                    dataType: "json",
+                    contentType: "application/json",
+                    type: 'post',
+                    success: loadSubComponentsDropDown
+                });
+            } else {
+                $("#reassign-subComponent-container").hide();
+                $("#ddl-reassign-component").val("-1");
+                $("#ddl-reassign-subComponent").val("-1").data("kendoDropDownList").text("Select SubComponent");
+                $("#SelectedComponentId").val("-1");
+                $("#SelectedSubComponentId").val("-1");
+            }
+        }
+
+        if (dropDownId == "ddl-reassign-subComponent") {
+            $("#SelectedSubComponentId").val(selectedValue);
+        }
+    }
+
+    function loadSubComponentsDropDown(data)
+    {
+        if (data != null && data.length > 0) {
+            if (data.length > 1) {
+
+                var $select = $('<select/>', {
+                    'class': "optionSelect ReassigSelect",
+                    'id' : "ddl-reassign-subComponent",
+                    'name': "ddl-reassign-subComponent",
+                    'width': "500px"
+                });
+
+                $.each(data, function (index, option) {
+                    $select.append('<option value=' + option.PepTaskId + '>' + option.PepTaskName + '</option>');
+                });
+
+                $("#reassign-subComponent-container").find("li.small").html($select);
+                $("#reassign-subComponent-container").show();
+
+            } else {
+                $("#reassign-subComponent-container").hide();
+            }
+        }
+    }
+
+</script>
+
+<p class="hide headerWindow">Reassign output</p>
+@using (Html.BeginForm("UpdateOuputComponentParent", "Outputs", FormMethod.Post, new { area = "ResultMatrix", id = "targetReassingOutput" }))
+{
+
+    @Html.HiddenFor(m => m.output.OutputId)
+    @Html.HiddenFor(m => m.output.OperationOperationNumber)
+    @Html.HiddenFor(m => m.SelectedSubComponentId)
+    <div class="contentImpacts" id="ReassingOuputContent">
+        <div class="dataContent1">
+            <fieldset>
+                <legend class="dataTitle">@Localization.GetText("Component Name")</legend>
+                <p class="dataText">@Model.output.ComponentStatement</p>
+            </fieldset>
+        </div>
+
+
+        <div class="dataContent1">
+            <fieldset>
+                <legend class="dataTitle">@Localization.GetText("Output Name")</legend>
+                <p class="dataText">@Model.output.Definition</p>
+            </fieldset>
+        </div>
+        <div class="dataContent1">
+            <p class="dataTitle">@Localization.GetText("Reassign output to component")</p>
+            <ul class="optionList">
+                <li class="small">
+                    @Html.DropDownListFor(x => x.SelectedComponentId,
+                    new SelectList(Model.componentList, "ComponentId", "Statement"), new { name = "ComponentList", @class = "optionSelect ReassigSelect" })
+                </li>
+            </ul>
+            <div id="reassign-subComponent-container" style="display:none">
+                <br />
+                <p class="dataTitle">@Localization.GetText("Reassign output to Subcomponent")</p>
+                <ul class="optionList">
+                    <li class="small"></li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+    <div id="OutputChangeMatrixMessage" style="padding: 20px; display: none;">
+        @Localization.GetText("TCM.RCMW.RegisterChangesMany.TextMessage")
+    </div>
+   <!-- END contentImpact-->
+    <div class="pie pieReassign">
+        <div class="botones">
+            <a title="@Localization.GetText("Cancel")" class="cancel cancelReassingOutput" href="javascript:void(0)"> @Localization.GetText("Cancel")</a>
+            <label for="saveReassingOutput">
+                <input type="button" value=" @Localization.GetText("Save") " class=" btn-primary savereassingoutput" id="saveReassingOutput">
+            </label>
+        </div>
+    </div>
+}

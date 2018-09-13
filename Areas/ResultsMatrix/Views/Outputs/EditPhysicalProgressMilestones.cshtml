@@ -1,0 +1,276 @@
+﻿@using IDB.Presentation.MVC4.Areas.ResultsMatrix.Business;
+@using IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs
+@using IDB.MW.Domain.Models.Architecture.Enumerations
+@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.ResultsMatrixModel
+
+@*--------------------------------------------------------------------------------------------*@
+@*--------------------------------Milestones grid----------------------------------------------*@
+@*---------------------------------------------------------------------------------------------*@
+@{
+   int componentIndex = (int)ViewBag.componentIndex;
+   int outputIndex = (int)ViewBag.outputIndex;
+   List<Tuple<int, bool>> totalOutputsYearPlan = (List<Tuple<int, bool>>)ViewBag.totalOutputsYearPlan;
+   
+}
+@if (Model.Components[componentIndex].Outputs[outputIndex].Milestones != null && Model.Components[componentIndex].Outputs[outputIndex].Milestones.Count() > 0)
+{
+   <tr class="nivel02">
+      <td colspan="@(totalOutputsYearPlan.Count + 5)">
+         <div class="minimizeTable" style="padding-bottom: 18px;">
+            <div class="minimizeBar">
+               <div class="tableOperator">Minimize/Maximize</div>
+            </div>
+            <div class="operatorBar"></div>
+            <div class="tableGrid">
+               <table class="grid milestoneTable">
+                  <thead>
+                     <tr>
+                        <th class="btn_azul_oscuro dato00">@Localization.GetText("Milestones")</th>
+                        <th class="btn_azul_oscuro dato04">@Localization.GetText("Unit of measure")</th>
+                        <th class="btn_azul_oscuro dato04"></th>
+                        @for (var milestoneYearPlanIndex = 0; milestoneYearPlanIndex < totalOutputsYearPlan.Count; milestoneYearPlanIndex++)
+                        {                                                                             
+                           <th class="btn_azul_oscuro selects" data-milestoneyearplanindex="@(milestoneYearPlanIndex + 1)">
+                              @Html.Raw(totalOutputsYearPlan[milestoneYearPlanIndex].Item1)
+                           </th>
+                        }
+                        <th class="btn_azul_oscuro dato04" style="text-align: center; vertical-align: middle; width: 1em;"></th>
+                        <th class="btn_azul_oscuro dato05">EOP @Model.EndProjectYear</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                     @for (var milestoneIndex = 0; milestoneIndex < Model.Components[componentIndex].Outputs[outputIndex].Milestones.Count; milestoneIndex++)
+                     {
+                        <tr class="hoverMilestone" data-milestoneindex="@milestoneIndex" @(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].OrderNumber % 2 == 0 ? "class=impar" : "")>
+                            <td class="dato01 verticalShadow" style="position: static;">
+                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].MilestoneId, new { data_val = "false", @class = "MilestoneId" })
+                                @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones.Index", milestoneIndex)
+                                @Html.TextAreaFor(x => x.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].Definition, new { @class = "dato01 changeValueInput", rows = "2", cols = "55" })
+                                @{ Html.ValidateFor(x => x.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].Definition); }
+                                <div class="actionbar2">
+                                    <a class="btn_entypo first" title="@Localization.GetText("Delete")" onclick="deleteMilestone(this);" href="javascript:void(0);"></a>
+                                </div>
+                            </td>
+                            <td>
+                                <label class="editLabel ici" for="unit01">
+                                    @Html.TextBoxFor(x => x.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].UnitOfMeasure, new { @class = "input min_input changeValueInput" })
+                                </label>
+                            </td>
+                            <td>
+                                <table class="ouputTable">
+                                    <tbody>
+                                        <tr>
+                                            <td class="rm_edit_rh">P</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="rm_edit_rh">P(a)</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="rm_edit_rh">A</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+                            @if (totalOutputsYearPlan != null && totalOutputsYearPlan.Count > 0)
+                            {
+                                for (var milestoneYearPlanIndex = 0; milestoneYearPlanIndex < totalOutputsYearPlan.Count; milestoneYearPlanIndex++)
+                                {
+                                    var currentMilestoneYearPlan = Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].MilestoneYearPlans.
+                                        Where(x => x.Year == totalOutputsYearPlan[milestoneYearPlanIndex].Item1).FirstOrDefault();
+                                    currentMilestoneYearPlan = currentMilestoneYearPlan ?? new MilestoneYearPlanModel()
+                                    {
+                                        ActualValue = null,
+                                        OriginalPlan = null,
+                                        MilestoneYearPlanId = 0,
+                                        Year = totalOutputsYearPlan[milestoneYearPlanIndex].Item1,
+                                        AnnualPlan = null
+                                    };
+                                    var _milestoneYearPlanIndex = milestoneYearPlanIndex + 1;
+                                    ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                        new ResultsMatrixBusinessRulesPhysicalProgress(Model.Components[componentIndex].
+                                            Outputs[outputIndex].Milestones[milestoneIndex].MilestoneYearPlans);
+                                    int referenceLastYearOutputProduct =
+                                        rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                    int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                    int referenceYear =
+                                        rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+
+                                    <td data-rowcolumnrelated="@_milestoneYearPlanIndex" class="dato07">
+                                        <input id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__MilestoneYearPlanId" class="hiddenId"
+                                               name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].MilestoneYearPlans[@(_milestoneYearPlanIndex)].MilestoneYearPlanId" type="hidden" value="@(currentMilestoneYearPlan.MilestoneYearPlanId)">
+                                        <input class="hiddenYear" id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__Year"
+                                               name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].MilestoneYearPlans[@(_milestoneYearPlanIndex)].Year" type="hidden" value="@(currentMilestoneYearPlan.Year)">
+                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans.Index", _milestoneYearPlanIndex)
+                                        <table class="fixedTableDisaggregation">
+                                            <tbody>
+                                                <tr class="rm_p_row">
+                                                    <td>
+                                                        <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__OriginalPlan">
+
+                                                            <input class="input min_input numberInput @(Model.Components[componentIndex].Outputs[outputIndex].MileStoneBasedPmi && Model.AccessedByAdministrator ? "ExistingOriginal" : "")"
+                                                                   id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__OriginalPlan" data-originalvalue="@(currentMilestoneYearPlan.OriginalPlan)"
+                                                                   name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].MilestoneYearPlans[@(_milestoneYearPlanIndex)].OriginalPlan" type="text" value="@(currentMilestoneYearPlan.OriginalPlan)"
+                                                                   data-referenceyear=@referenceYear
+                                                                   data-pmryear=@pmrYear
+                                                                   @( !currentMilestoneYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                        </label>
+                                                    </td>
+                                                </tr>
+                                                <tr class="rm_pa_row">
+                                                    <td>
+                                                        <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__AnnualPlan">
+                                                            <input class="input min_input numberInput annualChangeValueInput"
+                                                                   id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__AnnualPlan"
+                                                                   name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].MilestoneYearPlans[@(_milestoneYearPlanIndex)].AnnualPlan" type="text" value="@(currentMilestoneYearPlan.AnnualPlan)"
+                                                                   data-referenceyear=@referenceYear
+                                                                   data-pmryear=@pmrYear
+                                                                   @(!currentMilestoneYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                        </label>
+
+
+                                                    </td>
+                                                </tr>
+                                                <tr class="rm_ac_row">
+                                                    <td>
+                                                        <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__ActualValue">
+                                                            <input class="input min_input numberInput"
+                                                                   id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(_milestoneYearPlanIndex)__ActualValue"
+                                                                   name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].MilestoneYearPlans[@(_milestoneYearPlanIndex)].ActualValue" type="text" value="@(currentMilestoneYearPlan.ActualValue)"
+                                                                   data-referenceyear=@referenceYear
+                                                                   data-pmryear=@pmrYear
+                                                                   @( !currentMilestoneYearPlan.isActualValueEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                        </label>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                }
+                            }
+                            <td></td>
+                            <td class="fixedTableDisaggregation totalMilestoneYearPlan dato07 @(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop ? "IsAutoCalcPhysycalEop" : string.Empty)">
+
+                         @{
+                            var milestoneYearPlanIndexEOP = 0;
+                            var EOPMilestoneYearPlan = Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].MilestoneYearPlans.
+                               Where(x => x.Year == ResultsMatrixCodes.EndOfProjectYear).FirstOrDefault();
+                            EOPMilestoneYearPlan = EOPMilestoneYearPlan ?? new MilestoneYearPlanModel()
+                            {
+                                OriginalPlan = null,
+                                ActualValue = null,
+                                AnnualPlan = null,
+                                MilestoneYearPlanId = 0,
+                                Year = ResultsMatrixCodes.EndOfProjectYear
+                            };
+
+                            @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans[" + milestoneYearPlanIndexEOP + "].OutputYearPlanId",
+                                                      EOPMilestoneYearPlan.MilestoneYearPlanId, new { @class = "hiddenId" })
+                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans[" + milestoneYearPlanIndexEOP + "].Year",
+                                                      EOPMilestoneYearPlan.Year)
+                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans.Index",
+                                                   milestoneYearPlanIndexEOP)
+
+                            var originalEOPProperties = new Dictionary<string, object>();
+                            var annualEOPProperties = new Dictionary<string, object>();
+                            var actualEOPProperties = new Dictionary<string, object>();
+
+                            if (Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop)
+                            {
+                                ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                    new ResultsMatrixBusinessRulesPhysicalProgress(Model.Components[componentIndex].
+                                        Outputs[outputIndex].Milestones[milestoneIndex].MilestoneYearPlans);
+                                int referenceLastYearOutputProduct =
+                                    rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                int referenceYear =rmBusinessRuleHelper.GetReferenceYear(
+                                        referenceLastYearOutputProduct, pmrYear);
+                                EOPMilestoneYearPlan.OriginalPlan =
+                                    rmBusinessRuleHelper.GetOriginalPlanSum();
+                                EOPMilestoneYearPlan.AnnualPlan =
+                                    rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear);
+                                EOPMilestoneYearPlan.ActualValue =
+                                    rmBusinessRuleHelper.GetActualValueSum();
+                            }
+                            if (Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop || (!EOPMilestoneYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator))
+                            {
+                                originalEOPProperties.Add("readonly", "readonly");
+                            }
+                            if (!Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop && Model.AccessedByAdministrator)
+                            {
+                                originalEOPProperties.Add("class", "input min_input numberInput ExistingOriginal");
+                                originalEOPProperties.Add("data-originalValue", EOPMilestoneYearPlan.OriginalPlan);
+                            }
+                            else
+                            {
+                                originalEOPProperties.Add("class", "input min_input numberInput");
+                            }
+
+                            if (Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop || (!EOPMilestoneYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator))
+                            {
+                                annualEOPProperties.Add("readonly", "readonly");
+                            }
+
+                            var annualClassValues = "input min_input numberInput ";
+                            if (Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].isOldAnnualPlanExists)
+                            {
+                                annualClassValues += "ExistingAnnualMilestones ";
+                                annualEOPProperties.Add("data-originalValue", EOPMilestoneYearPlan.AnnualPlan);
+                                annualEOPProperties.Add("data-oldValue", Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].OldAnnualPlan);
+                                if (Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop)
+                                {
+                                    annualClassValues += "isauto ";
+                                }
+                            }
+
+                            annualEOPProperties.Add("class", annualClassValues);
+
+                            if (Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].IsAutoCalcPhysycalEop || (!EOPMilestoneYearPlan.isActualValueEditable && !Model.AccessedByAdministrator))
+                            {
+                                actualEOPProperties.Add("readonly", "readonly");
+                            }
+
+                            actualEOPProperties.Add("class", "input min_input numberInput");
+
+                            <table class="fixedTableDisaggregation totalMilestoneYearPlan">
+                                <tbody>
+                                    <tr class="rm_p_row">
+                                        <td>
+                                            <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(milestoneYearPlanIndexEOP)__OriginalPlan">
+
+                                                @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans[" + milestoneYearPlanIndexEOP + "].OriginalPlan",
+                                                   EOPMilestoneYearPlan.OriginalPlan, originalEOPProperties)
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    <tr class="rm_pa_row">
+                                        <td>
+                                            <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(milestoneYearPlanIndexEOP)__AnnualPlan">
+                                                @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans[" + milestoneYearPlanIndexEOP + "].AnnualPlan",
+                                                                     EOPMilestoneYearPlan.AnnualPlan, annualEOPProperties)
+
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    <tr class="rm_ac_row">
+                                        <td>
+                                            <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__MilestoneYearPlans_@(milestoneYearPlanIndexEOP)__ActualValue">
+                                                @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].Milestones[" + milestoneIndex + "].MilestoneYearPlans[" + milestoneYearPlanIndexEOP + "].ActualValue",
+                                                                     EOPMilestoneYearPlan.ActualValue, actualEOPProperties)
+                                            </label>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                         }
+                            </td>
+                        </tr>
+                     }
+                  </tbody>
+
+               </table>
+
+            </div>
+         </div>
+      </td>
+   </tr>
+}

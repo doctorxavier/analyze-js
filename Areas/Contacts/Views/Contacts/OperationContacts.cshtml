@@ -1,0 +1,196 @@
+﻿@{
+    Layout = null;
+}
+
+@using IDB.Presentation.MVC4.Helpers
+@model IDB.MW.Application.Contacts.ViewModels.OperationContactsViewModel
+
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/overrides/CMOverride.css")" />
+
+<div id="PageContent" class="pt20">
+    <div class="col-md-12">
+        @Confluence.LabelMainTitle(Localization.GetText("CM.Label.Contacts"))
+    </div>
+    <div class="col-md-12">
+        @Html.Partial("ReadPartial/OperationContactsFilterPartial", Model)
+    </div>
+
+    <div class="col-md-12 mt20">
+        @Confluence.InputDropDown(value: "20", name: "ddlPagination", elements: Model.Display != null ? Html.BuildSelectItemList(Model.Display, m => m.Text, m => m.Value) : new List<SelectListItem>(), validateOnChange: true, showEmptyOption: false, orderAsc: false, required: false, placeholder: null, width: "120px")
+    </div>
+
+    @if (Model != null)
+    {      
+        <div id="contactsTableContainer" class="col-md-12">
+            @Html.Partial("ReadPartial/OperationContactsTablePartial", Model)
+        </div>
+    }
+</div>
+ 
+<script>
+    $(document).ready(function () {
+        bindHandlers();
+    });
+
+    $("#contactsTable").paginationConfluence(20);
+    $("#contactsTable").sortableConfluence();
+    $("button[name='contactFilter']").on("click", function () {
+        if (!$("#contactFilterContainer").hasClass("hide"))
+        {
+            $("#contactFilterContainer").addClass("hide")
+        }
+        else
+        {
+            $("#contactFilterContainer").removeClass("hide")
+        }
+    });
+
+    $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-ddlPagination"] a', function () {
+        var displayVal = $("[name='ddlPagination']").val();
+        if (displayVal == 'All') {
+            var activityProgramCount = $("#contactsTable tbody tr").length;
+            displayVal = activityProgramCount;
+        }
+        $("#contactsTable").paginationConfluence(parseInt(displayVal));
+        $(".Pagination").css("float", "right");
+        $("#contactsTable").sortableConfluence();
+    });
+
+
+    function addNewContact() {
+        showLoaderOptional();
+        var container = $("#PageContent");
+        $.ajax({
+            url: '@Url.Action("AddNewContact", "Contacts", new { area = "Contacts", operationNumber = Model.OperationNumber })',
+            cache: false,
+            data: { onlyRead: @Model.OnlyRead.ToString().ToLower() },
+            async: true,
+            type: 'POST'
+        }).done(function (data) {
+            $(container).empty();
+            $(container).append(data);
+            hideLoaderOptional();
+        }).fail(function (jqXHR, textStatus) {
+            hideLoaderOptional();
+        });
+    }
+
+    function contactsClearAll() {
+        $("input[name='contactName']").val("");
+        $("input[name='contactTitle']").val("");
+        $("input[name='contactUserName']").val("");
+        $("input[name='eaRole']").FirstorDefault();
+        $("input[name='contactsInstitution']").SetValue("", "");
+        $("input[name='allContacts']").prop('checked', true);
+    }
+
+    function removeRow(source) {
+        var container = $("#PageContent");
+        var msg = '@Localization.GetText("OP.OD.Delete.Msg")';
+        var title = '@Localization.GetText("COMMON.Warning")';
+        var cancel = '@Localization.GetText("CM.Button.Cancel")';
+        Confirm.ShowWarning(msg, title, "Ok", cancel).done(function (answer) {
+            if(answer)
+            {
+                showLoaderOptional();
+                var executorContactId = source.closest('tr').attr('data-id');
+                $.ajax({
+                    type: "POST",
+                    async: true,
+                    url: "@Url.Action("RemoveContact", "Contacts", new { area = "Contacts", operationNumber = Model.OperationNumber })",
+                    data: { executorContactId: executorContactId }
+                }).done(function (data) {
+                    $(container).empty();
+                    $(container).append(data);
+                    bindHandlers();
+                    hideLoaderOptional();
+                }).fail(function (jqXHR, textStatus) {
+                    hideLoaderOptional();
+                });
+            }
+        });
+    }
+
+    function searchContactsFilter(source) {
+        var content = $(source).closest('#contactFilterContainer');
+        var searchContactName = $('[name="contactName"]').val();
+        var searchInstitutionNameId = parseInt(content.find("[name='contactsInstitution']").val()) ? parseInt(content.find("[name='contactsInstitution']").val()) : -1;
+        var searchTitle = $('[name="contactTitle"]').val();
+        var searchUserName = $('[name="contactUserName"]').val();
+        var searchEaRole = $('[name="eaRole"]').val() != "" ? $('[name="eaRole"]').val() : -1;
+        var searchAllContacts = content.find("[name='allContacts']").is(':checked');
+        showLoaderOptional();
+        $.ajax({
+            url: '@Url.Action("SearchContacts", "Contacts", new { area = "Contacts", operationNumber = Model.OperationNumber })',
+            data: {
+                searchInstitutionNameId: searchInstitutionNameId, searchTitle: searchTitle,
+                searchUserName: searchUserName, searchEaRole: searchEaRole, searchContactName: searchContactName, searchAllContacts: searchAllContacts
+            },
+            async: true,
+            type: 'POST'
+        }).done(function (data) {
+            var resultSearchPanel = $('#contactsTableContainer');
+            resultSearchPanel.html(data);
+            $("#contactsTable").paginationConfluence(15);
+            $("#contactsTable").sortableConfluence();
+            bindHandlers();
+            hideLoaderOptional();
+
+            $('#contactsTable tbody tr td .text-break-points a').on("click", function () {
+                showLoaderOptional();
+            });
+        }).fail(function (jqXHR, textStatus) {
+            hideLoaderOptional();
+        });
+        return false;
+    }
+
+    function reloadContact(itemContact){
+        var url = $(itemContact).attr('data-reload');
+        showLoaderOptional();
+        $.ajax({
+            url: url,
+            async: true,
+            type: 'POST'
+        }).done(function (data) {
+            var resultSearchPanel = $('#PageContent');
+            resultSearchPanel.empty();
+            resultSearchPanel.html(data);
+            bindHandlers();
+            hideLoaderOptional();
+        }).fail(function (jqXHR, textStatus) {
+            hideLoaderOptional();
+        });
+    }
+
+    $(".sort").on("click", function () {
+        setTimeout(function () { bindHandlers(); }, 1000);
+    });
+
+    function ExportFileCM(source){
+        var content = $('#contactFilterContainer');
+        var searchContactName = content.find('[name="contactName"]').val();
+        var searchTitle = content.find('[name="contactTitle"]').val();
+        var searchUserName = content.find('[name="contactUserName"]').val();
+        var eaRole = content.find('[name="eaRole"]').val();
+        var searchEaRole = eaRole != "" ? eaRole : -1;
+        var institutionNameId = $('#contactFilterContainer').find('[name="contactsInstitution"]').val();
+        var searchInstitutionNameId = $.isNumeric(institutionNameId)? parseInt(institutionNameId) : -1;
+        var searchAllContacts = content.find('[name="allContacts"]').is(':checked')
+
+        var operationNumber = '@Model.OperationNumber';
+        var formatDoc = source.attr('name');
+
+        var urlClientManagerFile = '@Url.Action("DownloadClientManagerFile", "Contacts", new {area = "Contacts" })' +
+            "?operationNumber=" + operationNumber +
+            "&formatType=" + formatDoc +
+            "&contactName=" + searchContactName +
+            "&title=" + searchTitle +
+            "&userName=" + searchUserName +
+            "&eaRole=" +searchEaRole +
+            "&institutionNameId=" + searchInstitutionNameId +
+            "&allContacts=" + searchAllContacts;
+
+        window.open(urlClientManagerFile, '_blank');
+    }
+</script>

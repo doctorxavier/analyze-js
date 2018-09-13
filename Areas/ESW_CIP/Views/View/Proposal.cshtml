@@ -1,0 +1,877 @@
+@using System.Configuration;
+@using IDB.MW.Application.ESW_CIPModule.ViewModels;
+
+@model ProposalViewModel
+@{
+    ViewBag.fixLoad = true;
+}
+
+<input hidden data-idb-pagename="UI-ESWCIP-Proposal" />
+
+<div id="proposalOperation" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="false"
+     data-url="@Url.Action("ProposalOperation", "Save", new { area = "ESW_CIP" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+
+    <span data-pagemode="edit">
+        <input type="hidden" name="changeStatus" value="none" />
+    </span>
+
+    <div class="row" id="header-section">
+        <div class="col-md-12">
+            @Html.Partial("Partials/Proposals/PHeader", Model)
+        </div>
+    </div>
+
+    <div class="row" id="grid-section">
+        <div class="col-md-12 hide hideContent">
+            @Html.Partial("Partials/Proposals/PTabs", Model)
+        </div>
+    </div>
+
+    <div class="row hide hideContent" id="footer-section">
+        @Html.Partial("Partials/Proposals/PFooter", Model)
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+    var activeTab;
+    registerCallback(function() {
+
+        $(document).ready(function() {
+            totalRequestReadSum();
+            readSummaryRowsCalculation();
+            separateListIntoSeveralDivs();
+            maskNumbersWithCommas();
+            activeTab = localStorage.getItem("activeTab");
+            if (activeTab !== undefined){
+                var lastUsedTab = $('[dd-tab=' + activeTab + ']');
+                lastUsedTab.addClass('active');
+                lastUsedTab.click();
+            }
+            setActiveTab();
+            addNumbersBeforeQuestions("#tabOERA");
+            budgetZerosAddition();
+            maskAnnualBudgetsOnReadMode();
+            $(".hideContent").removeClass('hide');
+        });
+    });
+
+
+    function downloadProposalByYear(source) {
+
+        var proposalId = @Html.Raw(Json.Encode(Model.ProposalId));
+        var proposalType = @Html.Raw(Json.Encode(Model.ProposalType));
+        var proposalYear = @Html.Raw(Json.Encode(Model.ProposalYear));
+
+        var formatType = source.attr('name').toString();
+        var url = '@Url.Action("DownloadProposalReport", "View", new { area = "ESW_CIP" })' + "?proposalOperationId=" + proposalId + "&proposalYear=" + proposalYear + "&proposalType=" + proposalType + "&formatType=" + formatType;
+        window.open(url, '_blank');
+
+    }
+
+    function editProposal(source) {
+        enterEditMode(false, $('#proposalOperation'), false);
+        enterEditMode(false, $('#header-section'), true);
+        enterEditMode(false, $('#footer-section'), true);
+        totalRequestSum();
+        editSummaryRowsCalculation();
+        readyForSubmissionCheck();
+        setDatePickerMinDate($('[name=PlannedDate]'));
+        modifyPlannedDatePattern();
+        checkJointProposalDropDowns();
+        enableJointProposalDropDowns();
+        disableJointProposalDropDowns();
+        addRequiredWhenEnteringEditMode();
+        disablePeerReview();
+        setActiveTab();
+        removeSubmitButton();
+        addDocumentsActionReloadTab();
+        maskProposedAmountWhitCommas();
+    }
+
+    function cancelProposal(source) {
+        exitEditMode(false, $('#proposalOperation'), true, true);
+        exitEditMode(false, $('#header-section'), true, true);
+        exitEditMode(false, $('#footer-section'), true, true);
+        totalRequestReadSum();
+        readSummaryRowsCalculation();
+        cleanEmptyRows($("#ESWCIPDeliverablesTable tr.rowContent"));
+        cleanEmptyRows($("#ESWCIPBudgetsTable tr.rowContent"));
+        cleanEmptyRows($("#ESWCIPDocumentsTable tr.rowContent"));
+        removeTabsErrorSign();
+        removeErrorMessage($('div#ProposalInfo'));
+        removeErrorMessage($('div.countries'));
+        removeErrorMessage($('#ESWCIPDeliverables'));
+        removeErrorMessage($('#ESWCIPBudgets'));
+        maskAnnualBudgetsOnReadMode();
+    }
+
+    function showBiggerText(source) {
+        var url = '@Url.Action("GetPartialView", "View", new { partial = "_ShowBiggerText" })';
+        var response = $.get(url + "&inputIdentifier=" + source.parents('div.textAreaBody').find('span[data-pagemode=edit] textarea.txtInputComment').attr('id'));
+        var isReadMode = source.parents('span[data-pagemode=read]').length > 0;
+        response.done(function(data) {
+            $('div#showBiggerText').html(data);
+            $('h3.modalTitle').text(source.parents('div.textAreaBody').prev('h4').text());
+
+            $('div#showBiggerText:last').find('textArea').text(source.parents('div.textAreaBody span.showDataEdit').find('textarea').val())
+            if (isReadMode) {
+                $('div#showBiggerText').find('textarea[name=biggerText]').attr('disabled', 'disabled');
+                if ($('div#showBiggerText textarea:disabled').length > 0){
+                    $('div#showBiggerText').find('.buttonBlue').addClass('hide');
+                }
+                $('div#showBiggerText').find('textArea').text(source.parents('div.textAreaBody').find('span[data-pagemode=read]').find('textarea').val())
+
+            }
+        });
+        
+    }
+
+    function addNewDeliverable(source) {
+
+        var table = $("#" + source.attr('dd-table') + " > tbody");
+        var newRow = '@ESWCIP.RowElement(editContent: new List<HelperResult>
+                          {
+                              Confluence.InputDropDown(value: "", name: "Type", elements: ViewBag.DeliverableTypes, width: "100%", required: false),
+                              Confluence.InputText(value: "", name: "Name", width: "100%", required: false, maxLength: 60),
+                              Confluence.InputDatePicker(value: (DateTime?) null, name: "PlannedDate", required: true),
+                              Confluence.ButtonTrash(text: string.Empty, action: "deleteRowAmount")
+                          }, editOnly: true).ToString().Replace("\r\n", "").Replace("\n", "").Replace("/&amp;/g", "&")';
+
+        newRow = newRow.replace(/&amp;#59177/g, '&#59177');
+        addNewRow(table, newRow);
+
+        var hiddenDeliverableId = '@Confluence.InputHidden(value: "0", name: "DeliverableId", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "inputhiddenDeliverableId" } }).ToString().Replace("\r\n", "").Replace("\n", "")';
+        hiddenDeliverableId = hiddenDeliverableId.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace("\r\n", "").replace("\n", "");
+
+        var lastRow = $("#ESWCIPDeliverablesTable > tbody > tr.rowContent:last");
+        lastRow.find('[name=PlannedDate]').attr("data-parsley-pattern", '^(((0?[1-9])|([1-2][0-9])|3(0|1)) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) \\d{4})$');
+        lastRow.find('td').eq(1).removeClass('text-center');
+        makeFieldsRequiredForDeliverable(lastRow);
+
+        $(hiddenDeliverableId).appendTo(lastRow.find("span[data-pagemode=edit]:first"));
+
+        enterEditMode(false, $('#ESWCIPDeliverables'), true);
+        bindHandlers();
+        removeTableErrorMessage($("#ESWCIPDeliverablesTable"));
+        setDatePickerMinDate($('[name=PlannedDate]'));
+    }
+
+    function makeFieldsRequiredForDeliverable(newRow) {
+        if ($('[name=ReadyForSubmission]').is(':checked')) {
+            newRow.find('[name=Type]').attr("data-parsley-required", "true");
+            newRow.find('[name=Name]').attr("data-parsley-required", "true");
+            newRow.find('[name=PlannedDate]').attr("data-parsley-required", "true");
+        }
+    }
+
+    function addNewBudget(source) {
+        var table = $("#" + source.attr('dd-table') + " > tbody > tr:last");
+        var newRow = '@ESWCIP.RowElement(editContent: new List<HelperResult>
+                          {
+                              Confluence.InputText(value: "", name: "Activity", required: false, htmlClass: "activityColumn", maxLength: 40),
+                              Confluence.InputDecimal(null, "Consultation", minValue: "0.00", maxValue: "99999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "txtConsultation"}}, htmlClass: "inputConsultation inputDecimal", required: false),
+                              Confluence.InputDecimal(null, "Travel", minValue: "0.00", maxValue: "99999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "txtTravel"}}, htmlClass: "inputTravel inputDecimal", required: false),
+                              Confluence.InputDecimal(null, "Other", minValue: "0.00", maxValue: "99999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "txtOther"}}, htmlClass: "inputOther inputDecimal", required: false),
+                              Confluence.Label("", htmlClass: "lblTotalRequest"),
+                              Confluence.InputDecimal(null, "OtherFinancing", required: false, maxValue: "99999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "txtOtherFinancing"}}, htmlClass: "inputOtherFinancing inputDecimal"),
+                              Confluence.ButtonTrash(text: string.Empty, action: "deleteRowAmount")
+                          }, editOnly: true, tdClass: "text-right").ToString().Replace("\r\n", "").Replace("\n", "")';
+
+        newRow = newRow.replace(/&false/g, $('[name=ReadyForSubmission]').is(':checked'));
+        insertNewRowBeforeLast(table, newRow);
+
+        $("[name=Activity]").closest('td').removeClass("text-right").addClass("text-center");
+        $(".buttonTrash").closest('td').removeClass("text-right").addClass("text-center");
+
+        var hiddenBudgetId = '@Confluence.InputHidden(value: "0", name: "BudgetId", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "inputHiddenBudgetId" } }).ToString().Replace("\r\n", "").Replace("\n", "")';
+        hiddenBudgetId = hiddenBudgetId.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+
+        var lastRow = $("#ESWCIPBudgetsTable > tbody > tr.rowContent:last");
+        makeFieldsRequiredForBudgets(lastRow);
+
+        $(hiddenBudgetId).appendTo(lastRow.find("span[data-pagemode=edit]:first"));
+
+        lastRow.find('[name=Consultation]').attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+        lastRow.find('[name=Travel]').attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+        lastRow.find('[name=Other]').attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+        lastRow.find('[name=OtherFinancing]').attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+
+        enterEditMode(false, $('#budgetsDIV'), true);
+        bindHandlers();
+
+        editSummaryRowsCalculation();
+        removeTableErrorMessage($("#ESWCIPBudgetsTable"));
+    }
+
+    function makeFieldsRequiredForBudgets(newRow) {
+        if ($('[name=ReadyForSubmission]').is(':checked')) {
+            newRow.find('[name=Activity]').attr("data-parsley-required", "true");
+            newRow.find('[name=Consultation]').attr("data-parsley-required", "true");
+            newRow.find('[name=Travel]').attr("data-parsley-required", "true");
+            newRow.find('[name=Other]').attr("data-parsley-required", "true");
+        }
+    }
+
+    function renderizeRow(documentList, sourceType) {
+        var docNumber;
+        if (documentList.length <= 0)
+            return;
+        if (sourceType === "selected") {
+            if (documentList.length > 0) {
+                docNumber = documentList[0].DocumentNumber;
+            }
+
+        } else {
+            if (documentList.length > 0) {
+                docNumber = documentList[0];
+            }
+        }
+
+        var urlf = '@Url.Action("AddNewDocument", "View")';
+
+        var result = postUrl(urlf, { documentNumber: docNumber });
+
+        var newRow = '<tr role="row" data-id="" class="rowContent">' +
+            '<td>' + result.responseJSON.data.User + '</td>' +
+            '<td>' + result.responseJSON.data.Date + '</td>' +
+            '<td class="text-right">' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+            '<td> <span data-pagemode="edit">' +
+            '@Confluence.InputText(value: "", name: "documentDescription", maxLength: 250, width: "100%", required: true, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtDocumentDescription" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '@Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '</span></td><td class="text-center">' +
+            '<div class="col-md-6 text-right margin-12-Download">' +
+            '<a href=' + result.responseJSON.data.Url + ' target="_blank">' +
+            '<button class="buttonDownload">' +
+            '<span class="icon"></span>' +
+            '<span></span>' +
+            '</button>' +
+            '</a>' +
+            '</div>' +
+            '<span data-pagemode="edit">' +
+            '@Confluence.ButtonTrash("", action: "deleteDocument", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "btnDeleteDocument"}, {"docdescription", ""}, {"docnumber", "docNumberValue"}}).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span>' +
+            '</td></tr>';
+
+
+        $('#ESWCIPDocumentsTable').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber));
+        $('#ESWCIPDocumentsTable tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+        enterEditMode(false, $('#ESWCIPDocuments'));
+
+        $('[dd-tab=#tabOERA]').click();
+    }
+
+    function deleteDocument(source) {
+
+        var msg = '@Localization.GetText("OP.AP.Cancel.Warning.DeleteDocument")';
+        confirmAction(msg).done(function(pressOk) {
+            if (pressOk) {
+                var docNumber = getDocNumber(source);
+                var urlDelete = '@Url.Action("DeleteDocument", "Save")' + '?documentNumber=' + docNumber;
+                var result = postUrl(urlDelete)
+                    .success(function(data) {
+                        if (data.IsValid) {
+                            deleteRow(source);
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    })
+                    .error(function(response) {
+                        showMessage(response.ErrorMessage);
+                    });
+            }
+        });
+    }
+
+    function downloadDocument(source) {
+        var docNumber = getDocNumber(source);
+        var url = getDocumentUrl(source);
+        window.open(url, '_blank');
+    }
+
+    function getDocNumber(source) {
+        var docNumber = source.attr('data-docnumber');
+        return docNumber;
+    }
+
+    function getDocumentUrl(source) {
+        var docNumber = getDocNumber(source);
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+        return url;
+    }
+
+    function deleteRow(source) {
+        source.parents("tr").remove();
+    }
+
+    function deleteRowAmount(source) {
+        var msg;
+        if (source.parents('div').first().attr('id') === "deliverablesDiv"){
+            msg = '@Localization.GetText("R6.Proposal.Deliverable.Warning.Delete")';
+        }
+        else{
+            msg = '@Localization.GetText("R6.Proposal.Budget.Warning.Delete")';
+        }
+
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                deleteRow(source);
+                disablePeerReview();
+                sumInputs();
+            }
+        });
+    }
+
+    function deleteBudget(source) {
+        var msg = '@Localization.GetText("R6.Proposal.Budget.Warning.Delete")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                if (source.attr("data-budgetId")) {
+                    $("[name=deleteBudgets]").val($("[name=deleteBudgets]").val() + source.attr("data-budgetId") + "|");
+                }
+
+                deleteRow(source);
+
+                readSummaryRowsCalculation();
+            }
+        });
+    }
+
+    function deleteDeliverable(source) {
+        var msg = '@Localization.GetText("R6.Proposal.Deliverable.Warning.Delete")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                if (source.attr("data-deliverableId")) {
+                    $("[name=deleteDeliverables]").val($("[name=deleteDeliverables]").val() + source.attr("data-deliverableId") + "|");
+                }
+
+                disablePeerReview();
+                deleteRow(source);
+            }
+        });
+    }
+
+    function closeTextModal(source) {
+        var sourceTextArea = source.parents('div#showBiggerText').find('.inputTextarea');
+        var destinationTextArea = $('div.textAreaBody').find('textarea#' + sourceTextArea.attr('id'));
+        destinationTextArea.each(function() {
+            $(this).val(sourceTextArea.val().trim());
+        });
+        closeModal();
+    }
+
+    function closeModal() {
+        var vexModal = $('.modalBody').parents('.vex');
+        if (vexModal.length > 0)
+            vex.closeByID(vexModal.data().vex.id);
+    }
+
+    function saveProposal(source) {
+        $(".hideContent").addClass('hide');
+        window.setTimeout(function () {
+            $('#proposalOperation').attr('data-url', $('#proposalOperation').attr('data-base-url'));
+            activeTab = $('ul.tabs:first li.active').attr('dd-tab');
+            localStorage.setItem("activeTab", activeTab);
+
+            removeTabsErrorSign();
+            removeErrorMessage($('div#ProposalInfo'));
+            removeErrorMessage($('div.countries'));
+            removeErrorMessage($('#ESWCIPDeliverables'));
+            removeErrorMessage($('#ESWCIPBudgets'));
+
+            if (validateRequired($('[name=ReadyForSubmission]').is(':checked'))) {
+                loadCountriesToBeSaved();
+                var response = saveContainer($('#proposalOperation'), '#hiddenModel', true, null, null, false);
+                $(".hideContent").removeClass('hide');
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (!data.IsValid && data.ErrorMessage !== null && data.ErrorMessage !== '') {
+                            showMessage(data.ErrorMessage);
+                        } else if (data.IsValid) {
+                            window.location.reload();
+                        }
+                    });
+                }
+            } else {
+                if ($('[name=ReadyForSubmission]').is(':checked')) {
+                    var msg = '@Localization.GetText("R6.Proposal.TabGeneralInfo.RequiredBanner")';
+                    if ($('li.parsley-data-max').length > 0) {
+                        msg = msg + '<br/>' + '@Localization.GetText("R6.Proposal.AnnualAllocation.ExceededAmount")';
+                    }
+                    showMessage(msg);
+                    $(".hideContent").removeClass('hide');
+                    hideLoader();
+                }
+            }
+        }, 10);
+    }
+
+    function saveAndSubmit(source) {
+        var msg = '@Localization.GetText("R6.Proposal.AnnualAllocation.Message.Submit")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                showLoader();
+                $(source.toElement).attr('disabled', 'disabled')
+                window.setTimeout(function () {
+                    $("[name=changeStatus]").val("SubmitWorkflow");
+                    saveProposal();
+                }, 10);
+            }
+        });
+    }
+
+
+    function saveOnly() {
+        $("[name=changeStatus]").val("none");
+        saveProposal();
+    }
+
+    function validateRequired(required) {
+        //TODO SaveContainer needs to be modified with an extra parameter to avoid the extra validation for this part.
+        if (required) {
+            var isValidRegularTabs = validateRegularTabs();
+            var isValidTableTabs = validateTableTabs();
+            var isValidGralInfo = validateGeneralInformation();
+            findFirstTabWithErrors();
+            var isValid = (isValidRegularTabs && isValidTableTabs && isValidGralInfo);
+            return isValid;
+        } else {
+            if (!isValidPlannedDate()) {
+                var tabWithError = $("[dd-tab=#tabDeliverables]");
+                addErrorsToCurrentTab(tabWithError);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function findFirstTabWithErrors() {
+        var tabsWithErrors = $('.tab-pane').filter(function() {
+            return $(this).find('ul.parsley-errors-list').length > 0 && ($('li[dd-tab=#' + $(this).attr('id') + ']').hasClass('tabWithError'));
+        });
+
+        $('li[dd-tab=#' + tabsWithErrors.first().attr('id') + ']').first().click();
+    }
+
+    function readyForSubmissionCheck() {
+        $('[name=ReadyForSubmission]').change(function() {
+            var group = "input:checkbox[name=ReadyForSubmission]";
+            if ($(this).is(":checked")) {
+                addRequiredForInputTextAreasTabs();
+                addRequiredForTableTabs();
+                addRequiredForGeneralInformationTabs();
+                $(group).prop("checked", true);
+                $('[data-idb-fieldname="btnSaveAndSubmitProposal"]').removeAttr("disabled");
+            } else {
+                removeRequiredForInputTextAreasTabs();
+                removeRequiredForTableTabs();
+                removeRequiredForGeneralInformation();
+                $(group).prop("checked", false);
+                $('[data-idb-fieldname="btnSaveAndSubmitProposal"]').attr("disabled", "disabled");
+            }
+        });
+    }
+
+    function addRequiredForInputTextAreasTabs() {
+        $('#tabOERA, #tabRisks').find('span.showDataEdit textArea.inputTextarea').not('#inputTextAdditionalTechnicalInformation').each(function() {
+            $(this).attr("data-parsley-required", "true");
+            $(this).parents('.tab-pane').attr('data-parsley-validate', 'data-parsley-validate');
+        });
+    }
+
+    function removeRequiredForInputTextAreasTabs() {
+        $('#tabOERA, #tabRisks').find('span.showDataEdit textArea.inputTextarea').each(function() {
+            $(this).removeAttr("data-parsley-required");
+            $(this).parents('.tab-pane').removeAttr('data-parsley-validate');
+        });
+    }
+
+    function addRequiredForGeneralInformationTabs() {
+        $('[name=ProposalSubtitle]').attr("data-parsley-required", "true");
+        $('#tabGeneralInformation').attr('data-parsley-validate', 'data-parsley-validate');
+    }
+
+    function removeRequiredForGeneralInformation() {
+        $('[name=ProposalSubtitle]').removeAttr("data-parsley-required");
+        $('#tabGeneralInformation').removeAttr('data-parsley-validate');
+    }
+
+    function addRequiredForTableTabs() {
+        $('#tabDeliverables, #tabBudgets').each(function() {
+            if ($(this).attr('id') === "tabDeliverables") {
+                $('[name=Type]').attr("data-parsley-required", "true");
+                $('[name=Name]').attr("data-parsley-required", "true");
+                $('[name=PlannedDate]').attr("data-parsley-required", "true");
+            }
+
+            if ($(this).attr('id') === "tabBudgets") {
+                $('[name=Activity]').attr("data-parsley-required", "true");
+                $('[name=Consultation]').attr("data-parsley-required", "true");
+                $('[name=Travel]').attr("data-parsley-required", "true");
+                $('[name=Other]').attr("data-parsley-required", "true");
+            }
+            $(this).attr('data-parsley-validate', 'data-parsley-validate');
+        });
+    }
+
+    function addRequiredForBudgetTab() {
+        $('[name=Activity]').attr("data-parsley-required", "true");
+        $('[name=Consultation]').attr("data-parsley-required", "true");
+        $('[name=Travel]').attr("data-parsley-required", "true");
+        $('[name=Other]').attr("data-parsley-required", "true");
+
+        $('#tabBudgets').attr('data-parsley-validate', 'data-parsley-validate');
+    }
+
+    function removeRequiredForTableTabs() {
+        $('#tabDeliverables, #tabBudgets').each(function() {
+            if ($(this).attr('id') === "tabDeliverables") {
+                $('[name=Type]').removeAttr("data-parsley-required");
+                $('[name=Name]').removeAttr("data-parsley-required");
+                $('[name=PlannedDate]').removeAttr("data-parsley-required");
+            }
+
+            if ($(this).attr('id') === "tabBudgets") {
+                $('[name=Activity]').removeAttr("data-parsley-required");
+                $('[name=Consultation]').removeAttr("data-parsley-required");
+                $('[name=Travel]').removeAttr("data-parsley-required");
+                $('[name=Other]').removeAttr("data-parsley-required");
+                $('[name=OtherFinancing]').removeAttr("data-parsley-required");
+            }
+            $(this).removeAttr('data-parsley-validate');
+        });
+    }
+
+    function validateRegularTabs() {
+        var valid = true;
+        $('#tabOERA, #tabRisks').each(function() {
+            if (!validateContainer($(this))) {
+                var tabWithError = $('[dd-tab=#' + $(this).attr('id') + ']');
+                addErrorsToCurrentTab(tabWithError);
+                valid = false;
+            }
+        });
+        return valid;
+    }
+
+    function validateTableTabs() {
+        var valid = true;
+        $('#tabDeliverables, #tabBudgets').each(function() {
+            var tab = $(this);
+            var table = tab.find('table');
+            var tableRows = table.find('tbody tr').length;
+            var recordsLength;
+
+            var proposalType = @Html.Raw(Json.Encode(Model.ProposalType));
+            var proposalModality = @Html.Raw(Json.Encode(Model.ProposalModality));
+
+            if ($(this).attr('id') === "tabDeliverables") {
+                if ($('[aria-labelledby=id-Type] li a[dd-selected]').attr('dd-value') === "6932" && (proposalType === "ESW" && (proposalModality === "ERS" || proposalModality === "ESK"))) {
+                    recordsLength = tableRows - 1;
+                } else {
+                    recordsLength = tableRows;
+                }
+            } else {
+                recordsLength = tableRows - 1;
+            }
+
+            if ((recordsLength === 0)) {
+                $('[dd-tab=#' + tab.attr('id') + ']').click();
+                $('[dd-tab=#' + tab.attr('id') + ']').addClass('tabWithError');
+
+
+                var msg = "";
+                if (table.attr('id') === "ESWCIPDeliverablesTable") {
+                    msg = '@Localization.GetText("R6.Proposal.Pdeliverables.DRequirement")';
+                } else {
+                    if (table.attr('id') === "ESWCIPBudgetsTable") {
+                        msg = '@Localization.GetText("R6.Proposal.Pbudgets.ARequirement")';
+                    }
+                }
+
+                var errorMessageHTML = '<ul class="parsley-errors-list filled" id="parsley-id-9961"><li class="parsley-required">' + msg + '</li></ul>';
+                table.append(errorMessageHTML);
+                var errorMessage = table.find('ul.parsley-errors-list');
+                valid = false;
+            } else {
+                if ($(this).attr('id') === "tabBudgets") {
+                    addRequiredForBudgetTab();
+                    checkMandatoryFieldsForBudgets();
+                }
+
+                if (!validateContainer(tab) || !isValidPlannedDate()) {
+                    var tabWithError = $('[dd-tab=#' + tab.attr('id') + ']');
+                    addErrorsToCurrentTab(tabWithError);
+                    valid = false;
+                }
+            }
+        });
+        return valid;
+    }
+
+    function checkMandatoryFieldsForBudgets() {
+        $('#ESWCIPBudgetsTable tr').each(function() {
+
+            var consultation;
+            var travel;
+            var other;
+
+            $(this).find("input").each(function() {
+                switch($(this).attr('name')) {
+                    case "Consultation":
+                        consultation = $(this).val();
+                        break;
+                    case "Travel":
+                        travel = $(this).val();
+                        break;
+                    case "Other":
+                        other = $(this).val();
+                        break;
+                }
+            });
+
+            if (!consultation && !travel && !other) {
+                return;
+            } else {
+                if(consultation) {
+                    $(this).find('[name=Travel]').attr("data-parsley-required", "false");
+                    $(this).find('[name=Other]').attr("data-parsley-required", "false");
+                } else if(travel) {
+                    $(this).find('[name=Consultation]').attr("data-parsley-required", "false");
+                    $(this).find('[name=Other]').attr("data-parsley-required", "false");
+                } else if(other) {
+                    $(this).find('[name=Consultation]').attr("data-parsley-required", "false");
+                    $(this).find('[name=Travel]').attr("data-parsley-required", "false");
+                }
+            }
+
+        });
+    }
+
+    function validateGeneralInformation() {
+        var generalInformationTab = $('#tabGeneralInformation');
+        var tabWithError = $('[dd-tab=#' + generalInformationTab.attr('id') + ']');
+        var valid = true;
+
+        if (!validateContainer(generalInformationTab)) {
+            addErrorsToCurrentTab(tabWithError);
+            valid = false;
+        }
+
+
+        var proposalType = @Html.Raw(Json.Encode(Model.ProposalType));
+        if (proposalType == "ESW") {
+            if (!(generalInformationTab.find('div.showDataEdit #chkReadyForSubmission:checked').length > 0)) {
+                var message = '@Localization.GetText("R6.Proposal.TabGeneralInfo.RequiredCountry")';
+                var errorMsg = '<ul class="parsley-errors-list filled" id="parsley-id-9961"><li class="parsley-required">' + message + '</li></ul>';
+                $('div.countries').after(errorMsg);
+                addErrorsToCurrentTab(tabWithError);
+                valid = false;
+            }
+        }
+
+        var emptyOrgUnits = generalInformationTab.find('div.showDataEdit input[name=OrgUnitJointProposal]').filter(function() {
+            return this.value.length === 0;
+        });
+
+        if (emptyOrgUnits.length === 6 && $('[name=JointProposal][value=1]').is(':checked')) {
+            var msg = '@Localization.GetText("R6.Proposal.TabGeneralInfo.RequiredUnit")';
+            var errorMessageHtml = '<ul class="parsley-errors-list filled" id="parsley-id-9961"><li class="parsley-required">' + msg + '</li></ul>';
+            $('div#ProposalInfo').append(errorMessageHtml);
+            addErrorsToCurrentTab(tabWithError);
+            valid = false;
+        }
+
+        if ($('[name=JointProposal][value=1]').is(':checked')) {
+            var orgUnitInput = generalInformationTab.find('div.showDataEdit div.dropdown li a[dd-selected]');
+            var orgUnitInputValues = orgUnitInput.map(function() {
+                if ($(this).text().trim() !== "(select option)") {
+                    return $(this).text().trim();
+                }
+            }).toArray();
+
+            var hasDuplicatedOrgUnits = !orgUnitInputValues.every(function(v, i) {
+                return orgUnitInputValues.indexOf(v) == i;
+            });
+
+            if (hasDuplicatedOrgUnits) {
+                var errorMsgHtml = '<ul class="parsley-errors-list filled" id="parsley-id-9961"><li class="parsley-required">There are duplicated values selected.</li></ul>';
+                $('div#ProposalInfo').append(errorMsgHtml);
+                addErrorsToCurrentTab(tabWithError);
+                valid = false;
+            }
+        }
+
+        return valid;
+    }
+
+    function removeTabsErrorSign() {
+        $('ul.tabs li').removeClass('tabWithError');
+    }
+
+    function removeTableErrorMessage(element) {
+        var errorMessage = element.find('ul.parsley-errors-list');
+        errorMessage.fadeOut(3000, function() {
+            errorMessage.remove();
+        });
+    }
+
+    function removeErrorMessage(element) {
+        var errorMessage;
+        if (element.hasClass('countries')){
+            errorMessage = element.next('ul.parsley-errors-list.filled');
+        }else{
+            errorMessage = element.find('ul.parsley-errors-list.filled li').not('.parsley-data-max').parent();
+        }
+
+        errorMessage.remove();
+    }
+
+    function loadCountriesToBeSaved() {
+        var divs = $(".countries > div");
+        var countriesInputs = divs.find("div.showDataEdit input[type=checkbox]");
+        var countriesToBeSaved = countriesInputs.filter(':checked');
+        countriesToBeSaved.each(function() {
+            $("[name=countriesToBeSaved]").val($("[name=countriesToBeSaved]").val() + $(this).val() + "|");
+        });
+    }
+
+    function addErrorsToCurrentTab(tabWithError) {
+        tabWithError.addClass('tabWithError');
+        tabWithError.click();
+    }
+
+    function checkJointProposalDropDowns() {
+        if ($('[name=JointProposal][value=1]').is(':checked')) {
+            $('div.showDataEdit div.dropdown button').attr('disabled', false);
+        }
+    }
+
+    function enableJointProposalDropDowns() {
+        enableOrDisableJointProposalDropDowns($('[name=JointProposal][value=1]'));
+    }
+
+    function disableJointProposalDropDowns() {
+        enableOrDisableJointProposalDropDowns($('[name=JointProposal][value=0]'));
+    }
+
+    function enableOrDisableJointProposalDropDowns(radioButton) {
+        radioButton.change(function() {
+            if (radioButton.is(':checked')) {
+                if (radioButton.val() === "1") {
+                    $('div.showDataEdit div.dropdown button').attr('disabled', false);
+                } else {
+                    $('div.showDataEdit div.dropdown button').attr('disabled', 'disabled');
+                    $('ul[aria-labelledby=id-OrgUnitJointProposal] li').find('a[dd-selected]').removeAttr('dd-selected');
+                    $('ul[aria-labelledby=id-OrgUnitJointProposal] li:first').find('a').attr('dd-selected', '');
+                    $('ul[aria-labelledby=id-OrgUnitJointProposal]').parents('div.dropdown').find('span.valueText').html($('ul[aria-labelledby=id-OrgUnitJointProposal] li').find('a[dd-selected]').text());
+                    $('ul[aria-labelledby=id-OrgUnitJointProposal]').parents('div.dropdown').addClass('placeholder');
+                    $('div.showDataEdit div.dropdown').find('input[name=OrgUnitJointProposal]').val("");
+                }
+            }
+        });
+    }
+
+    function addRequiredWhenEnteringEditMode() {
+        if ($('[name=ReadyForSubmission]').is(':checked')) {
+            addRequiredForInputTextAreasTabs();
+            addRequiredForTableTabs();
+            addRequiredForGeneralInformationTabs();
+            $('[data-idb-fieldname="btnSaveAndSubmitProposal"]').removeAttr("disabled");
+        }
+    }
+
+    function disablePeerReview() {
+        if (($('[aria-labelledby=id-Type] li a[dd-selected]').attr('dd-value') === "6932" || $('[aria-labelledby=id-Type] li a[dd-selected]').attr('dd-value') === "4895") && $('#ESWCIPDeliverablesTable tbody tr').length === 1) {
+            $('#id-Type').attr('disabled', 'disabled');
+        }
+    }
+
+    function isValidPlannedDate() {
+        var tab = $('#tabDeliverables');
+        var table = tab.find('table');
+        var tableRows = table.find('tbody tr').length;
+        var isValid = true;
+        if (tableRows != 0) {
+            var datePickers = $('[name=PlannedDate]');
+            datePickers.each(function() {
+                var userDate;
+                if ($(this).val() !== ""){
+                    userDate = parseDate($(this).val());
+                    var today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    if (userDate < today) {
+                        isValid = false;
+                        $(this).addClass("parsley-error");
+
+                        $(this).parents("td").find('ul.parsley-errors-list').remove();
+
+                        var msg = '@Localization.GetText("R6.Proposal.Pdeliverables.InvalidPlannedDate")';
+                        var errorMsg = '<ul class="parsley-errors-list filled" id="parsley-id-9961"><li class="parsley-required">' + msg + '</li></ul>';
+                        $(this).parents("td").append(errorMsg);
+                    }
+                }else{
+                    var msg = 'This value is required.';
+                    var errorMsg = '<ul class="parsley-errors-list filled" id="parsley-id-9961"><li class="parsley-required">' + msg + '</li></ul>';
+                    $(this).parents("td").append(errorMsg);
+                }
+            });
+        }
+        return isValid;
+    }
+
+    function parseDate(s) {
+        var months = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+        var p = s.split(' ');
+        return new Date(p[2], months[p[1].toLowerCase()], p[0]);
+    }
+
+    function setActiveTab(){
+        $('ul.tabs:first li').click(function(){
+            activeTab = $('ul.tabs:first li.active').attr('dd-tab');
+            localStorage.setItem("activeTab", activeTab);
+        });
+    }
+
+    function modifyPlannedDatePattern() {
+        var tab = $('#tabDeliverables');
+        var table = tab.find('table');
+        var tableRows = table.find('tbody tr').length;
+
+        if (tableRows != 0) {
+            var datePickers = $('[name=PlannedDate]');
+            datePickers.each(function() {
+                $(this).attr("data-parsley-pattern", '^(((0?[1-9])|([1-2][0-9])|3(0|1)) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) \\d{4})$');
+            });
+        }
+    }
+
+    function removeSubmitButton(){
+        var $button = top.$("iframe[name=someFrame]").contents().find("iframe[name=splitFrame]").contents().find("[name=saveAndSubmit]");
+
+        if ($button.length > 1){
+            $button .remove();
+        }
+
+    }
+
+    function addDocumentsActionReloadTab()
+    {
+        $("[data-tab-id=add], [data-tab-id=search]").click(function(){
+            if ($('[dd-tab=#tabOERA]').length > 0) {
+                $('[dd-tab=#tabOERA]').click();
+            }
+        });
+    }
+
+    function maskProposedAmountWhitCommas() {
+        var reqAmount = $('#requestedAmountGeneralInfo-edit label').first().text();
+        $('#requestedAmountGeneralInfo-edit label').first().text(numberWithCommas(reqAmount));
+    }
+
+</script>
+}

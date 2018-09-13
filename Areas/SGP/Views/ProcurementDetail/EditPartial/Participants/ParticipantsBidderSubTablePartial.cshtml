@@ -1,0 +1,123 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.DataTables.Common
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model BidderRowViewModel
+
+<div data-contain="subtable-Participants">
+    @{
+        var configTable = Html.RenderDataTable(Model.Participants)
+            .Name("ParticipantsTable-" + Model.BidderId.ToString())
+            .AddPrimaryKeyToName(false)
+            .PrimaryKey(x => x.BidderId.ToString(CultureInfo.InvariantCulture))
+            .UseDataTableNet(false)
+            .UsePageMode(false)
+            .RowAttributes("data-participant", "true")
+            .Columns(columns =>
+            {
+                columns.Template(c => ConstriumParticipantsTemplate(c, false))
+                .Orderable(false)
+                .Header(Localization.GetText("SGP.Label.ConsortiumParticipants"))
+                .HeaderAttribute("style", "width: 180px;")
+                .Hidden(false);
+
+                columns.Template(c => NationalityParticipantTemplate(c, false))
+                .Orderable(false)
+                .Header(Localization.GetText("COMMON.SVQ.Nationality"))
+                .Hidden(false);
+
+                columns.Template(DetailsParticipantTemplate)
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 180px;")
+                .Header(Localization.GetText("SGP.Label.ParticipantsDetails"))
+                .Hidden(false);
+
+                columns.Template(c => ActionTrashParticipantTemplate(c, false))
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 40px;")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+            })
+            .RowTemplates(x => x.Create(RowTemplateType.FirstRow, i => DrawRowTemplateParticipant(new ParticipantRowViewModel() { Details = new BidderDetailsViewModel() })));
+        configTable.TableClass = "tableNormal";
+    }
+
+    @Html.Partial("Controls/DataTable", configTable)
+
+    @helper ConstriumParticipantsTemplate(ParticipantRowViewModel row, bool isDisabled)
+        {
+            @Confluence.InputDropDownAsync(
+                value: row.NameParticipantId.ToString(),
+                textSelected: row.NameParticipantText,
+                name: "name-participant",
+                searchUrl: Url.Action("FindParticipantsNameNationality", "ProcurementDetail", new { area = "SGP" }),
+                disabled: isDisabled,
+                width: "250px",
+                resetOnClick: false,
+                dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() }, { "parsley-required", "true" }, { "force-parsley-validation", "true" }, { "parsley-nameParticipantUnique", row.ParticipantId.ToString() } },
+                //hiddenDataAttrs: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } },
+                required: false)
+           
+            @Confluence.InputText(row.Details.GenderTypeId.ToString(), name: "gender-participant", htmlClass: "hide", disabled: false, required: false, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+            @Confluence.InputText(row.Details.EconomicSectorId.ToString(), name: "economicSector-participant", htmlClass: "hide", disabled: false, required: false, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+            @Confluence.InputText(row.Details.Address, name: "address-participant", htmlClass: "hide", disabled: false, required: false, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+    
+           @Confluence.InputText(row.Details.Country, name: "country-participant", htmlClass: "hide", disabled: false, required: false, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+           @Confluence.InputText(row.Details.State, name: "state-participant", htmlClass: "hide", disabled: false, required: false, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+           @Confluence.InputText(row.Details.District, name: "district-participant", htmlClass: "hide", disabled: false, required: false, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+   
+}
+
+    @helper NationalityParticipantTemplate(ParticipantRowViewModel row, bool isDisabled)
+    {
+        var disabledNationalilty = !string.IsNullOrEmpty(row.NationalityTypeId.ToString());
+        @Confluence.InputDropDown(row.NationalityTypeId.ToString(), name: "nationality-participant", disabled: isDisabled || disabledNationalilty, width: "100%", elements: ViewBag.CountryAllList, dataAttributes: new Dictionary<string, string> { { "persist-participantid", row.ParticipantId.ToString() } });
+    }
+
+    @helper DetailsParticipantTemplate(ParticipantRowViewModel row)
+{
+    @Confluence.LabelLink(Localization.GetText("SGP.Label.EditParticipantDetails"), name: "view-participant-details", dataAttributes: new Dictionary<string, string> {{ "type", "participant" } })
+}
+
+    @helper ActionTrashParticipantTemplate(ParticipantRowViewModel row, bool isTemplate)
+    {
+        if (isTemplate)
+        {
+            @Confluence.ButtonTrash("", "RemoveRowParticipant", htmlClass: "mt0")
+        }
+        else if(Model.Participants.Count > 1)
+        {
+            @Confluence.ButtonTrash("", "RemoveRowParticipant", htmlClass: "mt0")
+        }       
+    }
+
+    @helper DrawRowTemplateParticipant(ParticipantRowViewModel row)
+{
+    <tr class="template hide" data-participant=true>
+        <td>@ConstriumParticipantsTemplate(row, true)</td>
+        <td>@NationalityParticipantTemplate(row, true)</td>
+        <td class="textalign-center">@DetailsParticipantTemplate(row)</td>
+        <td class="textalign-center">@ActionTrashParticipantTemplate(row, true)</td>
+    </tr>
+}
+
+    <div class="mt15 mb15 textalign-center">
+        @Confluence.ButtonAddNewRows(text: Localization.GetText("SGP.Button.NewParticipant"), tableid: "ParticipantsTable", name: "addNewRow-Participant")
+    </div>
+</div>
+
+
+

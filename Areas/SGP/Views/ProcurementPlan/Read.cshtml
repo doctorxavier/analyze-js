@@ -1,0 +1,275 @@
+@using IDB.Architecture.Language
+
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Application.SGPModule.Constants
+
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model ProcurementPlanViewModel
+
+@if (Model != null && (Model.ViewContainer != null) && Model.ViewContainer.GetValue<bool>("IsValid"))
+{
+    var hasPlan = Model.ViewContainer.GetValue<bool>("hasPlan");
+    var isOperationApproved = Model.ViewContainer.GetValue<bool>("isOperationApproved");
+    var isFidAgraVisible = Model.ViewContainer.GetValue<bool>("isFidAgraVisible");
+    var canEditSGP = Model.ViewContainer.GetValue<bool>("canEditSGP");
+    
+    var visibleTabs = new Dictionary<string, string>() { { ProcurementPlanNavigation.TAB_NAME_OPERATION_LEVEL, Localization.GetText("SGP.Label.OperationLevel") } };
+
+    if (isOperationApproved)
+    {
+        visibleTabs.Add(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_LEVEL, Localization.GetText("SGP.Label.ProcurementLevel"));
+    }
+
+    if (isFidAgraVisible)
+    {
+        visibleTabs.Add(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_PARAMETRIZATION, Localization.GetText("SGP.Label.FiduciaryArrangement"));
+    }
+
+    <div data-section="modals" class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"publish-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-publish",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-publish-cancel",
+                            text: Localization.GetText("Common.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+                .AddButton(name: "btn-publish-ok",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                            callback: "okPublish",
+                            closeAtEnd: true))
+        <div data-name="publish-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.PublishGeneralNotice")
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"link-message-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-link-message",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-publish-cancel",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                            callback: ""))
+        <div data-name="link-message-modal" class="hide modalBody"></div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            @if (hasPlan && canEditSGP)
+            {
+                @Html.Partial("ReadPartial/Buttons")
+            }
+
+            @Confluence.LabelMainTitle(Localization.GetText("SGP.Label.ProcurementPlan"))
+        </div>
+    </div>
+
+    @Confluence.Tabs(visibleTabs);
+
+    <div class="tab-content">
+        @if (Model.OperationLevel != null)
+        {
+            <div class="tab-pane" id="@(ProcurementPlanNavigation.TAB_NAME_OPERATION_LEVEL)">
+                @Html.Partial("ReadPartial/OperationLevel", Model.OperationLevel)
+            </div>
+        }
+        @if (Model.ProcurementLevel != null)
+        {
+            <div class="tab-pane" id="@(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_LEVEL)">
+                @Html.Partial("ReadPartial/ProcurementLevel", Model.ProcurementLevel)
+            </div>
+        }
+        @if (Model.Parametrization != null && isFidAgraVisible)
+        {
+            <div class="tab-pane" id="@(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_PARAMETRIZATION)">
+                @Html.Partial("ReadPartial/Parameterization", Model.Parametrization)
+            </div>
+        }
+    </div>
+
+    if (hasPlan && canEditSGP)
+    {
+        <div class="row mb30">
+            <div class="col-md-12">
+                @Html.Partial("ReadPartial/Buttons")
+            </div>
+        </div>
+    }
+
+    @section scripts{
+        <script type="text/javascript">
+            var razor = {
+                ActiveTab: '@Model.ViewContainer["ActiveTab"]',
+                PlanId: '@Model.PlanId',
+                Tabs: {
+                    OperationLevel: '@ProcurementPlanNavigation.TAB_NAME_OPERATION_LEVEL',
+                    Plan: '@ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_LEVEL',
+                    Parameterization: '@ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_PARAMETRIZATION'
+                },
+                URLs: {
+                    GetProcurementsByAgency: '@Url.Action("GetProcurementsByAgency", "ProcurementPlan", new { area = "SGP" })',
+                    GetProcurementsProcLevelByFilter: '@Url.Action("GetProcurementsProcLevelByFilter", "ProcurementPlan", new { area = "SGP" })',
+                    GetProcurementsOperationLevelByFilter: '@Url.Action("GetProcurementsOperationLevelByFilter", "ProcurementPlan", new { area = "SGP" })',
+                    Edit: '@Url.Action("Edit", "ProcurementPlan", new { area = "SGP"})',
+                    PublishProcPlanDoc: '@Url.Action("PublishProcPlanDoc", "ProcurementPlan", new { area = "SGP", planId = Model.PlanId })',
+                    PublishGeneralNoticeDoc: '@Url.Action("PublishGeneralNoticeDoc", "ProcurementPlan", new { area = "SGP", planId = Model.PlanId })',
+                    DownloadDocument: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })',
+                    GetReportPlanAgencyByFilter: '@Url.Action("GetReportPlanAgencyByFilter", "ProcurementPlan", new { area = "SGP" })',
+                    GetReportProcurementActivitiesByFilter: '@Url.Action("GetReportProcurementActivitiesByFilter", "ProcurementPlan", new { area = "SGP" })'
+                },
+                Texts: {
+                    ShowFilter: '@Localization.GetText("COMMON.SVQ.ShowFilter")',
+                    HideFilter: '@Localization.GetText("SGP.Button.HideFilter")',
+                },
+                isFiduciaryVisble: {
+                    visible: '@isFidAgraVisible',
+                },
+            };
+
+            function okPublish(event, source) {
+                var promise = $.Deferred();
+                var idPressed = source.attr('data-button-id');
+                var publishPressed = razor.URLs.PublishGeneralNoticeDoc;
+
+                if (idPressed == 'procPlanDocPublishButton') {
+                    publishPressed = razor.URLs.PublishProcPlanDoc;
+                }
+
+                $.ajax({
+                    url: publishPressed,
+                    cache: false,
+                    type: 'POST',
+                }).done(function (data) {
+
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+
+                    if (data.IsValid && (data.UrlRedirect != null) && (data.UrlRedirect != '')) {
+                        LocationAssign(data.UrlRedirect);
+                    }
+
+                    promise.resolve();
+                });
+
+                return promise;
+            }
+
+            registerCallback(function () {
+
+                function SelectTab(tabName) {
+
+                    $(String.format('[dd-tab="#{0}"]', tabName)).click();
+                }
+
+                function submitPlanForAgency(agencyId) {
+
+                    showLoader();
+
+                    var containerProcurementByBucket = $('div[name="procurementsByAgency"]');
+
+                    $.ajax({
+                        url: razor.URLs.GetProcurementsByAgency,
+                        data: {
+                            isEditMode: false,
+                            taskBucketId: agencyId
+                        },
+                        cache: false,
+                        type: 'POST',
+                    }).done(function (data) {
+                        containerProcurementByBucket.html(data.ContentHTML);
+                        bindHandlers(containerProcurementByBucket);
+                        $('[data-name="collapseAllProcurements"]').click();
+                        hideLoader();
+                        SelectTab(razor.Tabs.ProcurementLevel);
+                    });
+                }
+
+                $('[data-name="collapseAllProcurements"], [data-name="collapseAllProcLevelProcurements"]').click();
+
+                $(document).on('click', '[name="EditPlan"]', function () {
+                    var currentTab = $('ul.tabs li.active').attr('dd-tab').substr(1);
+                    var source = $('[name="bucketId"]');
+                    var bucketId = source.val();
+                    var url = razor.URLs.Edit + '?planId=' + razor.PlanId + '&taskBucketId=' + bucketId + "&tabName=" + currentTab;
+                    LocationAssign(url);
+                });
+
+                $(document).on('click', '[name="AgencyLink"]', function () {
+                    var source = $(this);
+                    var tr = source.closest('tr');
+                    var dataId = tr.attr('data-id');
+                    submitPlanForAgency(dataId);
+                });
+
+                $(document).on('click', '[name="DownLoadDoc"]', function () {
+                    var source = $(this);
+                    var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                    var url = razor.URLs.DownloadDocument + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                });
+
+                $(document).on('click', '[name="documentNumberLink"]', function () {
+                    var source = $(this);
+                    var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                    var url = razor.URLs.DownloadDocument + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                });
+
+                $(document).on('click', '[name="publishButton"]', function () {
+                    var source = $(this);
+                    var modal = $('[name="btn-open-popup-publish"]');
+                    modal.data('pressed-by', source);
+                    modal.click();
+                });
+
+                /* CALL AJAX WF GENERAL PROCUREMENT NOTICE */
+                $(document).on('click', '[name="requestNonObjectionGeneralDoc"]', function () {
+                    var entityType = $(this).attr("data-entitytype");
+                    var entityId = $(this).attr("data-entityid");
+                    var url = '@Url.Action("InitGeneralNoticeWorkflow", "ProcurementPlan", new { area = "SGP" })';
+                    url = url
+                        + '?planId=' + razor.PlanId
+                        + '&entityType=' + entityType
+                        + '&entityId=' + entityId;
+
+                    LocationAssign(url);
+                });
+
+
+
+                $(document).on('click', 'li[dd-tab^="#"]', function () {
+                    var tab = $(this);
+                    var tabValue = tab.attr("dd-tab");
+                    var tabName = tabValue.split('#')[1];
+                    var editButton = $('[name="EditPlan"]');
+                    var isFIDVisible = razor.isFiduciaryVisble.visible;
+
+                    if (isFIDVisible == "True") {
+                        if (razor.Tabs.Parameterization != tabName) {
+                            editButton.addClass('hide');
+                        }
+                        else {
+                            editButton.removeClass('hide');
+                        }
+                    }
+                });
+
+                $(document).ready(function () {
+                    SelectTab(razor.ActiveTab);
+                });
+            });
+        </script>
+    }
+}

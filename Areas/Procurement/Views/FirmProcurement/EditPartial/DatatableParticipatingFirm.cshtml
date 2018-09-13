@@ -1,0 +1,323 @@
+@using System.Globalization;
+
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Architecture.DataTables.Common
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.MW.Domain.EntityHelpers
+
+@model ParticipatingFirmViewModel
+
+@{
+    if (ViewBag.FirmNationalityList == null)
+    {
+        ViewBag.FirmNationalityList = new List<SelectListItem>();
+    }
+
+    var tableName = "ParticipatingFirm";
+
+    var config = Html.RenderDataTable(Model.Rows)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => (x.OfferId > 0 ? "" : "new") + x.OfferId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => ColumnIncludeInShortList(c, tableName))
+                .Orderable(false)
+                .CssClass("textalign-center ideFirmColShort")
+                .CssHeaderClass("ideFirmColShort")
+                .Header(Localization.GetText(
+                    Model.Modality != Modality.TaskSingleSourceSelection &&
+                    Model.Modality != Modality.SingleSourceSelection ?
+                        "TCP.FirmProcurement.TableHeader.IncludedInShortList" :
+                        "TCP.FirmProcurement.TableHeader.SelectOneFirm"))
+                .Hidden(false);
+            columns.Template(c => ColumnFirm(c, false, tableName))
+                .Orderable(false)
+                .CssClass("w300")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmName"))
+                .HeaderAttribute("style", "min-width:300px")
+                .Hidden(false);
+            columns.Template(c => ColumnNationality(c, false, tableName))
+                .Orderable(false)
+                .CssClass("ideFirmColNationality")
+                .CssHeaderClass("ideFirmColNationality")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmNationality"))
+                .Hidden(false);
+            columns.Template(c => ActionsParticipatingFirm(c, tableName))
+                .Orderable(false)
+                .CssClass("colAction150")
+                .CssHeaderClass("colAction150")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(
+                RowTemplateType.FirstRow,
+                t => Detail(new ParticipatingFirmRowViewModel(), tableName, true));
+            x.Create(RowTemplateType.AllRows, c => Detail(c, tableName, false));
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText(
+                        Model.Modality != Modality.TaskSingleSourceSelection &&
+                        Model.Modality != Modality.SingleSourceSelection ?
+                            "TCP.FirmProcurement.TableTitle.ParticipatingFirms" :
+                            "TCP.FirmProcurement.TableTitle.ParticipatingFirmsSingle"))
+                </div>
+                <div class="pr5">
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.Shortlist"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.LeastThreeFirms"), htmlClass: "bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.In"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.FullCompetitiveSelection"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.Or"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.TwoFirms"), htmlClass: "bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.For"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.SimplifiedCompetitiveSelection"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.For"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.Framework"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.SeconSubTitle.CompetitionRequired"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.ConsultCurrentAproved"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.Operation"), htmlClass: "bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.Guidelines"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirmAndShortList.ThirdSubTitle.InCaseEOIReceived"))
+                </div>
+            </td>
+
+            @if (Model.Modality != Modality.TaskSingleSourceSelection && Model.Modality != Modality.TaskSimplifiedSelection)
+            {
+                <td class="table-transparent-buttons">
+                    <div class="mb5 @((Model.Modality == Modality.SingleSourceSelection && Model.Rows.Count() > 0) ? "hide" : string.Empty)">
+                        <button class="buttonBlue pull-right"
+                                type="button"
+                                onclick="showDocumentModalBEO(event)"
+                                data-linked-table="@tableName"
+                                data-doc-multiple="false"
+                                data-target-add="AddIDBDocProcParticipagtingFirm">
+                            @Localization.GetText("DM.Add.Document")
+                        </button>
+                    </div>
+                    @(Html.CollapseAll("collapseAllParticipants")
+                        .CollapseSingleSelector("tr:not(.template) [data-name=\"collapseDetail\"]"))
+                </td>
+            }
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb10">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@if ((Model.Modality == Modality.TaskSingleSourceSelection) ||
+    (Model.Modality == Modality.SingleSourceSelection))
+{
+    <div class="row mb10">
+        <div class="col-xs-12">
+            @Confluence.InputText(
+                value: "value",
+                name: "validateFirms",
+                required: false,
+                htmlClass: "hide",
+                dataAttributes: new Dictionary<string, string> { { "parsley-existFirm", "true" } })
+        </div>
+    </div>
+}
+
+<div class="row mb20">
+    <div class="col-xs-9">
+        @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ParticipatingFirms"))
+    </div>
+</div>
+
+@helper ActionsParticipatingFirm(ParticipatingFirmRowViewModel row, string tableName)
+{
+    if (Model.Modality != Modality.TaskSingleSourceSelection && Model.Modality != Modality.TaskSimplifiedSelection)
+    {
+        var detailExpandable = tableName + "-Detail-" + row.OfferId;
+        <div class="col-xs-7 pl0 pr0 text-right">
+            <button class="buttonDmRemoveLink" type="button" name="RemoveRowParticipatingFirm">
+                <span class="icon"></span>
+                <span></span>
+            </button>
+        </div>
+        <div class="col-xs-1 pt5">
+            @(Html.CollapseSingle("collapseDetail")
+                .AsociatedCollapseAllSelector("[data-name=\"collapseAllParticipants\"]")
+                .HtmlClass("arrow")
+                .TargetRegionSelector(string.Format("tr[data-detail=\"{0}\"]", detailExpandable))
+
+            )
+        </div>
+}
+}
+
+@helper ColumnIncludeInShortList(ParticipatingFirmRowViewModel c, string tableName)
+{
+    var attributes = new Dictionary<string, string>();
+    if (Model.Modality == Modality.TaskSingleSourceSelection)
+    {
+        attributes.Add("is-task-single-selection", "true");
+    }
+    @Confluence.InputCheckbox(c.IsShortlisted, tableName + "-IncludeInShortList", disabled: false, dataAttributes: attributes)
+}
+
+@helper ColumnFirm(ParticipatingFirmRowViewModel c, bool isTemplate, string tableName)
+{
+    var isTask = Model.Modality == Modality.TaskSingleSourceSelection || Model.Modality == Modality.TaskSimplifiedSelection;
+    var attributes = new Dictionary<string, string> { { "data-parsley-unique", c.FirmName } };
+    if (isTask)
+    {
+        attributes.Add("data-keep-disabled", "true");
+    }
+
+    @(Html.Searchable(tableName + "-FirmId")
+        .Disable(isTemplate || isTask)
+        .Value(c.FirmId.ToString())
+        .Text(c.FirmName)
+        .Attributes(attributes)
+        .AddStyle("width", "100%")
+        .OrderAscending()
+        .Required(true)
+        .RequireSelect(false)
+        .Url(Url.Action("FindFirms", "FirmProcurement", new { area = "Procurement" }))
+    )
+}
+
+@helper ColumnNationality(ParticipatingFirmRowViewModel c, bool isTemplate, string tableName)
+{
+    var attributes = new Dictionary<string, string>();
+    attributes.Add("keep-disabled", "true");
+
+    @Confluence.InputDropDown(
+            c.NationalityId.ToString(),
+            tableName + "-FirmNationality",
+            ViewBag.FirmNationalityList,
+            disabled: true,
+            width: "100%",
+            dataAttributes: attributes)
+}
+
+@helper Detail(ParticipatingFirmRowViewModel row, string tableName, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var user = string.IsNullOrEmpty(row.User) ? ViewBag.CurrentUser : row.User;
+    var date = string.IsNullOrEmpty(row.DocumentNumber) ? DateTime.Today : row.Date;
+    var detailExpandable = tableName + "-Detail-" + row.OfferId;
+    var visibility = isTemplate ? "template hide" : string.Empty;
+
+    if (isTemplate)
+    {
+        <tr class="template hide">
+            <td class="textalign-center ideFirmColShort">
+                @Confluence.InputCheckbox(null, tableName + "-IncludeInShortList", disabled: false)
+            </td>
+            <td class=" ">
+                @ColumnFirm(row, true, tableName)
+            </td>
+            <td class="ideFirmColNationality">
+                @ColumnNationality(row, true, tableName)
+            </td>
+            <td class="textalign-center colAction150">
+                @ActionsParticipatingFirm(row, tableName)
+            </td>
+        </tr>
+}
+
+if (Model.Modality != Modality.TaskSimplifiedSelection && Model.Modality != Modality.TaskSingleSourceSelection)
+{
+        <tr class="@(visibility) extend-custom" @(!isTemplate ? "data-id=" + row.OfferId.ToString() : string.Empty) data-detail="@(!isTemplate? detailExpandable : "template")">
+            <td colspan="4" id="@(tableName)-Details-@(row.OfferId)">
+                <div class="row mb20">
+                    <div class="col-xs-2 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Id"))
+                    </div>
+                    <div class="col-xs-6 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Name"))
+                    </div>
+                    <div class="col-xs-2 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.User"))
+                    </div>
+                    <div class="col-xs-2 text-center">
+                        @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Date"))
+                    </div>
+                </div>
+                <div class="row mb10">
+                    <div class="col-xs-2 text-center document-number-text">
+                        <a href="@DownloadDocumentHelper.GetDocumentLink(row.DocumentNumber)" target="_blank">@row.DocumentNumber</a>
+                    </div>
+                    <div class="col-xs-6 text-center document-name-document">
+                        <span class="docName">@row.Description</span>
+                        @Confluence.InputText(
+                            row.Description,
+                            tableName + "-Description",
+                            disabled: isTemplate,
+                            width: "100%",
+                            maxLength: 200,
+                            required: false,
+                            htmlClass: "document-description",
+                            type: "hidden")
+
+                        @Confluence.InputHidden(
+                            isTemplate ? "0" : row.Id.ToString(),
+                            tableName + "-DocumentId")
+                    </div>
+                    <div class="col-xs-2 text-center document-user">
+                        @user
+                    </div>
+                    <div class="col-xs-2 text-center document-date-text">
+                        @(string.IsNullOrEmpty(row.DocumentNumber) ? string.Empty : FormatHelper.Format(row.Date, formatDate))
+                    </div>
+                    <div class="hide">
+                        @Confluence.InputText(row.DocumentNumber, tableName + "-DocumentIDBDoc", disabled: false, width: "100%", required: false, htmlClass: "hide document-number")
+                    </div>
+                    <div class="hide">
+                        @Confluence.InputText(FormatHelper.Format(DateTime.Today, formatDate), tableName + "-CurrentDate", disabled: false, width: "100%", required: false, htmlClass: "hide document-current-date")
+                    </div>
+                    <div class="hide">
+                        @Confluence.InputText(FormatHelper.Format(date, formatDate), tableName + "-Date", disabled: false, width: "100%", required: false, htmlClass: "hide")
+                    </div>
+                </div>
+            </td>
+            </tr>
+    }
+    }
+
+    @if ((Model.Modality == Modality.TaskSingleSourceSelection) ||
+         (Model.Modality == Modality.SingleSourceSelection))
+    {
+        Html.ScriptBlock(
+            @<script type="text/javascript">
+                registerCallback(function () {
+                    window.ParsleyValidator.addValidator('existFirm', function (value) {
+                        var table = $('#ParticipatingFirm');
+                        var trs = table.find('tbody tr:not(.template)');
+                        var shorts = trs.find('[name="ParticipatingFirm-IncludeInShortList"]:checked');
+
+                        return shorts.length > 0;
+                    })
+                    .addMessage('en', 'existFirm', '@(Localization.GetText("TCP.FirmProcurement.ParsleyValidationMessage.SelectOneFirm"))');
+                });
+            </script>
+        );
+    }

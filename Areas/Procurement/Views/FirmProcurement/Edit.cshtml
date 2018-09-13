@@ -1,0 +1,3036 @@
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.BEOProcurementModule.Enums
+@using IDB.MW.Infrastructure.Helpers;
+
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.BaseClasses
+
+@model FirmProcurementViewModel
+
+@if (Model != null)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+    var stageList = (List<SelectListItem>)ViewBag.StageList;
+    var currentPhase = stageList[Model.Header.OrderStage - 1].Text;
+    var nextPhase = string.Empty;
+    var isLastPhase = false;
+
+
+    if (Model.Header.OrderStage >= stageList.Count)
+    {
+        isLastPhase = true;
+    }
+    else
+    {
+        nextPhase = stageList[Model.Header.OrderStage].Text;
+    }
+
+    <input hidden data-idb-pagename="UI-OCS-002-ProcurementDetails" />
+    <input hidden data-idb-pagename="UI-OCS-003-ProcurementCancelation" />
+    <div data-section="modals" class="hide">
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"winner-change\"]",
+                title: Localization.GetText("TCP.FirmProcurement.PopupTitle.ChangeWinner"),
+                type: CssClass.ModalSearchAddDocument,
+                moveOriginalContent: true,
+                name: "btn-open-popup-change-winner",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-change-winner-cancel",
+                text: Localization.GetText("COMMON.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-change-winner-save",
+                text: Localization.GetText("COMMON.Save"),
+                type: CssClass.Button01,
+                callback: "saveChangeWinner",
+                closeAtEnd: true))
+
+        @if (Model.Negotiation != null)
+        {
+            @Html.Partial("EditPartial/WinnerChangeModal",
+                new WinnerChangeViewModel
+                {
+                    Winners = Model.Negotiation.FinalFirmScorings,
+                    Justification = Model.Negotiation.WinnerChanges != null ? Model.Negotiation.WinnerChanges.Justification : string.Empty
+                })
+        }
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"cancel-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-cancel",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-cancel-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-cancel-ok",
+                text: Localization.GetText("Common.Ok"),
+                type: CssClass.Button05,
+                callback: "okCancel",
+                closeAtEnd: true))
+        <div data-name="cancel-modal" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.PopupText.CancelEdit")
+        </div>
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"firmUsed-delete-info\"]",
+                title: "",
+                type: CssClass.ModalWarning,
+                moveOriginalContent: true,
+                name: "btn-open-popup-firmUsedDeleteInfo",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-firmUsed-info-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-firmUsed-info-continue",
+                text: Localization.GetText("Common.Continue"),
+                type: CssClass.Button05,
+                callback: "removeRowParticipatingFirm",
+                closeAtEnd: true))
+        <div data-name="firmUsed-delete-info" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.PopUpInfo.FirmNameUsedDelete")
+        </div>
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"firmUsed-info\"]",
+                title: "",
+                type: CssClass.ModalInformation,
+                moveOriginalContent: true,
+                name: "btn-open-popup-firmUsedInfo",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-firmUsed-info-cancel",
+                text: Localization.GetText("Common.Close"),
+                type: CssClass.ButtonLink,
+                callback: ""))
+        <div data-name="firmUsed-info" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.PopUpInfo.FirmNameUsed")
+        </div>
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"amountMax-continue-info\"]",
+                title: "",
+                type: CssClass.ModalWarning,
+                moveOriginalContent: true,
+                name: "btn-open-popup-amountMax-continue-Info",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-amountMax-info-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "cancelRemoveAmount",
+                closeAtEnd: true)
+            .AddButton(
+                name: "btn-amountMax-info-continue",
+                text: Localization.GetText("Common.Continue"),
+                type: CssClass.Button05,
+                callback: ""))
+        <div data-name="amountMax-continue-info" class="hide modalBody">
+            @Localization.GetText("TCP.Negotiation.ContractDocuments.MaxAmount.Continue")
+        </div>
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"amountMax-info\"]",
+                title: "",
+                type: CssClass.ModalInformation,
+                moveOriginalContent: true,
+                name: "btn-open-popup-negotiation-amount",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-firmUsed-info-cancel",
+                text: Localization.GetText("Common.Close"),
+                type: CssClass.ButtonLink,
+                callback: ""))
+        <div data-name="amountMax-info" class="hide modalBody">
+            @Localization.GetText("TCP.Negotiation.ContractDocuments.Amount.Decrement")
+        </div>
+        
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"closePhase-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-closePhase",
+                closeOnOverlay: false,
+                validateForm: true,
+                validateFormSelector: ".tab-pane.active",
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-closePhase-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-closePhase-continue",
+                text: Localization.GetText("Common.Continue"),
+                type: CssClass.Button05,
+                callback: "continueClose",
+                closeAtEnd: true))
+
+        @if (isLastPhase)
+        {
+            <div data-name="closePhase-modal" class="hide modalBody">
+                @Localization.GetText("TCP.FirmProcurement.CloseProcurement.WarningPopup.Text").HtmlEncode()
+            </div>
+        }
+        else
+        {
+            <div data-name="closePhase-modal" class="hide modalBody">
+                @(string.Format(Localization.GetText("TCP.FirmProcurement.ClosingPhase.WarningPopup.Text"),
+                                currentPhase,
+                                currentPhase,
+                                nextPhase)
+                    .HtmlEncode())
+            </div>
+        }
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"closePhase-modal-fram\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-closePhase-framework",
+                closeOnOverlay: false,
+                validateForm: true,
+                validateFormSelector: ".tab-pane.active",
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-closePhase-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-closePhase-continue",
+                text: Localization.GetText("Common.Continue"),
+                type: CssClass.Button05,
+                callback: "continueClose",
+                closeAtEnd: true))
+        <div data-name="closePhase-modal-fram" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.Framework.ToClose").HtmlEncode()
+        </div>
+
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"closePhase-modal-simplified\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-closePhase-simplified",
+                closeOnOverlay: false,
+                validateForm: true,
+                validateFormSelector: ".tab-pane.active",
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-closePhase-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-closePhase-continue",
+                text: Localization.GetText("Common.Continue"),
+                type: CssClass.Button05,
+                callback: "continueClose",
+                closeAtEnd: true))
+        <div data-name="closePhase-modal-simplified" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.Simplified.ToClose").HtmlEncode()
+        </div>
+
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"closePhase-warning-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-closePhase-warning",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-closePhase-warning-cancel",
+                text: Localization.GetText("Common.Close"),
+                type: CssClass.Button05,
+                callback: ""))
+
+        <div data-name="closePhase-warning-modal" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.Identification.WarningPopupNotApprovalOperation.Text").HtmlEncode()
+        </div>
+
+
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"common-remove-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-common-remove",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-common-remove-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-common-remove-ok",
+                text: Localization.GetText("Common.Continue"),
+                type: CssClass.Button05,
+                callback: "removeRow",
+                closeAtEnd: true))
+        <div data-name="common-remove-modal" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.Popup.Cannot.Undone")
+        </div>
+    </div>
+
+    @Html.Partial("EditPartial/_header", Model.Header)
+
+    <div data-page="tabs">
+        @Confluence.Tabs(new Dictionary<string, string>()
+		{
+			{"linktabIdentification", Localization.GetText("TCP.FirmProcurement.Tabs.Identification")},
+			{"linktabPreparation", Localization.GetText("TCP.FirmProcurement.Tabs.Preparation")},
+			{"linktabEvaluation", Localization.GetText("TCP.FirmProcurement.Tabs.Evaluation")},
+			{"linktabNegotiation", Localization.GetText("TCP.FirmProcurement.Tabs.Negotiation")},
+			{"linktabExecution", Localization.GetText("TCP.FirmProcurement.Tabs.Execution")},
+		})
+
+        <div class="tab-content">
+            @if (Model.Identification != null)
+            {
+                <div class="tab-pane"
+                     id="linktabIdentification"
+                     name="formIdentification"
+                     data-parsley-validate="data-parsley-validate"
+                     data-cancellation-validate-form="data-cancellation-validate-form"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveIdentification", "FirmProcurement", new { area = "Procurement", procurementId = Model.Id})">
+                    @Html.Partial("EditPartial/Buttons", Model)
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedModel" id="hideIdentificationModel" name="hideIdentificationModel" />
+                        @Html.Partial("EditPartial/Identification", Model.Identification)
+                    </div>
+                </div>
+            }
+            @if (Model.Preparation != null)
+            {
+                <div class="tab-pane"
+                     id="linktabPreparation"
+                     name="formPreparation"
+                     data-parsley-validate="data-parsley-validate"
+                     data-cancellation-validate-form="data-cancellation-validate-form"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SavePreparation", "FirmProcurement", new { area = "Procurement", procurementId = Model.Id})">
+                    @Html.Partial("EditPartial/Buttons", Model)
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedModel" id="hidePreparationModel" name="hidePreparationModel" />
+                        @Html.Partial("EditPartial/Preparation", Model.Preparation)
+                    </div>
+                </div>
+            }
+            @if (Model.Evaluation != null || Model.EvaluationSSS != null)
+            {
+                <div class="tab-pane"
+                     id="linktabEvaluation"
+                     name="formEvaluation"
+                     data-parsley-validate="data-parsley-validate"
+                     data-cancellation-validate-form="data-cancellation-validate-form"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveEvaluation", "FirmProcurement", new { area = "Procurement", procurementId = Model.Id })">
+                    @Html.Partial("EditPartial/Buttons", Model)
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedModel" id="hideEvaluationModel" name="hideEvaluationModel" />
+                        @if (Model.Evaluation != null && Model.Modality != ProcurementModalityEnum.SingleSourceSelection.GetEnumCode() && Model.Modality != ProcurementModalityEnum.TaskSingleSourceSelection.GetEnumCode())
+                        {
+                            @Html.Partial("EditPartial/Evaluation", Model.Evaluation)
+                        }
+                        else if (Model.EvaluationSSS != null)
+                        {
+                            @Html.Partial("EditPartial/EvaluationSSS", Model.EvaluationSSS)
+                        }
+                    </div>
+                </div>
+            }
+            @if (Model.Negotiation != null)
+            {
+                <div class="tab-pane"
+                     id="linktabNegotiation"
+                     name="formNegotiation"
+                     data-parsley-validate="data-parsley-validate"
+                     data-cancellation-validate-form="data-cancellation-validate-form"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveNegotiation", "FirmProcurement", new { area = "Procurement", procurementId = Model.Id })">
+                    <div>
+                        @Html.Partial("EditPartial/Buttons", Model)
+                        <div class="clearfix"></div>
+                    </div>
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedModel" id="hideNegotiationModel" name="hideNegotiationModel" />
+                        @Html.Partial("EditPartial/Negotiation", Model.Negotiation)
+                    </div>
+                </div>
+            }
+            @if (Model.Execution != null || Model.ExecutionFRW != null)
+            {
+                <div class="tab-pane"
+                     id="linktabExecution"
+                     name="formExecution"
+                     data-parsley-validate="data-parsley-validate"
+                     data-cancellation-validate-form="data-cancellation-validate-form"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveExecution", "FirmProcurement", new { area = "Procurement", procurementId = Model.Id })">
+                    @Html.Partial("EditPartial/Buttons", Model)
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedModel" id="hideExecutionModel" name="hideExecutionModel" />
+
+                        @if (Model.Execution != null && Model.Modality != ProcurementModalityEnum.Framework.GetEnumCode())
+                        {
+                            @Html.Partial("EditPartial/Execution", Model.Execution)
+                        }
+                        else if (Model.ExecutionFRW != null)
+                        {
+                            @Html.Partial("EditPartial/ExecutionFRW", Model.ExecutionFRW)
+                        }
+
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="row mb30">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Buttons", Model)
+        </div>
+    </div>
+
+    @DocumentManagement.Modal(new IDB.Presentation.MVC4.Models.Documents.SearchDocumentModalViewModel
+        {
+            SearchModalId = "documentTable",
+            MultipleSelection = true,
+            TargetFunction = "addDocumentFirmProcurement",
+            BusinessAreaCode = "BA_BEO_FIRM_PROCUREMENT",
+            OperationNumber = IDBContext.Current.Operation
+        })
+
+    @DocumentManagement.ReplaceDocumentStreamForm(string.Empty)
+    @DocumentManagement.DiscloseForm()
+
+    @section scripts{
+
+        @ModuleScripts.AddCompareDatesValidator()
+        @ModuleScripts.AddNoRepeatValueValidator(false)
+
+        <script type="text/javascript">
+            var _currentUser = '@ViewBag.CurrentUser';
+
+            function checkLastCheckbox(check) {
+                var name = $(check).attr('name');
+                var checkboxList = $('input[name=' + name + ']');
+                var checkedAmount = 0;
+
+                checkboxList.each(function (key, item) {
+                    if ($(item).is(':checked')) {
+                        checkedAmount = checkedAmount + 1;
+                    }
+                });
+
+                if (checkedAmount == 0) {
+                    check.prop('checked', true);
+                }
+            }
+
+            function checkShowStatus(controlName, sectionName) {
+                var selected = $('[name="' + controlName + '"]:checked');
+                var value = selected.val();
+                var contenido = $('[name="' + sectionName + '"]');
+
+                if (value === "True" || value == "on") {
+                    contenido.slideDown('fast');
+                    EnableByShowing(contenido);
+                } else {
+                    contenido.slideUp('fast');
+                    DisableByHidding(contenido);
+                }
+            };
+
+            function changeVisibilityByInput(controlInput, targetSection) {
+                var value = controlInput.val();
+
+                if (value === "True" || value == "on") {
+                    targetSection.slideDown('fast');
+                    EnableByShowing(targetSection);
+                } else {
+                    targetSection.slideUp('fast');
+                    DisableByHidding(targetSection);
+                }
+            };
+
+            function EnableByShowing(container) {
+                var inputsSelector = ':not(tr.template) input[data-status-disabled],';
+                var inputsSelector = inputsSelector + ':not(tr.template) select[data-status-disabled],';
+                var inputsSelector = inputsSelector + ':not(tr.template) textarea[data-status-disabled],';
+                var inputsSelector = inputsSelector + ':not(tr.template) div.inputSearch.lupa.ctlAsyncr > button[data-status-disabled],';
+                var inputsSelector = inputsSelector + ':not(tr.template) div.dropdown > button[data-status-disabled]';
+                var inputs = container.find(inputsSelector);
+
+                inputs.each(function () {
+                    var input = $(this);
+                    var oldDisabledStatus = input.attr('data-status-disabled');
+
+                    if (oldDisabledStatus == 'enabled') {
+                        input.removeAttr('disabled');
+                    } else if (oldDisabledStatus == 'disabled') {
+                        input.attr('disabled', 'disabled');
+                    }
+                    input.removeAttr('data-status-disabled');
+                });
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            function DisableByHidding(container) {
+                var inputsSelector = ':not(tr.template) input,';
+                var inputsSelector = inputsSelector + ':not(tr.template) select,';
+                var inputsSelector = inputsSelector + ':not(tr.template) textarea,';
+                var inputsSelector = inputsSelector + ':not(tr.template) div.inputSearch.lupa.ctlAsyncr > button,';
+                var inputsSelector = inputsSelector + ':not(tr.template) div.dropdown > button';
+                var inputs = container.find(inputsSelector);
+
+                inputs.each(function () {
+                    var input = $(this);
+                    var oldStatusDisabled = input.attr('disabled') == null ? 'enabled' : 'disabled';
+
+                    input.attr('disabled', 'disabled');
+                    input.attr('data-status-disabled', oldStatusDisabled);
+                });
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley()
+            }
+
+            function CustomEnable(container) {
+                var inputs = container.find('input, select, textarea, div.inputSearch.lupa > button, div.dropdown > button');
+                inputs = inputs.filter(function () {
+                    var input = $(this);
+                    return input.attr('data-keep-disabled') != 'true';
+                });
+                inputs.removeAttr('disabled');
+            }
+
+            function SelectTab(tabName) {
+                switch (tabName) {
+                    case "":
+                    case "#linktabIdentification":
+                        $('[dd-tab="#linktabIdentification"]').click();
+                        break;
+                    case "#linktabPreparation":
+                        $('[dd-tab="#linktabPreparation"]').click();
+                        break;
+                    case "#linktabEvaluation":
+                        $('[dd-tab="#linktabEvaluation"]').click();
+                        break;
+                    case "#linktabNegotiation":
+                        $('[dd-tab="#linktabNegotiation"]').click();
+                        break;
+                    case "#linktabExecution":
+                        $('[dd-tab="#linktabExecution"]').click();
+                        break;
+                }
+            }
+
+            function SelectFirstElementOnDropDown(container) {
+                var inputs = container.find('div.dropdown > input');
+
+                inputs.each(function (ix, item) {
+                    var input = $(item);
+                    var aList = input.nextAll('ul.dropdown-menu').find('a');
+
+                    var aSelectableList = aList.filter(function () {
+                        return $(this).attr('dd-value') != "";
+                    });
+
+                    if (aSelectableList.length == 1) {
+                        selectDropDownByRelativePosition(input, 1);
+                    }
+                });
+            }
+
+
+            function AddIDBDocProc(items, type, filenames, source) {
+                var tableId = '#' + source.attr('data-linked-table');
+                var table = $(tableId);
+                var tbody = table.children('tbody');
+                var template = tbody.children(':first');
+                var tableName = source.attr('data-linked-table');
+
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+
+                var firstTR = table.find('tbody tr:not(.template):first');
+
+                var allNewTR = [];
+                docs.forEach(function (elem, index, list) {
+                    var newId = table.GenerateNewId();
+
+                    var newTr = template.clone(false);
+
+                    newTr.removeClass('hide');
+                    newTr.removeClass('template');
+                    newTr.attr('data-id', 'new-' + newId);
+
+                    CustomEnable(newTr);
+                    SelectFirstElementOnDropDown(newTr);
+
+                    $(newTr).find('.document-number').text(elem.DocumentNumber);
+                    $(newTr).find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                    $(newTr).find('input[name*="Description"]').val(elem.Description);
+
+                    var choosens = newTr.find('[data-role="drop-multiple"]');
+                    choosens.attr('data-bind', 'true');
+
+                    var datepickers = newTr.find('.hasDatepicker');
+                    datepickers.removeAttr('id');
+
+                    //In Protest we need the protest number for each new document.
+                    if (tableName == 'ProtestDocs') {
+                        getNewProtestNumber($(newTr), tableName);
+                    }
+
+                    if (tableName == 'ModificationDocs') {
+                        getNewModificationDocumentNumber($(newTr, tableName));
+
+                        $(newTr).find('[name="' + tableName + '-newContractTotalAmount"]').attr('disabled', 'disabled');
+                        $(newTr).find('[name="' + tableName + '-newEndDate"]').attr('disabled', 'disabled');
+                    }
+
+                    newTr.appendTo(tbody);
+                    allNewTR.push(newTr);
+                    bindHandlers(newTr);
+                });
+
+                validateChangeTable(table);
+
+                if (tableId == '#ContractDocs') {
+                    activePublishFirstRowNegotiation(firstTR, allNewTR);
+                }
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            function AddIDBDocProcContractDocs(items, type, filenames, source) {
+
+                if (items.length > 0) {
+                    var currentUser = _currentUser;
+
+                    var nextTable = source.closest('table').next();
+                    var trDoc = nextTable.find('tr.extend-custom').not('.hide');
+                    var buttonDownload = $('[name="DownLoadDocContractDates"]');
+                    var buttonUpload = source;
+                    var tr = nextTable.find('tr.custom-odd').not('.hide');
+
+                    var docs = [];
+                    if (type == 'added') {
+                        items.forEach(function (item, index, list) {
+                            docs.push({ DocumentNumber: item, Description: '' });
+                        });
+                    } else {
+                        docs = items;
+                    }
+
+                    var documentNumber = docs[0].DocumentNumber;
+                    var documentDescription = docs[0].Description;
+
+                    var textDocumentUser = trDoc.find('.document-user');
+                    var inputDocumentCurrentDate = trDoc.find('input.document-current-date');
+                    var textDocumentDate = trDoc.find('.document-date-text');
+                    var inputDocumentNumber = trDoc.find('input.document-number');
+                    var textDocumentNumber = trDoc.find('.document-number-text');
+                    var inputDocumentDescription = trDoc.find('input.document-description');
+                    var vendorId = trDoc.find('input.vendor-value');
+
+                    textDocumentUser.text(currentUser);
+                    textDocumentDate.text(inputDocumentCurrentDate.val());
+                    inputDocumentNumber.val(documentNumber);
+                    textDocumentNumber.text(documentNumber);
+                    inputDocumentDescription.val(documentDescription);
+                    vendorId.val();
+
+                    buttonDownload.removeAttr('disabled');
+                    buttonUpload.prop("disabled", true);
+
+                    SelectFirstElementOnDropDown(tr);
+                    SelectFirstElementOnDropDown(trDoc);
+
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+
+                }
+            }
+
+            function AddIDBDocContractModificationCancellationProc(items, type, filenames, source) {
+                var tableName = source.attr('data-linked-table');
+                var tableId = '#' + tableName;
+                var table = $(tableId);
+                var tbody = table.children('tbody');
+
+                var templateMain = tbody.children(':first');
+                var templateDetail = tbody.children(':nth(1)');
+
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+
+                var firstTR = tbody.children(':not(.template):first');
+
+                var numRegs = table.find('tbody tr:not(.template)').length / 2;
+                var allNewTR = [];
+                docs.forEach(function (elem, index, list) {
+
+                    numRegs++;
+
+                    var newId = table.GenerateNewId();
+
+                    var newTrMain = templateMain.clone(false);
+                    var newTrDetail = templateDetail.clone(false);
+
+                    newTrMain.removeClass('hide');
+                    newTrMain.removeClass('template');
+                    newTrMain.attr('data-id', 'new-' + newId);
+                    if (numRegs % 2 == 0) {
+                        newTrMain.addClass('custom-even');
+                    } else {
+                        newTrMain.addClass('custom-odd');
+                    }
+
+                    var datepickers = newTrMain.find('.hasDatepicker');
+                    datepickers.removeAttr('id');
+
+                    var choosens = newTrMain.find('[data-role="drop-multiple"]');
+                    choosens.attr('data-bind', 'true');
+
+                    $(newTrMain).find('[name="' + tableName + '-newContractTotalAmount"]').attr('disabled', 'disabled');
+                    $(newTrMain).find('[name="' + tableName + '-newEndDate"]').attr('disabled', 'disabled');
+                    getNewModificationDocumentNumber($(newTrMain, tableName));
+
+                    newTrDetail.removeClass('hide');
+                    newTrDetail.removeClass('template');
+                    newTrDetail.attr('data-id', 'new-' + newId);
+                    newTrDetail.find('tr').attr('data-id', 'new-' + newId);
+
+                    CustomEnable(newTrMain);
+                    CustomEnable(newTrDetail);
+                    SelectFirstElementOnDropDown(newTrMain);
+                    SelectFirstElementOnDropDown(newTrDetail);
+
+                    newTrDetail.find('.document-number').text(elem.DocumentNumber);
+                    newTrDetail.find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                    newTrDetail.find('input[name*="Description"]').val(elem.Description);
+
+                    newTrMain.appendTo(tbody);
+                    newTrDetail.appendTo(tbody);
+
+                    allNewTR.push(newTrMain);
+                    bindHandlers(newTrMain);
+                    bindHandlers(newTrDetail);
+                });
+
+                validateChangeTable(table);
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            function AddIDBDocProcParticipagtingFirm(items, type, filenames, source) {
+
+                if (items.length > 0) {
+
+                    var currentUser = _currentUser;
+                    var idModal = $('[data-id-modal-drag-drop="documentModalDragDrop"]').attr('id');
+                    var tableName = idModal.replace('modal', '');
+                    var tabAdd = $('#' + idModal + ' li#AddDocumentTab').hasClass('active')
+                    var table = $(String.format('#{0}', tableName));
+                    var modalityId = $('[name="HeaderHiddenModalityId"]').val();
+
+                    var newId = table.GenerateNewId();
+                    var template = table.find('tbody tr.template:not([data-detail])');
+                    var templateDetail = table.find('tbody tr[data-detail="template"]');
+                    var newItem = template.clone(false);
+                    var newItemDetail = templateDetail.clone(false);
+                    var rowIdentification = String.format('new-{0}', newId);
+                    var rowDetailIdentification = String.format(tableName + '-Detail-' + 'new-{0}', newId);
+                    var rowDetailSelector = String.format('tr[data-detail="{0}"]', rowDetailIdentification);
+
+                    newItem.appendTo(table.find('tbody'));
+                    newItemDetail.appendTo(table.find('tbody'));
+
+                    newItem.removeClass('template');
+                    newItem.removeClass('hide');
+
+                    var lastMain = template.siblings('.custom-even, .custom-odd').last();
+                    if ((lastMain.length > 0) && (lastMain.hasClass('custom-even'))) {
+                        newItem.addClass('custom-odd');
+                    } else {
+                        newItem.addClass('custom-even');
+                    }
+
+                    newItemDetail.removeClass('template');
+                    newItemDetail.removeClass('hide');
+                    newItem.attr('data-id', rowIdentification);
+                    newItem.find('span[data-collapse-single-region]').attr('data-collapse-single-region', rowDetailSelector);
+                    newItemDetail.attr('data-id', rowIdentification);
+                    newItemDetail.attr('data-detail', rowDetailIdentification);
+
+                    var docs = [];
+                    if (type == 'added') {
+                        items.forEach(function (item, index, list) {
+                            docs.push({ DocumentNumber: item, Description: '' });
+                        });
+                    } else {
+                        docs = items;
+                    }
+
+                    var trDoc = newItemDetail;
+                    var buttonUpload = newItem.find('button[name="DownLoadDocContractDates"]');
+
+                    var documentNumber = items[0].DocumentNumber;
+                    var documentDescription = items[0].DocumentName;
+                    var documentUrl = items[0].Link;
+
+                    var textDocumentUser = trDoc.find('.document-user');
+                    var inputDocumentCurrentDate = trDoc.find('input.document-current-date');
+                    var textDocumentDate = trDoc.find('.document-date-text');
+                    var inputDocumentNumber = trDoc.find('input.document-number');
+                    var textDocumentNumber = trDoc.find('.document-number-text');
+                    var inputDocumentDescription = trDoc.find('input.document-description');
+                    var textDocumentName = trDoc.find('.document-name-document span.docName');
+                    
+                    var link = '@IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink("")' + documentNumber;
+                    var urlDownload = (documentUrl != null && documentUrl != typeof(undefined) ? documentUrl : link);
+
+                    textDocumentUser.text(currentUser);
+                    textDocumentDate.text(inputDocumentCurrentDate.val());
+                    inputDocumentNumber.val(documentNumber);
+                    textDocumentNumber.html('<a href="' + urlDownload + '" target="_blank">'+ documentNumber +'</a>');
+                    inputDocumentDescription.val(documentDescription);
+                    textDocumentName.text(documentDescription)
+
+                    buttonUpload.removeAttr('disabled');
+
+                    CustomEnable(newItem);
+                    CustomEnable(newItemDetail);
+                    SelectFirstElementOnDropDown(newItem);
+                    SelectFirstElementOnDropDown(newItemDetail);
+
+                    bindHandlers(newItem);
+                    bindHandlers(newItemDetail);
+
+                    validateChangeTable(table);
+
+                    if (modalityId == modalitySingleId || modalityId == modalityTaskSingleId) {
+                        hideNewParticipatingFirm();
+                    }
+
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+                }
+
+            }
+
+            function getNewProtestNumber(newTr, tableName) {
+                var maxNumber = 0;
+                $('[name = "' + tableName + '-protestOrder"]').each(
+                    function (index) {
+                        if ($(this).val() > maxNumber) {
+                            maxNumber = $(this).val();
+                        }
+                    });
+
+                var newMaxNumber = parseInt(maxNumber) + 1;
+                $(newTr).find('[name = "' + tableName + '-protestOrder"]').val(newMaxNumber);
+
+                var pad = function (str, max) {
+                    str = str.toString();
+                    return str.length < max ? pad("0" + str, max) : str;
+                };
+
+                var textShown = $(newTr).find('.protestNumber').text().trim() + pad(newMaxNumber, 2);
+
+                $(newTr).find('.protestNumber').text(textShown);
+            }
+
+            function getNewModificationDocumentNumber(newTr, tableName) {
+                var operationNumberShown = $(newTr).find('td.document-number').val();
+                var hiddenOperationNumberInput = $(newTr).find('td.OperationNumberHidden');
+
+                hiddenOperationNumberInput.val(operationNumberShown);
+            }
+
+            function okCancel() {
+                var promise = $.Deferred();
+                var url = '@Url.Action("CancelProcurementDetail", "FirmProcurement", new { area = "Procurement", procurementId = Model.Id })';
+
+                var tabName = $('[data-page="tabs"] .tabs li.active').attr('dd-tab').substr(1);
+                url = url + '&tabName=%23' + tabName;
+
+                LocationAssign(url);
+                promise.resolve();
+                return promise;
+            }
+
+            function saveChangeWinner() {
+                var promise = $.Deferred();
+                var form = $('[data-name="winner-change"]');
+                var validation = form.parsley().validate();
+                var modalityFramework = '@ProcurementModalityEnum.Framework.GetEnumCode()';
+                var modalityStage = '@Model.Modality';
+
+                if (validation == true || validation.length == 0) {
+
+
+                    var labelWinnersList = $('label.winnersList');
+                    var labelTooltip = $('label.linkLook');
+                    var winnerList = "";//Text to show on info row
+                    var oldWinners = "";//Text to show on info row
+                    var winners = $('div input[name="winnersTable-Winner"]:checked').parent().parent().parent();
+                    var justification = $('[name="winnersTable-justificationText"]').val();
+                    var hidenJustification = $('[name="hiddenJustification"]');
+                    var originalWinnerChecks = $('[name="FinalFirmScorings-Winner"]'); //From Negotiation page table
+                    var newWinnerChecks = $('div input[name="winnersTable-Winner"]'); //From popup table
+                    var firmListCount = originalWinnerChecks.length;
+                    var firmNameCounter = 0;
+                    var rowsWithChange = getRowsWithChange(originalWinnerChecks, newWinnerChecks);
+                    //Firm checked as winners
+                    var winnerListFiltered = {};
+                    var newWinnersIds = [];
+
+                    newWinnerChecks.each(function () {
+                        var element = $(this);
+
+                        if (element.is(':checked') == true) {
+                            var row = element.closest('tr');
+                            var firmId = row.attr('data-id');
+                            var firmName = row.find('td[name="firmName"]').text().trim();
+
+                            newWinnersIds.push(firmId);
+                            winnerListFiltered[firmId] = firmName;
+                        }
+                    });
+
+                    //Old winners data creation
+                    $(originalWinnerChecks).each(function (key, item) {
+                        if ($(item).is(':checked')) {
+                            var firmName = $(item).closest('tr').find('td[name="firmName"] label').text();
+
+                            oldWinners = firmName
+                            firmNameCounter = firmNameCounter + 1;
+
+                            if (firmNameCounter != firmListCount) {
+                                oldWinners = oldWinners + ", ";
+                            }
+                        }
+                    });
+
+                    if (modalityStage == modalityFramework) {
+                        if (winners.length > 1) {
+                            winnerListFiltered['-1'] = '@Localization.GetText("TCP.FirmProcurement.Combo.NegotiationMinutes")';
+                        }
+                    }
+
+                    //New winners data creation
+                    $(winners).each(function (key, item) {
+                        winnerList += $(item).find('td label').text().trim() + ", ";
+                    });
+                    winnerList = winnerList.substring(0, winnerList.length - 2);
+
+
+
+                    if (winnerList == "") {
+                        winnerList = "none";
+                    }
+
+                    if (oldWinners == "") {
+                        oldWinners = "none";
+                    }
+
+                    labelWinnersList.text(" from " + oldWinners + " to " + winnerList);
+                    labelTooltip.attr('title', justification);
+
+                    updateWinnerChecks(originalWinnerChecks, newWinnerChecks);
+
+                    hidenJustification.val(justification);
+
+                    //Now we are going to update combo lists with new winners
+                    var tableRows = $('table[id="winnersTable"] tbody tr');
+                    var comboList = $('table[id="Negotiations"] tbody tr td ul.dropdown-menu, table[id="ContractDocs"] tbody tr td ul.dropdown-menu');
+
+                    //Updating each combo
+                    comboList.each(function () {
+
+                        //Getting selected data
+                        var item = $(this);
+                        var selected = item.find('[dd-selected]');
+                        var id = selected.attr('dd-value');
+                        var text = selected.text().trim();
+                        //Cloning winner list to manipulate it
+                        var finalList = $.extend({}, winnerListFiltered);
+
+                        //Adding old winner if it was selected
+                        if (id != null && id != "" && finalList[id] == null) {
+                            finalList[id] = text;
+                        }
+
+                        //Cleaning ul element except template <li>
+                        item.children(':not(:first)').remove();
+                        if (id != "") {
+                            var newA = item.find('a');
+                            newA.removeAttr('dd-selected');
+                        }
+
+                        //Adding each new winner to combo from cloned list
+                        for (var keyId in finalList) {
+                            var keyText = finalList[keyId];
+                            var newLI = $('<li>');
+                            var newA = $('<a>');
+                            newA.attr('dd-value', keyId);
+                            if (keyId == id) {
+                                newA.attr('dd-selected', '');
+                            }
+                            newA.html(keyText);
+                            newA.appendTo(newLI);
+                            newLI.appendTo(item);
+                        }
+                    });
+
+                    //List to update Contrac Date table
+                    updateContractDateWinners(newWinnersIds);
+                    uncheckCertify();
+                    promise.resolve();
+                }
+
+                return promise;
+            }
+
+            function updateContractDateWinners(winnersIdsList) {
+                var tableRows = $('table[id="ContractDates"] tbody').find('tr');
+
+                tableRows.addClass('hide');
+                tableRows.find('input').attr('disabled', 'disabled');
+
+                tableRows.each(function () {
+                    var row = $(this);
+                    var rowId = row.find('[name="ContractDates-firmId"]').val();
+
+                    if (winnersIdsList.indexOf(rowId) != -1) {
+                        rowDetails = row.next();
+                        row.removeClass('hide');
+                        rowDetails.removeClass('hide');
+                        row.find('input').removeAttr('disabled');
+                        row.find('#id-ContractDates-Currency').removeAttr('disabled');
+                        rowDetails.find('input').removeAttr('disabled');
+
+                        if (rowDetails.find('[name*="DocumentIDBDoc"]').val() === '') {
+                            $('button.buttonBlue[data-linked-table="ContractDates"]')
+                               .prop('disabled', false)
+                               .removeClass('disabled');
+                        }
+                    }
+                });
+            }
+
+            function updateWinnerChecks(originalWinnerChecks, newWinnerChecks) {
+                for (var i = 0; i < $(originalWinnerChecks).length; i++) {
+                    if ($(newWinnerChecks[i]).is(':checked')) {
+                        $(originalWinnerChecks[i]).prop('checked', true);
+                    } else {
+                        $(originalWinnerChecks[i]).prop('checked', false);
+                    }
+                }
+            }
+
+            function getRowsWithChange(oldStageChecksList, newStageChecksList) {
+                var rowsWithChange = [];
+
+                oldStageChecksList.each(function (key, item) {
+                    var rowId = $(item).closest('tr').attr('data-id');
+                    var oldStage = $(item).is(':checked');
+                    var newStageRows = [];
+                    var newStage = false;
+
+                    $(newStageChecksList).each(function (key, item) {
+                        var row = $(item).closest('tr');
+                        var newRowId = $(row).attr('data-id');
+
+                        if (newRowId == rowId) {
+                            var newStageCheck = $(row).find('input');
+
+                            newStage = $(newStageCheck).is(':checked');
+                        }
+                    });
+
+                    if (oldStage != newStage) {
+                        var row = $('table[id="FinalFirmScorings"]').find('tr[data-id="' + rowId + '"]');
+
+                        rowsWithChange.push(row);
+                    }
+                });
+
+                return rowsWithChange;
+            }
+
+            function okCancelProc(source) {
+                var promise = $.Deferred();
+
+                var formCancel = $('#cancel-procurement-form');
+                var validateCancel = validateContainer(formCancel);
+
+                if (validateCancel == true) {
+
+                    var selectorFormProcurement = '@ViewBag.ActiveTab';
+                    var selectorHiddenModel;
+                    switch (selectorFormProcurement) {
+
+                        case "#linktabIdentification":
+                            selectorHiddenModel = $('#hideIdentificationModel');
+                            break;
+                        case "#linktabPreparation":
+                            selectorHiddenModel = $('#hidePreparationModel');
+                            break;
+                        case "#linktabEvaluation":
+                            selectorHiddenModel = $('#hideEvaluationModel');
+                            break;
+                        case "#linktabNegotiation":
+                            selectorHiddenModel = $('#hideNegotiationModel');
+                            break;
+                        case "#linktabExecution":
+                            selectorHiddenModel = $('#hideExecutionModel');
+                            break;
+                    }
+
+                    var responseProcurement = saveContainer($(selectorFormProcurement), selectorHiddenModel, false, null, null, false, true, null);
+                    if (responseProcurement !== false) {
+                        responseProcurement.done(function (data) {
+                            if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                showMessage(data.ErrorMessage)
+                            }
+
+                            if (data.IsValid == true) {
+
+                                var response = saveContainer($('#cancel-procurement-form'), '[name="hiddenCancelReasonModel"]', false, null, null, false, true, null);
+                                if (response !== false) {
+                                    response.done(function (data) {
+                                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                            showMessage(data.ErrorMessage)
+                                        }
+
+                                        if (data.IsValid == true) {
+
+                                            var url = data.UrlRedirect;
+                                            LocationAssign(url);
+                                            successBar('@Localization.GetText("TCP.FirmProcurement.PopUpInfo.SuccessfullyUpdated")', 3, true);
+                                            promise.resolve();
+                                        }
+
+                                    });
+                                }
+                            }
+
+                        });
+                    }
+                }
+
+                return promise;
+            }
+
+            //MOCK
+            function asignFundValues(tableId, row, additionalData) {
+
+                if (additionalData == null) {
+                    return;
+                }
+
+                var tdOperationNumber = $('[not-exist]');
+                var tdOperationNumberValue = $('[not-exist]');
+                var tdTotalFunds = $('[not-exist]');
+                var tdTotalFundsValue = $('[not-exist]');
+                var tdApprovalCurrency = $('[not-exist]');
+                var tdApprovalCurrencyValue = $('[not-exist]');
+
+                switch (tableId) {
+                    case "IdeCommitFundsNormal":
+                        tdOperationNumber = row.find('[data-section="operationNumber"]');
+                        tdOperationNumberValue = row.find('td.operationNumber input');
+                        tdTotalFunds = row.find('[data-section="totalFunds"]');
+                        tdTotalFundsValue = row.find('td.totalFunds input');
+                        tdApprovalCurrency = row.find('[data-section="approvalCurrency"]');
+                        tdApprovalCurrencyValue = row.find('td[name="approvalCurrency"] input');
+
+                        var rowDetail = row.next();
+                        var multiselect = rowDetail.find('[name="IdeCommitFundsNormal-activeOutputs"]');
+                        multiselect.val('');
+                        multiselect.children().remove();
+                        additionalData.outputs.forEach(function (it, ix) {
+                            var option = $('<option>');
+                            option.attr('value', it.Value);
+                            option.html(it.Text);
+                            option.appendTo(multiselect);
+                        });
+
+                        if (additionalData.outputs.length > 0) {
+                            multiselect.attr('data-optional-required', 'true');
+                        }
+
+                        multiselect.chosen('destroy');
+                        multiselect.CustomChosen()
+                        break;
+                    case "IdeCommitFundsSecond":
+                        tdTotalFunds = row.find('[data-section="totalFunds"]');
+                        tdTotalFundsValue = row.find('td.totalFunds input');
+                        break;
+                    case "NegCommitFundsNormal":
+                        tdOperationNumber = row.find('[data-section="operation-number"]');
+                        tdOperationNumberValue = row.find('input[name="NegCommitFundsNormal-HiddenOperationNumber"]');
+                        tdApprovalCurrency = row.find('[data-section="approval-currency"]');
+                        tdApprovalCurrencyValue = row.find('td[name="approvalCurrency"] input');
+
+                        var rowDetail = row.next();
+                        var multiselect = rowDetail.find('[name="NegCommitFundsNormal-activeOutputs"]');
+                        multiselect.val('');
+                        multiselect.children().remove();
+                        additionalData.outputs.forEach(function (it, ix) {
+                            var option = $('<option>');
+                            option.attr('value', it.Value);
+                            option.html(it.Text);
+                            option.appendTo(multiselect);
+                        });
+                        multiselect.chosen('destroy');
+                        multiselect.CustomChosen()
+                        break;
+                    default:
+                        break;
+                }
+
+                tdOperationNumber.text(additionalData.operationNumber);
+                tdOperationNumberValue.val(additionalData.operationNumber);
+                tdTotalFunds.text('$ ' + convertToDecimalString(additionalData.amount));
+                tdTotalFundsValue.val(additionalData.amount);
+                tdApprovalCurrency.text(additionalData.approvalCurrency);
+                tdApprovalCurrencyValue.val(additionalData.approvalCurrency);
+            }
+
+            function removeRow(event, source) {
+                var promise = $.Deferred();
+                var tableName = source.closest('table').attr('id');
+                var table = $('table[id="' + tableName + '"]');
+                var prefix = tableName.substring(0, 3);
+                var modalityId = $('[name="HeaderHiddenModalityId"]').val();
+                var modalityFramework = '@ProcurementModalityEnum.Framework.GetEnumCode()';
+                var modalitySingleId = '@cmdCollection[ProcurementModalityEnum.SingleSourceSelection].MasterId';
+                var modalityTaskSingleId = '@cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId';
+                var tab = source.closest('.tab-pane');
+                var tabScreen = "#linktabExecution";
+                var modalityStage = '@Model.Modality';
+                var modalityScreen = '@ViewBag.ActiveTab';
+                var offerId = source.closest('[data-section]').attr('data-section');
+                var isModificationTable = tableName == "ModificationDocs" + offerId;
+
+
+                var tr = source.closest('tr');
+                var trDetail = tr.next();
+
+                tr.remove();
+
+                if ((tab != null) && (tab.length > 0)) {
+
+                    var checklist = tab.find('[data-role="checklist"]');
+                    var checklistData = checklist.data('checklist');
+
+                    if (tab.attr('name') != "formExecution") {
+                        checklistData.Validate(null, false);
+                    }
+                }
+
+                if (tableName == "IdeCommitFundsNormal" ||
+                    tableName == "IdeCommitFundsSecond" ||
+                    tableName == "NegCommitFundsNormal" ||
+                    tableName == "NegCommitFundsSecond") {
+
+                    //TODO quitar el if de dentro y dejar su contenido a este nivel cuando todas tengan el detalle
+                    if (tableName == 'IdeCommitFundsNormal' ||
+                        tableName == 'NegCommitFundsNormal') {
+                        trDetail.remove();
+                    }
+
+                    calculateSubtotal(tableName);
+                    calculateTotal(prefix);
+                } else if (tableName == 'REOIs') {
+                    trDetail.remove();
+                } else if (tableName == 'ContractDocs') {
+                    trDetail.remove();
+                } else if (tableName == 'ProtestDocs') {
+                    trDetail.remove();
+                } else if (isModificationTable && modalityScreen == tabScreen) {
+                    trDetail.remove();
+                }
+
+                promise.resolve();
+                return promise;
+            }
+
+            function validateChangeTable(source) {
+
+                var associatedRows = source.data('checklist-associated-rows');
+                if (associatedRows != null) {
+                    for (var key in associatedRows) {
+                        var row = associatedRows[key];
+                        var table = row.closest('table[data-role="checklist"]');
+                        table.trigger('checklist-validate-row', row);
+                    }
+                }
+            }
+
+
+            function continueClose() {
+                return SaveOrClosePhase('.tab-pane.active', '[type="hidden"]', true);
+            }
+
+            function GetValueFake(dataValue,dataFake)
+            {
+                var result = dataValue;
+                if (dataValue == null)  {
+                    result = dataFake;
+                }
+
+                return result;
+            }
+
+            function SetRequiredForSubmitType(isClose) {
+                var inputs = $('[data-optional-required]');
+                var formPublish = $("#frmPublishValidDocument input");
+
+                inputs.removeAttr('required');
+                formPublish.removeAttr('required');
+                formPublish.removeAttr('data-parsley-required');
+
+                var inputExecutionModification = $('[data-parsley-checkExitModification],[data-fake-checkExitModification]');
+
+                var inputExecutionCheckCertificationModification = $('[data-parsley-checkCertificationModification],[data-fake-checkCertificationModification]');
+
+                var inputEvaluatedFirmDocs = $('[data-parsley-EvaluatedFirmDocs],[data-fake-EvaluatedFirmDocs]');
+                var valueEvalueatedFirmDocs = GetValueFake(inputEvaluatedFirmDocs.attr('data-parsley-EvaluatedFirmDocs'),
+                                                    inputEvaluatedFirmDocs.attr('data-fake-EvaluatedFirmDocs'));
+
+                var inputFinancialProposal = $('[data-parsley-FinancialProposalTab],[data-fake-FinancialProposalTab]');
+                var valueFinancialProposal = GetValueFake(inputFinancialProposal.attr('data-parsley-FinancialProposalTab'),
+                                                    inputFinancialProposal.attr('data-fake-FinancialProposalTab'));
+
+                var inputTechnicalProposal = $('[data-parsley-TechnicalProposalTab],[data-fake-TechnicalProposalTab]');
+                var valueTechnicalProposal = GetValueFake(inputTechnicalProposal.attr('data-parsley-TechnicalProposalTab'),
+                                                    inputTechnicalProposal.attr('data-fake-TechnicalProposalTab'));
+
+                var inputTechnicalProposalNon = $('[data-parsley-TechnicalProposalNonTab],[data-fake-TechnicalProposalNonTab]');
+                var valueTechnicalProposalNon = GetValueFake(inputTechnicalProposal.attr('data-parsley-TechnicalProposalNonTab'),
+                                                    inputTechnicalProposal.attr('data-fake-TechnicalProposalNonTab'));
+
+                var inputFinancialProposalNon = $('[data-parsley-FinancialProposalNon],[data-fake-FinancialProposalNon]');
+                var valueFinancialProposalNon = GetValueFake(inputTechnicalProposal.attr('data-parsley-FinancialProposalNon'),
+                                                    inputTechnicalProposal.attr('data-fake-FinancialProposalNon'));
+
+                var inputDocumentProposal = $('[data-parsley-DocsProposalTab],[data-fake-DocsProposalTab]');
+                var valueDocumentProposal = GetValueFake(inputDocumentProposal.attr('data-parsley-DocsProposalTab'),
+                                                    inputDocumentProposal.attr('data-fake-DocsProposalTab'))
+
+                var inputProposalSummary = $('[data-parsley-singleWinners],[data-fake-singleWinners]');
+                var valueProposalSummary = GetValueFake(inputProposalSummary.attr('data-parsley-singleWinners'),
+                                                    inputProposalSummary.attr('data-fake-singleWinners'));
+
+                var inputValidateFirm = $('[name="validateFirms"]');
+
+                var inputSanctionsFirmsExecution = $('[data-parsley-sanctionsFirmsExecution],[data-fake-sanctionsFirmsExecution]');
+                var valueSanctionsFirmsExecution = GetValueFake(inputSanctionsFirmsExecution.attr('data-parsley-sanctionsFirmsExecution'),
+                                                    inputSanctionsFirmsExecution.attr('data-fake-sanctionsFirmsExecution'));
+
+                if (isClose) {
+
+                    inputExecutionModification.each(function (key, item) {
+                        var modification = $(item);
+
+                        modification.removeAttr('data-fake-checkExitModification');
+
+                        if (modification.attr('data-fake-checkExitModification') == undefined) {
+                            modification.attr('data-parsley-checkExitModification', modification.attr('data-parsley-checkExitModification'));
+                        } else {
+                            modification.attr('data-parsley-checkExitModification', modification.attr('data-fake-checkExitModification'));
+                        }
+
+
+                    });
+
+                    inputExecutionCheckCertificationModification.each(function (key, item) {
+                        var checkCerfification = $(item);
+
+                        checkCerfification.removeAttr('data-fake-checkCertificationModification');
+
+                        if (checkCerfification.attr('data-fake-checkCertificationModification') == undefined) {
+                            checkCerfification.attr('data-parsley-checkCertificationModification', checkCerfification.attr('data-parsley-checkCertificationModification'));
+                        } else {
+                            checkCerfification.attr('data-parsley-checkCertificationModification', checkCerfification.attr('data-fake-checkCertificationModification'));
+                        }
+
+
+                    });
+
+                    inputEvaluatedFirmDocs.removeAttr('data-fake-EvaluatedFirmDocs');
+                    inputEvaluatedFirmDocs.attr('data-parsley-EvaluatedFirmDocs', valueEvalueatedFirmDocs);
+
+                    inputFinancialProposal.removeAttr('data-fake-FinancialProposalTab');
+                    inputFinancialProposal.attr('data-parsley-FinancialProposalTab', valueFinancialProposal);
+
+                    inputFinancialProposalNon.removeAttr('data-fake-FinancialProposalNon');
+                    inputFinancialProposalNon.attr('data-parsley-FinancialProposalNon', valueFinancialProposalNon);
+
+                    inputTechnicalProposal.removeAttr('data-fake-TechnicalProposalTab');
+                    inputTechnicalProposal.attr('data-parsley-TechnicalProposalTab', valueTechnicalProposal);
+
+                    inputTechnicalProposalNon.removeAttr('data-fake-TechnicalProposalDocNonTab');
+                    inputTechnicalProposalNon.attr('data-parsley-TechnicalProposalDocNonTab', valueTechnicalProposalNon);
+
+                    inputDocumentProposal.removeAttr('data-fake-DocsProposalTab');
+                    inputDocumentProposal.attr('data-parsley-DocsProposalTab', valueDocumentProposal);
+
+                    inputProposalSummary.removeAttr('data-fake-singleWinners');
+                    inputProposalSummary.attr('data-parsley-singleWinners', valueProposalSummary);
+
+                    inputs.attr('required', 'required');
+                    inputValidateFirm.removeAttr('disabled');
+
+                    inputSanctionsFirmsExecution.removeAttr('data-fake-sanctionsFirmsExecution');
+                    inputSanctionsFirmsExecution.attr('data-parsley-sanctionsFirmsExecution', valueSanctionsFirmsExecution);
+
+                } else {
+
+                    inputExecutionModification.each(function (key, item) {
+                        var modification = $(item);
+
+                        modification.removeAttr('data-parsley-checkExitModification');
+
+                        if (modification.attr('data-fake-checkExitModification') == undefined) {
+                            modification.attr('data-fake-checkExitModification', modification.attr('data-parsley-checkExitModification'));
+                        } else {
+                            modification.attr('data-fake-checkExitModification', modification.attr('data-fake-checkExitModification'));
+                        }
+
+
+                    });
+
+                    inputExecutionCheckCertificationModification.each(function (key, item) {
+                        var checkCerfification = $(item);
+
+                        checkCerfification.removeAttr('data-parsley-checkCertificationModification');
+
+                        if (checkCerfification.attr('data-fake-checkCertificationModification') == undefined) {
+                            checkCerfification.attr('data-fake-checkCertificationModification', checkCerfification.attr('data-parsley-checkCertificationModification'));
+                        } else {
+                            checkCerfification.attr('data-fake-checkCertificationModification', checkCerfification.attr('data-fake-checkCertificationModification'));
+                        }
+
+
+                    });
+
+                    inputEvaluatedFirmDocs.removeAttr('data-parsley-EvaluatedFirmDocs');
+                    inputEvaluatedFirmDocs.attr('data-fake-EvaluatedFirmDocs', valueEvalueatedFirmDocs);
+
+                    inputFinancialProposal.removeAttr('data-parsley-FinancialProposalTab');
+                    inputFinancialProposal.attr('data-fake-FinancialProposalTab', valueFinancialProposal);
+
+                    inputFinancialProposalNon.removeAttr('data-parsley-FinancialProposalNon');
+                    inputFinancialProposalNon.attr('data-fake-FinancialProposalNon', valueFinancialProposalNon);
+
+                    inputTechnicalProposal.removeAttr('data-parsley-TechnicalProposalTab');
+                    inputTechnicalProposal.attr('data-fake-TechnicalProposalTab', valueTechnicalProposal);
+
+                    inputTechnicalProposalNon.removeAttr('data-parsley-TechnicalProposalDocNonTab');
+                    inputTechnicalProposalNon.attr('data-fake-TechnicalProposalDocNonTab', valueTechnicalProposalNon);
+
+                    inputDocumentProposal.removeAttr('data-parsley-DocsProposalTab');
+                    inputDocumentProposal.attr('data-fake-DocsProposalTab', valueDocumentProposal);
+
+                    inputProposalSummary.removeAttr('data-parsley-singleWinners');
+                    inputProposalSummary.attr('data-fake-singleWinners',valueProposalSummary);
+
+                    inputValidateFirm.attr('disabled', 'disabled');
+
+                    inputSanctionsFirmsExecution.removeAttr('data-parsley-sanctionsFirmsExecution');
+                    inputSanctionsFirmsExecution.attr('data-fake-sanctionsFirmsExecution', valueSanctionsFirmsExecution);
+                }
+
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            }
+
+            function removeRequiredTemplate(){
+                var idTmpConMod = '[id^="templateContractModificacion"] ';
+                var idTmpConAmt = '[id^="templateContractAmount] ';
+                var idTmpConEndDat = '[id^="templateContractEndData] ';
+                var idGetFirExTmp = '[id^="GetFirmsTemplateExComunications"] ';
+                var idGetFirSanTmp = '#GetFirmsTemplateSanctionDocs ';
+                var getFirmsExTemplate = '#GetFirmsTemplateExComunications input';
+                var getFirmsSanTemplate = '#GetFirmsTemplateSanctionDocs input';
+                var protestControlsTemplate = '#protestControlsTemplate .protestNameControl input';
+                var idtemplateDataPicker = '#templateInputDatePicker input';
+                var getFirmsTmpNeg = "#GetFirmsTemplateNegotiations input";
+                var getFirmTmpBafoDocs = "#GetFirmsTemplateBAFODocs input";
+                var getFirmsTmpFinPropDocs = "#GetFirmsTemplateFinancialProposalDocs input";
+                var getFirmsTmpClarifications = "#GetFirmsTemplateClarifications input";
+                var getFirmsTmpTecPropDocs = "#GetFirmsTemplateTechnicalProposalDocs input";
+                var getFirmsTmpPropDocs = "#GetFirmsTemplateProposalDocs input";
+
+                $(idTmpConMod + 'select').removeClass('parsley-error');
+                $(idTmpConMod + 'select').removeAttr('data-parsley-required');
+                $(idTmpConMod + 'select').removeAttr('required');
+                $(idTmpConMod + 'select').removeAttr('data-parsley-id');
+                $(idTmpConMod + 'li').removeAttr('data-parsley-id');
+                $(idTmpConAmt + 'input').removeAttr('data-force-parsley-validation');
+                $(idTmpConAmt + 'input').removeAttr('data-parsley-required');
+                $(idTmpConEndDat + 'input').removeAttr('data-force-parsley-validation');
+                $(idTmpConEndDat + 'input').removeAttr('data-parsley-required');
+                $(idGetFirExTmp + 'input').removeAttr('data-force-parsley-validation');
+                $(idGetFirExTmp + 'input').removeAttr('data-parsley-required');
+                $(idGetFirExTmp + 'input').removeAttr('data-parsley-id');
+                $(idGetFirExTmp + 'input').removeAttr('required');
+                $(idGetFirExTmp + 'input').removeAttr('value'); 
+                $(idGetFirSanTmp + 'input').removeAttr('data-force-parsley-validation');
+                $(idGetFirSanTmp + 'input').removeAttr('data-parsley-required');
+                $(idGetFirSanTmp + 'input').removeAttr('data-parsley-id');
+                $(idGetFirSanTmp + 'input').removeAttr('required');
+                $(idGetFirSanTmp + 'input').removeAttr('value'); 
+                $(getFirmsExTemplate).removeAttr('data-parsley-required');
+                $(getFirmsExTemplate).removeAttr('data-force-parsley-validation');
+                $(getFirmsExTemplate).removeAttr('data-parsley-id');
+                $(getFirmsSanTemplate).removeAttr('data-parsley-required');
+                $(getFirmsSanTemplate).removeAttr('data-force-parsley-validation');
+                $(getFirmsSanTemplate).removeAttr('data-parsley-id');
+                $(getFirmsTmpNeg).removeAttr('data-parsley-required');
+                $(getFirmsTmpNeg).removeAttr('data-force-parsley-validation');
+                $(getFirmsTmpNeg).removeAttr('data-parsley-id');
+                $(getFirmTmpBafoDocs).removeAttr('data-parsley-required');
+                $(getFirmTmpBafoDocs).removeAttr('data-force-parsley-validation');
+                $(getFirmTmpBafoDocs).removeAttr('data-parsley-id');
+                $(protestControlsTemplate).removeAttr('data-parsley-required');
+                $(protestControlsTemplate).removeAttr('data-force-parsley-validation');
+                $(protestControlsTemplate).removeAttr('data-parsley-id');
+                $(getFirmsTmpFinPropDocs).removeAttr('data-parsley-required');
+                $(getFirmsTmpFinPropDocs).removeAttr('data-force-parsley-validation');
+                $(getFirmsTmpFinPropDocs).removeAttr('data-parsley-id');
+                $(getFirmsTmpClarifications).removeAttr('data-parsley-required');
+                $(getFirmsTmpClarifications).removeAttr('data-force-parsley-validation');
+                $(getFirmsTmpClarifications).removeAttr('data-parsley-id');
+                $(getFirmsTmpTecPropDocs).removeAttr('data-parsley-required');
+                $(getFirmsTmpTecPropDocs).removeAttr('data-force-parsley-validation');
+                $(getFirmsTmpTecPropDocs).removeAttr('data-parsley-id');
+                $(idtemplateDataPicker).removeAttr('name');
+                $(idtemplateDataPicker).removeAttr('id');
+                $(idtemplateDataPicker).removeAttr('disabled');
+                $(idtemplateDataPicker).removeAttr('data-parsley-required');
+                $(idtemplateDataPicker).removeAttr('data-force-parsley-validation');
+                $(getFirmsTmpPropDocs).removeAttr('data-parsley-required');
+                $(getFirmsTmpPropDocs).removeAttr('data-force-parsley-validation');
+                $(getFirmsTmpPropDocs).removeAttr('data-parsley-id');
+            }
+
+            function SaveOrClosePhase(formSelector, hiddenViewModelSelector, isClose) {
+                var inputsDateCompleted = $('input[name="dateCompleted"]');
+                inputsDateCompleted.removeAttr('data-parsley-lessOrEqualDate');
+                removeRequiredTemplate();
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+
+                var promise = $.Deferred();
+                var form = $(formSelector);
+                var url = form.attr('data-url');
+                if (isClose) {
+                    form.attr('data-url', url + '&isClose=true');
+                }
+                var response = saveContainer(form, hiddenViewModelSelector, false, null, null, false, true, null);
+                if (response !== false) {
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.ErrorMessage)
+                        }
+                        if (data.IsValid == true) {
+                            successBar('@Localization.GetText("TCP.FirmProcurement.PopUpInfo.SuccessfullyUpdated")', 3, true);
+                        }
+                    });
+                }
+                form.attr('data-url', url);
+                promise.resolve();
+                return promise;
+            }
+
+            function uncheckCertify() {
+                var table = $('table#ContractDates');
+                var documentNumbers = table.find('tbody > tr.extend-custom:not(.hide) .document-number-text');
+                var hasDocuments = false;
+
+                if (documentNumbers.length > 0)
+                {
+                    documentNumbers.each(function() {
+                        if ($(this).text().trim() !== '') {
+                            hasDocuments = true;     
+                            return false;
+                        }
+                    });
+                } 
+                    
+                if (!hasDocuments) {
+                    $('[name="ContractIsCertify"]').prop('checked', false);
+                }  
+            }
+
+            registerCallback(function () {
+                var initialSecond = $('#IdeCommitFundsSecond').find('[data-id="new-1"]');
+                if (initialSecond.length > 0) {
+                    $('#IdeCommitFundsSecond').GenerateNewId();
+                }
+
+                var initialNormal = $('#IdeCommitFundsNormal').find('[data-id="new-1"]');
+                if (initialNormal.length > 0) {
+                    $('#IdeCommitFundsNormal').GenerateNewId();
+                }
+
+                var list = $('[data-fake-PageMode]');
+
+                $(document).ready(function () {
+
+                    var a = $('[name = "NegCommitFundsNormal-FinalCMONumber"]');
+                    a.attr('data-a-dec', '.');
+
+                });
+
+                $(document).on('change', '[name="IdeCommitFundsNormal-originalFunds"], [name="IdeCommitFundsSecond-originalFunds"]', function (key, item) {
+                    var source = $(this);
+                    var table = source.closest('table');
+                    var tableName = table.attr('id');
+                    var prefix = tableName.substring(0, 3);
+
+                    calculateSubtotal(tableName);
+                    calculateTotal(prefix);
+                });
+
+                list.each(function () {
+                    var item = $(this);
+                    var value = item.attr('data-fake-PageMode');
+                    item.removeAttr('data-fake-PageMode');
+                    item.attr('data-PageMode', value);
+                });
+
+                $(document).on('blur', 'input[name="NegCommitFundsNormal-LMSNumber"]', function (key, item) {
+                    var source = $(this);
+                    var table = source.closest('table');
+                    var tableName = table.attr('id');
+
+                    var approvalNumber = source.closest('tr').find('[name="' + tableName + '-ApprovalNumber"]');
+
+                    var url = '@Url.Action("GetInfoByLMSNumber", "FirmProcurement", new { area = "Procurement" })';
+                    var response = postUrl(url, { cmoNumber: source.val(), approvalNumber: approvalNumber.val() });
+
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.Message);
+                        }
+
+                        var tr = source.closest('tr');
+                        var currencyText = tr.find('[data-section="cmo-currency"]');
+                        var currency = tr.find('[name="NegCommitFundsNormal-CMOCurrency"]');
+                        var currentAmountText = tr.find('[data-section="cmo-current-amount"]');
+                        var currentAmount = tr.find('[name="NegCommitFundsNormal-CMOCurrentAmount"]');
+                        var currentAmountApprovalText = tr.find('[data-section="cmo-current-amount-approval"]');
+                        var currentAmountApproval = tr.find('[name="NegCommitFundsNormal-CMOCurrentAmountApproval"]');
+                        var hiddenLMSNumber = tr.find('[name="NegCommitFundsNormal-hiddenLMSNumber"]');
+
+
+                        currencyText.html('');
+                        currency.val('');
+                        currentAmountText.html('');
+                        currentAmount.val('');
+                        currentAmountApprovalText.html('');
+                        currentAmountApproval.val('');
+                        hiddenLMSNumber.val('');
+
+
+                        if ((data.ValidationMessage != null) && (data.ValidationMessage != '')) {
+                            hiddenLMSNumber.attr('required', 'required');
+                            hiddenLMSNumber.attr('data-parsley-required-message', data.ValidationMessage);
+                            hiddenLMSNumber.removeAttr('data-optional-required');
+
+                        } else {
+                            hiddenLMSNumber.removeAttr('required', 'required');
+                            hiddenLMSNumber.removeAttr('data-parsley-required-message');
+                            hiddenLMSNumber.attr('data-optional-required', 'true');
+                            hiddenLMSNumber.val(data.LMSNumber);
+
+                            currencyText.html(data.CMOCurrency);
+                            currency.val(data.CMOCurrency);
+
+                            currentAmountText.html(convertToDecimalString(data.CMOCurrentAmount));
+                            currentAmount.val(data.CMOCurrentAmount);
+
+                            currentAmountApprovalText.html(convertToDecimalString(data.CMOCurrentAmountApproval));
+                            currentAmountApproval.val(data.CMOCurrentAmountApproval);
+                        }
+
+                        currentAmount.change();
+
+                        destroyParsley();
+                        initParsley();
+                        destroyParsley();
+                        initParsley();
+
+                        hiddenLMSNumber.parsley().validate();
+                    });
+
+
+                    var table = source.closest('table').attr('id');
+                    var prefix = table.substring(0, 3);
+
+
+                    calculateSubtotal(table);
+                    //calculateTotal(prefix);
+                    var tab = source.closest('.tab-pane');
+                    if ((tab != null) && (tab.length > 0)) {
+
+                        var checklist = tab.find('[data-role="checklist"]');
+                        var checklistData = checklist.data('checklist');
+
+                        if (tab.attr('name') != "formExecution") {
+                            checklistData.Validate(null, false);
+                        }
+                    }
+                });
+
+                //PONumber
+                $(document).on('blur', 'input[name="NegCommitFundsSecond-PONumber"]', function (key, item) {
+                    var source = $(this);
+                    var table = source.closest('table');
+                    var tableName = table.attr('id');
+
+                    var operationNumber = source.closest('tr').find('[name="' + tableName + '-ProductActivityNumber"]');
+
+                    var url = '@Url.Action("GetInfoByPONumber", "FirmProcurement", new { area = "Procurement" })';
+                    var response = postUrl(url, { poNumber: source.val(), opNumber: operationNumber.val() });
+
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.Message);
+                        }
+
+                        var tr = source.closest('tr');
+                        var currentAmountApprovalText = tr.find('[data-section="POAmount"]');
+                        var currentAmountApproval = tr.find('[name="NegCommitFundsSecond-POAmount"]');
+                        var hiddenPONumber = tr.find('[name="NegCommitFundsSecond-hiddenPONumber"]');
+
+                        currentAmountApprovalText.html('');
+                        currentAmountApproval.val('');
+                        hiddenPONumber.val('');
+
+                        if ((data.ValidationMessage != null) && (data.ValidationMessage != '')) {
+                            hiddenPONumber.attr('required', 'required');
+                            hiddenPONumber.attr('data-parsley-required-message', data.ValidationMessage);
+                            hiddenPONumber.removeAttr('data-optional-required');
+
+                        } else {
+                            hiddenPONumber.removeAttr('required', 'required');
+                            hiddenPONumber.removeAttr('data-parsley-required-message');
+                            hiddenPONumber.attr('data-optional-required', 'true');
+                            hiddenPONumber.val(data.PONumber);
+
+                            var poAmountDolar = convertToDecimalString(data.FinalPOAmount).trim();
+                            currentAmountApprovalText.html('');
+                            if (poAmountDolar != null && poAmountDolar != '') {
+                                currentAmountApprovalText.html('$ ' + poAmountDolar);
+                            }
+
+                            currentAmountApproval.val(data.FinalPOAmount);
+                        }
+                        currentAmountApproval.change();
+
+                        destroyParsley();
+                        initParsley();
+                        destroyParsley();
+                        initParsley();
+
+                        hiddenPONumber.parsley().validate();
+                    });
+
+
+                    var table = source.closest('table').attr('id');
+                    var prefix = table.substring(0, 3);
+
+
+                    calculateSubtotal(table);
+                    //calculateTotal(prefix);
+                    var tab = source.closest('.tab-pane');
+                    if ((tab != null) && (tab.length > 0)) {
+
+                        var checklist = tab.find('[data-role="checklist"]');
+                        var checklistData = checklist.data('checklist');
+
+                        if (tab.attr('name') != "formExecution") {
+                            checklistData.Validate(null, false);
+                        }
+                    }
+                });
+
+                $(document).on('click', 'ul.dropdown-menu li', function () {
+                    var source = $(this);
+                    var additionalDataInput = source.find('[additional-data]');
+                    var additionalData = additionalDataInput.attr('additional-data');
+
+                    if (additionalData != null) {
+                        additionalData = JSON.parse(additionalData);
+                    }
+
+                    var table = source.closest('table');
+                    if (table.length != 0) {
+                        var row = source.closest('tr');
+                        var tableId = table.attr('id');
+                        var prefix = tableId.substring(0, 3);
+
+                        asignFundValues(tableId, row, additionalData);
+                        calculateSubtotal(tableId);
+                        calculateTotal(prefix);
+                    }
+                });
+
+                $(document).on('click', 'input[name="ScoringWinner"]', function () {
+                    var source = $(this);
+
+                    checkLastCheckbox(source);
+                });
+
+                $(document).on('click', 'input[name="winnersTable-Winner"]', function () {
+                    var source = $(this);
+
+                    var inputsWinner = source.is(':checked');
+                    var originalWinner = source.attr('data-original-winner');
+                    var justification = $('[name="winnersTable-justificationText"]');
+
+                    if (inputsWinner && originalWinner) {
+
+                        justification.removeAttr('required');
+                        justification.removeAttr('data-parsley-required');
+
+                    } else {
+
+                        justification.attr('required', 'required');
+                        var form = source.closest('[data-parsley-validate]')
+
+                    }
+
+                    var formValidate = source.closest('[data-parsley-validate]')
+                    destroyParsley(formValidate);
+                    initParsley(formValidate);
+                    destroyParsley(formValidate);
+                    initParsley(formValidate);
+
+                    checkLastCheckbox(source);
+
+
+                });
+
+                $(document).on('change', '[name*="-OriginalProcurementEstimate"]', function () {
+                    var source = $(this);
+                    var tableName = source.attr('name').split('-')[0];
+                    var prefix = tableName.substring(0, 3);
+                    var table = $('#' + tableName);
+                    var inputs = $(table.find('[name*="-OriginalProcurementEstimate"]'));
+                    var subTotal = 0.00;
+                    inputs.each(function () {
+                        var item = $(this);
+
+                        if (item.val() != "") {
+                            var amount = convertToDecimal(item.val());
+
+                            subTotal = subTotal + amount;
+                        }
+                    });
+
+                    var subTotalText = table.find('tr:last td label.OriginalFunds-' + tableName);
+                    subTotalText.text(convertToDecimalString(subTotal));
+                    calculateTotal(prefix);
+                });
+
+
+
+                $(document).on('change', '[name="cancelReasonId"]', function () {
+                    var source = $(this);
+                    var otherReasonInput = $('[name="otherReason"]');
+                    var otherReasonArea = $('[data-region="otherReason"]');
+
+                    otherReasonInput.addClass('hide');
+                    otherReasonArea.addClass('hide');
+                    otherReasonInput.removeAttr('required');
+                    otherReasonInput.removeAttr('data-parsley-required');
+                    if (source.val() == '@cmdCollection[ProcurementCancelReasonEnum.Other].MasterId') {
+                        otherReasonInput.attr('required', 'required');
+                        otherReasonInput.removeClass('hide');
+                        otherReasonArea.removeClass('hide');
+                    }
+                });
+
+                $('[name="cancelReasonId"]').change();
+
+                $(document).on('click', '[name="btnChangeWinner"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-change-winner"]');
+                    var hiddenWinners = $('[name="hiddenWinnerChanges"]');
+                    var winners = $('div input[name="FinalFirmScorings-Winner"]:checked').parent().parent().parent();
+                    var winnerList = "";
+
+                    var inputs = $('[name="winnersTable-Winner"]');
+                    var inputsTextArea = $('[name="winnersTable-justificationText-Winner"]');
+
+                    inputs.removeAttr('data-original-winner');
+                    inputsTextArea.removeAttr('required');
+                    inputsTextArea.removeAttr('data-parsley-required');
+
+                    var inputsWinner = $('[name="winnersTable-Winner"]:checked');
+                    inputsWinner.attr('data-original-winner', 'true');
+
+                    $(winners).each(function (key, item) {
+                        winnerList += $(item).find('td label').text().trim() + ", ";
+                    });
+                    winnerList = winnerList.substring(0, winnerList.length - 2);
+
+                    hiddenWinners.val(winnerList);
+
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="cancel-Identification"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-cancel"]');
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="cancel-Preparation"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-cancel"]');
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="cancel-Evaluation"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-cancel"]');
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="cancel-Negotiation"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-cancel"]');
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="cancel-Execution"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-cancel"]');
+                    modalBtn.click();
+                });
+
+
+                $(document).on('click', '[name="save-Identification"]', function () {
+                    SetRequiredForSubmitType(false);
+                    return SaveOrClosePhase('#linktabIdentification', '#hideIdentificationModel', false);
+                });
+
+                $(document).on('click', '[name="save-Preparation"]', function () {
+                    SetRequiredForSubmitType(false);
+                    return SaveOrClosePhase('#linktabPreparation', '#hidePreparationModel', false);
+                });
+
+                $(document).on('click', '[name="save-Evaluation"]', function () {
+                    SetRequiredForSubmitType(false);
+                    return SaveOrClosePhase('#linktabEvaluation', '[name="hideEvaluationModel"]', false);
+                });
+
+                $(document).on('click', '[name="save-Negotiation"]', function () {
+                    var inputIsCertifyProtest = $('input[name = "IsCertifyProtest"]');
+                    inputIsCertifyProtest.removeAttr('required');
+                    SetRequiredForSubmitType(false);
+                    return SaveOrClosePhase('#linktabNegotiation', '[name="hideNegotiationModel"]', false);
+                });
+
+                $(document).on('click', '[name="save-Execution"]', function () {
+                    var inputIsCertifyModifications = $('input[name="IsCertifyModifications"]');
+                    var source = $('select[name="ModificationDocs-modifications"]');
+
+                    inputIsCertifyModifications.removeAttr('required');
+                    SetRequiredForSubmitType(false);
+
+                    return SaveOrClosePhase('#linktabExecution', '[name="hideExecutionModel"]', false);
+                });
+
+
+                $(document).on('click', '[name="close-phase"]', function () {
+                    if (@((Model.Stage == ProcurementStageEnum.Negotiation).ToString().ToLower())) {
+
+                        var isConfidential = @Model.IsConfidential.ToString().ToLower();
+                        var hasNegotiationDocs = $('#Negotiations tbody tr').not('.hide').length > 0;
+
+                        if (!isConfidential && !hasNegotiationDocs) {
+                            showMessage('@Localization.GetText("BEO.NegotiationMinutes.Document.Mandatory")');
+                            return;
+                        }
+                    }
+
+                    var source = $(this);
+                    var hasAssociatedTasks = source.attr('data-HasAssociatedTasks') == "true";
+                    var isCloseButton = source.attr('data-IsCloseButton') == "true";
+                    var isCancelButton = source.attr('data-IsCancelButton') == "true";
+
+                    $.ajax({
+                        url: '@Url.Action("HasActiveAssociatedTasks", "FirmProcurement", new { area = "Procurement" })' +
+                             '?procurementId=' + '@Model.Id',
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        type: 'POST',
+                    }).done(function (data) {
+                        hasAssociatedTasks = data.IsValid;
+                    });
+
+                    // Contract Modifications - Execution
+                    var inputYesModifications = $('input[name="radioContractModifications"][value="True"]');
+                    var trTableModifications = $('#ModificationDocs > tbody > tr:not(.template)');
+                    var inputIsCertifyModifications = $('input[name = "IsCertifyModifications"]');
+
+                    if (inputYesModifications.is(':checked') && trTableModifications.length > 0) {
+                        inputIsCertifyModifications.attr('required', 'required');
+                    }
+                    else {
+                        inputIsCertifyModifications.removeAttr('required');
+                    }
+
+                    // Protest - Negotiation
+                    var inputYesProtest = $('input[name="HasProtest"][value="True"]');
+                    var trTableProtest = $('#ProtestDocs > tbody > tr:not(.template)');
+                    var inputIsCertifyProtest = $('input[name = "IsCertifyProtest"]');
+
+
+                    if (inputYesProtest.is(':checked') && trTableProtest.length > 0) {
+                        inputIsCertifyProtest.attr('required', 'required');
+
+                    }
+                    else {
+                        inputIsCertifyProtest.removeAttr('required');
+                    }
+
+                    // Today date validation
+                    var inputsDateCompleted = $('input[name="dateCompleted"]');
+
+                    inputsDateCompleted.attr('data-parsley-lessOrEqualDate', '[name="hiddenToday"]');
+
+                    SetRequiredForSubmitType(true);
+                    removeRequiredTemplate();
+
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+
+                    var checklistTable = $('[data-role=checklist]');
+                    var validate = true;
+
+                    if (checklistTable.length == 1) {
+                        var dataChecklist = checklistTable.data('checklist');
+
+                        var validationResult = dataChecklist.Validate();
+                        validate = validationResult.CanBeSaved;
+                    }
+                    
+                    validateContainer($('[data-parsley-validate].tab-pane.active'));
+
+                    if (validate) {
+                        if (hasAssociatedTasks && (isCloseButton || isCancelButton)) {
+                            if (isCloseButton) {
+                                var modalButton = $('[name="btn-open-popup-close-procWithAssociatedTask"]');
+                            } else if (isCancelButton) {
+                                var modalButton = $('[name="btn-open-popup-cancel-procWithAssociatedTask"]');
+                            }
+
+                        } else {
+                            var canClosePhase = '@Model.CanClosePhase';
+                            var modalButton = $('[name="btn-open-popup-closePhase"]');
+
+                            var modalityFramework = '@ProcurementModalityEnum.Framework.GetEnumCode()';
+                            var modalityFull = '@ProcurementModalityEnum.FullCompetitiveSelection.GetEnumCode()';
+                            var modalitySimplified = '@ProcurementModalityEnum.SimplifiedCompetitiveSelection.GetEnumCode()';
+                            var modalityTSSimplified = '@ProcurementModalityEnum.TaskSimplifiedSelection.GetEnumCode()';
+                            var modalityStage = '@Model.Modality';
+                            var modalityScreen = '@ViewBag.ActiveTab';
+
+                            if ((modalityStage == modalityFramework || modalityStage == modalityFull) && modalityScreen == "#linktabIdentification") {
+                                var table = $('#ParticipatingFirm');
+                                var trs = table.find('tbody tr:not(.template)');
+                                var shorts = trs.find('[name="ParticipatingFirm-IncludeInShortList"]:checked');
+                                var count = 0;
+
+                                shorts.each(function (key, item) {
+                                    count++;
+                                });
+
+                                if (count < 3) {
+                                    modalButton = $('[name="btn-open-popup-closePhase-framework"]');
+                                }
+
+                                if (canClosePhase != 'True') {
+                                    modalButton = $('[name="btn-open-popup-closePhase-warning"]');
+                                }
+
+                            } else if ((modalityStage == modalitySimplified || modalityStage == modalityTSSimplified) && modalityScreen == "#linktabIdentification") {
+
+                                var table = $('#ParticipatingFirm');
+                                var trs = table.find('tbody tr:not(.template)');
+                                var shorts = trs.find('[name="ParticipatingFirm-IncludeInShortList"]:checked');
+                                var count = 0;
+
+                                shorts.each(function (key, item) {
+                                    count++;
+                                });
+
+                                if (count < 2) {
+                                    modalButton = $('[name="btn-open-popup-closePhase-simplified"]');
+                                }
+
+                            } else {
+
+                                if (canClosePhase != 'True') {
+                                    modalButton = $('[name="btn-open-popup-closePhase-warning"]');
+                                }
+                            }
+                        }
+                        modalButton.click();
+                    }
+                });
+
+                $(document).on('change', '[name="ModificationDocs-newEndDate"]', function () {
+                    var source = $(this);
+                    var sectionContractModification = source.closest('div[data-name="sectionContracModification"]');
+                    var divSectionId = sectionContractModification.find('div[data-section]');
+                    var offerId = divSectionId.attr('data-section');
+                    var endDate = source;
+
+                    var url = '@Url.Action("CheckModificationEndDate", "FirmProcurement", new { area = "Procurement" })';
+                    var response = postUrl(url, { offerId: offerId, endDate: endDate.val() });
+
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+
+                });
+
+                $(document).on('click', '[name="addNewRow"]', function () {
+                    var source = $(this);
+                    var tableName = source.attr('data-linked-table');
+                    var table = $(String.format('#{0}', tableName));
+                    var newId = table.GenerateNewId();
+                    var modalityId = $('[name="HeaderHiddenModalityId"]').val();
+                    var modalitySingleId = '@cmdCollection[ProcurementModalityEnum.SingleSourceSelection].MasterId';
+                    var modalityTaskSingleId = '@cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId';
+
+                    var template = table.find('tbody tr.template');
+                    var newItem = template.clone();
+
+                    //If is a CommitFund Table, it's added a row before totals rows
+                    if (source.attr('data-linked-table') != 'IdeCommitFundsSecond' &&
+                        source.attr('data-linked-table') != 'IdeCommitFundsNormal' &&
+                        source.attr('data-linked-table') != 'NegCommitFundsNormal' &&
+                        source.attr('data-linked-table') != 'NegCommitFundsSecond') {
+                        newItem.appendTo(table.find('tbody'));
+                    }
+                    else {
+                        table.find('tbody tr:last').before(newItem);
+                    }
+
+                    if ((tableName == 'IdeCommitFundsNormal') || (tableName == 'IdeCommitFundsSecond')) {
+                        var amountId = newItem.find('[data-parsley-lessOrEqualsAmount]');
+                        amountId.each(function () {
+                            var amount = $(this);
+                            var selector = amount.attr('data-parsley-lessOrEqualsAmount');
+                            selector = String.format(selector, "new-" + newId);
+                            amount.attr('data-parsley-lessOrEqualsAmount', selector);
+                        });
+
+                    }
+
+                    newItem.removeClass('template');
+                    newItem.removeClass('hide');
+                    newItem.attr('data-id', String.format('new-{0}', newId));
+
+                    CustomEnable(newItem);
+
+                    inputs = newItem.find('td.operationNumberHidden input, td.totalFundsHidden input');
+                    inputs.attr('disabled', 'disabled');
+
+                    bindHandlers(newItem);
+                    validateChangeTable(table);
+
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+                });
+
+                $(document).on('click', '[name="RemoveRow"]', function () {
+                    var source = $(this);
+                    var table = source.closest('table');
+                    var rows = table.find('> tbody > tr:not(.template)');
+                    var tableName = source.closest('table').attr('id');
+                    var prefix = tableName.substring(0, 3);
+
+                    var button = $('[name="btn-open-popup-common-remove"]');
+                    button.data('pressed-by', source);
+                    button.click();
+                });
+
+                $(document).on('click', '[name="addNewRowDoc"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-doc"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                $(document).on('click', '[name="AddDoc"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-ContractDates-doc"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                $(document).on('click', '[name="AddParticipatingFirmDoc"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-ParticipatingFirm-doc"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                $(document).on('click', '[name="RemoveDocContractAward"]', function () {
+
+                    var source = $(this);
+                    var currencyInit = '(select option)';
+                    var trDoc = source.closest('tr');
+                    var trDetailDoc = trDoc.next();
+                    
+                    var inputSignDate = trDoc.find('input[name="ContractDates-contractSignDate"]');
+                    var inputStartDate = trDoc.find('input[name="ContractDates-startDate"]');
+                    var inputEndDate = trDoc.find('input[name="ContractDates-endDate"]');
+                    var inputCurrency = trDoc.find('input[name="ContractDates-Currency"]');
+                    var dropDownCurrency = inputCurrency.closest('div');
+                    var inputAmount = trDoc.find('input[name="ContractDates-Amount"]');
+                    var buttonDownload = trDoc.find('button[name="DownLoadDocContractDates"]');
+                    var buttonUpload = $('.add-contract-dates-button');
+
+                    buttonUpload.prop('disabled', false);
+                    inputSignDate.val('');
+                    inputStartDate.val('');
+                    inputEndDate.val('');
+                    inputCurrency.val('');
+
+                    var dropdown = dropDownCurrency.find('span.valueText');
+
+                    dropdown.html(currencyInit);
+                    dropDownCurrency.addClass('dropdown placeholder');
+                    inputAmount.val('');
+                    buttonDownload.attr('disabled', 'disabled');
+
+                    var textDocumentUser = trDetailDoc.find('.document-user');
+                    var textDocumentDate = trDetailDoc.find('.document-date-text');
+                    var inputDocumentNumber = trDetailDoc.find('input.document-number');
+                    var textDocumentNumber = trDetailDoc.find('.document-number-text');
+                    var inputDocumentDescription = trDetailDoc.find('input.document-description');
+                    var inputDocumentName = trDetailDoc.find('.document-name');
+                    var inputDocumentNameInput = trDetailDoc.find('.document-name input');
+                    var inputVendorID = trDetailDoc.find('input[name="ContractDates-VendorID"]');
+                    var inputDocumentId = trDetailDoc.find('input[name="ContractDates-DocumentId"]');
+
+                    inputVendorID.val('');
+                    textDocumentUser.text('');
+                    textDocumentDate.text('');
+                    inputDocumentNumber.val('');
+                    textDocumentNumber.text('');
+                    inputDocumentDescription.val('');
+                    inputDocumentName.html(inputDocumentName.children());
+                    inputDocumentNameInput.val('');
+                    inputDocumentId.val('');
+
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+                    uncheckCertify();
+
+                    $('button.buttonBlue[data-linked-table="ContractDates"]').removeClass('disabled');
+                    $('button.buttonBlue[data-linked-table="ContractDates"]').removeAttr('disabled');
+                });
+
+                $(document).on('click', '[name="cancelProcurement"]', function () {
+                    var source = $(this);
+                    var hasAssociatedTasks = source.attr('data-HasAssociatedTasks') == "true";
+
+                    $.ajax({
+                        url: '@Url.Action("HasActiveAssociatedTasks", "FirmProcurement", new { area = "Procurement" })' +
+                             '?procurementId=' + '@Model.Id',
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        type: 'POST',
+                    }).done(function (data) {
+                        hasAssociatedTasks = data.IsValid;
+                    });
+
+                    var modalBtn;
+                    SetRequiredForSubmitType(false);
+
+                    if (!hasAssociatedTasks) {
+                        modalBtn = $('[name="btn-open-popup-cancel-proc"]');
+                        modalBtn.click();
+                    } else {
+                        modalBtn = $('[name="btn-open-popup-cancel-procWithAssociatedTask"]');
+                        modalBtn.click();
+                    }
+
+                    $('.vex').css('z-index', 111);
+                });
+
+                $(document).on('click', '[name="summaryDataButton"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-summary-data"]');
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="DownLoadDocContractDates"]', function () {
+                    var source = $(this);
+
+                    var documentNumber = source.closest('tr').next().find('input.document-number').val().trim();
+                    var url = '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })';
+                    url = url + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                })
+
+                $(document).on('click', '[name="DownLoadDoc"]', function () {
+                    var source = $(this);
+                    var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                    var url = '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })';
+                    url = url + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                });
+
+                $(document).ready(function () {
+                    SelectTab('@ViewBag.ActiveTab');
+                    $('[dd-tab]:not(.active)').addClass('disabled');
+                });
+
+                $(document).on('click', '[name="addNewContractModificationCancellationDoc"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-doc-contractModification-cancellation"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                /*Compare Amount to Commit Funds table*/
+                window.ParsleyValidator.addValidator('lessOrEqualsAmount', function (value, requirement) {
+
+                    var totalFunds = $(requirement);
+                    var compareValue = totalFunds.val();
+
+                    if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                        return true;
+                    }
+
+                    var originalProcurement = convertToDecimal(value);
+                    var totalFundValue = convertToDecimal(compareValue);
+
+                    if ((originalProcurement == null) || (totalFundValue == null)) {
+                        return false;
+                    }
+                    return originalProcurement <= totalFundValue;
+                })
+                 .addMessage('en', 'lessOrEqualsAmount', '@(Localization.GetText("TCP.FirmProcurement.ValidationCommitFundsTables.ValidatedAmounts"))');
+
+                window.ParsleyValidator.addValidator('checkExitModification', function (value, offerId) {
+
+                    var modificationSelector = String.format('[name="radioContractModifications-{0}"]:checked', offerId);
+                    var isModification = $(modificationSelector).val() == 'True';
+
+                    var tableSelector = String.format('table#ModificationDocs{0} > tbody > tr:not(.template)', offerId);
+                    var trs = $(tableSelector);
+
+                    return !(isModification && trs.length == 0);
+                })
+                .addMessage('en', 'checkExitModification', '@(Localization.GetText("TCP.Execution.ContractModification.Message.HaveModification"))');
+
+
+                window.ParsleyValidator.addValidator('checkCertificationModification', function (value, offerId) {
+
+                    var checkCetifySelector = String.format('[name="IsCertifyModifications"][data-id="{0}"]', offerId);
+                    var isCertification = $(checkCetifySelector).is(':checked');
+
+                    return isCertification;
+                })
+                .addMessage('en', 'checkCertificationModification', '@(Localization.GetText("TCP.Execution.ContractModification.Message.RequiredCertification"))');
+
+            });
+
+            function convertToDecimal(string) {
+                var number = string.replaceAll(',', '');
+
+                return parseFloat(number);
+            }
+
+            function convertToDecimalString(amount) {
+                if (amount == null) {
+                    return '';
+                }
+
+                var string = amount.toString();
+                var amountParts = string.split('.');
+                var decimalPart = amountParts[1];
+                var intPart = addCommas(amountParts[0]);
+
+                if (typeof (decimalPart) == "undefined") {
+                    decimalPart = "00";
+                } else if (decimalPart.length == 1) {
+                    decimalPart = decimalPart + "0";
+                }
+
+                return intPart + '.' + decimalPart;
+            }
+
+            function addCommas(nStr) {
+                nStr += '';
+                x = nStr.split('.');
+                x1 = x[0];
+                x2 = x.length > 1 ? '.' + x[1] : '';
+                var rgx = /(\d+)(\d{3})/;
+                while (rgx.test(x1)) {
+                    x1 = x1.replace(rgx, '$1' + ',' + '$2');
+                }
+
+                return x1 + x2;
+            }
+
+            function calculateSubtotal(table) {
+                var subTotalFundLabel = null;
+                var subTotalOriginalLabel = null;
+                var subTotalCMOLabel = null;
+                var subTotalPOLabel = null;
+                var subtotalCMOApprovalCurrencyLabel = null;
+                var fundsLabels = null;
+                var originalLabels = null;
+                var finalCMOLabels = null;
+                var finalPOLabels = null;
+                var finalCMOApprovalCurrencyLabels = null;
+                var subTotalFundValue = 0;
+                var subTotalOriginalValue = 0;
+                var subTotalCMOValue = 0;
+                var subTotalPOValue = 0;
+                var subtotalCMOApprovalCurrencyValue = 0;
+
+                //COOMON PART
+                subTotalFundLabel = $('table[id="' + table + '"]').find('label.TotalFunds-' + table);
+                subTotalOriginalLabel = $('table[id="' + table + '"]').find('label.OriginalFunds-' + table);
+
+                //IDENTIFICATION PART
+                if (table == "IdeCommitFundsNormal" || table == "IdeCommitFundsSecond") {
+                    fundsLabels = $('table[id="' + table + '"]').find('input[name="' + table + '-hiddenTotalFunds"]');
+                    originalLabels = $('table[id="' + table + '"]').find('input[name="' + table + '-originalFunds"]');
+
+                    fundsLabels.each(function (key, item) {
+                        subTotalFundValue = subTotalFundValue + parseFloat($(item).val().replaceAll(',', ''));
+                    });
+
+                    originalLabels.each(function (key, item) {
+                        if ($(item).val() != "") {
+                            subTotalOriginalValue = subTotalOriginalValue + parseFloat($(item).val().replaceAll(',', ''));
+                        }
+                    });
+
+                    subTotalFundLabel.text(convertToDecimalString(subTotalFundValue.toFixed(2)));
+                    subTotalOriginalLabel.text(convertToDecimalString(subTotalOriginalValue.toFixed(2)));
+
+                    //NEGOTIATION PART
+                } else {
+                    subTotalCMOLabel = $('table[id="' + table + '"]').find('[name="total-cmo-current-amount"]');
+                    subTotalPOLabel = $('table[id="' + table + '"]').find('label.FinalPO-' + table);
+                    subtotalCMOApprovalCurrencyLabel = $('table[id="' + table + '"]').find('[name="total-cmo-current-amount-approval"]');
+
+                    finalCMOLabels = $('table[id="' + table + '"]').find('input[name="' + table + '-CMOCurrentAmount"]');
+                    finalPOLabels = $('table[id="' + table + '"]').find('input[name="' + table + '-POAmount"]');
+                    finalCMOApprovalCurrencyLabels = $('table[id="' + table + '"]').find('input[name="' + table + '-CMOCurrentAmountApproval"]');
+
+                    if (finalCMOLabels != null) {
+                        finalCMOLabels.each(function (key, item) {
+                            if ($(item).val() != "" && $(item).val() != "N/A") {
+                                subTotalCMOValue = subTotalCMOValue + parseFloat($(item).val().replaceAll(',', ''));
+                            }
+                        });
+
+                        subTotalCMOLabel.text(convertToDecimalString(subTotalCMOValue.toFixed(2)));
+                    }
+
+                    if (finalPOLabels != null) {
+                        finalPOLabels.each(function (key, item) {
+                            if ($(item).val() != "" && $(item).val() != "N/A") {
+                                subTotalPOValue = subTotalPOValue + parseFloat($(item).val().replaceAll(',', ''));
+                            }
+                        });
+
+                        subTotalPOLabel.text(convertToDecimalString(subTotalPOValue.toFixed(2)));
+                    }
+
+                    if (finalCMOApprovalCurrencyLabels != null) {
+                        finalCMOApprovalCurrencyLabels.each(function (key, item) {
+                            if ($(item).val() != "" && $(item).val() != "N/A") {
+                                subtotalCMOApprovalCurrencyValue = subtotalCMOApprovalCurrencyValue + parseFloat($(item).val().replaceAll(',', ''));
+                            }
+                        });
+
+                        subtotalCMOApprovalCurrencyLabel.text(convertToDecimalString(subtotalCMOApprovalCurrencyValue.toFixed(2)));
+                    }
+                }
+            }
+
+            function calculateTotal(prefix) {
+                var subtotalCommitFundsLabel = $('table[id="' + prefix + 'CommitFundsNormal"]').find('label.OriginalFunds-' + prefix + 'CommitFundsNormal');
+                var subtotalCommitFundsSecondLabel = $('table[id="' + prefix + 'CommitFundsSecond"]').find('label.OriginalFunds-' + prefix + 'CommitFundsSecond');
+                var totalHeaderLabel = $('[name="headerOriginalEstimate"] label');
+                var sumAmount = parseFloat(subtotalCommitFundsLabel.text().replaceAll(',', '')) + parseFloat(subtotalCommitFundsSecondLabel.text().replaceAll(',', ''));
+
+                sumAmount = convertToDecimalString(sumAmount.toString());
+
+                totalHeaderLabel.text('$' + sumAmount);
+            }
+
+            function modifyOptionsModal(docMultiple, addTargetDocument, idModal, calendar,
+                     docFirm, protestDocument, contractModification){
+
+                if((docMultiple != undefined) && (docMultiple != null)){ 
+                    if((docMultiple == "false")) {
+                        $('#' + idModal + ' input#fileArea').removeAttr('multiple');
+                        $('#' + idModal + ' input#documentModal_MultipleSelection').attr('data-val', 'false');
+                        $('#' + idModal + ' input#documentModal_MultipleSelection').val('false');
+                    } 
+                } else {
+                    $('#' + idModal + ' input#fileArea').attr('multiple', 'multiple');
+                    $('#' + idModal + ' input#documentModal_MultipleSelection').attr('data-val', 'true');
+                    $('#' + idModal + ' input#documentModal_MultipleSelection').val('True');
+                }
+
+                if((addTargetDocument != undefined) && (addTargetDocument != null)) {
+                    $('#' + idModal + ' input#documentModal_TargetFunction').val(addTargetDocument);
+                }
+
+                if((calendar != undefined) && (calendar != null)) {
+                    if(calendar == "true") {
+                        $('#' + idModal).attr('data-calendar-optional', calendar);
+                    }
+                } else {
+                    $('#' + idModal).removeAttr('data-calendar-optional');
+                }
+
+                if((docFirm != undefined) && (docFirm != null)) {
+                    if((docFirm == "true")){
+                        $('#' + idModal).attr('data-docs-firm', 'true');
+                    } 
+                } else {
+                    $('#' + idModal).removeAttr('data-docs-firm');
+                }
+
+                if((protestDocument != undefined) && (protestDocument != null)) {
+                    if((protestDocument == "true")){
+                        $('#' + idModal).attr('data-protest-document', 'true');
+                    } 
+                } else {
+                    $('#' + idModal).removeAttr('data-protest-document');
+                }
+
+                if((contractModification != undefined) && (contractModification != null)) {
+                    if( (contractModification == "true")){
+                        $('#' + idModal).attr('data-contract-modification', 'true');
+                    } 
+                } else {
+                    $('#' + idModal).removeAttr('data-contract-modification');
+                }
+            }
+
+            function showDocumentModalBEO(e){
+                var tableId = $(e.currentTarget).attr('data-linked-table');
+                var docMultiple = $(e.currentTarget).attr('data-doc-multiple');
+                var addTargetDocument = $(e.currentTarget).attr('data-target-add');
+                var calendar = $(e.currentTarget).attr('data-calendar-optional');
+                var docFirm = $(e.currentTarget).attr('data-docs-firm');
+                var protestDocument = $(e.currentTarget).attr('data-protest-document');
+                var contractModification = $(e.currentTarget).attr('data-contract-modification');
+                var idModal = "modal" + tableId;
+
+                $('[data-id-modal-drag-drop="documentModalDragDrop"]').attr('id', idModal);
+                modifyOptionsModal(docMultiple, addTargetDocument, idModal, calendar,
+                    docFirm, protestDocument, contractModification);
+                startNewModalDocuments("#" + idModal);
+            }
+
+            function generateProtestNumber(table, index) {
+                var maxNumber = $('table#' + table + ':first tbody tr').size()-1;
+                var newMaxNumber = parseInt(maxNumber) + 1;
+                var pad = function (str, max) {
+                    str = str.toString();
+                    return str.length < max ? pad('0' + str, max) : str;
+                };
+                var newProtestNumber = $('#protestControlsTemplate').find('.protestNumber').text().trim() + pad(newMaxNumber, 2);
+
+                $('table#' + table + ' tbody tr').eq(index).find('[name="ProtestOrder"]').val(newMaxNumber);
+                return newProtestNumber
+            }
+
+            function selectedFirstElement(table, index){
+                var item = $('table#' + table + '  tbody tr').eq(index).find('td[name="ProtestName"] .dropdown');
+                var name = table + '[' + index + '].ProtestName';
+                var id = table + '_' + index + '__ProtestName';
+
+                item.find('ul.dropdown-menu a').each(function(i, val){
+                    var firstElement = $(val).filter(function () {
+                        return $(this).attr('dd-value') != '';
+                    });
+
+                    if (firstElement.length == 1) {
+                        var element = $(val);
+                        element.closest('li').prop('dd-selected', true);
+                        item.find('span.valueText').html(element.text());
+                        item.find('input').attr('value', $.trim($(val).closest('li a').attr('dd-value')));
+                        return false;
+                    }
+                });
+            }
+
+            function addDocumentFirmProcurement(documents, action) {
+                var idModal = $('[data-id-modal-drag-drop="documentModalDragDrop"]').attr('id');
+                var tabAdd = $('#' + idModal + ' li#AddDocumentTab').hasClass('active');
+                var docFirm = $('#' + idModal).attr('data-docs-firm');
+                var protestDocument = $('#' + idModal).attr('data-protest-document');
+                var contractModification = $('#' + idModal).attr('data-contract-modification');
+                var idTable = idModal.replace('modal', '');
+                var table = $('table#' + idTable + ':first');
+                var rowCount = $('table#' + idTable + ":first tbody tr").size();
+                var user = '@IDBContext.Current.UserName';
+                var count = 0;
+
+                var createRow = function(){
+                    var template = $('template#' + idTable).clone()[0];
+                    var row = null;
+                    if (template.content == undefined) {
+                        row = template.getElementsByTagName('tr')[0];
+                    }else{
+                        row = template.content.querySelector('tr');
+                    }
+
+                    var importRow = document.importNode(row, true);
+                    return table.find('tbody').append(importRow);
+                };
+
+                var column = function(name){
+                    return 'table#' + idTable + ':first tbody tr td[name="' + name + '"]';
+                };
+
+                var dataContentButton = function(id, index, docNumber){
+                    var row = 'table#' + idTable + ':first tbody tr td button#' + id;
+                    $(row).eq(index).attr('data-content', docNumber);
+                };
+
+                var inputHidden = function (id, index, val){
+                    var idValue = idTable + '_' + index + '__' + id;
+                    var nameValue = idTable + '[' + index + '].' + id;
+
+                    return $('<input>').attr({
+                        type: 'hidden',
+                        id: idValue,
+                        name: nameValue,
+                        value: val
+                    })[0].outerHTML;
+                };
+
+                var date = function () {
+                    var dt = new Date();
+
+                    return dt.getDate() + ' ' +
+                   dt.toLocaleString('en', { month: "short" })
+                        .replace('.', '') + ' ' + dt.getFullYear();
+                }
+
+                var downloadLink = function (url, docNumber) {
+                    var link = '@IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink("")' + docNumber;
+                    return $('<a>').attr({
+                        href: (url != null && url != typeof(undefined) ? url : link),
+                        target: '_blank',
+                        rel: 'noopener'
+                    }).html(docNumber)[0].outerHTML;
+                };
+
+                var idFirm = function(){
+                    var tr = $('table#' + idTable + ':first tbody tr');
+                    var tdName = '';
+
+                    if(tr.find('td[name="ProposalGenericControl"]')[0] != undefined){
+                        tdName = 'ProposalGenericControl';
+                    }
+
+                    if(tr.find('td[name="FirmProcurementGenericControl"]')[0] != undefined){
+                        tdName = 'FirmProcurementGenericControl';
+                    }
+
+                    if(tr.find('td[name="ProposalFirmWinnerGenericControl"]')[0] != undefined){
+                        tdName = 'ProposalFirmWinnerGenericControl';
+                    }
+
+                    if(tr.find('td[name="FirmExecutionGenericControl"]')[0] != undefined){
+                        tdName = 'FirmExecutionGenericControl';
+                    }
+
+                    return tdName;
+                }
+
+                var firmControl = function(index){
+                    var idTemplate = '#GetFirmsTemplate' + idTable + ' ';
+                    var nameComposite = idTable + '[' + index + '].FirmId';
+                    var idComposite = idTable + '_' + index + '__FirmId';
+                    var idCompositeButton = 'id-' + idTable + '[' + index + '].FirmId';
+                    $(idTemplate + 'input').removeAttr('data-parsley-id');
+                    $(idTemplate + 'input').attr('id', idComposite);
+                    $(idTemplate + 'input').attr('name', nameComposite);
+                    $(idTemplate + 'button').attr('id', idCompositeButton);
+                    $(idTemplate + 'ul').attr('aria-labelledby', idCompositeButton);
+                    $(idTemplate + 'input').removeAttr('data-parsley-id');
+
+                    return $(column(idFirm())).eq(index).html($.trim($(idTemplate).html()));
+                }
+
+                var protestFirmName = function(id, index){
+                    var idTemplate = '#protestControlsTemplate .protestNameControl';
+                    var nameElement = idTable + '[' + index + '].FirmId';
+                    var idElement = idTable + '_' + index + '__FirmId';
+                    $(idTemplate + ' input').removeAttr('data-parsley-id');
+                    $(idTemplate + ' input').attr('name', nameElement);
+                    $(idTemplate + ' button').attr('name', nameElement);
+                    $(idTemplate + ' input').attr('id', idElement);
+                    $(idTemplate + ' button').attr('id', idElement);
+                    return $(column(id)).eq(index).html($.trim($(idTemplate).html()));
+                }
+
+                var contractModificationColumn = function(id, index, offerId){
+                    var idTemplate = '#templateContractModificacion' + offerId;
+                    var nameElement = idTable + '[' + index + '].ModificationList';
+                    var idElement = idTable + '_' + index + '__ModificationList';
+                    $(idTemplate + ' select').removeAttr('data-parsley-id');
+                    $(idTemplate + ' ul li input').removeAttr('data-parsley-id');
+                    $(idTemplate + ' select').attr('name', nameElement);
+                    $(idTemplate + ' select').attr('id', idElement);
+                    $(idTemplate + ' select').attr('data-parsley-multiple', nameElement);
+                    var template = $(idTemplate).clone().find('.chosenMultiSelect')[0];
+                    return $(column(id)).eq(index).append(template);
+                }
+
+                var contractInputColumn = function(template, id, index){
+                    var idTemplate = '#' + template;
+                    $(idTemplate + ' input').removeAttr('data-parsley-id');
+                    $(idTemplate + ' input').attr('name', idTable + '[' + index + '].' + id);
+                    $(idTemplate + ' input').attr('id', idTable + '_' + index + '__' + id);
+                    return $(column(id)).eq(index).append($(idTemplate).clone().find('input')[0]);
+                }
+
+                var drawColumn = function(link, id, index, val, docNum){
+                    var item = (val !== undefined) ? val : '';
+                    return $(column(id)).eq(index).html(inputHidden(id, index, (link ? docNum : item)) +
+                           (link ? downloadLink(item, docNum) : item));
+                };
+
+                for (var i = 0; i < documents.length; i++) {
+                    count = rowCount + i;
+                    createRow();
+
+                    if ((docFirm !== undefined) && (docFirm !== null)){
+                        if (docFirm === "true") {
+                            firmControl(count);
+                            var inputs = '#Negotiations .ProposalFirmWinnerGenericControl,' + 
+                                '#ProposalDocs .FirmProcurementGenericControl';
+                            SelectFirstElementOnDropDown(
+                                $(inputs).last());
+                        }
+                    }
+
+                    if((protestDocument !== undefined) && (protestDocument !== null)){
+                        if(protestDocument === "true") {
+                            drawColumn(false, 'ProtestOrder', count, count+1);
+                            drawColumn(false, 'ProtestNumber', count, generateProtestNumber(idTable, count));
+                            protestFirmName('ProtestName', count);
+                            selectedFirstElement(idTable, count);
+                        }
+                    }
+                    
+                    if((contractModification !== undefined) && (contractModification !== null)){
+                        if(contractModification === "true") {
+                            var offerId = idTable.replace('ModificationDocs', ''); 
+                            drawColumn(false, 'ContractId', count, 0);
+                            contractModificationColumn('ModificationList', count, offerId);
+                            contractInputColumn('templateContractAmount' + offerId, 'ContractTotalAmount', count);
+                            contractInputColumn('templateContractEndData' + offerId, 'EndDate', count); 
+                            bindHandlers();
+                            var removeItem = $('table#' + idTable + ' tbody tr').eq(count).find('td[name="ModificationList"]');
+                            removeItem.find('.chosen-container')[1].remove();
+                        }
+                    }
+
+                    drawColumn(false, 'DocumentId', count, (tabAdd ? documents[i].DocumentId : '0'));
+                    drawColumn(false, 'IsPublished', count, false);
+                    drawColumn(false, 'SecureUrl', count, documents[i].Link);
+                    drawColumn(true, 'DocumentNumber', count, documents[i].Link, documents[i].DocumentNumber);
+                    drawColumn(false, 'DocumentName', count, documents[i].DocumentName);
+                    drawColumn(false, 'Author', count, (tabAdd ? documents[i].CreatedBy
+                        : (documents[i].AuthorId !== '' ? documents[i].AuthorId : user)));
+                    drawColumn(false, 'CreationDate', count, (tabAdd ? date()
+                        : documents[i].UsDateParser));
+                    dataContentButton('btnRemoveDocumentReference', count, documents[i].DocumentNumber);
+                    dataContentButton('btnReplaceDocument', count, documents[i].DocumentNumber);
+                }
+
+               
+            }
+
+            function addDocumentReoiAndContractDocs(documents){
+                var idTable = $('[data-id-modal-drag-drop="documentModalDragDrop"]').attr('id').replace('modal', '');
+                var calendar = $('#modal' + idTable).attr('data-calendar-optional');
+
+                var inputCheck = function(id, index){
+                    var idValue = idTable + '_' + index + '__' + id;
+                    var nameValue = idTable + '[' + index + '].' + id;
+                    var span = $('<span>').attr({ class: 'checkbox-default-icon' })[0].outerHTML;
+                    var check = $('<input>').attr({ 
+                        type: 'checkbox', 
+                        id: idValue,
+                        name: nameValue, 
+                        onclick: 'statusCalendar(event)' })[0].outerHTML;
+                    return $('<label>').attr({ class: 'checkbox-default' }).append(check + span)[0].outerHTML;
+                };
+
+                var inputDataPicker = function(id, index){
+                    var idValue = idTable + '_' + index + '__' + id;
+                    var nameValue = idTable + '[' + index + '].' + id;
+                    $('#templateInputDatePicker input').removeAttr('data-parsley-id');
+                    $('#templateInputDatePicker input').attr('name', nameValue);
+                    $('#templateInputDatePicker input').attr('id', idValue);
+                    return $.trim($('#templateInputDatePicker').html());
+                };
+
+                var dataContentButton = function(id, index, docNumber){
+                    var row = 'table#' + idTable + ':first tbody tr td button#' + id;
+                    $(row).eq(index).attr('data-content', docNumber);
+                };
+
+                var rowCount = function(){
+                    return $('table#' + idTable + ":first tbody tr").size()-1;
+                };
+
+                var drawControl = function(name, val){
+                    return $('table#' + idTable + ' tbody tr:last td[name="' + name + '"]').html(val);
+                };
+
+                for (var i = 0; i < documents.length; i++) {
+                    addDocumentFirmProcurement(documents.slice(i, i+1));
+                    drawControl('IsPublishIDBControl', inputCheck('IsPublishIDB', rowCount()));
+
+                    if(calendar){
+                        drawControl('DeadlineDateControl', inputDataPicker('DeadlineDate', rowCount()));
+                        $('[name="DeadlineDateControl"] input').parsley();
+                        bindHandlers();
+                        initParsleyField($('[name$="DeadlineDate"][name^="REOIs"]'));
+                    }
+
+                    drawControl('IsPublishUNDBControl', inputCheck('IsPublishUNDB', rowCount()));
+                    dataContentButton('btnDiscloseDocument', rowCount(), documents[i].DocumentNumber);
+                }
+            }
+
+            function statusCalendar(event){
+                var target = $(event.target);
+                var tdName = target.closest('td').attr('name');
+                var trItem = target.closest('tr');
+                var check = target.closest('td input[type="checkbox"]').prop('checked');
+
+                if(tdName == 'IsPublishIDBControl') { 
+                    if(check){
+                        trItem.find('td input.datepicker-default').removeAttr('disabled');
+                    } else {
+                        trItem.find('td input.datepicker-default').attr('disabled', 'disabled');
+                    }
+                } else {
+                    if(check){
+                        trItem.find('td input.datepicker-default').removeAttr('disabled');
+                        trItem.find('td[name="IsPublishIDBControl"] input').removeAttr('disabled');
+                        trItem.find('td[name="IsPublishIDBControl"] input').prop('checked', true);
+                    } 
+                }
+
+            }
+
+            function deleteDocumentBEO(documentNumber, event){
+                var target = $(event).closest('table');
+                var tableName = target.attr("id");
+                $("table#" + tableName + " tbody tr:contains('" + documentNumber + "')").remove();
+            }
+
+            $(document).on('change', 'table[id^="ModificationDocs"] select', function () {
+
+                var source = $(this);
+                var selectedVals = source.val();
+                var tr = source.closest('tr');
+                var amountInput = tr.find('td[name="ContractTotalAmount"] input');;
+                var dateInput = tr.find('td[name="EndDate"] input');
+                var amountId = '@ViewBag.Amount';
+                var dateId = '@ViewBag.Date';
+                var cancellationId = '@ViewBag.Cancellation';
+
+                if (selectedVals == null) {
+                    amountInput.attr('disabled', 'disabled');
+                    dateInput.attr('disabled', 'disabled');
+                    amountInput.val('');
+                    dateInput.val('');
+                } else {
+
+                    if (selectedVals.indexOf(amountId) >= 0) {
+                        amountInput.removeAttr('disabled');
+                    } else {
+                        amountInput.attr('disabled', 'disabled');
+                        amountInput.val('');
+                    }
+
+                    if (selectedVals.indexOf(dateId) >= 0) {
+                        dateInput.removeAttr('disabled');
+                    } else {
+                        dateInput.attr('disabled', 'disabled');
+                        dateInput.val('');
+                    }
+
+                    if (selectedVals.indexOf(cancellationId) >= 0) {
+                        amountInput.attr('disabled', 'disabled');
+                        amountInput.val('');
+                        dateInput.attr('disabled', 'disabled');
+                        dateInput.val('');
+                    }
+                }
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+        </script>
+    }
+}

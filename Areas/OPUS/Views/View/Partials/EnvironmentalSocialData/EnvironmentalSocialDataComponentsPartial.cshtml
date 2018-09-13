@@ -1,0 +1,160 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using System.Globalization
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.OPUSModule.ViewModels.EnvironmentalSocialDataService
+@using IDB.Presentation.MVC4.Areas.OPUS.Models
+@using IDB.Architecture.Language
+
+@model IDB.MW.Application.OPUSModule.ViewModels.EnvironmentalSocialDataService.EnvironmentalSocialDataViewModel
+
+@{
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+}
+
+@if (Model.SustainabilityComponents != null)
+{
+    var fundAmountObjects = Model.FundFundAmount.Cast<object>().ToList();
+
+    <div class="row row-body-50 font-body">
+        <div class="col-md-12">
+            @{
+    var configg = Html.RenderDataTable(Model.SustainabilityComponents);
+
+    configg.Name("SustainabilityComponents")
+    .PrimaryKey(m => m.SustainabilityComponentsId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .Columns(columns =>
+    {
+        columns.Bound(c => Input.DropDownGetSelectedString(ViewBag.EnumMapping[c.FinancingTypeId], ViewBag.FinancingTypeList))
+            .EditableTemplate(row => Input.DropDown(
+                ViewBag.EnumMapping[row.FinancingTypeId],
+                "FinancingTypeId",
+                @ViewBag.FinancingTypeList,
+                showEmptyOption: false))
+            .Header(Localization.GetText("OPUS.ESG.SustainabilityComponents.FinancingType"));
+
+        columns.Bound(c => Input.DropDownGetSelectedText(c.FundId, Model.FundFundAmount, valuePropertyName: "FundId", textPropertyName: "FundName"))
+            .EditableTemplate(row => Input.DropDown(
+                row.FundId,
+                "FundId",
+                Model.FundFundAmount,
+                textPropertyName: "FundName",
+                valuePropertyName: "FundId"))
+            .Header(Localization.GetText("OPUS.ESG.SustainabilityComponents.Fund"));
+
+        columns.Bound(c => FormatHelper.Format(c.FundAmount, formatDecimal))
+            .Header(Localization.GetText("OPUS.ESG.SustainabilityComponents.FundAmount"))
+            .EditableTemplate(row => ControlTemplates.InputDecimal(
+                row.FundAmount,
+                "FundAmount",
+                required: false,
+                minValue: "0.00",
+                maxValue: "999999999999.99",
+                numberSeparator: ",",
+                decimalSeparator: ".",
+                expReg: expRegDecimal,
+                disabled: true));
+
+        columns.Bound(c => Input.DropDownGetSelectedString(ViewBag.EnumMapping[c.SustainabilityTypeId], ViewBag.SustainabilityTypeList))
+            .EditableTemplate(row => Input.DropDown(
+                ViewBag.EnumMapping[row.SustainabilityTypeId],
+                "SustainabilityTypeId",
+                ViewBag.SustainabilityTypeList,
+                id: "SustainabilityTypeId-" + row.SustainabilityComponentsId))
+            .Header(Localization.GetText("OPUS.ESG.SustainabilityComponents.SustainabilityType"));
+
+        columns.Bound(c => Input.DropDownGetSelectedString(c.ComponentId, ViewBag.ComponentList))
+            .EditableTemplate(row => Input.DropDownAjax(
+                row.ComponentId,
+                "ComponentId",
+                @Url.Action("SearchSubphaseComponents", "View", new { area = "OPUS" }),
+                parentDropdownId: "SustainabilityTypeId-" + row.SustainabilityComponentsId
+                )).Header(Localization.GetText("OPUS.ESG.SustainabilityComponents.Component"));
+
+        columns.Template(ComponentAmount).Persistent().Header(Localization.GetText("OPUS.ESG.SustainabilityComponents.ComponentAmount"));
+
+        columns.Bound(c => String.Empty).Attribute("data-pagemode", y => "edit")
+            .HeaderAttribute("data-pagemode", "edit")
+            .EditableTemplate(row => Display.Button07_4(text: string.Empty, name: "removeSustainability", action: "removeSustainability"));
+    });
+
+    configg.TableClass = "table-default";
+
+    @helper ComponentAmount(SustainabilityComponentsViewModel view)
+{
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+
+    <div data-pagemode="read">
+        @FormatHelper.Format(view.ComponentAmount, formatDecimal).HtmlEncode()
+    </div>
+
+    <div data-pagemode="edit">
+        @ControlTemplates.InputDecimal(view.ComponentAmount, "ComponentAmount",
+                                                required: true, minValue: "0.00", maxValue: "999999999999.99",
+                                                numberSeparator: ",", decimalSeparator: ".", expReg: expRegDecimal)
+
+        @ControlTemplates.InputText(value: "forceValidate", name: "validatorComponentsAmount",
+                                                        htmlClass: "hide",
+                                                        dataAttributes: new Dictionary<string, string> {
+                                                        {"force-parsley-validation","true"},
+                                                        {"parsley-componentamount","true"}
+                                                        })
+    </div>
+}
+
+    configg.RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow,
+            @<tr class="hide" style="vertical-align:top;">
+                <td data-pagemode="edit">
+                    @Input.DropDown(null, "FinancingTypeId", ViewBag.FinancingTypeList)
+                </td>
+                <td data-pagemode="edit">
+                    @Input.DropDown(
+                     (string)null,
+                     "FundId",
+                     Model.FundFundAmount,
+                     textPropertyName: "FundName",
+                     valuePropertyName: "FundId")
+                </td>
+                <td data-pagemode="edit">
+                    @ControlTemplates.InputDecimal(null, "FundAmount", required: false, minValue: "0.00", maxValue: "999999999999.99", numberSeparator: ",", decimalSeparator: ".", expReg: expRegDecimal, disabled: true)
+                </td>
+                 <td data-pagemode="edit">
+                     @Input.DropDown(
+                     null,
+                     "SustainabilityTypeId",
+                     ViewBag.SustainabilityTypeList,
+                     id: null)
+                 </td>
+                 <td data-pagemode="edit">
+                     @Input.DropDownAjax(
+                     null,
+                     "ComponentId",
+                     @Url.Action("SearchSubphaseComponents", "View", new { area = "OPUS" }),
+                     parentDropdownId: null)
+                 </td>
+                <td data-pagemode="edit">
+                    @ControlTemplates.InputDecimal(null, "ComponentAmount", required: true, disabled: true, minValue: "0.00", maxValue: "999999999999.99", numberSeparator: ",", decimalSeparator: ".", expReg: expRegDecimal)
+                    <input type="text" disabled="disabled" class="hide" name="validatorComponentsAmount" data-force-parsley-validation="true" data-parsley-componentamount="true" />
+                </td>
+                <td data-pagemode="edit">
+                    @Display.Button07_4(text: string.Empty, name: "removeSustainability", action: "removeSustainability")
+                </td>
+            </tr>);
+    });
+
+    @Html.Partial("Controls/DataTable", configg)
+
+            }
+            <div class="col-md-12 text-center" data-pagemode="edit">
+                @Display.Button08(Localization.GetText("OPUS.ESG.SustainabilityComponents.New"), name: "newComponentSustainabilityComponents", action: "newComponentSustainabilityComponents")
+            </div>
+        </div>
+    </div>
+}

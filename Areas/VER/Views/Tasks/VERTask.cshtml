@@ -1,0 +1,136 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.VERModule.ViewModels.TaskViewModel
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    }
+
+<input hidden data-idb-pagename="" />
+
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl="@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })"
+     data-url="@Url.Action("VERUpdateTask", "Tasks", new { area = "VER" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit"><input type="hidden" name="changeStatus" value="none" /></span>
+
+    <span class=" text-right">
+        @Html.Partial("Partials/VERTaskButtons")
+    </span>
+    
+    <div class="row row-body-40">
+        @Confluence.LabelSubTitleGroup(text:Localization.GetText("VER.GLOBAL.Instructions"), htmlClass: "bold" )
+       <p class="mt10 mb20">@Model.Instructions</p>
+    </div>
+
+    <div class="row row-body-40" id="taskComments">
+        @Html.Partial("Partials/VERTaskComments", Model)
+    </div>
+        
+    <div class="row" id="footer-section">
+        <span class="text-right">@Html.Partial("Partials/VERTaskButtons")</span>
+    </div>
+</div>
+
+
+@section scripts
+{
+    @if (k2Mode)
+    {
+
+        @ModuleScripts.K2UIIntegration()
+
+    }
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+            @if (k2Mode)
+        {
+            @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+                                @:$(".operationData").css("padding-left", "0")
+                                @:$("#headerButtons").css("margin-right", "-12%")
+                                @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                            }
+            enterEditMode(false, $('#taskComments'), true);
+            enterEditMode(false, $('#headerButtons'), true);
+            enterEditMode(false, $('#footer-section'), true);
+        });
+
+        function cancelVERTask(source) {
+            window.location.href = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+        }
+
+        function confirmModal(source) {
+            confirmAction(source.attr("data-modal-message")).done(function (selectionOk) {
+                if (selectionOk)
+                    if (source.attr("data-action-ok") != null) eval(source.attr("data-action-ok") + "()");
+                    else
+                        if (source.attr("data-action-Nok") != null) eval(source.attr("data-action-Nok") + "()");
+            });
+        }
+
+        function saveCompleteVER() {
+            $("[name=changeStatus]").val("CompleteTask");
+            var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+            saveVERTask(url);
+        }
+
+       function saveOnly() {
+            $("[name=changeStatus]").val("none");
+            var url = '@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })';
+            saveVERTask(url);
+        }
+
+        function saveVERTask(url) {
+
+            var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+            if (response !== false) {
+                response.done(function (data) {
+                    closeModal();
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null || data.ErrorMessage != '')
+                            showMessage("Error when saving the VER Task!");
+                        else
+                            showMessage(data.ErrorMessage);
+                    }
+                    else {
+                        window.open(url, "_self");
+                    }
+                });
+
+            }
+
+        }
+
+        function closeModal() {
+            var vexModal = $('.VERModal').parents('.vex');
+            vex.closeByID(vexModal.data().vex.id);
+        }
+
+        function newComment(source) {
+            var newBlock = '<div data-pagemode="edit"  class="pb20">' +
+                '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+            section2: Confluence.Label(Model.UserName), section3: null, value: "", name: "newComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")'+
+            '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+
+            $("#divTaskComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+            enterEditMode(false, $("#divTaskComments"), false);
+            bindHandlers($("#divTaskComments"));
+        }
+
+        function deleteComment(source) {
+            if (source.attr("data-commentId")) {
+                $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+            }
+
+            source.siblings("div.inputComment").parent().remove();
+        }
+        
+    </script>
+}

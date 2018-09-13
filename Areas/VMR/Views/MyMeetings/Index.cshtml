@@ -1,0 +1,97 @@
+﻿@model IDB.MW.Application.VMRModule.ViewModels.MyMeeting.MyMeetingsViewModel
+<div class="row row-header">
+    <div class="col-md-6 subtitleGroup">
+        @Confluence.LabelMainTitle(Localization.GetText("VMR.MM.MyMeetingsTab.Title"))
+    </div>
+</div>
+<div class="row mb30">
+    <div class="col-md-12">
+        @Html.Partial("Partials/MyMeetingsFilter")
+    </div>
+</div>
+<div class="resultsPerPageDocuments mb20 pull-right">
+    @Confluence.InputDropDown("10", "ddDisplayedByPage", (List<SelectListItem>) ViewBag.ResultsPerPageList, width: "180px", required: false, orderAsc: false, showEmptyOption: false, placeholder: null)
+</div>
+<div class="div-content" id="myMeetings"
+     data-idb-fieldname="myMeetingsContent"
+     data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-loadurl="@Url.Action("Index", "MyMeetings", new {area = "VMR"})">
+    @if (Model != null && Model.MyMeetingsList != null)
+    {
+        @Html.Partial("Partials/MeetingsContent", Model.MyMeetingsList)
+    }
+</div>
+
+
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            loadPagination();
+            $('ul.dropdown-menu[aria-labelledby="id-ddDisplayedByPage"]').click(function() {
+                loadPagination();
+            });
+            $('#MyMeetingsTable').sortableConfluense();
+        });
+
+        function loadPagination() {
+            $('#MyMeetingsTable').paginationConfluense($('input[name="ddDisplayedByPage"]').val());
+            $('#tableMyMeetings').find('.Pagination').css({ 'width': '100%', 'max-width': '100%', 'min-width': '100%' });
+        }
+
+        function MyMeetingsClearAll() {
+            $('#id-filterType').FirstorDefault();
+            $('input[name="operationText"]').val('');
+            $('input[name="filterDate"]').val('');
+            MyMeetingsSearch();
+        }
+
+        function goToMeeting(source) {
+            setTimeout(function() {
+                showLoaderOptional();
+                var url = $(source).attr("data-url");
+                window.open(url, '_self');
+            }, 1400);
+        }
+
+        function goToMeetingSharepoint(source) {
+            var url = $(source).attr("data-urlshp");
+            window.top.location.href = url;
+        }
+
+        function MyMeetingsSearch() {
+            var operation = $('input[name="operationText"]').val();
+            var meetingDate =
+                $('input[name="filterDate"]').val() != null &&
+                $('input[name="filterDate"]').val() != undefined &&
+                $('input[name="filterDate"]').val() !== ""
+                    ? $('input[name="filterDate"]').val()
+                    : null;
+            var filterType =
+                $('input[name="filterType"]').val() != null &&
+                $('input[name="filterType"]').val() != undefined &&
+                $('input[name="filterType"]').val() !== ""
+                    ? parseInt($('input[name="filterType"]').val())
+                    : 0;
+            var pageSize = $('input[name="ddDisplayedByPage"]').val();
+
+            $.ajax({
+                type: "POST",
+                async: false,
+                url: "@Url.Action("FilterTableMyMeetings", "MyMeetings", new {Area = "VMR"})",
+                data: { 'meetingDate': meetingDate, 'filterType': filterType, 'operationName': operation }
+            }).done(function(data) {
+                var resultSearchPanel = $('#tableMyMeetings');
+                resultSearchPanel.html(data);
+                bindHandlers(resultSearchPanel);
+                $('#MyMeetingsTable').paginationConfluense(pageSize);
+                $('#MyMeetingsTable').sortableConfluense();
+            }).error(function (error) {
+                hideLoader();
+                showMessage(error.responseText);
+            });
+        }
+
+    </script>
+}

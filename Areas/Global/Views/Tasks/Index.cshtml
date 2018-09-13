@@ -1,0 +1,1490 @@
+﻿@model dynamic
+@using IDB.MW.Domain.Models.Architecture.Enumerations;
+@using System.Configuration;
+@{
+    var tasktypecontent = string.Join("|", ((List<string>)ViewBag.TaskType));
+
+    bool localTask = string.IsNullOrWhiteSpace(ConfigurationManager.AppSettings["Domain"]);
+}
+@section CSS
+{
+    <link href="@Url.Content("~/Content/esmartGeneral.css")" rel="stylesheet" />
+    <link href="@Url.Content("~/Content/Modules/Globals/globals.css")" rel="stylesheet" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo.everis.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/datepicker.css")" />
+    <link href="@Url.Content("~/Content/Modules/Task/index.css")" rel="stylesheet" />
+}
+
+@section JavaScript
+{
+    <script type="text/javascript" src='@Url.Content("~/Scripts/Modules/Task/DelegatingTask.js")'></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/modules/disbursement/disbursement.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Global/global.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/kendo.all.min.js")"></script>
+
+    <script type="text/javascript">
+        var loadingPanelNew = null;
+        var loadingPanelNewOptinal = null;
+
+        function showLoader(text) {
+            setTimeout(function () {
+                if (loadingPanelNew.length > 0) {
+                    loadingPanelNew.show();
+                    if (text !== undefined) {
+                        var textZone = loadingPanelNew.find('.confluence-loader-text');
+                        if (textZone.length > 0) {
+                            textZone.text(text);
+                        }
+                    }
+                }
+            }, 100);
+        }
+
+        function showLoaderOptional(text) {
+            setTimeout(function () {
+                if (loadingPanelNewOptinal.length > 0) {
+
+                    if (loadingPanelNew !== null) {
+                        loadingPanelNew.hide();
+                    }
+
+                    loadingPanelNewOptinal.show();
+                    if (text !== undefined) {
+                        var textZone = loadingPanelNewOptinal.find('.confluence-loader-text');
+                        if (textZone.length > 0) {
+                            textZone.text(text);
+                        }
+                    }
+                }
+            }, 100);
+        }
+
+        function hideLoader() {
+            setTimeout(function () {
+                if (loadingPanelNew !== null) {
+                    loadingPanelNew.fadeOut('slow');
+                }
+            }, 100);
+        }
+
+        function hideLoaderOptional() {
+            setTimeout(function () {
+                if (loadingPanelNewOptinal.length > 0) {
+                    loadingPanelNewOptinal.fadeOut('slow');
+                }
+            }, 100);
+        }
+        function showDelegatedUserTaskDetail(taskId, username) {
+            var urlRoute = "@Url.Action("DelegatingTaskAssigned", "Tasks", new {area = "Global"})" +
+                "?operationNumber=@ViewBag.OperationNumber&taskId=" + taskId + "&username=" + username;
+
+            // Display modal window to remove impact from the server side
+            $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+            $("body").append('<div class="dinamicModal"></div>');
+            var title = "Warning";
+            var dialog = $(".dinamicModal").kendoWindow({
+                width: "650px",
+                title: "@Localization.GetText("Delegated Task")",
+                draggable: false,
+                resizable: false,
+                content: urlRoute,
+                pinned: true,
+                actions: [
+                    "Close"
+                ],
+                modal: true,
+                visible: false,
+                close: function () {
+                    $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                    $(".ui-widget-overlay").remove();
+                    $(".k-window").remove();
+                }
+            }).data("kendoWindow");
+            dialog.open();
+        }
+
+        var listId = new Array();
+        var HasOperation = '@ViewBag.OperationNumber';
+        var tasktype = '@tasktypecontent';
+        var arraytasktype = tasktype.split('|');
+        var content = "";
+
+        (function (idbTaskList, $, undefined) {
+            var self = idbTaskList;
+            self.gridDataSource = new kendo.data.DataSource({
+                transport: {
+                    read: {
+                        url: '@this.Url.Action("GetData", "Tasks", new
+                     {
+                         area = "Global",
+                         operationTasks = ViewBag.OperationTasks,
+                         OperationNumber = @ViewBag.opNumber
+                     })',
+                        dataType: "json",
+                        contentType: "application/json",
+                        type: "POST",
+                        complete: function (e) {
+                            reloadcorrectdate();
+                            $("#divFilters").css("display", "block");
+                            $("#filterValueType").append(content);
+                            $("#filterValueType").kendoDropDownList({ null: null });
+                            $(".datepicker").kendoDatePicker({
+                                format: "{0:dd MMM yy}"
+                            });
+                        }
+                    },
+                    update: {
+                        url: '@this.Url.Action("Update", "Tasks", new {
+                         area = "Global",
+                         operationTasks = ViewBag.OperationTasks})',
+                        dataType: "json",
+                        contentType: "application/json",
+                        type: "POST",
+                        complete: function (e) {
+                            showNotification({
+                                "message": "Task Priorities has been updated",
+                                "type": 500,
+                                "autoClose": "true",
+                                "duration": "2000"
+                            });
+                        }
+                    },
+                    parameterMap: function (options) {
+                        return kendo.stringify(options);
+                    }
+                },
+                schema: {
+                    data: "Data",
+                    total: "Total",
+                    model: {
+                        id: 'WorkflowInstanceTaskId',
+                        fields: {
+                            'TaskNameEn': {
+                                type: "string",
+                                editable: false
+                            },
+                            'WorkflowId': {
+                                type: "string",
+                                editable: false
+                            },
+                            'Priority': {
+                                type: "string",
+                                editable: true
+                            },
+                            'WorkflowNameEn': {
+                                type: "string",
+                                editable: false,
+                                sortable: true
+                            },
+                            'OpertationNumber': {
+                                type: "string",
+                                editable: false
+                            },
+                            'OpertationName': {
+                                type: "string",
+                                editable: false
+                            },
+                            'Loans': {
+                                type: "string",
+                                editable: false
+                            },
+                            'Due': {
+                                type: "date",
+                                editable: true
+                            },
+                            'Tags': {
+                                type: "string",
+                                editable: false
+                            },
+                            'OperationName': {
+                                type: "string",
+                                editable: false
+                            },
+                            'StartDate': {
+                                type: "date",
+                                editable: false
+                            },
+                            'Action': {
+                                type: "date",
+                                editable: false
+                            }
+                        }
+                    }
+                },
+                pageSize: 10,
+                ServerOperation: false,
+                batch: true
+            });
+
+            if (HasOperation == '') {
+                idbTaskList.init = function () {
+                    $('#main-task-grid').kendoGrid({
+                        columns: [
+                            {
+                                field: "TaskNameEn",
+                                title: "@Localization.GetText("Task")",
+                                template: kendo.template($("#grid_taskName").html()),
+                                width: 140
+                            },
+                            {
+                                field: "WorkflowNameEn",
+                                title: "@Localization.GetText("Workflow")",
+                                template: kendo.template($("#grid_taskWorkflow").html()),
+                                width: 120
+                            },
+                            {
+                                field: "OpertationNumber",
+                                title: "@Localization.GetText("Operation")",
+                                template: kendo.template($("#grid_OperationNumber").html()),
+                                width: 140
+                            },
+                            {
+                                field: "Loans",
+                                title: "@Localization.GetText("Loan(s)")",
+                                width: 80
+                            },
+                            {
+                                field: "WorkflowInstanceTaskId",
+                                title: "@Localization.GetText("Delegate")",
+                                template: kendo.template($("#grid_action").html()),
+                                width: 80
+                            },
+                            {
+                                field: "StartDate",
+                                title: "@Localization.GetText("Created Date")",
+                                format: "{0:dd MMM yy}",
+                                template: "#= kendo.toString(kendo.parseDate(StartDate, 'd'), 'dd MMM yy') #",
+                                width: 80,
+                            },
+                            {
+                                field: "Action",
+                                title: "@Localization.GetText("Action")",
+                                template: kendo.template($("#grid_details").html()),
+                                width: 100
+                            },
+                            {
+                                field: "isInactiveTaskFP",
+                                title: "isInactiveTaskFP",
+                                template: "#= isInactiveTaskFP ? 'true' : 'false' #",
+                                width: 100,
+                                hidden: true
+                            }
+                        ],
+                        pageable: {
+                            pageSize: 10,
+                            info: false,
+                            previousNext: false,
+                            messages: {
+                                display: "",
+                                first: "",
+                                previous: "",
+                                next: "",
+                                last: "",
+                                refresh: ""
+                            }
+                        },
+                        detailTemplate: kendo.template($("#grid_detailsthis").html()),
+                        detailInit: detailInit,
+                        sortable: true,
+                        editable: true,
+                        dataSource: self.gridDataSource,
+                        dataBound: updateTotalTasks
+                    });
+                };
+            } else {
+                idbTaskList.init = function () {
+                    $('#main-task-grid').kendoGrid({
+                        columns: [
+                            {
+                                field: "TaskNameEn",
+                                title: "@Localization.GetText("Task")",
+                                template: kendo.template($("#grid_taskName").html()),
+                                width: 140
+                            },
+                            {
+                                field: "WorkflowNameEn",
+                                title: "@Localization.GetText("Workflow")",
+                                template: kendo.template($("#grid_taskWorkflow").html()),
+                                width: 120
+                            },
+                            {
+                                field: "OpertationNumber",
+                                title: "@Localization.GetText("Operation")",
+                                template: kendo.template($("#grid_OperationNumber").html()),
+                                width: 140
+                            },
+                            {
+                                field: "Loans",
+                                title: "@Localization.GetText("Loan(s)")",
+                                width: 80
+                            },
+                            {
+                                field: "WorkflowInstanceTaskId",
+                                title: "@Localization.GetText("Delegated")",
+                                template: kendo.template($("#grid_action").html()),
+                                width: 80
+                            },
+                            {
+                                field: "StartDate",
+                                title: "@Localization.GetText("Created Date")",
+                                format: "{0:dd MMM yy}",
+                                template: "#= kendo.toString(kendo.parseDate(StartDate, 'd'), 'dd MMM yy') #",
+                                width: 80,
+                            },
+                            {
+                                field: "Action",
+                                title: "@Localization.GetText("Action")",
+                                template: kendo.template($("#grid_details").html()),
+                                width: 100
+                            },
+                            {
+                                field: "isInactiveTaskFP",
+                                title: "isInactiveTaskFP",
+                                template: "#= isInactiveTaskFP ? 'true' : 'false' #",
+                                width: 100,
+                                hidden: true
+                            }
+                        ],
+                        pageable: {
+                            pageSize: 10,
+                            info: false,
+                            previousNext: false,
+                            messages: {
+                                display: "",
+                                first: "",
+                                previous: "",
+                                next: "",
+                                last: "",
+                                refresh: ""
+                            }
+                        },
+                        detailInit: detailInit,
+                        sortable:
+                        {
+                            allowUnsort: false
+                        },
+                        detailTemplate: kendo.template($("#grid_detailsthis").html()),
+                        editable: false,
+                        dataSource: self.gridDataSource,
+                        dataBound: updateTotalTasks
+                    });
+                };
+            }
+        }(window.idbTaskList = window.idbTaskList || {}, jQuery));
+        
+
+        $(document).ready(function () {
+
+            loadingPanelNew = $('#layoutLoadingDiv');
+            loadingPanelNewOptinal = $('#layoutLoadingOptionalDiv');
+
+            var counterload = 0;
+            $("#btnShowFilters").click(function () {
+                if (counterload == 0) {
+                    $("#filterValueType").kendoDropDownList({ null: null });
+                    $(".datepicker").kendoDatePicker({
+                        format: "{0:dd MMM yy}"
+                    });
+                    counterload = 1;
+                }
+                $("#filterValue").focus();
+            });
+
+            showMyOperationsFilter("#main-task-grid");
+            idbTaskList.init();
+
+            $("#comboTotalDisplayed").kendoDropDownList({
+                change: changeTasksDisplay
+            });
+
+            $("#comboPriority").kendoDropDownList({
+                change: PriorityFilter
+            });
+
+            $("#btnFilterGrid").click(function () {
+                initialfilter = false;
+                make_filter("#main-task-grid");
+            });
+
+            $("#clearBtn").click(function e() {
+                initialfilter = true;
+                $('#frmFilterMyOperations')[0].reset();
+                make_filter("#main-task-grid");
+            });
+
+            $("#RadioDue").click(function e() {
+                DueFilter();
+            });
+
+            $("#RadioAll").click(function e() {
+                AllFilter();
+            });
+
+            $("#btnSave").click(function e() {
+                var grid = $("#main-task-grid").data("kendoGrid");
+                grid.dataSource.sync();
+            });
+
+            $("#btnSubmit").click(function e() {
+
+                counterProcessResult = 99999;
+                listobjectcomments = [];
+                idbg.lockUi(null, true);
+                var errorresult = false;
+
+                validateitemstodelete();
+                errorresult = validatecommentstext();
+                if (!errorresult) {
+                    errorresult = false;
+                    showMessageValidation(5);
+                } else {
+                    errorresult = validateclassification();
+                    if (errorresult) {
+                        errorresult = validatecmbtask();
+                        if (errorresult) {
+                            counterProcessResult = listobjectcomments.length;
+                            savecommentsandvalidatetask(optionscomments.Comments);
+                            validateisreload();
+                        } else {
+                            $(".loading-container").remove();
+                        }
+                    }
+                }
+            });
+
+            $(".loading-container").remove();
+
+            var data = [
+                { text: idbg.getPath("/Images/Icons/row_green_down.png"), value: "0" },
+                { text: idbg.getPath("/Images/Icons/priority-med.png"), value: "1" },
+                { text: idbg.getPath("/Images/Icons/row_red_down.png"), value: "2" }
+            ];
+
+            $("#comboPriority").kendoDropDownList({
+                template: "<img src='#=text#' />",
+                valueTemplate: "<img src='#=text#' />",
+                autoBind: false,
+                dataTextField: "text",
+                dataValueField: "value",
+                dataSource: data,
+                change: PriorityFilter
+            });
+
+            var dropdownlist = $("#comboPriority").data("kendoDropDownList");
+            arraytasktype.forEach(function (key, value) {
+                content += "<option value='" + key + "'>" + key + "</option>";
+            });
+
+            overWriteStylesInactiveTaskFP();
+
+            showLoader();
+        });
+
+        autoLoadResizeIframe = false;
+
+        function overWriteStylesInactiveTaskFP() {
+
+            var rows = $("#main-task-grid tr");
+
+            if (rows.length > 0) {
+
+                var cells = rows.find("td:contains('true')").parent();
+                cells.find('a').addClass('disableLinkTaskFPFlexFunding');
+                cells.addClass('disableTaskFPFlexFunding');
+            }
+            else {
+                setTimeout(overWriteStylesInactiveTaskFP, 100);
+            }
+        }
+
+        function detailInit(e) {
+
+            var instancetask = e.data.WorkflowInstanceTaskId;
+            if ((e.data.WorkflowTypeId == codeClauseExtension) ||
+                (e.data.WorkflowTypeId == codeClauseIndividual) ||
+                (e.data.WorkflowTypeId == codeContract) ||
+                (e.data.WorkflowTypeId == codeRevolvingFund) ||
+                (e.data.WorkflowTypeId == codeSupervisionPlanVersion) ||
+                (e.data.WorkflowTypeId == codeMarch) ||
+                (e.data.WorkflowTypeId == codeSeptember) ||
+                (e.data.WorkflowTypeId == codePMRCycleStartup) ||
+                (e.data.WorkflowTypeId == codeStartUpPlanValidation) ||
+                (e.data.WorkflowTypeId == codeNewWorkflowType) ||
+                (e.data.IsGenericWorkflow == true))
+            {
+
+                $("#hdntypeid_C" + instancetask).val(e.data.WorkflowTypeId);
+                var detailRow = e.detailRow;
+                var urlComments =
+                '@(this.Url.Action("GetExpectedtextResult", "Tasks", new { area = "Global" }))';
+
+                if ((e.data.WorkflowTypeId == codeClauseExtension) ||
+                    (e.data.WorkflowTypeId == codeClauseIndividual) ||
+                    (e.data.WorkflowTypeId == codeContract) ||
+                    (e.data.WorkflowTypeId == codeRevolvingFund) ||
+                    (e.data.WorkflowTypeId == codeSupervisionPlanVersion) ||
+                    (e.data.WorkflowTypeId == codeMarch) ||
+                    (e.data.WorkflowTypeId == codeSeptember) ||
+                    (e.data.WorkflowTypeId == codeNewWorkflowType) ||
+                    (e.data.IsGenericWorkflow == true))
+                {
+
+                    $.ajax({
+                        url: urlComments,
+                        contentType: 'application/json',
+                        type: 'POST',
+                        data: JSON.stringify({
+                            entityId: e.data.EntityId,
+                            type: e.data.WorkflowTypeId,
+                            classification: $("#hdnClassification_C" + instancetask).val()
+                        }),
+                        success: function (serverResponse) {
+                            $("#expectedtext_C" + instancetask).removeClass("hide");
+                            $("#expectedtext_C" + instancetask).append(serverResponse);
+                        },
+                        error: function (e) {
+                            $("#expectedtext_C" + instancetask).addClass("hide");
+                        }
+                    });
+                } else {
+                    $("#expectedtext" + instancetask).addClass("hide");
+                }
+
+                urlComments = '@(this.Url.Action("GetClasification", "Tasks", new { area = "Global" }))';
+
+                if ((e.data.WorkflowTypeId == codeMarch) || (e.data.WorkflowTypeId == codePMRCycleStartup) || (e.data.WorkflowTypeId == codeNewWorkflowType) || (e.data.IsGenericWorkflow == true)) {
+
+                } else {
+                    $("#hdnisclassification_C" + instancetask).val("false");
+                    $("#grid_details_clasification" + instancetask).parent().addClass("hide");
+                    $("#grid_details_clasification" + instancetask).parent().removeClass("CmbClassficiation");
+                    $("#grid_details_clasification" + instancetask).children().remove();
+                    $(".loading-container").remove();
+                    $("#grid_details_clasification" + instancetask).remove();
+                }
+
+                urlComments =
+                    '@(this.Url.Action("GetJustificationAndRecommendation", "Tasks", new { area = "Global" }))';
+
+                if ((codeClauseExtension == e.data.WorkflowTypeId) || (e.data.WorkflowTypeId == codeNewWorkflowType) || (e.data.IsGenericWorkflow == true)){
+                    $.ajax({
+                        url: urlComments,
+                        contentType: 'application/json',
+                        type: 'POST',
+
+                        data: JSON.stringify({ clauseExtensionId: e.data.EntityId }),
+                        success: function (serverResponse) {
+                            if (serverResponse.Requested_By === undefined) {
+                                $("#DetailsJandR" + instancetask).addClass("hide");
+                                return;
+                            }
+                            if (serverResponse.Requested_By == "") {
+                                $("#RequestedBy_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#RequestedBy_C" + instancetask)
+                                    .append(serverResponse.Requested_By);
+                            }
+
+                            if (serverResponse.Requested_Months == "") {
+                                $("#RequestedMonths_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#RequestedMonths_C" + instancetask)
+                                    .append(serverResponse.Requested_Months);
+                            }
+
+                            if (serverResponse.Current_expiration_date == "") {
+                                $("#CurrentExpirationDate_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#CurrentExpirationDate_C" + instancetask)
+                                    .append(serverResponse.Current_expiration_date);
+                            }
+
+                            if (serverResponse.Requested_expiration_date == "") {
+                                $("#RequestedExpirationDate_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#RequestedExpirationDate_C" + instancetask)
+                                    .append(serverResponse.Requested_expiration_date);
+                            }
+
+                            if (serverResponse.Description == "") {
+                                $("#Description_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#Description_C" + instancetask)
+                                    .append(serverResponse.Description);
+                            }
+
+                            if (serverResponse.Justification == "") {
+                                $("#Justification_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#Justification_C" + instancetask)
+                                    .append(serverResponse.Justification);
+                            }
+
+                            if (serverResponse.Recommendation == "") {
+                                $("#Recommendation_C" + instancetask)
+                                    .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            } else {
+                                $("#Recommendation_C" + instancetask)
+                                    .append(serverResponse.Recommendation);
+                            }
+
+                            $("#DetailsJandR" + instancetask).removeClass("hide");
+                        },
+                        error: function (e, err, erro) {
+                            $("#RequestedBy_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#RequestedMonths_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#CurrentExpirationDate_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#RequestedExpirationDate_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#Description_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#Justification_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#Recommendation_C" + instancetask)
+                                .append("@Localization.GetText(EmailCodes.EmptyKey)");
+                            $("#DetailsJandR" + instancetask).removeClass("hide");
+                        }
+                    });
+                } else {
+                    $("#RequestedBy_C" + instancetask).val("");
+                    $("#RequestedMonths_C" + instancetask).val("");
+                    $("#CurrentExpirationDate_C" + instancetask).val("");
+                    $("#RequestedExpirationDate_C" + instancetask).val("");
+                    $("#Description_C" + instancetask).val("");
+                    $("#Justification_C" + instancetask).val("");
+                    $("#Recommendation_C" + instancetask).val("");
+                    $("#DetailsJandR" + instancetask).addClass("hide");
+                }
+
+                urlComments = '@(this.Url.Action("GetCommentsByTask", "Tasks", new {area = "Global"}))';
+
+                $.ajax({
+                    url: urlComments,
+                    contentType: 'application/json',
+                    type: 'POST',
+
+                    data: JSON.stringify({ taskId: e.data.WorkflowInstanceTaskId, type: e.data.WorkflowTypeId, operationNumber: e.data.OperationNumber, identityId: e.data.EntityId }),
+                    success: function (serverResponse) {
+                        $.each(serverResponse, function (key, obj) {
+                            var object = $("#Comments_C" + obj.WorkflowInstanceTaskId);
+                            var content = "<div class='Comments_List C_" + obj.UserCommentId + "' id='Comment_F" + obj.WorkflowInstanceTaskId + "_C" + key + "'><div><label style='padding-right: 10px;'>" + obj.Created + "</label><label style='padding-left:10px;'>" + obj.CreatedBy + "</label></div>";
+                            if (obj.IsEditable) {
+                                content += "<div style='padding-top: 10px;'><textarea style='width:97%' rows='3' class='comment_text  input-validation-error' data-val='true' data-val-required='Please enter a comment' id='Comment_idTask" + obj.WorkflowInstanceTaskId + "_idC" + obj.UserCommentId + "_F" + obj.Created + "_E' name='" + obj.Text + "'>" + obj.Text + "</textarea></div>";
+                                var id = "Comment_F" + obj.WorkflowInstanceTaskId + "_C" + key;
+                                content += "<span class='Comment_delete deleteTextButton DeleteClauseIndiv' onclick='removecomment(\"" + id + "\")'>" + "@Localization.GetText("Delete")" + "</span></div>";
+                            } else {
+                                content += "<div style='padding-top: 10px;'><label style='width:90%'>" + obj.Text + "</label><br></div></div>";
+                            }
+                            $(object).prepend(content);
+                        });
+                        $("#Comments_Loading_" + instancetask).remove();
+                        $("#Comment_Add_" + instancetask).removeClass("hide");
+                        recountcomment("#Comments_C" + instancetask);
+                        $("#grid_details_clasification" + instancetask).parent().addClass("hide");
+                        if ($("#hdnisclassification_C" + instancetask).val() == "true") {
+                            $("#grid_details_clasification" + instancetask).parent().removeClass("hide");
+                        }
+                        $("#hdniscommentsload_C" + instancetask).val("true");
+                    },
+                    error: function (e, err, erro) {
+                        $("#Comments_Loading_" + instancetask).remove();
+                        $("#Comments_TextValidatenull_" + instancetask).removeClass("hide");
+                        $(".loading-container").remove();
+                        $("#hdnisclassification_C" + instancetask).val("false");
+                        $("#grid_details_clasification" + instancetask).parent().addClass("hide");
+                        $("#grid_details_clasification" + instancetask).parent().removeClass("CmbClassficiation");
+                        $("#grid_details_clasification" + instancetask).children().remove();
+                        $(".loading-container").remove();
+                        $("#grid_details_clasification" + instancetask).remove();
+                    }
+                });
+
+            } else {
+                listId.push(instancetask);
+            }
+        }
+
+        function createcomment(id) {
+            var object = $("#Comments_C" + id);
+            var content = "<div class='Comments_List C_0' id='Comment_F" + id + "_C" + object.children().length + "'><div><label style='padding-right: 10px;'>" + "@DateTime.Now.ToString("dd-MM-yyyy")" + "</label><label style='padding-left:10px;'>" + "@System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(IDBContext.Current.UserName.Replace("i:0#.w|", "").ToLower()).Replace("Idb", "idb")" + "</label></div>";
+            content += "<div style='padding-top: 10px;'><textarea style='width:97%' rows='3' class='comment_text input-validation-error' data-val='true' data-val-required='Please enter a comment' id='Comment_idTask" + id + "_idC0_F" + "@DateTime.Now.ToString("dd-MM-yyyy")" + "_N' name=''></textarea></div>";
+            var id_ = "Comment_F" + id + "_C" + object.children().length;
+            content += "<span class='Comment_delete deleteTextButton DeleteClauseIndiv' onclick='removecomment(\"" + id_ + "\")'>" + "@Localization.GetText("Delete")" + "</span></div>";
+            $(object).append(content);
+            $("#hdnCounter_C" + id).val((parseInt($("#hdnCounter_C" + id).val())) + 1);
+            $("Comment_idTask" + id + "_idC0_F").focus();
+
+            recountcomment("#Comments_C" + id);
+        }
+
+        function removecomment(id) {
+
+            if (activepoput == 'true') {
+
+                var urlRoute = '@(this.Url.Action("ValidationMessage", "Tasks", new { area = "Global" }))' + "?messageCode=" + 4 + "&id=" + id;
+                var title = "@Localization.GetText("Warning")";
+
+                $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="dinamicModal"><div class="loadingdatawarning"><br>Loading...</div></div>');
+                $(".k-overlay").remove();
+
+                var dialog = $(".dinamicModal").kendoWindow({
+                    width: "800px",
+                    title: title,
+                    draggable: false,
+                    resizable: false,
+                    content: urlRoute,
+                    pinned: true,
+                    actions: [
+                        "Close"
+                    ],
+                    modal: true,
+                    visible: false,
+                    close: function () {
+                        $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                        $(".ui-widget-overlay").remove();
+                        $(".k-window").remove();
+                    }
+                }).data("kendoWindow");
+
+                $(".k-window-titlebar").addClass("warning");
+                $(".k-window-title").addClass("ico_warning");
+                dialog.open();
+                $(".k-overlay").remove();
+
+            } else {
+                removecommentfinal(id);
+            }
+        }
+
+        function removecommentfinal(id) {
+
+            var parameter = id.split("_")[1].replace("F", "");
+            var resultid = $("#" + id).attr('class').replace("Comments_List C_", "");
+
+            if (resultid != "0") {
+                $("#hdnDeleteList_C" + parameter).val($("#hdnDeleteList_C" + parameter).val() + resultid + "|");
+            } else {
+                $("#hdnCounter_C" + parameter).val((parseInt(($("#hdnCounter_C" + parameter).val())) - 1));
+            }
+            if ((parseInt(($("#hdnCounter_C" + parameter).val()))) <= 0) {
+                $("#hdnCounter_C" + parameter).val("0");
+            }
+
+            $("#" + id).remove();
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $(".ui-widget-overlay").remove();
+            $(".k-window").remove();
+
+            recountcomment("#Comments_C" + parameter)
+        }
+
+        function validateisreload() {
+            if (counterProcessResult <= 0) {
+                location.reload();
+            }
+            counterProcessResult = counterProcessResult - 1;
+        }
+
+        function recountcomment(id) {
+            loadTooltip();
+            var validatecomments = false;
+            var obj = null;
+            $(id).children().each(function (key, value) {
+                validatecomments = true;
+                if (this.id) {
+                    this.id = "Comment_F" + id.replace("#Comments_C", "") + "_C" + key;
+                    $(this).find("span").attr('onclick', "removecomment(\"" + this.id + "\")");
+                    obj = $(this);
+                }
+            });
+
+            if (!validatecomments) {
+                $("#Comments_TextValidate_" + (id.replace("#Comments_C", ""))).removeClass("hide");
+            } else {
+                $("#Comments_TextValidate_" + (id.replace("#Comments_C", ""))).addClass("hide");
+            }
+            if (obj != null) {
+                if (($(obj).children("div").last().children("textarea").val() != null) && ($(obj).children("div").last().children("textarea").val() == "")) {
+                    if ($(obj).children("div").last().children("textarea").val().trim() == "") {
+                        $(obj).children("div").last().children("textarea").attr('data-val-required', "Please enter a comment");
+                        $(obj).children("div").last().children("textarea").addClass("input-validation-error");
+                        $(obj).children("div").last().children("textarea").val("");
+                        $(obj).children("div").last().children("textarea").focus();
+                    }
+                }
+            }
+
+
+        }
+
+        function validatecommentstext() {
+
+            var validatecomments = true;
+            var object = null;
+
+            $(".comment_text").each(function (key, obj) {
+                if (($.trim(obj.value) == "") || (obj.value == null)) {
+                    validatecomments = false;
+                    object = obj;
+                } else {
+                    if (obj.name != obj.value) {
+                        resetObject();
+                        var data = obj.id.split("_");
+                        objectcomments.taskId_ = data[1].replace("idTask", "");
+                        objectcomments.commentId_ = data[2].replace("idC", "");
+                        objectcomments.date_ = data[3].replace("F", "");
+                        objectcomments.type_ = data[4];
+                        objectcomments.action_ = $("#grid_details_C" + objectcomments.taskId_).val();
+                        objectcomments.typeId_ = $("#hdntypeid_C" + objectcomments.taskId_).val();
+                        objectcomments.classification_ = $("#hdnClassification_C" + objectcomments.taskId_).val();
+                        objectcomments.status_ = $("#hdnStatus_C" + objectcomments.taskId_).val();
+                        objectcomments.text_ = obj.value;
+                        objectcomments.entityId_ = $("#hdnEntity_C" + objectcomments.taskId_).val();
+                        objectcomments.request_ = optionscomments.Comments;
+                        listobjectcomments.push(objectcomments);
+                    }
+                }
+            });
+
+            if (object != null) {
+                $(object).attr('data-val-required', "Please enter a comment");
+                $(object).addClass("input-validation-error");
+                $(object).val("");
+                $(object).focus();
+            }
+
+            return validatecomments;
+        }
+
+        function resetObject() {
+            objectcomments = {
+                taskId_: "###",
+                commentId_: "###",
+                date_: "###",
+                classification_: "###",
+                status_: "###",
+                type_: "###",
+                action_: "###",
+                typeId_: "###",
+                text_: "###",
+                clasificationId_: "###",
+                entityId_: "###",
+                request_: "###"
+            };
+        }
+
+        function validatecmbtask() {
+
+            var validatetask = true;
+            var nocomments = true;
+
+            $(".grid_details_C").each(function (key, obj) {
+
+                resetObject();
+
+                if ((obj.value != "null") && nocomments) {
+                    objectcomments.taskId_ = obj.id.replace("grid_details_C", "");
+                    objectcomments.action_ = obj.value;
+                    objectcomments.typeId_ = $("#hdntypeid_C" + objectcomments.taskId_).val();
+                    objectcomments.classification_ = $("#hdnClassification_C" + objectcomments.taskId_).val();
+                    objectcomments.status_ = $("#hdnStatus_C" + objectcomments.taskId_).val();
+                    objectcomments.request_ = optionscomments.Validate;
+                    if (objectcomments.action_.indexOf("Aproved") != -1
+                        || objectcomments.action_.indexOf("Approved") != -1) {
+                        listobjectcomments.push(objectcomments);
+                    } else if ((parseInt($("#hdnCounter_C" + objectcomments.taskId_).val())) > 0) {
+                        listobjectcomments.push(objectcomments);
+                    } else {
+                        showMessageValidation(3);
+                        if (!$(this).parent().parent().children().first().children().hasClass("k-minus")) {
+                            $(this).parent().parent().children().first().children().trigger("click");
+                            createcomment(objectcomments.taskId_);
+                        } else {
+                            createcomment(objectcomments.taskId_);
+                        }
+                        nocomments = false;
+                        validatetask = false;
+                    }
+                }
+
+            });
+
+            return validatetask;
+        }
+
+        function validateclassification() {
+
+            var validatetask = true;
+            var noproblem = true;
+
+            $(".classificationdetail").each(function (key, obj) {
+
+                resetObject();
+
+                if (noproblem) {
+                    var id = obj.id.replace("grid_details_clasification", "");
+                    if ($("#hdnClassification_C" + id).val() != obj.value) {
+                        if ((obj.value != "null")) {
+                            if ((obj.value.trim() != "")) {
+                                objectcomments.taskId_ = id;
+                                objectcomments.classification_ = obj.value;
+                                objectcomments.typeId_ = $("#hdntypeid_C" + objectcomments.taskId_).val();
+                                objectcomments.entityId_ = $("#hdnEntity_C" + objectcomments.taskId_).val();
+                                objectcomments.request_ = optionscomments.Clasification;
+                                if ((parseInt($("#hdnCounter_C" + objectcomments.taskId_).val())) > 0) {
+                                    listobjectcomments.push(objectcomments);
+                                } else {
+                                    showMessageValidation(1);
+                                    validatetask = false;
+                                    noproblem = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            return validatetask;
+        }
+
+        function validateitemstodelete() {
+            $(".deleteitems").each(function (i, data) {
+                if (($(this).val().trim() != "") && ($(this).val() != null)) {
+                    resetObject();
+                    objectcomments.taskId_ = this.id.replace("hdnDeleteList_C", "");
+                    objectcomments.typeId_ = $("#hdntypeid_C" + objectcomments.taskId_).val();
+                    objectcomments.classification_ = $("#hdnClassification_C" + objectcomments.taskId_).val();
+                    objectcomments.status_ = $("#hdnStatus_C" + objectcomments.taskId_).val();
+                    objectcomments.entityId_ = $("#hdnEntity_C" + objectcomments.taskId_).val();
+                    objectcomments.request_ = optionscomments.ItemsDelete;
+                    listobjectcomments.push(objectcomments);
+                }
+            });
+        }
+
+        function savecommentsandvalidatetask() {
+
+            var urlComments = '@(this.Url.Action("UpdateCommentsAndValidateTask", "Tasks", new { area = "Global" }))';
+
+            if (listobjectcomments.length > 0) {
+                $(listobjectcomments).each(function (key, obj) {
+                    $.ajax({
+                        url: urlComments,
+                        contentType: 'application/json',
+                        type: 'POST',
+                        data: JSON.stringify({
+                            taskId: obj.taskId_,
+                            commentId: obj.commentId_,
+                            date: obj.date_,
+                            classification: obj.classification_,
+                            status: obj.status_,
+                            type: obj.type_,
+                            action: obj.action_,
+                            typeid: obj.typeId_,
+                            text: obj.text_,
+                            classificationid: obj.clasificationId_,
+                            option: obj.request_,
+                            entityId: obj.entityId_,
+                            itemsToDelete: $("#hdnDeleteList_C" + obj.taskId_).val()
+                        }),
+                        success: function (serverResponse) {
+                            validateisreload();
+                        },
+                        error: function (e, err, erro) {
+                            validateisreload();
+                        }
+                    });
+                });
+            } else {
+                $(".loading-container").remove();
+            }
+
+        }
+
+        var objectcomments = {
+            taskId_: "###",
+            commentId_: "###",
+            date_: "###",
+            classification_: "###",
+            status_: "###",
+            type_: "###",
+            action_: "###",
+            typeId_: "###",
+            text_: "###",
+            clasificationId_: "###",
+            entityId_: "###",
+            request_: "###"
+        };
+
+
+        var optionscomments = {
+            Comments: "Comments",
+            Validate: "Validate",
+            Clasification: "Clasification",
+            ItemsDelete: "ItemsDelete",
+        };
+
+
+        var activepoput = '@string.Concat((string.IsNullOrEmpty(ConfigurationManager.AppSettings["TaskGridDetailPoput"]) ? false.ToString() : @System.Configuration.ConfigurationManager.AppSettings["TaskGridDetailPoput"].ToString()))';
+        var counterProcessResult = 99999;
+
+        function showMessageValidation(messageCode) {
+           
+            var urlRoute = '@(this.Url.Action("ValidationMessage", "Tasks", new { area = "Global" }))' + "?messageCode=" + messageCode;
+            var title = "@Localization.GetText("Warning")";
+
+            $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+            $("body").append('<div class="dinamicModal"><div class="loadingdatawarning"><br>Loading...</div></div>');
+            $(".k-overlay").remove();
+
+            var dialog = $(".dinamicModal").kendoWindow({
+                width: "800px",
+                title: title,
+                draggable: false,
+                resizable: false,
+                content: urlRoute,
+                pinned: true,
+                actions: [
+                    "Close"
+                ],
+                modal: true,
+                visible: false,
+                close: function () {
+                    $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                    $(".ui-widget-overlay").remove();
+                    $(".k-window").remove();
+                }
+            }).data("kendoWindow");
+
+            $(".k-window-titlebar").addClass("warning");
+            $(".k-window-title").addClass("ico_warning");
+            dialog.open();
+            $(".k-overlay").remove();
+        }
+
+        function reloadcorrectdate() {
+            var grid = $("#main-task-grid").data("kendoGrid");
+            var datasourcedata = grid.dataSource.data();
+            for (var i = 0; i < datasourcedata.length; i++) {
+                try {
+                    var datastring = kendo.toString(datasourcedata[i].StartDate, "d");
+                    datasourcedata[i].StartDate = datastring;
+
+                    if (!((datasourcedata[i].WorkflowTypeId == codeClauseExtension) ||
+                       (datasourcedata[i].WorkflowTypeId == codeClauseIndividual) ||
+                       (datasourcedata[i].WorkflowTypeId == codeContract) ||
+                       (datasourcedata[i].WorkflowTypeId == codeRevolvingFund) ||
+                       (datasourcedata[i].WorkflowTypeId == codeSupervisionPlanVersion) ||
+                       (datasourcedata[i].WorkflowTypeId == codeMarch) ||
+                       (datasourcedata[i].WorkflowTypeId == codeSeptember) ||
+                       (datasourcedata[i].WorkflowTypeId == codePMRCycleStartup) ||
+                       (datasourcedata[i].WorkflowTypeId == codeStartUpPlanValidation) ||
+                        (datasourcedata[i].IsGenericWorkflow =true))) {
+                        listId.push(datasourcedata[i].WorkflowInstanceTaskId);
+                    }
+                } catch (e) { }
+            }
+
+            $(".optionSelect").change(
+                function change() {
+                    if ($(this).val() == "Reject") {
+                        $(".loading-container").remove();
+                        if (!$(this).parent().parent().children().first().children().hasClass("k-minus")) {
+                            $(this).parent().parent().children().first().children().trigger("click");
+                        }
+                        createcomment(this.id.replace("grid_details_C", ""));
+                    }
+                }
+            );
+        }
+
+        setInterval(function () {
+            $(".Justificationandreccomendation").css("float", "none");
+            var positionleft = 0;
+            positionleft = $("#main-task-grid").width();
+            //$(".k-minus").css('left', (positionleft - 8) + "px");
+            //$(".k-minus").css('position', 'relative');
+            //$(".k-plus").css('left', (positionleft - 8) + "px");
+            //$(".k-plus").css('position', 'relative');
+            $(".k-animation-container").css("width", "300px !Important");
+            $("#filterValueType-list").css("width", "100% !Important");
+            $("#filterValueType_listbox").css("width", "100% !Important");
+            $(".Justificationandreccomendation").css("float", "right");
+            $(".comment_text").each(function (key, obj) {
+                if (($.trim(obj.value) == "") || (obj.value == null) || ($(obj).length <= 0)) {
+                    $(obj).attr('data-val-required', "Please enter a comment");
+                    $(obj).addClass("input-validation-error");
+                    $(obj).css("border", "2px solid red");
+                } else {
+                    $(obj).attr('data-val-required', "");
+                    $(obj).removeClass("input-validation-error");
+                    $(obj).css("border", "1px solid #CCC");
+                }
+            });
+            if (parseInt($("#taskcontent").width()) > 1050) {
+                $("#buttoncontent").css("width", "16%");
+            }
+            if (parseInt($("#taskcontent").width()) < 1050) {
+                $("#buttoncontent").css("width", "13%");
+            }
+
+            if ($(".ui-tooltip-content").parent().top < 100) {
+                $(".ui-tooltip-content").parent().remove();
+            }
+            $.each(listId, function (index, obj) {
+                if ($("#grid_details_CC" + obj).parent().parent().children().first().children().hasClass("k-minus")) {
+                    $("#grid_details_CC" + obj).parent().parent().children().first().children().trigger("click");
+                }
+                $("#grid_details_CC" + obj).parent().parent().children().first().children().remove();
+            });
+            $("#btnSubmit").addClass("hide");
+            $(".grid_details_C").each(function (key, obj) {
+                if (obj.value != "null") {
+                    $("#btnSubmit").removeClass("hide");
+                }
+            });
+        }, 100);
+
+        var listobjectcomments = [];
+        var codeMarch = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.March)";
+        var codePMRCycleStartup = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.PMRCycleStartup)";
+        var codeClauseExtension = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.ClauseExtension)";
+        var codeClauseIndividual = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.ClauseIndividual)";
+        var codeAdditionalNotifications = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.AdditionalNotifications)";
+        var codeContract = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.Contract)";
+        var codeGenerateLetter = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.GenerateLetter)";
+        var codeInvalidCall = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.InvalidCall)";
+        var codeResultMatrix = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.ResultMatrix)";
+        var codeRevolvingFund = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.RevolvingFund)";
+        var codeSeptember = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.September)";
+        var codeStartUpPlanValidation = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.StartUpPlanValidation)";
+        var codeSupervisionPlanVersion = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.SupervisionPlanVersion)";
+        var codeVisualization = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.K2CallType.Visualization)";
+        var codeNewWorkflowType = "@((int)IDB.MW.Domain.Models.Architecture.Enumerations.WorkflowsDefinition.WF_CL_003))";
+
+        
+
+        function loadTooltip() {
+            $(document).tooltip({
+                items: ".input-validation-error",
+                content: function () {
+                    if ($(this).attr('data-val-required'))
+                        return $(this).attr('data-val-required');
+                    if ($(this).attr('data-val-date'))
+                        return $(this).attr('data-val-date');
+                    if ($(this).attr('data-val-number'))
+                        return $(this).attr('data-val-number');
+                    if ($(this).attr('data-val-range'))
+                        return $(this).attr('data-val-range');
+                }
+            });
+        }
+    </script>
+
+    <!-- TODO HANDLE LIST OF TAGS -->
+    <script type="text/x-kendo-template" id="grid_taskName">
+        <a href="#='@Url.Action("Detail", "Tasks", new{area="Global"})/' + WorkflowInstanceTaskId#" onclick="return showLoader()">
+            #=TaskNameEn#
+        </a>
+    </script>
+    @*//Used for local testing*@
+
+    @*<script type="text/x-kendo-template" id="grid_taskName">
+            <a href="#='@Url.Action("Detail", "Tasks", new{area="Global"})/' + WorkflowInstanceTaskId#" >
+                #=TaskNameEn#
+            </a>
+        </script>*@
+
+    <script type="text/x-kendo-template" id="grid_taskPriority">
+        <i class="item icon #=Priority==0?'low':Priority==1?' medium':'hight'#"></i>
+    </script>
+    <script type="text/x-kendo-template" id="grid_taskWorkflow">
+        <a href="#='@Url.Action("Detail", "Tasks", new{area="Global"})/' + WorkflowInstanceTaskId#" onclick="return showLoader()">
+            #=WorkflowNameEn#
+        </a>
+    </script>
+    <script type="text/x-kendo-template" id="grid_OperationNumber">
+        <a href="#=OperationUrl#" target="_parent" onclick="return showLoader()">
+            #=OperationNumber#
+        </a>
+        <div>#=OperationName#</div>
+    </script>
+    <script type="text/x-kendo-template" id="grid_action" >
+        #if(!DelegatedUsername){#
+        <a href='javascript://' onclick="showDelegatingTaskWindow('@Url.Action("DelegatingTaskModal", "Tasks", new {area = "Global"})?taskId=#=WorkflowInstanceTaskId#')">@Localization.GetText("Delegate")</a>
+        #}#
+
+        #if(DelegatedUsername)
+        {#
+        #if(DelegateBy == null)
+        {#
+        <a href='javascript:void(0)' onclick="showDelegatedUserTaskDetail('#=WorkflowInstanceTaskId#','#=DelegatedUsername#')">#=DelegatedUsername#</a>
+        #}
+        else
+        {#
+        <a href='javascript:void(0)' onclick="showDelegatedUserTaskDetail('#=WorkflowInstanceTaskId#','#=DelegatedUsername#')">#=DelegatedUsername# @Localization.GetText("Delegate By") #=DelegateBy#</a>
+        #}#
+        #}#
+
+    </script>
+
+    <script type="text/x-kendo-template" id="grid_duedate">
+
+        #if(Due != null)
+        {#
+        #=kendo.toString(Due,"dd MMM yy")#
+        #}#
+
+    </script>
+
+    <script type="text/x-kendo-template" id="grid_details">
+        <input type="hidden" id="grid_details_CC#=WorkflowInstanceTaskId#">
+        #if ((WorkflowTypeId == codeClauseExtension) ||
+        (WorkflowTypeId == codeClauseIndividual) ||
+        (WorkflowTypeId == codeContract) ||
+        (WorkflowTypeId == codeRevolvingFund) ||
+        (WorkflowTypeId == codeSupervisionPlanVersion))
+        {#
+        <input type="hidden" id="hdntypeid_C#=WorkflowInstanceTaskId#" value="#=WorkflowTypeId#" />
+        <input type="hidden" id="hdnisclassification_C#=WorkflowInstanceTaskId#" value="false" />
+        <input type="hidden" id="hdniscommentsload_C#=WorkflowInstanceTaskId#" value="false" />
+        <input type="hidden" id="hdnClassification_C#=WorkflowInstanceTaskId#" value="#=clasification#" />
+        <input type="hidden" id="hdnStatus_C#=WorkflowInstanceTaskId#" value="#=Status#" />
+        <input type="hidden" id="hdnEntity_C#=WorkflowInstanceTaskId#" value="#=EntityId#" />
+        <input type="hidden" id="hdnDeleteList_C#=WorkflowInstanceTaskId#" value="" class="deleteitems" />
+        <input type="hidden" id="hdnCounter_C#=WorkflowInstanceTaskId#" value="0" />
+
+
+        <select id="grid_details_C#=WorkflowInstanceTaskId#" class="grid_details_C optionSelect">
+            <option value="null">@Html.Raw(Localization.GetText("Action"))</option>
+            <option value="Aproved">@Html.Raw(Localization.GetText("Approve"))</option>
+            <option value="Reject">@Html.Raw(Localization.GetText("Reject"))</option>
+        </select>
+        #}#
+
+        #if (Actions != null && Actions.length > 0)
+        {#
+        <input type="hidden" id="hdntypeid_C#=WorkflowInstanceTaskId#" value="#=WorkflowTypeId#" />
+        <input type="hidden" id="hdnisclassification_C#=WorkflowInstanceTaskId#" value="false" />
+        <input type="hidden" id="hdniscommentsload_C#=WorkflowInstanceTaskId#" value="false" />
+        <input type="hidden" id="hdnClassification_C#=WorkflowInstanceTaskId#" value="#=clasification#" />
+        <input type="hidden" id="hdnStatus_C#=WorkflowInstanceTaskId#" value="#=Status#" />
+        <input type="hidden" id="hdnEntity_C#=WorkflowInstanceTaskId#" value="#=EntityId#" />
+        <input type="hidden" id="hdnDeleteList_C#=WorkflowInstanceTaskId#" value="" class="deleteitems" />
+        <input type="hidden" id="hdnCounter_C#=WorkflowInstanceTaskId#" value="0" />
+
+
+        <select id="grid_details_C#=WorkflowInstanceTaskId#" class="grid_details_C optionSelect">
+            <option value="null">@Html.Raw(Localization.GetText("Action"))</option>
+            # for (var i = 0; i < Actions.length; i++) 
+            { #
+            <option value="#= Actions[i].Value #">#= Actions[i].Name #</option>
+            # } #
+        </select>
+
+        #}#
+    </script>
+
+    <script type="text/x-kendo-template" id="grid_detailsthis">
+        #if ((WorkflowTypeId == codeClauseExtension) ||
+        (WorkflowTypeId == codeClauseIndividual) ||
+        (WorkflowTypeId == codeContract) ||
+        (WorkflowTypeId == codeRevolvingFund) ||
+        (WorkflowTypeId == codeSupervisionPlanVersion) ||
+        (WorkflowTypeId == codeMarch) ||
+        (WorkflowTypeId == codeSeptember) ||
+        (WorkflowTypeId == codePMRCycleStartup) ||
+        (WorkflowTypeId == codeStartUpPlanValidation) ||
+        (WorkflowTypeId == codeNewWorkflowType) ||
+        (IsGenericWorkflow == true))
+        {#
+        <div id="expectedtext_C#=WorkflowInstanceTaskId#" class="hide"></div>
+        <br />
+        <label id="Title_C#=WorkflowInstanceTaskId#" style="font-size: 17px; font-weight: bold;">
+            @Html.Raw(Localization.GetText("Comments"))
+        </label>
+        <input type="button"
+               title="@Html.Raw(Localization.GetText("OP.OD.TabBasicData.RelatedOperations.NewComments"))"
+               id="Comment_Add_#=WorkflowInstanceTaskId#"
+               value="@Html.Raw(Localization.GetText("OP.OD.TabBasicData.RelatedOperations.NewComments"))"
+               style="width: 120px !Important; margin: 0; float: none; position: relative; left: 30%; font-size: 12px; font-weight: bold; text-align: center;"
+               class="btn-primary filter-clauses hide"
+               onclick="createcomment('#=WorkflowInstanceTaskId#')" />
+        <br />
+        <div id="Comments_Loading_#=WorkflowInstanceTaskId#" class="comments_loading">
+            <br />
+            @Html.Raw(Localization.GetText("Loading"))...
+        </div>
+        <div id="Comments_TextValidate_#=WorkflowInstanceTaskId#" class="hide comment_textvalidate">
+            <br />
+            @Html.Raw(Localization.GetText("No contains comments"))
+        </div>
+        <div id="Comments_TextValidatenull_#=WorkflowInstanceTaskId#" class="hide comment_textvalidate">
+            <br />
+            @Html.Raw(Localization.GetText("Error with information for this reason you cannot enable this edition"))
+        </div>
+        <div id="Comments_C#=WorkflowInstanceTaskId#" style="padding-top:0px;width:100%"></div>
+        <div id="DetailsJandR#=WorkflowInstanceTaskId#" class="Justificationandreccomendation hide" style="width:100%">
+            <div style="float:left; width:20%">
+                <span style="display: block; padding-left: 15px">
+                    @Confluence.LabelBold(Html.Raw(Localization.GetText("CL.CurrentExpirationDate"))):
+                </span>
+                <span style="padding-left: 15px" id="CurrentExpirationDate_C#=WorkflowInstanceTaskId#">
+                </span>
+                <br /><br />
+                <span style="display: block; padding-left: 15px">
+                    @Confluence.LabelBold(Html.Raw(Localization.GetText("CL.RequestedExpirationDate"))):
+                </span>
+                <span style="padding-left: 15px" id="RequestedExpirationDate_C#=WorkflowInstanceTaskId#">
+                </span>
+                <br /><br />
+                <span style="display: block; padding-left: 15px">
+                    @Confluence.LabelBold(Html.Raw(Localization.GetText("CL.RequestedMonths"))):
+                </span>
+                <span style="padding-left: 15px" id="RequestedMonths_C#=WorkflowInstanceTaskId#">
+                </span>
+                <br /><br />
+                <span style="display: block; padding-left: 15px">
+                    @Confluence.LabelBold(Html.Raw(Localization.GetText("CL.RequestedBy"))):
+                </span>
+                <span style="padding-left: 15px" id="RequestedBy_C#=WorkflowInstanceTaskId#">
+                </span>
+            </div>
+            <div style="float:right;width:80%">
+                <div style="padding: 0px 15px 15px;display:inline-block;width:30%;vertical-align:top;">
+                    <span style="display: block">
+                        @Confluence.LabelBold(Html.Raw(Localization.GetText("Description"))):
+                    </span>
+                    <span id="Description_C#=WorkflowInstanceTaskId#"></span>
+                </div>
+                <div style="padding: 0px 15px 0px;display:inline-block;width:30%;vertical-align:top;">
+                    <span style="display: block">
+                        @Confluence.LabelBold(Html.Raw(Localization.GetText("Justification"))):
+                    </span>
+                    <span id="Justification_C#=WorkflowInstanceTaskId#"></span>
+                </div>
+                <div style="padding: 0px 0px 0px; display: inline-block; width:30%; vertical-align: top;">
+                    <span style="display: block">
+                        @Confluence.LabelBold(Html.Raw(Localization.GetText("Recommendation"))):
+                    </span>
+                    <span id="Recommendation_C#=WorkflowInstanceTaskId#"></span>
+                </div>
+            </div>
+        </div>
+        <input type="hidden" id="hdnClassification_C#=WorkflowInstanceTaskId#" value="XXX" />
+        #}#
+    </script>
+
+
+}
+@{
+    var haveErrors = ViewBag.Result == null ? false : !ViewBag.Result;
+}
+
+@Confluence.Loader()
+
+<input type="hidden" id="hdnOperationNumber" value="@ViewBag.opNumber" />
+<input type="hidden" id="hdnerrordata" value="@Localization.GetText("Error loading the information")" />
+<input type="hidden" id="hdnnocomments" value="@Localization.GetText("Please, add a comment in order to reject the task")" />
+<input type="hidden" id="hdnnocommentsnull" value="@Localization.GetText("No contains comments")" />
+
+<div class="padding20" id="task_grid_holder">
+
+    @if (haveErrors)
+    {
+        <div>
+            <p>@Localization.GetText("An error ocurred while processing the request.")</p>
+        </div>
+    }
+    <div class="mod_contenido_central generic_tasks" id="taskcontent">
+        <div class="mod_style mod_style_plegable" style="width: 95%">
+            <!-- Filter container -->
+            <div class="relative">
+                <div class="inline-block verticalAlignMiddle" id="notificationQty">0</div>
+                @if (ViewBag.opNumber == "" || ViewBag.opNumber == null)
+                {
+                    <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("MY TASKS")</h3>
+                }
+                else
+                {
+                    <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("TASKS")</h3>
+                }
+            </div>
+
+            <div class="mod_contenido_central generic_tasks" style="float: none;">
+                <div class="mod_style mod_style_plegable" style="width: 100%">
+                    <div class="filter" style="display:none; margin-top: 7px;" id="divFilters">
+                        <div class="cajaGeneralFilter2" style="padding: 15px 15px 0 15px !Important; min-height: 0% !Important;">
+                            <form class="filter2Content" id="frmFilterMyOperations" name="fil">
+                                <div class="contenidoFilter5" id="FilterTask">
+
+                                    <input type="text" style="width: 16%; font-size: 14px !important; font-weight: bold !important; display: inline-block; vertical-align: top;" id="filterValue" placeholder="@Localization.GetText("Operation Name, Operation Number, Loan Number")" class="textoGrandeFilter2 no-margin dataTitle">
+
+                                    <div style="padding-left: 12px;  display: inline-block; vertical-align: top; font-size: 14px !important; font-weight: bold !important; ">
+                                        <span style="display:inline-block;padding-top:7px;padding-right:10px;vertical-align:top;">@Localization.GetText("Created Date") :</span>
+                                        <div class="bigFilter2 datePicker" style="display:inline-block;vertical-align:top;">
+                                            <div class="dateSelect">
+                                                <label for="datePicker5">
+                                                    <input class="datepicker" name="datePicker5" id="filterValueCreated" placeholder="DD MMM YY">
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="filterDropDown marginTop1Con25 relative h50px" style="width: 40%; display: inline-block; vertical-align: top; font-size: 14px !important; font-weight: bold !important; margin: 0 !important; ">
+                                        <ul class="optionList small">
+                                            <li class="small">
+                                                @Localization.GetText("Workflow Type") :
+                                                <select id="filterValueType" class="optionSelect filtercmb">
+                                                    <option value="null">@Localization.GetText("Workflow Type") &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</option>
+                                                </select>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div style="width: 16%; display: inline-block; vertical-align: top; font-size: 14px !important; font-weight: bold !important; margin: 0px !important;" id="buttoncontent">
+                                        <input class="btn-primary ftr marginRight3" style="display:inline-block; vertical-align:top; width:48.5%; float:none !important; margin: 0 !important; padding: 0 !Important; min-width: 4.5em; " type="button" value="Filter" id="btnFilterGrid">
+                                        <input class="btn-primary ftr marginRight3" style="display:inline-block; vertical-align:top; width:48.5%; float:none !important; margin: 0 !important; padding: 0 !Important; min-width: 4.5em; " type="button" value="Clear" id="clearBtn">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="marginTop1Con25 relative h50px">
+                    <div class="absolute w100">
+                        <div style="float: left;">
+                            <!-- This is chaged from left to right by the AR-146 '02/10/2015'-->
+                            <select id="comboTotalDisplayed" class="optionSelect">
+                                <option value="5" selected>@Localization.GetText("5 Displayed")</option>
+                                <option value="10">@Localization.GetText("10 Displayed")</option>
+                                <option value="15">@Localization.GetText("15 Displayed")</option>
+                                <option value="20">@Localization.GetText("20 Displayed")</option>
+                            </select>
+
+                        </div>
+                        <div style="float: right;">
+                            <input type="button" title="@Localization.GetText("Submit")" value="@Localization.GetText("Submit")" id="btnSubmit" style="margin: -5px 0px 0px -10px" class="btn-primary filter-clauses" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <table style="width: 100%" id="main-task-grid"></table>
+
+        </div>
+    </div>
+</div>

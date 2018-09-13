@@ -1,0 +1,148 @@
+﻿@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@model CommitFundsViewModel
+@{
+
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.Rows)
+        .Name(Model.TableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => approvalNumberText(c))
+                .Orderable(false)
+                .CssClass("textalign-left")
+                .CssHeaderClass("")
+                .Header(!Model.IsTotal ? Localization.GetText("TCP.FirmProcurement.TableHeader.OperationNumber") : string.Empty)
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => moneyAmountDecimal(c.TotalFundsCurrentlyAvailable, c.ApprovalNumber))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount ideAdminFundColAmount")
+                .CssHeaderClass("colAmount ideAdminFundColAmount")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TotalFundsCurrentlyAvailable"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => moneyAmountDecimal(c.OriginalProcurementEstimate, c.ApprovalNumber))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount ideAdminFundColAmount")
+                .CssHeaderClass("colAmount ideAdminFundColAmount")
+                .Header(Localization.GetText(Model.IsTotal ? "TCP.FirmProcurement.Header.Title.TotalOriginalProcurementEstimate" : "TCP.FirmProcurement.TableHeader.OriginalProcurementEstimate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Bound(c => string.Empty)
+                .Orderable(false)
+                .CssClass("colAction90")
+                .CssHeaderClass("colAction90")
+                .Header(Model.IsTotal ? string.Empty : Localization.GetText("COMMON.Action"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+        })
+        .RowTemplates(x =>
+            x.Create(RowTemplateType.LastRow, y => subtotalLine(Model.Rows, Model.IsTotal))
+        )
+    ;
+    config.TableClass = "tableNormal" + (Model.IsTotal ? " totalRow" : string.Empty);
+}
+@if (!Model.IsTotal)
+{
+    
+    <div class="col-xs-12 pl0 font-14">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommitFundsSecond"))
+    </div>
+}
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+@helper approvalNumberText(CommitFundRowViewModel row)
+{
+    if (row.ApprovalNumber != "Subtotal" && row.ApprovalNumber != "Total")
+    {
+        <div>
+            @Confluence.Label(row.ApprovalNumber)
+        </div>
+    }
+    else
+    {
+        <div>
+            @Confluence.Label(row.ApprovalNumber, htmlClass: "bold")
+        </div>
+    }
+}
+@helper moneyAmount(decimal amount, string name)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatIntegerDolar = appSettings.FormatIntegerDolar;
+
+    if (name != "Subtotal" && name != "Total")
+    {
+        <div>
+           @FormatHelper.Format(amount, formatIntegerDolar)
+        </div>
+    }
+    else
+    {
+        <div class="bold">
+           @Confluence.Label(FormatHelper.Format(amount, formatIntegerDolar), htmlClass: "bold")
+        </div>
+    }
+}
+
+@helper moneyAmountDecimal(decimal? amount, string name)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatIntegerDolar = appSettings.FormatIntegerDolar;
+
+    if (name != "Subtotal")
+    {
+        <div>@FormatHelper.Format(amount, formatIntegerDolar)</div>
+    }
+    else
+    {
+        <div class="bold">@Confluence.Label(FormatHelper.Format(amount, formatIntegerDolar), htmlClass: "bold")</div>
+    }
+}
+
+
+@helper subtotalLine(List<CommitFundRowViewModel> list, bool isTotal)
+{
+    if (!isTotal)
+    {
+        var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+        var formatIntegerDolar = appSettings.FormatIntegerDolar;
+        var availableSubtotal = list.Sum(x => x.TotalFundsCurrentlyAvailable);
+        var originalSubtotal = list.Sum(x => x.OriginalProcurementEstimate);
+
+        <tr class="sumAmountsColor">
+            <td>
+                @Confluence.Label(
+                    text: Localization.GetText("TCP.FirmProcurement.TableSubtotal.Subtotal"),
+                    htmlClass: "bold")
+            </td>
+            <td class="textalign-right">
+                <div class="bold textalign-right">
+                    @Confluence.Label(FormatHelper.Format(availableSubtotal, formatIntegerDolar), htmlClass: "bold")
+                </div>
+            </td>
+            <td class="textalign-right">
+                <div class="bold textalign-right">
+                    @Confluence.Label(FormatHelper.Format(originalSubtotal, formatIntegerDolar), htmlClass: "bold")
+                </div>
+            </td>
+            <td class=""></td>
+        </tr>
+    }
+}

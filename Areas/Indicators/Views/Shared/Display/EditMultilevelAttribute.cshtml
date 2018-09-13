@@ -1,0 +1,441 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Areas.Indicators.Enums
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core
+
+@model MultiLevelAttributeViewModel
+
+
+@{
+    var idPrefix = "";
+    var isNew = Model.Levels.Any(x => x.LevelId == 0);
+    if(isNew)
+    {
+        idPrefix = "new-";
+        var i = 1;
+        foreach(var level in Model.Levels)
+        {
+            level.LevelId = i;
+
+            var j = 1;
+            foreach(var category in level.Categories)
+            {
+                category.LevelId = i;
+                category.CategoryId = j;
+                j++;
+            }
+            i++;
+        }
+    }
+
+    var config = Html.RenderDataTable(Model.Levels);
+    config.Name(Model.Name + "-level")
+    .PrimaryKey(x => idPrefix + x.LevelId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .UsePageMode(false)
+    .UseDataTableNet(false)
+    .Columns(c =>
+    {
+        c.Template(x => White(x)).Persistent().HeaderTemplate(Confluence.ButtonExpandTable()).CssHeaderClass("tree icon").CssClass("tree");
+        c.Template(x => Confluence.InputText(x.NameEn, Model.Name + "-levelEn", maxLength : 140, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueEnRequired ) == LanguageTypeEnum.LevelLanguagueEnRequired)).Persistent().HeaderTemplate(LabelRequired("Common.Languaje.English", ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueEnRequired ) == LanguageTypeEnum.LevelLanguagueEnRequired));
+        c.Template(x => Confluence.InputText(x.NameEs, Model.Name + "-levelEs", maxLength : 140, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueEsRequired ) == LanguageTypeEnum.LevelLanguagueEsRequired)).Persistent().HeaderTemplate(LabelRequired("Common.Languaje.Spanish", ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueEsRequired ) == LanguageTypeEnum.LevelLanguagueEsRequired));
+        c.Template(x => Confluence.InputText(x.NameFr, Model.Name + "-levelFr", maxLength : 140, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueFrRequired ) == LanguageTypeEnum.LevelLanguagueFrRequired)).Persistent().HeaderTemplate(LabelRequired("Common.Languaje.French", ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueFrRequired ) == LanguageTypeEnum.LevelLanguagueFrRequired));
+        c.Template(x => Confluence.InputText(x.NamePt, Model.Name + "-levelPt", maxLength : 140, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguaguePtRequired ) == LanguageTypeEnum.LevelLanguaguePtRequired)).Persistent().HeaderTemplate(LabelRequired("Common.Languaje.Portuguese", ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguaguePtRequired ) == LanguageTypeEnum.LevelLanguaguePtRequired));
+        c.Template(x => DrawActions(x, isNew)).Persistent().HeaderAttribute("style", "width:160px; min-width:160px;");
+    })
+    .RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow, DrawLevelTemplateInputs);
+        x.Create(RowTemplateType.FirstRow, y => DrawLevelTemplateCategory(y, idPrefix));
+        x.Create(RowTemplateType.AllRows, y => DrawCategories(y, false, idPrefix, isNew));
+    });
+
+    config.TableClass = "tableNormal";
+}
+
+@helper DrawActions(AttributeLevelViewModel model, bool isNew)
+{
+    var textDisabled = Localization.GetText("Common.Disabled");
+
+    if(isNew ||model.IsDraft)
+    {
+        <span>
+            @Confluence.InputCheckbox(false, name : Model.Name + "-level-disabled", label : textDisabled)
+        </span>
+        <span class="button-trash-CategoryOneLevel">
+            @Confluence.ButtonTrash("", name : Model.Name + "-removeLevel")
+        </span>
+    }
+    else
+    {
+        <span>
+            @Confluence.InputCheckbox(!model.IsEnabled, name : Model.Name + "-level-disabled", label : textDisabled)
+        </span>
+    }
+}
+
+@helper DrawActions(AttributeCategoryViewModel model, string parentId, string idPrefix, bool isNew)
+{
+    var textDisabled = Localization.GetText("Common.Disabled");
+    var attributes = new Dictionary<string, string>();
+    if(parentId != null)
+    {
+        attributes.Add("persist-parent-id", idPrefix + parentId);
+    }
+
+    @Confluence.InputCheckbox(( model != null ) && !model.IsEnabled, Model.Name + "-category-disabled", label : textDisabled, dataAttributes : attributes)
+
+    if(isNew || model.IsDraft)
+    {
+        <span class="button-trash-CategoryOneLevel">
+            @Confluence.ButtonTrash("", name : Model.Name + "-removeCategory")
+        </span>
+    }
+}
+
+@helper DrawCategories(AttributeLevelViewModel model, bool isTemplate, string idPrefix, bool isNew)
+{
+    var templateClass = isTemplate ? "template" : "";
+    var attributes = new Dictionary<string, string>() { { "persist-parent-id", idPrefix + model.LevelId.ToString() } };
+    var table = Html.RenderDataTable(model.Categories);
+    table.Name(Model.Name + "-category")
+    .PrimaryKey(x => idPrefix + x.CategoryId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(true)
+    .UsePageMode(false)
+    .UseDataTableNet(false)
+    .Columns(c =>
+    {
+        c.Template(x => White(x)).Persistent().CssClass("tree");
+        c.Template(x => Confluence.InputText(x.NameEn, Model.Name + "-categoryEn", maxLength : 140, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueEnRequired ) == LanguageTypeEnum.CategoryLanguagueEnRequired)).Persistent();
+        c.Template(x => Confluence.InputText(x.NameEs, Model.Name + "-categoryEs", maxLength : 140, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueEsRequired ) == LanguageTypeEnum.CategoryLanguagueEsRequired)).Persistent();
+        c.Template(x => Confluence.InputText(x.NameFr, Model.Name + "-categoryFr", maxLength : 140, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueFrRequired ) == LanguageTypeEnum.CategoryLanguagueFrRequired)).Persistent();
+        c.Template(x => Confluence.InputText(x.NamePt, Model.Name + "-categoryPt", maxLength : 140, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguaguePtRequired ) == LanguageTypeEnum.CategoryLanguaguePtRequired)).Persistent();
+        c.Template(x => DrawActions(x, x.LevelId.ToString(), idPrefix, isNew)).Persistent();
+
+    })
+    .RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow, DrawCategoryTemplate);
+    });
+
+    table.TableClass = "tableNormal";
+    table.UseCustomHeader = true;
+    table.CustomHeader = (@<thead>
+        <tr>
+            <th class="tree icon">
+                @Confluence.ButtonExpandTable())
+            </th>
+            <th colspan="5">
+                @Localization.GetText(Model.CategoryKey).HtmlEncode()
+            </th>
+        </tr>
+        <tr>
+            <th class="tree"><span></span></th>
+            <th>@LabelRequired("Common.Languaje.English", ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueEnRequired ) == LanguageTypeEnum.CategoryLanguagueEnRequired)</th>
+            <th>@LabelRequired("Common.Languaje.Spanish", ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueEsRequired ) == LanguageTypeEnum.CategoryLanguagueEsRequired)</th>
+            <th>@LabelRequired("Common.Languaje.French", ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueFrRequired ) == LanguageTypeEnum.CategoryLanguagueFrRequired)</th>
+            <th>@LabelRequired("Common.Languaje.Portuguese", ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguaguePtRequired ) == LanguageTypeEnum.CategoryLanguaguePtRequired)</th>
+            <th style="width:160px; min-width:160px;"></th>
+        </tr>
+    </thead>);
+
+    <tr class="@templateClass">
+        <td class="tree"><span></span></td>
+        <td colspan="5" class="subnivel">
+            @Html.Partial("Controls/DataTable", table)
+            <div class="mt20 text-center">
+                @Confluence.ButtonAddNewRows(Localization.GetText(Model.NewCategoryButtonKey), "tableIdCategory", name : Model.Name + "-newCategory")
+            </div>
+        </td>
+    </tr>
+}
+
+@helper White(object model)
+{
+    <span></span>
+    <span class="selected"></span>
+}
+
+@helper DrawLevelTemplateInputs(AttributeLevelViewModel model)
+{
+    <tr class="template">
+        <td class="tree"><span></span><span class="selected"></span></td>
+        <td>@Confluence.InputText("", Model.Name + "-levelEn", maxLength : 140, disabled : true, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueEnRequired ) == LanguageTypeEnum.LevelLanguagueEnRequired)</td>
+        <td>@Confluence.InputText("", Model.Name + "-levelEs", maxLength : 140, disabled : true, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueEsRequired ) == LanguageTypeEnum.LevelLanguagueEsRequired)</td>
+        <td>@Confluence.InputText("", Model.Name + "-levelFr", maxLength : 140, disabled : true, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguagueFrRequired ) == LanguageTypeEnum.LevelLanguagueFrRequired)</td>
+        <td>@Confluence.InputText("", Model.Name + "-levelPt", maxLength : 140, disabled : true, required : ( Model.LanguageRequired & LanguageTypeEnum.LevelLanguaguePtRequired ) == LanguageTypeEnum.LevelLanguaguePtRequired)</td>
+        <td>
+            @DrawActions((AttributeLevelViewModel) null, true)
+        </td>
+    </tr>
+}
+@helper DrawLevelTemplateCategory(AttributeLevelViewModel model, string idPrefix)
+{
+    @DrawCategories(new AttributeLevelViewModel(), true, idPrefix, true)
+}
+
+@helper DrawCategoryTemplate(AttributeCategoryViewModel model)
+{
+    var attributes = new Dictionary<string, string>();
+    string parentId = null;
+    if(model != null)
+    {
+        parentId = model.LevelId.ToString();
+        attributes.Add("persist-parent-id", parentId);
+    }
+    <tr class="template">
+        <td class="tree"><span></span><span class="selected"></span></td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryEn", maxLength : 140, disabled : true, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueEnRequired ) == LanguageTypeEnum.CategoryLanguagueEnRequired)</td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryEs", maxLength : 140, disabled : true, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueEsRequired ) == LanguageTypeEnum.CategoryLanguagueEsRequired)</td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryFr", maxLength : 140, disabled : true, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguagueFrRequired ) == LanguageTypeEnum.CategoryLanguagueFrRequired)</td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryPt", maxLength : 140, disabled : true, dataAttributes : attributes, required : ( Model.LanguageRequired & LanguageTypeEnum.CategoryLanguaguePtRequired ) == LanguageTypeEnum.CategoryLanguaguePtRequired)</td>
+        <td>
+            @DrawActions((AttributeCategoryViewModel) null, parentId, "", true)
+        </td>
+    </tr>
+}
+
+@helper LabelRequired(string label, bool languageRequired)
+{
+    @Localization.GetText(label)
+    if(languageRequired)
+    {
+        @Confluence.LabelAsterisk()
+    }
+}
+
+<div class="row mb20">
+    <div class="col-md-6">
+        @if(Model.SubTitle)
+        {
+            @Confluence.LabelSubTitleGroup(Localization.GetText(Model.TitleKey))
+        }
+        else
+        {
+            @Confluence.LabelTitleGroup(Localization.GetText(Model.TitleKey))
+        }
+    </div>
+    <div class="col-md-6 text-right">
+        @Confluence.ButtonWhite(Localization.GetText(Model.NewLevelButtonKey), name : Model.Name + "-newLevel")
+    </div>
+</div>
+
+
+<div class="row row-body-40 font-body">
+    <div class="col-md-12">
+        @Confluence.LabelsGroup(title : Localization.GetText(Model.LevelKey), contentAlways : string.Empty, asterisk : false)
+
+        @if(Model.ShowNotificationDelete)
+        {
+            <div id="@Model.Name-warning-remove" class="hide modalBody">
+                @Localization.GetText("IM.TemplatesList.WarningRemove")
+            </div>
+            @Display.AddModalButton(new ModalViewModel(contentSelector : "#" + Model.Name + "-warning-remove",
+                            title : Localization.GetText("COMMON.Warning"),
+                            type : CssClass.ModalWarningNoIcon,
+                            moveOriginalContent : true,
+                            name : Model.Name + "-open-warning-btn",
+                            closeOnOverlay : false,
+                            allowClose : true,
+                            actionOnClose : "")
+            .AddButton(name : "cancel-delete",
+                            text : Localization.GetText("COMMON.Cancel"),
+                            type : CssClass.ButtonLink,
+                            callback : "")
+            .AddButton(name : "confirm-delete",
+                            text : Localization.GetText("COMMON.Ok"),
+                            type : CssClass.Button01,
+                            callback : Model.Name + "ConfirmRemove",
+                            closeAtEnd : true))
+        }
+
+        @Html.Partial("Controls/DataTable", config)
+
+    </div>
+</div>
+
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        registerCallback(function () {
+
+            var isNew = '@isNew' == 'True';
+            var btnNewLevelSelector = '[name="@Model.Name-newLevel"]';
+            var tableSelector = '#@Model.Name-level';
+            var disableChecks = $('input[name=@Model.Name-level-disabled');
+            var showNotificationDelete = '@Model.ShowNotificationDelete' == 'True';
+
+            if (isNew) {
+                var table = $(tableSelector);
+                var totalElements = table.children('tbody').children('[data-id]').length;
+                $(btnNewLevelSelector).GenerateNewId(totalElements - 1);
+
+                var categoryTables = table.children('tbody').children(':not(.template)').find('table');
+
+                categoryTables.each(function () {
+                    var categoryTable = $(this);
+                    totalElements = categoryTable.children('tbody').children('[data-id]').length;
+                    var btnNewCategory = categoryTable.next().find('button');
+                    btnNewCategory.GenerateNewId(totalElements - 1);
+                });
+
+            }
+
+            for (var i = 0; i < disableChecks.length; i++) {
+                var check = $(disableChecks[i]);
+                var categoriesInputs = check.closest('tr').next().find('tbody tr:not(.template) input[name=@Model.Name-category-disabled]');
+                var newCategoryButton = check.closest('tr').next().find('[name=@Model.Name-newCategory]');
+                if (check.is(':checked')) {
+                    for (var j = 0; j < categoriesInputs.length; j++) {
+                        $(categoriesInputs[j]).attr('disabled', 'disabled');
+                    }
+                    newCategoryButton.attr('disabled', 'disabled');
+                } else {
+                    for (var j = 0; j < categoriesInputs.length; j++) {
+                        $(categoriesInputs[j]).removeAttr('disabled');
+                    }
+                    newCategoryButton.removeAttr('disabled');
+                }
+            }
+
+
+            function customEnableContainer(container) {
+                var inputs = container.find('input, select, textarea');
+
+                inputs.removeAttr('disabled');
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            }
+
+            function addAttributesToInputs(container, attributeName, attributeValue) {
+                var inputs = container.find('input, select, textarea');
+                inputs.attr(attributeName, attributeValue);
+            }
+
+            $(document).on('click', '[name="@(Model.Name + "-newLevel")"]', function (e) {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var table = $('#@(Model.Name + "-level")');
+
+                var trToClone1 = table.children('tbody').children('tr:first');
+                var newTr1 = trToClone1.clone(false);
+                newTr1.appendTo(table.children('tbody'));
+                newTr1.removeClass('template');
+                newTr1.removeClass('hide');
+                newTr1.attr('data-id', String.format('new-{0}', newId));
+
+                customEnableContainer(newTr1);
+
+                var trToClone2 = table.children('tbody').children('tr:nth(1)');
+                var newTr2 = trToClone2.clone(false);
+                newTr2.appendTo(table.children('tbody'));
+                newTr2.removeClass('template');
+                newTr2.removeClass('hide');
+                addAttributesToInputs(newTr2, 'data-persist-parent-id', String.format('new-{0}', newId));
+            });
+
+            $(document).on('click', '[name="@(Model.Name + "-newCategory")"]', function (e) {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var table = source.parent().siblings('table');
+                var trToClone = table.find('tbody tr:first');
+                var newTr = trToClone.clone(false);
+
+                newTr.appendTo(table.find('tbody'));
+                newTr.removeClass('template');
+                newTr.removeClass('hide');
+                newTr.attr('data-id', String.format('new-{0}', newId));
+
+                if (newTr.find('input[data-persist-parent-id]').length == 0) {
+                    var parentId = newTr.parents('tr').prev().attr('data-id');
+                    addAttributesToInputs(newTr, 'data-persist-parent-id', parentId);
+                }
+
+                customEnableContainer(newTr);
+            });
+
+            if (showNotificationDelete) {
+                $(document).on('click', '[name="@(Model.Name + "-removeLevel")"]', function (e) {
+                    var source = $(this);
+                    source.blur();
+
+                    var modalButton = $('[name="@Model.Name-open-warning-btn"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+                });
+
+                $(document).on('click', '[name="@(Model.Name + "-removeCategory")"]', function (e) {
+                    var source = $(this);
+                    source.blur();
+
+                    var modalButton = $('[name="@Model.Name-open-warning-btn"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+                });
+            } else {
+                $(document).on('click', '[name="@(Model.Name + "-removeLevel")"]', function (e) {
+                    var source = $(this);
+                    @(Model.Name)ConfirmRemove(e, source);
+                });
+
+                $(document).on('click', '[name="@(Model.Name + "-removeCategory")"]', function (e) {
+                    var source = $(this);
+                    @(Model.Name)ConfirmRemove(e, source);
+                });
+            }
+
+            $(document).on('click', '[name=@Model.Name-level-disabled]', function (e) {
+                var source = $(this);
+                var categoriesChecks = source.closest('tr').next().find('tbody tr:not(.template) input[name=@Model.Name-category-disabled]');
+                var newButton = source.closest('tr').next().find('[name=@Model.Name-newCategory]');
+                if (source.is(':checked')) {
+                    for (var i = 0; i < categoriesChecks.length; i++) {
+                        $(categoriesChecks[i]).prop('checked', true);
+                        $(categoriesChecks[i]).attr('disabled', 'disabled');
+                    }
+                    newButton.attr('disabled', 'disabled');
+                } else {
+                    for (var i = 0; i < categoriesChecks.length; i++) {
+                        $(categoriesChecks[i]).prop('checked', false);
+                        $(categoriesChecks[i]).removeAttr('disabled');
+                    }
+                    newButton.removeAttr('disabled');
+                }
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+        });
+
+        function @(Model.Name)ConfirmRemove(e, source) {
+            var promise = $.Deferred();
+            var typeButton = source.attr('name').split('-')[1];
+            if (typeButton == 'removeLevel') {
+                var tr1 = source.closest('tr');
+                var tr2 = tr1.next();
+                tr1.remove();
+                tr2.remove();
+            } else {
+                var tr = source.closest('tr');
+                tr.remove();
+            }
+            promise.resolve();
+
+            return promise;
+        }
+    </script>
+                                )

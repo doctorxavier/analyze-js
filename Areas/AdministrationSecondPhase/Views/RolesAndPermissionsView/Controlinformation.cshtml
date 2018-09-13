@@ -1,0 +1,487 @@
+﻿@model IDB.MW.Application.AdministrationModule.ViewModels.RolesAndPermissions.ControlInformationViewModel
+@{ ViewBag.fixLoad = true; }
+
+<div class="col-md-12">
+    @Confluence.LabelMainTitle(Localization.GetText("OP.RP.ControlInformation.FieldsConfiguration"))
+
+</div>
+<div class="pull-right">
+    @Html.Partial("Controls/ControlInformationButtons")
+</div>
+
+<div id="searchControlInformationContent" data-parsley-validate="data-parsley-validate" data-parsley-excluded="[disabled]" class="mt20 mb20">
+    @Html.Partial("Partial/FilterControlInformation")
+</div>
+
+<div id="NewRoleButtons" class="floatRight mb30 mr16">
+    @Confluence.ButtonBlue(Localization.GetText("OP.RP.ControlInformation.NewRule"), action: "ModalNewRule", dataAttributes: ViewBag.Dictionary)
+</div>
+
+<div id="TableControlInformation">
+    <div class="mb20">
+        @Html.Partial("Partial/TableControlInformation", Model.TableField)
+    </div>
+</div>
+
+<div class="footer mt30">
+    @Html.Partial("Controls/ControlInformationButtons")
+</div>
+
+<div data-id="ModalRegion">
+    <button data-id="buttonNewRole" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="FormAddNewRule"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("OP.RP.ControlInformation.NewRule")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["cancel", "save"]'
+            data-custom-button-cancel-id="cancel"
+            data-custom-button-cancel="@Localization.GetText("OP.RP.ControlInformation.Cancel")"
+            data-custom-button-cancel-style="buttonLink"
+            data-custom-button-cancel-callback=""
+            data-custom-button-save-id="send"
+            data-custom-button-save="@Localization.GetText("OP.RP.ControlInformation.Save")"
+            data-custom-button-save-style="buttonBlue"
+            data-custom-button-save-callback="saveNewRuleControlInformation"
+            data-custom-button-save-closeatend="true"
+            data-custom-modal-onclose="addNewRelatedOperation"
+            data-custom-modal-closeonoverlayclick="false">
+        @Localization.GetText("OP.RP.ControlInformation.CreateRule")
+    </button>
+    <div id="FormAddNewRule" class="hide modalBody"> </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+
+        function edit() {
+            var success = enterEditMode(false, $("#PageContent"), false);
+            if (success) {
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+            }
+        }
+
+        function cancel() {
+            var msg = "@Localization.GetText("OP.RP.RolesAndPermission.CancelMsg")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    $("[data-action='searchControlInformationFilter']").trigger('click');
+                }
+            });
+        }
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-Permission"] a', function() {
+            var permission = $(this).attr("dd-value");
+            if (permission !== "") {
+                var result = postUrl("@Url.Action("FilterByPermission", "RolesAndPermissionsView", new {area = "AdministrationSecondPhase"})", { permission: permission });
+                result.done(function(response) {
+                    if (response.IsValid) {
+                        $('input[name=PageID]').siblings("ul").find("li:not(:first)").remove();
+                        var listdata = $.map(response.Data, function(item) {
+                            return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                        });
+
+                        $('input[name=PageID]').siblings("ul").append(listdata);
+
+                        unlockFilter();
+                    }
+                });
+            }
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-NewPage"] a', function() {
+            var value = $(this).attr('dd-value');
+            if (value !== "") {
+                $('[name="NewDivision"]').removeAttr('disabled').trigger("chosen:updated");
+                $('[name="NewCountry"]').removeAttr('disabled').trigger("chosen:updated");
+                $('[name="NewOperationStatus"]').removeAttr('disabled').trigger("chosen:updated");
+                $('[name="NewOperationType"]').removeAttr('disabled').trigger("chosen:updated");
+            } else {
+                $('[name="NewDivision"]').attr('disabled', 'disabled').trigger("chosen:updated");
+                $('[name="NewCountry"]').attr('disabled', 'disabled').trigger("chosen:updated");
+                $('[name="NewOperationType"]').attr('disabled', 'disabled').trigger("chosen:updated");
+                $('[name="NewOperationStatus"]').attr('disabled', 'disabled').trigger("chosen:updated");
+                $('[name="NewDivision"]').val('').trigger("chosen:updated");
+                $('[name="NewCountry"]').val('').trigger("chosen:updated");
+                $('[name="NewOperationType"]').val('').trigger("chosen:updated");
+                $('[name="NewOperationStatus"]').val('').trigger("chosen:updated");
+            }
+
+            if ($('input[name="NewPageOld"]').val() !== value) {
+                $('input[name="NewPageOld"]').val(value);
+                $('#FieldTable').find('tbody').find('tr').remove();
+                addNewRuleTable();
+            }
+        });
+
+        function unlockFilter() {
+            $('#id-PageID').removeAttr('disabled');
+            $('[name="CountryList"]').removeAttr('disabled').trigger("chosen:updated");
+            $('[name="DivisionList"]').removeAttr('disabled').trigger("chosen:updated");
+            $('[name="OperationTypeList"]').removeAttr('disabled').trigger("chosen:updated");
+            $('[name="OperationStatusList"]').removeAttr('disabled').trigger("chosen:updated");
+        }
+
+        function lockFilter() {
+            $('#id-PageID').attr('disabled', 'disabled');
+            $('[name="CountryList"]').attr('disabled', 'disabled').trigger("chosen:updated");
+            $('[name="DivisionList"]').attr('disabled', 'disabled').trigger("chosen:updated");
+            $('[name="OperationTypeList"]').attr('disabled', 'disabled').trigger("chosen:updated");
+            $('[name="OperationStatusList"]').attr('disabled', 'disabled').trigger("chosen:updated");
+
+        }
+
+        function clearFilter() {
+            $('input[type=text],Permission').val('');
+            $('#id-PageID').FirstorDefault();
+            $('[name="CountryList"]').val('').trigger("chosen:updated");
+            $('[name="DivisionList"]').val('').trigger("chosen:updated");
+            $('[name="OperationTypeList"]').val('').trigger("chosen:updated");
+            $('[name="OperationStatusList"]').val('').trigger("chosen:updated");
+            $("#TableControlInformation").find("tr:not(:first)").remove();
+            $('div.Pagination[dd-table="CITable"]').remove();
+            $('#TableControlInformation tbody').append('<tr class="odd"><td valign="top" colspan="11" class="dataTables_empty">No data available in table</td></tr>');
+            $('[data-id=headerButtons]').addClass('hide');
+            lockFilter();
+        }
+
+        function removeRowNewRule(source) {
+            var msg = '@Localization.GetText("OP.RP.ControlInformation.Delete")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    if ($('#FieldTable').find('tbody').find('tr').length > 1) {
+                        var tr = source.closest("tr");
+                        tr.remove();
+                        $("#FieldTable").paginationConfluense(3);
+                    } else {
+                        showMessage("@Localization.GetText("OP.RP.ControlInformation.MessageErrorDeleteRowRule")");
+                    }
+                }
+            });
+        }
+
+        function searchControlInformationFilter() {
+            if (validateContainer($('#searchControlInformationContent'))) {
+                exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                var searchPermissionId = isNaN(parseInt($("[name='Permission']").val())) ? 0 : parseInt($("[name='Permission']").val());
+                var searchPageId = isNaN(parseInt($('[name="PageID"]').val())) ? 0 : parseInt($('[name="PageID"]').val());
+                var searchCountryId = $('[name="CountryList"]').val();
+                if (searchCountryId === null || searchCountryId === undefined) {
+                    searchCountryId = "";
+                } else {
+                    searchCountryId = searchCountryId.join(',');
+                }
+                var searchDivisionId = $('[name="DivisionList"]').val();
+                if (searchDivisionId === null || searchDivisionId === undefined) {
+                    searchDivisionId = "";
+                } else {
+                    searchDivisionId = searchDivisionId.join(',');
+                }
+                var searchOperationType = $('[name="OperationTypeList"]').val();
+                if (searchOperationType === null || searchOperationType === undefined) {
+                    searchOperationType = "";
+                } else {
+                    searchOperationType = searchOperationType.join(',');
+                }
+                var searchOperationStatus = $('[name="OperationStatusList"]').val();
+                if (searchOperationStatus === null || searchOperationStatus === undefined) {
+                    searchOperationStatus = "";
+                } else {
+                    searchOperationStatus = searchOperationStatus.join(',');
+                }
+
+                filterTableControlInformation(searchPermissionId, searchPageId, searchCountryId, searchDivisionId, searchOperationType, searchOperationStatus);
+
+            }
+
+        }
+
+        function removeRowControlInformation(source) {
+            var msg = '@Localization.GetText("OP.RP.ControlInformation.Delete")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var delrow = source.closest('tr').find('[name="IDControlPermissionRow"]').val();
+                    $.post("../RolesAndPermissionsView/RemoveControlInformation", { 'delrow': delrow }, function(data) {
+                        if (data.IsValid) {
+                            var tr = source.closest("tr");
+                            tr.remove();
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            });
+        }
+
+        function filterTableControlInformation(searchPermissionId, searchPageId, searchCountryId, searchDivisionId, searchOperationType, searchOperationStatus) {
+            postUrlWithOptions("@Url.Action("SearchControlInformationFilter", "RolesAndPermissionsView", new {area = "AdministrationSecondPhase"})", { async: false }, {
+                    'searchPermissionID': searchPermissionId,
+                    'searchPageID': searchPageId,
+                    'searchCountryID': searchCountryId,
+                    'searchDivisionID': searchDivisionId,
+                    'searchOperationType': searchOperationType,
+                    'searchOperationStatus': searchOperationStatus
+                })
+                .done(function(data) {
+                    var resultSearchPanel = $('#TableControlInformation');
+                    resultSearchPanel.html(data);
+                    bindHandlers();
+                    $('#CITable').paginationConfluense(10);
+                    var container = $('#CITable tbody');
+                    var notRowEmpty = true;
+                    if ($(container).find('td.dataTables_empty').length > 0) {
+                        notRowEmpty = false;
+                    }
+                    if ($('#CITable tbody').find('tr').length > 0 && notRowEmpty) {
+                        $('[data-id=headerButtons]').removeClass('hide');
+                    }
+                });
+        }
+
+        function save() {
+            var flag = true;
+            $('#CITable tr:not(:first)').each(function() {
+                var controlPermissionSelect = $(this).find('[name="IDControlPermissionRow"]').attr('value');
+                var fieldSelect = $(this).find('[name="FieldRow"]').attr('value');
+                var pageSelect = $(this).find('[name="PageRow"]').attr('value');
+                var countrySelect = $(this).find('ul.dropdown-menu[aria-labelledby="id-CountryRow"] a[dd-selected]').attr('dd-value');
+                var divisionSelect = $(this).find('ul.dropdown-menu[aria-labelledby="id-DivisionRow"] a[dd-selected]').attr('dd-value');
+                var operationTypeSelect = $(this).find('ul.dropdown-menu[aria-labelledby="id-OperationTypeRow"] a[dd-selected]').attr('dd-value');
+                var operationStatusSelect = $(this).find('ul.dropdown-menu[aria-labelledby="id-OperationStatusRow"] a[dd-selected]').attr('dd-value');
+                var count = 0;
+                $('#CITable tbody tr').each(function() {
+                    var controlPermissionIterated = $(this).find('[name="IDControlPermissionRow"]').attr('value');
+                    var fieldIterated = $(this).find('[name="FieldRow"]').attr('value');
+                    var pageIterated = $(this).find('[name="PageRow"]').attr('value');
+                    var countryIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-CountryRow"] a[dd-selected]').attr('dd-value');
+                    var divisionIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-DivisionRow"] a[dd-selected]').attr('dd-value');
+                    var operationTypeIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-OperationTypeRow"] a[dd-selected]').attr('dd-value');
+                    var operationStatusIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-OperationStatusRow"] a[dd-selected]').attr('dd-value');
+                    if (controlPermissionSelect !== controlPermissionIterated) {
+                        if (fieldSelect === fieldIterated && pageSelect === pageIterated && countrySelect === countryIterated &&
+                            divisionSelect === divisionIterated && operationTypeSelect === operationTypeIterated && operationStatusSelect === operationStatusIterated) {
+                            count = count + 1;
+                            if (count > 1) {
+                                $(this).css('background-color', '#f00');
+                                flag = false;
+                            }
+                        }
+                    }
+                });
+                countryForValidate = $(this).find('td:nth-child(3) .search-choice-close').attr('data-option-array-index');
+                divisionForValidate = $(this).find('td:nth-child(4) .search-choice-close').attr('data-option-array-index');
+                opTypeForValidate = $(this).find('td:nth-child(5) .search-choice-close').attr('data-option-array-index');
+                opStatusForValidate = $(this).find('td:nth-child(6) .search-choice-close').attr('data-option-array-index');
+                if (countryForValidate === undefined && divisionForValidate === undefined && opTypeForValidate === undefined && opStatusForValidate === undefined) {
+                    var msMulti = '@Localization.GetText("OP.RP.ControlInformation.msgNewRuleMultiselect")';
+                    showMessage(msMulti);
+                    flag = false;
+                }
+            });
+            if (flag) {
+                var modelSerialized = '#hidViewModel';
+                var response = saveContainer($('#PageContent'), modelSerialized, false, $('headerButtons'), null, false);
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (data.IsValid === true) {
+                            $("[data-action='searchControlInformationFilter']").trigger('click');
+
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            }
+        }
+
+        function validateNewRule() {
+            var isValid = true;
+            var searchDivisionId = $('[name="NewDivision"]').val();
+            var searchOperationType = $('[name="NewOperationType"]').val();
+            var searchOperationStatus = $('[name="NewOperationStatus"]').val();
+            var searchCountryId = $('[name="NewCountry"]').val();
+            if (searchCountryId === null && searchDivisionId === null && searchOperationType === null && searchOperationStatus === null) {
+                var msMulti = '@Localization.GetText("OP.RP.ControlInformation.msgNewRuleMultiselect")';
+                showMessage(msMulti);
+                isValid = false;
+            }
+
+            if (isValid) {
+                var msCheck = '@Localization.GetText("OP.RP.ControlInformation.msgNewRuleCheck")';
+
+                $("#tableFieldNewRole table tbody tr").each(function() {
+
+                    if ($(this).find('[name="NewHidden"],[name="NewReadOnly"],[name="NewRequired"]').not(':checked').length > 2) {
+                        showMessage(msCheck);
+                        isValid = false;
+                    }
+                });
+            }
+
+            return isValid;
+        }
+
+        function saveNewRuleControlInformation() {
+            var modelSerialized = '#hidModalModel';
+            if (validateContainer($('#PageContentModal')) && validateNewRule()) {
+                var response = saveContainer($('#PageContentModal'), modelSerialized, false, $('buttonNewRole'), null, false);
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (data.ErrorMessage == null || data.ErrorMessage === "") {
+                            var searchPermissionId = isNaN(parseInt($("[name='NewPermission']").val())) ? 0 : parseInt($("[name='NewPermission']").val());
+                            var searchPageId = isNaN(parseInt($('[name="NewPage"]').val())) ? 0 : parseInt($('[name="NewPage"]').val());
+
+                            var searchCountryId = $('[name="NewCountry"]').val();
+                            if (searchCountryId === null || searchCountryId === undefined) {
+                                searchCountryId = "";
+                            } else {
+                                searchCountryId = searchCountryId.join(',');
+                            }
+                            var searchDivisionId = $('[name="NewDivision"]').val();
+                            if (searchDivisionId === null || searchDivisionId === undefined) {
+                                searchDivisionId = "";
+                            } else {
+                                searchDivisionId = searchDivisionId.join(',');
+                            }
+                            var searchOperationType = $('[name="NewOperationType"]').val();
+                            if (searchOperationType === null || searchOperationType === undefined) {
+                                searchOperationType = "";
+                            } else {
+                                searchOperationType = searchOperationType.join(',');
+                            }
+                            var searchOperationStatus = $('[name="NewOperationStatus"]').val();
+                            if (searchOperationStatus === null || searchOperationStatus === undefined) {
+                                searchOperationStatus = "";
+                            } else {
+                                searchOperationStatus = searchOperationStatus.join(',');
+                            }
+
+                            filterTableControlInformation(searchPermissionId, searchPageId, searchCountryId, searchDivisionId, searchOperationType, searchOperationStatus);
+                            vex.close();
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            }
+        }
+
+        function ModalNewRule() {
+            var url = '@Url.Action("NewRuleModal", "RolesAndPermissionsView", new {area = "AdministrationSecondPhase"})';
+            postUrlWithOptions(url, { async: false })
+                .done(function(data) {
+                    var resultPanel = $('#FormAddNewRule');
+                    resultPanel.html(data);
+                    $('[data-id="buttonNewRole"]').click();
+                    allowMultiPopUp();
+                    bindHandlers();
+                    enterEditMode(false, $("#PageContentModal"), false);
+                    searchPage();
+                });
+            $('#FieldTable').find('tbody').find('tr').remove();
+            addNewRuleTable();
+        }
+
+        function searchPage() {
+            $('[name="NewPermission"]').off('change');
+            $('[name="NewPermission"]').change(function() {
+                var url = '@Url.Action("GetPagesByPermission", "RolesAndPermissionsView", new {area = "AdministrationSecondPhase"})';
+                var value = $(this).val();
+                $.post(url, {permission: value})
+                    .done(function (data) {
+                        if (data.IsValid === true) {
+                            $('[name="NewPage"]').closest('.dropdown').find('li').addClass('hide');
+                            var codes = data.Code.split(',');
+                            for (var i = 0; i < codes.length; i++) {
+                                $('[name="NewPage"]').closest('.dropdown').find('[dd-value="' + codes[i] + '"]').closest('li').removeClass('hide');
+                            }
+                            $('[name="NewPage"]').closest('.dropdown').find('[disabled]').removeAttr('disabled');
+                            $('[name="NewPage"]').FirstorDefault();
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+            });
+        }
+
+        function addNewRuleTable() {
+            var container = $("#FieldTable").find('tbody');
+            var page = $("[name='NewPage']").val();
+            var url = '@Url.Action("AddRowTableNewRoleControlInformation", "RolesAndPermissionsView", new { area = "AdministrationSecondPhase" })';
+            postUrlWithOptions(url, { async: false }, { page: page })
+                .done(function (data) {
+                    $(container).append(data);
+                    bindHandlers();
+                    $("#FieldTable").paginationConfluense(3);
+                    $("#tableFieldNewRole").find('.Pagination_Number').last().click();
+                });
+        }
+
+        $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-NewField"] a', function() {
+            if ($(this) == undefined || $(this) == null || $(this).text() === "" || $(this).attr("dd-value") === "") {
+                return false;
+            } else {
+                var countRepeatRow = 0;
+
+                var ouValor = $(this).attr('dd-value');
+
+                $('[name="NewField"]').each(function () {
+                    if (ouValor === $(this).val()) {
+                        countRepeatRow++;
+                    }
+                });
+
+                if (countRepeatRow > 1) {
+                    showMessage("@Localization.GetText("Please, select an other field.")");
+                    $(this).closest('ul').FirstorDefault();
+                    return false;
+                }
+                return true;
+            }
+        });
+
+        $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-CountryRow"] a, ul.dropdown-menu[aria-labelledby="id-DivisionRow"] a, ul.dropdown-menu[aria-labelledby="id-OperationTypeRow"] a,ul.dropdown-menu[aria-labelledby="id-OperationStatusRow"] a', function() {
+            if ($(this) == undefined || $(this) == null || $(this).text() === "" || $(this).attr("dd-value") === "") {
+                return false;
+            } else {
+                var select = $(this);
+                var row = $(this).closest("tr");
+                var controlPermissionSelect = $(row).find('[name="IDControlPermissionRow"]').attr('value');
+                var fieldSelect = $(row).find('[name="FieldRow"]').attr('value');
+                var pageSelect = $(row).find('[name="PageRow"]').attr('value');
+                var countrySelect = $(row).find('ul.dropdown-menu[aria-labelledby="id-CountryRow"] a[dd-selected]').attr('dd-value');
+                var divisionSelect = $(row).find('ul.dropdown-menu[aria-labelledby="id-DivisionRow"] a[dd-selected]').attr('dd-value');
+                var operationTypeSelect = $(row).find('ul.dropdown-menu[aria-labelledby="id-OperationTypeRow"] a[dd-selected]').attr('dd-value');
+                var operationStatusSelect = $(row).find('ul.dropdown-menu[aria-labelledby="id-OperationStatusRow"] a[dd-selected]').attr('dd-value');
+                $('#CITable').find('tbody tr').each(function() {
+                    var controlPermissionIterated = $(this).find('[name="IDControlPermissionRow"]').attr('value');
+                    var fieldIterated = $(this).find('[name="FieldRow"]').attr('value');
+                    var pageIterated = $(this).find('[name="PageRow"]').attr('value');
+                    var countryIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-CountryRow"] a[dd-selected]').attr('dd-value');
+                    var divisionIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-DivisionRow"] a[dd-selected]').attr('dd-value');
+                    var operationTypeIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-OperationTypeRow"] a[dd-selected]').attr('dd-value');
+                    var operationStatusIterated = $(this).find('ul.dropdown-menu[aria-labelledby="id-OperationStatusRow"] a[dd-selected]').attr('dd-value');
+                    if (controlPermissionSelect !== controlPermissionIterated) {
+                        if (fieldSelect === fieldIterated && pageSelect === pageIterated && countrySelect === countryIterated &&
+                            divisionSelect === divisionIterated && operationTypeSelect === operationTypeIterated && operationStatusSelect === operationStatusIterated) {
+                            $(select).closest('td').find('input').FirstorDefault();
+                            showMessage("@Localization.GetText("OP.OD.TabClassificationData.Message.OrganizationalUnit")");
+                            return false;
+                        }
+                    }
+                });
+            }
+
+        });
+
+        $(document).on('change', '[name="NewHidden"],[name="NewReadOnly"],[name="NewRequired"],[name="ReadOnlyRow"],[name="HiddenRow"],[name="RequiredRow"]', function() {
+            var row = $(this).closest('tr');
+
+            if ($(this).prop("checked")) {
+                $(row).find(':checkbox').not('[name=' + $(this).attr('name') + ']').prop('disabled', true);
+            } else {
+                $(row).find(':checkbox').prop('disabled', false);
+            }
+        });
+    </script>
+}

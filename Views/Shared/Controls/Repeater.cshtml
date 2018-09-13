@@ -1,0 +1,258 @@
+﻿@using System.Web.Mvc
+
+@using IDB.Presentation.MVC4.Models.Repeater
+
+@{
+    var isTemplate = (ViewData["IsTemplate"] as bool?) == true;
+
+    var repeaterClass = string.Empty;
+
+    if (!string.IsNullOrWhiteSpace(Model.RepeaterClass))
+    {
+        repeaterClass = Model.RepeaterClass;
+    }
+
+    var name = Model.Name;
+
+    if (!string.IsNullOrWhiteSpace(Model.ParentId))
+    {
+        name = string.Format("{0}-{1}", Model.Name, Model.ParentId);
+    }
+
+    string btnDeletePositionClass = null;
+    string btnDeleteAlignClass = null;
+    Position buttonDeletePosition = Model.ButtonDeletePosition ?? Position.Right;
+    Position buttonDeleteAlign = Model.ButtonDeleteAlign ?? Position.Top;
+
+    if (Model.ShowDeleteButton)
+    {
+
+        switch (buttonDeletePosition)
+        {
+            case Position.Top:
+                btnDeletePositionClass = "repeater-item-btn-delete-pos-top";
+                break;
+            case Position.Right:
+                btnDeletePositionClass = "repeater-item-btn-delete-pos-right";
+                break;
+            case Position.Bottom:
+                btnDeletePositionClass = "repeater-item-btn-delete-pos-bottom";
+                break;
+            case Position.Left:
+                btnDeletePositionClass = "repeater-item-btn-delete-pos-left";
+                break;
+        }
+
+        switch (buttonDeleteAlign)
+        {
+            case Position.Top:
+                btnDeleteAlignClass = "repeater-item-btn-delete-align-top";
+                break;
+            case Position.Right:
+                btnDeleteAlignClass = "repeater-item-btn-delete-align-right";
+                break;
+            case Position.Bottom:
+                btnDeleteAlignClass = "repeater-item-btn-delete-align-bottom";
+                break;
+            case Position.Left:
+                btnDeleteAlignClass = "repeater-item-btn-delete-align-left";
+                break;
+        }
+    }
+}
+
+<div id="@name" data-repeater-main="true" class="@repeaterClass"
+     @CreateAttribute("data-repeater-autoincrement-id", "0")
+     @CreateAttribute("data-repeater-item-class", Model.RepeaterItemClass)
+     @if (Model.ParentId != null && !string.IsNullOrWhiteSpace(Model.ParentId))
+     {
+         @CreateAttribute("data-repeater-parent-id", Model.ParentId)
+         @CreateAttribute("data-repeater-parent-id-new", isTemplate)
+     }
+     @GenerateAttributes(Model.ExtraData)>
+    <div data-repeater-template="true" class="hide">
+        <div class="@btnDeletePositionClass @btnDeleteAlignClass">
+            @{
+                if (!isTemplate) { ViewData.Add("IsTemplate", true); }
+            }
+
+            @if (Model.ShowDeleteButton &&
+                (buttonDeletePosition == Position.Top || buttonDeletePosition == Position.Left))
+            {
+                @DeleteButton(
+                    Model.ButtonDeleteClass,
+                    Model.ButtonDeleteText,
+                    Model.ButtonDeleteHasIcon,
+                    Model.ButtonDeleteItemAction)
+            }
+
+            @Html.Partial((string)Model.PartialViewName, (object)Model.ModelTemplate)
+
+            @if (Model.ShowDeleteButton &&
+                (buttonDeletePosition == Position.Right || buttonDeletePosition == Position.Bottom))
+            {
+                @DeleteButton(
+                    Model.ButtonDeleteClass,
+                    Model.ButtonDeleteText,
+                    Model.ButtonDeleteHasIcon,
+                    Model.ButtonDeleteItemAction)
+            }
+
+            @{
+                if (!isTemplate) { ViewData.Remove("IsTemplate"); }
+            }
+        </div>
+    </div>
+
+    @if (Model.ButtonNewPosition == "top") { @RepeaterButtons(isTemplate) }
+
+    <div data-repeater-container="true">
+        @foreach (var item in Model.RepeaterModelData)
+        {
+            var canRemoveElement = Model.CanRemoveElement != null &&
+                Model.CanRemoveElement.Invoke(item);
+
+            <div class="repeater-item @Model.RepeaterItemClass @btnDeletePositionClass @btnDeleteAlignClass">
+
+                @if (Model.ShowDeleteButton && canRemoveElement &&
+                    (buttonDeletePosition == Position.Top || buttonDeletePosition == Position.Left))
+                {
+                    @DeleteButton(
+                        Model.ButtonDeleteClass,
+                        Model.ButtonDeleteText,
+                        Model.ButtonDeleteHasIcon,
+                        Model.ButtonDeleteItemAction)
+                }
+
+                <div data-repeater-item="true"
+                     data-repeater-item-old-id="@GetReflectionValue(item, Model.PropertyNameId)">
+                    @Html.Partial((string)Model.PartialViewName, (object)item)
+                </div>
+
+                @if (Model.ShowDeleteButton && canRemoveElement &&
+                    (buttonDeletePosition == Position.Right || buttonDeletePosition == Position.Bottom))
+                {
+                    @DeleteButton(
+                        Model.ButtonDeleteClass,
+                        Model.ButtonDeleteText,
+                        Model.ButtonDeleteHasIcon,
+                        Model.ButtonDeleteItemAction)
+                }
+            </div>
+        }
+    </div>
+
+    @if (Model.ButtonNewPosition != "top") { @RepeaterButtons(isTemplate) }
+</div>
+
+@helper RepeaterButtons(bool isTemplate)
+{
+    <div data-repeater-buttons="true">
+        <div class="@Model.ButtonNewRowContainerStyle">
+            <div class="@Model.ButtonNewColContainerStyle">
+                <div @(Model.IgnoreEditMode ? null : new MvcHtmlString("data-pagemode=\"edit\"")) >
+                    <button data-persist-new-id=""
+                            data-repeater-button-new-action="@Model.ButtonNewItemAction"
+                            class="@Model.ButtonNewStyle"
+                            @if (isTemplate) { <text> data-persist-new-parent-id="" </text> }
+                            data-repeater-position="@Model.ButtonNewPosition">
+                        @Model.ButtonNewText
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@helper DeleteButton(
+    string buttonDeleteClass,
+    string buttonDeleteText,
+    bool buttonDeleteHasIcon,
+    string buttonDeleteItemAction)
+{
+string cssCalss = string.Format("btnDelete-repeater {0}", buttonDeleteClass);
+
+    <div @(Model.IgnoreEditMode ? null : new MvcHtmlString("data-pagemode=\"edit\""))
+         class="btnDeleteRepeater">
+            @Display.Button(
+          text: buttonDeleteText,
+          hasIcon: buttonDeleteHasIcon,
+          htmlClass: cssCalss,
+          attributes: new Dictionary<string, string>
+                 {
+                        { "data-repeater-button-remove-action", buttonDeleteItemAction }
+                 })
+    </div>
+}
+
+@functions {
+
+    static string GetReflectionValue(object item, string propertyName)
+    {
+        if (item == null || propertyName == null)
+        {
+            return string.Empty;
+        }
+
+        var property = item.GetType().GetProperty(propertyName);
+
+        if (property == null)
+        {
+            return string.Empty;
+        }
+
+        var value = property.GetValue(item);
+
+        return value == null ? string.Empty : value.ToString();
+    }
+
+    static MvcHtmlString GenerateAttributes(IDictionary<string, string> attributes = null)
+    {
+        var resultString = "";
+
+        if (attributes == null || attributes.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var attribute in attributes)
+        {
+            resultString = string.Format(
+                "{0} data-persist-{1}=\"{2}\"",
+                resultString,
+                attribute.Key,
+                attribute.Value);
+        }
+
+        return new MvcHtmlString(resultString);
+    }
+
+    static MvcHtmlString CreateAttribute(string attributeName, object value)
+    {
+        MvcHtmlString result = null;
+
+        if (value != null && !string.IsNullOrWhiteSpace(value.ToString()))
+        {
+            result = new MvcHtmlString(CreateAttributeString(attributeName, value));
+        }
+
+        return result;
+    }
+
+    static string CreateAttributeString(string attributeName, object attributeValue)
+    {
+        if (attributeValue == null || string.IsNullOrWhiteSpace(attributeValue.ToString()))
+        {
+            return null;
+        }
+
+        object finalValue = attributeValue;
+
+        if (attributeValue is bool)
+        {
+            finalValue = ((bool)attributeValue) ? "true" : "false";
+        }
+
+        return string.Format("{0}=\"{1}\"", attributeName, finalValue);
+    }
+}

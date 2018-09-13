@@ -1,0 +1,842 @@
+@using System.Globalization;
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.BEOProcurementModule.Enums
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Controllers
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model ProcurementViewModel
+
+@if (Model != null)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+
+    var config = Html.RenderDataTable(Model.ProcurementList)
+        .Name("ProcurementList")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .RowDynamicAttributes(x => x.IsReadOnly ? Tuple.Create("data-is-read-only", "true") : null)
+        .Columns(columns =>
+        {
+            columns.Template(c => ColumnId(c, false))
+                .CssHeaderClass("procListEditId")
+                .CssClass("procListEditId")
+                .Header(Localization.GetText("COMMON.Id"));
+            columns.Template(c => ColumnName(c, false))
+                .CssHeaderClass("procListEditName")
+                .CssClass("procListEditName")
+                .Header(Localization.GetText("COMMON.Name"));
+            columns.Template(c => ColumnStage(c, false))
+                .CssHeaderClass("procListEditStage")
+                .CssClass("procListEditStage")
+                .Header(Localization.GetText("COMMON.Stage"));
+            columns.Template(c => ColumnStatus(c, false))
+                .CssHeaderClass("procListEditStatus")
+                .CssClass("procListEditStatus")
+                .Header(Localization.GetText("COMMON.Status"));
+            columns.Template(c => ColumnModality(c, false))
+                .CssHeaderClass("procListEditModality")
+                .CssClass("procListEditModality")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.ProcessModality"));
+            columns.Template(c => ColumnConfidential(c, false))
+                .CssHeaderClass("procListEditConfidential")
+                .CssClass("procListEditConfidential")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.Confidential"));
+            columns.Template(c => ColumnActions(c, false))
+                .CssHeaderClass("colAction90")
+                .CssClass("colAction90")
+                .Header(Localization.GetText("COMMON.Action"));
+        })
+        .RowTemplates(r =>
+        {
+            r.Create(RowTemplateType.FirstRow, x => Row(new ProcurementRowViewModel()));
+            r.Create(RowTemplateType.FirstRow, x => Detail(new ProcurementRowViewModel(), true));
+            r.Create(RowTemplateType.AllRows, x => Detail(x, false));
+        });
+
+    config.TableClass = "tableNormal";
+
+    <input hidden data-idb-pagename="UI-OCS-001-BEOFirmProcurementList" />
+
+    <div data-section="modals" class="hide">
+        @Display.AddModalButton(
+            new ModalViewModel(
+                contentSelector: "[data-name=\"remove-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-remove",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+            .AddButton(
+                name: "btn-remove-cancel",
+                text: Localization.GetText("Common.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "")
+            .AddButton(
+                name: "btn-remove-ok",
+                text: Localization.GetText("Common.Ok"),
+                type: CssClass.Button05,
+                callback: "okRemove",
+                closeAtEnd: true))
+
+        <div data-name="remove-modal" class="hide modalBody">
+            @Localization.GetText("TCP.FirmProcurement.DeleteRow.WarningPopup.Text")
+        </div>
+    </div>
+
+    @Display.AddModalButton(
+        new ModalViewModel(
+            contentSelector: "[data-name=\"warning-operative-task-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-warning-task",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+        .AddButton(
+            name: "btn-remove-cancel",
+            text: Localization.GetText("Common.Close"),
+            type: CssClass.ButtonLink,
+            callback: ""))
+
+    <div data-name="warning-operative-task-modal" class="hide modalBody">
+        @Localization.GetText("TCP.FirmProcurement.PopupText.WarningDeleteFramework")
+    </div>
+
+    <div>
+        @Html.Partial("ProcurementListEditPartial/Buttons")
+        @Confluence.LabelMainTitle(Localization.GetText("TCP.FirmProcurement.MainTitle"))
+    </div>
+
+    <div>
+        @(Html.CollapseAll("collapseAllRow")
+            .CollapseSingleSelector("tr:not(.template) [data-name=collapseDetail]")
+            .HtmlClass("float-right")
+        )
+        @Confluence.ButtonPdf(name: "downloadPDF", clase: "float-right")
+        @Confluence.LabelMainSubTitle(
+            Localization.GetText("TCP.FirmProcurement.TableTitle.ProcurementList"),
+            htmlClass: "subTitlePrincipalOv")
+    </div>
+
+    <div class="row mb20">
+        <div class="col-xs-12" name="form"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-url="@Url.Action("SaveProcurementList", "FirmProcurement", new { area = "Procurement" })">
+
+            <div data-fake-pagemode="edit">
+                <input type="hidden" value="@ViewBag.SerializedModel" id="serializeModel" name="serializeModel" />
+                @Html.Partial("Controls/DataTable", config)
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mb40">
+        @Confluence.ButtonAddNewRows(
+            Localization.GetText("TCP.FirmProcurement.Button.AddNewProcurement"),
+            "ProcurementList",
+            name: "newProcurement")
+        @Confluence.ButtonPdf(name: "downloadPDF", clase: "float-right")
+
+        <div class="clearfix"></div>
+    </div>
+
+    <div>
+        @Html.Partial("ProcurementListEditPartial/Buttons")
+
+        <div class="clearfix"></div>
+    </div>
+
+    @section scripts{
+        <script type="text/javascript">
+            function okRemove(e, source) {
+                var promise = $.Deferred();
+                var trMain = source.closest('tr');
+                var trDetail = trMain.next();
+
+                trMain.remove();
+                trDetail.remove();
+                promise.resolve();
+
+                return promise;
+            }
+
+            registerCallback(function () {
+                var taskSimpliId = '@cmdCollection[ProcurementModalityEnum.TaskSimplifiedSelection].MasterId';
+                var taskSingleId = '@cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId';
+                var frameworkId = '@cmdCollection[ProcurementModalityEnum.Framework].MasterId';
+
+                collapseDefaultState();
+
+                function collapseDefaultState() {
+                    var buttonColapse = $('div[data-name="collapseAllRow"]');
+
+                    buttonColapse.click();
+                }
+
+                function SetDetailByModality(tr) {
+                    var modalitySelected = tr.find('[name=modalityId]').val();
+                    var detailTr = tr.next();
+                    var associatedFrameworkSection = detailTr.find('[data-section="associatedFramework"]');
+                    var associatedTasksSection = detailTr.find('[data-section="associatedTasks"]');
+                    var associatedFrameworkInput = detailTr.find('[name="associatedFramework"]');
+                    var commentSection = detailTr.find('[data-section="comment"]');
+
+                    commentSection.removeClass('col-xs-8');
+                    commentSection.addClass('col-xs-12');
+
+                    associatedFrameworkSection.addClass('hide');
+                    associatedTasksSection.addClass('hide');
+                    associatedFrameworkSection.find('input').attr('disabled', 'disabled');
+                    associatedTasksSection.find('textarea').attr('disabled', 'disabled');
+
+                    if (modalitySelected == taskSimpliId || modalitySelected == taskSingleId) {
+                        associatedFrameworkInput.attr('required', 'required');
+                    } else {
+                        associatedFrameworkInput.removeAttr('required');
+                    }
+
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+
+                    switch (modalitySelected) {
+                        case frameworkId:
+                            associatedTasksSection.removeClass('hide');
+                            commentSection.removeClass('col-xs-8');
+                            commentSection.removeClass('col-xs-12');
+
+                            if (commentSection.closest('tr').attr('data-id').indexOf('new-') >= 0) {
+                                commentSection.addClass('col-xs-12');
+                            } else {
+                                commentSection.addClass('col-xs-8');
+                            }
+
+                            break;
+                        case taskSimpliId:
+                        case taskSingleId:
+                            associatedFrameworkSection.removeClass('hide');
+                            associatedFrameworkSection.find('input').removeAttr('disabled');
+                            commentSection.addClass('col-xs-8');
+                            commentSection.removeClass('col-xs-12');
+
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+                function CustomEnable(container) {
+                    var inputs = container.find('input:not([data-keep-disabled]), select:not([data-keep-disabled]), textarea:not([data-keep-disabled]), div.inputSearch.lupa.ctlAsyncr > button:not([data-keep-disabled]), div.dropdown > button:not([data-keep-disabled])');
+
+                    inputs.removeAttr('disabled');
+                }
+
+                $(document).on('change', '[name="modalityId"]', function () {
+                    var source = $(this);
+                    var tr = source.closest('tr');
+
+                    SetDetailByModality(tr);
+                });
+
+                $(document).on('click', '[name="remove"]', function () {
+                    var source = $(this);
+                    var hasOperativeTasks = source.attr('data-hasOperativeTask') == 'true';
+                    var modalButton = $('[name="btn-open-popup-remove"]');
+
+                    if (hasOperativeTasks) {
+                        modalButton = $('[name="btn-open-popup-warning-task"]');
+                    }
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+                });
+
+                $(document).on('click', '[name="newProcurement"]', function () {
+                    var table = $('#ProcurementList');
+                    var tbody = table.children('tbody');
+                    var newId = table.GenerateNewId();
+                    var newOrderNumber = 1;
+                    var mainRowTemplate = tbody.children(':first');
+                    var detailRowTemplate = tbody.children(':nth-child(2)');
+
+                    newMainTr = mainRowTemplate.clone(false);
+                    newDetailTr = detailRowTemplate.clone(false);
+                    newMainTr.removeClass('template');
+                    newMainTr.removeClass('hide');
+                    newMainTr.attr('data-id', 'new-' + newId);
+                    newDetailTr.removeClass('template');
+                    newDetailTr.removeClass('hide');
+                    newDetailTr.attr('data-id', 'new-' + newId);
+                    newMainTr.find('[name="orderNumber"]').val(newOrderNumber);
+
+                    var newOrderNumberZeros = '';
+
+                    newOrderNumberZeros = newOrderNumberZeros.substring(newOrderNumberZeros.length - 4);
+                    newMainTr.find('[data-section="orderNumber"]').html(newOrderNumberZeros);
+                    newMainTr.find('[data-name="collapseDetail"]').attr('data-collapse-single-region', String.format('tr[data-id="{0}"]:not(:first)', 'new-' + newId));
+
+                    CustomEnable(newMainTr);
+                    CustomEnable(newDetailTr);
+                    newMainTr.appendTo(tbody);
+                    newDetailTr.appendTo(tbody);
+
+                    newDetailTr.find('[data-role="drop-multiple"]').attr('data-bind', 'true');
+                    bindHandlers(newMainTr);
+                    bindHandlers(newDetailTr);
+
+                    initParsley();
+                    destroyParsley();
+                    initParsley();
+                    destroyParsley();
+                });
+
+                $(document).on('click', '[name="cancel"]', function () {
+                    var url = '@Url.Action("CancelProcurementList", "FirmProcurement", new { area = "Procurement" })';
+
+                    LocationAssign(url);
+                });
+
+                $(document).on('click', '[name="save"]', function () {
+                    var promise = $.Deferred();
+                    var url = '@Url.Action("SaveProcurementList", "FirmProcurement", new { area = "Procurement" })';
+                    var form = $('[name=form]');
+
+                    form.attr('data-url', url);
+
+                    var response = saveContainer(form, '#serializeModel', false, null, null, false, true, null);
+
+                    if (response !== false) {
+                        response.done(function (data) {
+                            if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                showMessage(data.ErrorMessage);
+                            }
+
+                            if (data.IsValid == true) {
+                                successBar('@Localization.GetText("TCP.FirmProcurement.PopUpInfo.SuccessfullyUpdated")', 3, true);
+                            }
+
+                            enterEditMode(false, $('[name=submitForm]'), false, false);
+                        });
+                    }
+
+                    promise.resolve();
+
+                    return promise;
+                });
+
+                var list = $('[data-fake-PageMode]');
+
+                list.each(function () {
+                    var item = $(this);
+                    var value = item.attr('data-fake-PageMode');
+
+                    item.removeAttr('data-fake-PageMode');
+                    item.attr('data-PageMode', value);
+                });
+
+                $('#ProcurementList').find('> tbody > tr:not(template).custom-even, > tbody > tr:not(template).custom-odd').each(function () {
+                    var tr = $(this);
+
+                    SetDetailByModality(tr);
+                });
+
+                $(document).on('click', '[name="downloadPDF"]', function () {
+                    var url = '@Url.Action("ProcurementListExportToPDF", "FirmProcurement", new { area = "Procurement" })';
+
+                    window.open(url, '_blank');
+                });
+
+            });
+        </script>
+    }
+}
+
+@helper ColumnId(ProcurementRowViewModel row, bool isTemplate)
+{
+    if (isTemplate)
+    {
+            <span></span>
+            <input type="text" name="orderNumber" disabled="disabled" class="hide" />
+            <span data-section="orderNumber"></span>
+    }
+    else
+    {
+        var tabName = FirmProcurementController.TAB_NAME_IDENTIFICATION;
+        var masterCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+        if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Identification, row.StageId))
+        {
+            tabName = FirmProcurementController.TAB_NAME_IDENTIFICATION;
+        }
+        else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Preparation, row.StageId))
+        {
+            tabName = FirmProcurementController.TAB_NAME_PREPARATION;
+        }
+        else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Evaluation, row.StageId))
+        {
+            tabName = FirmProcurementController.TAB_NAME_EVALUATION;
+        }
+        else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Negotiation, row.StageId))
+        {
+            tabName = FirmProcurementController.TAB_NAME_NEGOTIATION;
+        }
+        else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Execution, row.StageId))
+        {
+            tabName = FirmProcurementController.TAB_NAME_EXECUTION;
+        }
+
+        var url = Url.Action("Read", "FirmProcurement", new
+        {
+            area = "Procurement",
+            operationNumber = row.OperationNumber,
+            procurementId = row.Id,
+            tabName = tabName,
+            isReadOnly = row.IsReadOnly
+        });
+
+        @Confluence.LabelLink(row.VisibleId, dataNavigation: url, action: "showLoading")
+
+        <input type="text" name="orderNumber" value="@row.OrderNumber" disabled="disabled" class="hide" />
+    }
+}
+
+@helper ColumnName(ProcurementRowViewModel row, bool isTemplate)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+    if (isTemplate)
+    {
+            @Confluence.InputText(row.Name, "name", disabled: isTemplate, maxLength: 100)
+    }
+    else if (row.IsReadOnly)
+    {
+            <span>@row.Name.HtmlEncode()</span>
+    }
+    else
+    {
+        var attributes = new Dictionary<string, string>();
+        var isDisabled = true;
+
+        if (row.StatusId == cmdCollection[ProcurementStatusEnum.Active].MasterId)
+        {
+            if (row.StageId == cmdCollection[ProcurementStageEnum.Identification].MasterId)
+            {
+                attributes.Add("idb-fieldname", "beo-firm-procurement-edit-control");
+            }
+            else
+            {
+                attributes.Add("idb-fieldname", "beo-firm-procurement-admin-edit-control");
+            }
+        }
+
+        @Confluence.InputText(
+            row.Name,
+            "name",
+            disabled: isDisabled,
+            maxLength: 100,
+            dataAttributes: attributes)
+    }
+}
+
+@helper ColumnStage(ProcurementRowViewModel row, bool isTemplate)
+{
+    var stageList = (List<SelectListItem>)ViewBag.StageList;
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    var statusActiveId = cmdCollection[ProcurementStatusEnum.Active].MasterId;
+    var statusId = row.StatusId;
+    var selectedItemId = row.StageId.ToString();
+
+    if (isTemplate)
+    {
+        statusId = statusActiveId;
+        selectedItemId = cmdCollection[ProcurementStageEnum.Identification].MasterId.ToString();
+    }
+
+    var finalStageList = new List<SelectListItem>();
+
+    if (statusId == statusActiveId)
+    {
+        finalStageList.AddRange(stageList.TakeWhile(x => x.Value != selectedItemId));
+    }
+
+    finalStageList.Add(stageList.Single(x => x.Value == selectedItemId));
+
+    if (isTemplate)
+    {
+            @Confluence.InputDropDown(selectedItemId, "stageId", finalStageList, disabled: isTemplate, orderAsc: false, dataAttributes: new Dictionary<string, string> { { "keep-disabled", "true" } })
+    }
+    else if (row.IsReadOnly)
+    {
+        @(Confluence.LabelGetDropDown(row.StageId.ToString(), ViewBag.StageList))
+    }
+    else
+    {
+        var attributes = new Dictionary<string, string>();
+        var isDisabled = true;
+
+        if (row.StatusId == cmdCollection[ProcurementStatusEnum.Active].MasterId)
+        {
+            attributes.Add("idb-fieldname", "beo-firm-procurement-admin-edit-control");
+        }
+
+        @Confluence.InputDropDown(
+            selectedItemId,
+            "stageId",
+            finalStageList,
+            disabled: isDisabled,
+            orderAsc: false,
+            dataAttributes: attributes)
+    }
+}
+
+@helper ColumnStatus(ProcurementRowViewModel row, bool isTemplate)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    var activeId = cmdCollection[ProcurementStatusEnum.Active].MasterId.ToString();
+    var selectedId = row.StatusId.ToString();
+
+    if (isTemplate)
+    {
+        selectedId = activeId;
+    }
+
+    var statusList = (List<SelectListItem>)ViewBag.StatusList;
+    var finalStatusList =
+        new List<SelectListItem>
+        {
+            statusList.Single(x => x.Value == activeId)
+        };
+
+    if (selectedId != activeId)
+    {
+        finalStatusList.Add(statusList.Single(x => x.Value == selectedId));
+    }
+
+    if (isTemplate)
+    {
+        @Confluence.InputDropDown(
+            selectedId,
+            "statusId",
+            finalStatusList,
+            disabled: isTemplate,
+            orderAsc: false,
+            dataAttributes: new Dictionary<string, string> { { "keep-disabled", "true" } })
+    }
+    else if (row.IsReadOnly)
+    {
+        @(Confluence.LabelGetDropDown(row.StatusId.ToString(), ViewBag.StatusList))
+    }
+    else
+    {
+        @Confluence.InputDropDown(
+           selectedId,
+           "statusId",
+           finalStatusList,
+           disabled: true,
+           orderAsc: false,
+           dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "beo-firm-procurement-admin-edit-control" } })
+    }
+}
+
+@helper ColumnModality(ProcurementRowViewModel row, bool isTemplate)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+    if (isTemplate)
+    {
+        @Confluence.InputDropDown(
+            row.ModalityId.ToString(),
+            "modalityId",
+            ViewBag.ModalityList,
+            disabled: isTemplate,
+            orderAsc: false)
+    }
+    else if (row.IsReadOnly)
+    {
+        @(Confluence.LabelGetDropDown(row.ModalityId.ToString(), ViewBag.ModalityList))
+    }
+    else
+    {
+        var attributes = new Dictionary<string, string>();
+        var isDisabled = true;
+
+        if (row.StatusId == cmdCollection[ProcurementStatusEnum.Active].MasterId)
+        {
+            if (row.StageId == cmdCollection[ProcurementStageEnum.Identification].MasterId)
+            {
+                attributes.Add("idb-fieldname", "beo-firm-procurement-edit-control");
+            }
+            else
+            {
+                attributes.Add("idb-fieldname", "beo-firm-procurement-admin-edit-control");
+            }
+        }
+
+        @Confluence.InputDropDown(
+            row.ModalityId.ToString(),
+            "modalityId",
+            ViewBag.ModalityList,
+            disabled: isDisabled,
+            orderAsc: false,
+            dataAttributes: attributes)
+    }
+}
+
+@helper ColumnConfidential(ProcurementRowViewModel row, bool isTemplate)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    var dropdownBool = new List<SelectListItem>
+    {
+        new SelectListItem
+        {
+            Text = Localization.GetText("Common.Yes"),
+            Value = "True"
+        },
+        new SelectListItem
+        {
+            Text = Localization.GetText("Common.No"),
+            Value = "False"
+        }
+    };
+
+    if (isTemplate)
+    {
+        @Confluence.InputDropDown(
+            row.Confidential.ToString(),
+            "confidential",
+            dropdownBool,
+            disabled: isTemplate)
+    }
+    else if (row.IsReadOnly)
+    {
+        @Confluence.LabelGetBool(row.Confidential)
+    }
+    else
+    {
+        var attributes = new Dictionary<string, string>();
+        var isDisabled = true;
+
+        if (row.StatusId == cmdCollection[ProcurementStatusEnum.Active].MasterId)
+        {
+            if (row.StageId == cmdCollection[ProcurementStageEnum.Identification].MasterId)
+            {
+                attributes.Add("idb-fieldname", "beo-firm-procurement-edit-control");
+            }
+            else
+            {
+                attributes.Add("idb-fieldname", "beo-firm-procurement-admin-edit-control");
+            }
+        }
+
+        @Confluence.InputDropDown(
+            row.Confidential.ToString(),
+            "confidential",
+            dropdownBool,
+            disabled: isDisabled,
+            dataAttributes: attributes)
+    }
+}
+
+@helper ColumnActions(ProcurementRowViewModel row, bool isTemplate)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+
+    <div class="textalign-center align-buttons-td">
+        @if (!row.IsReadOnly &&
+            (isTemplate || row.StageId == cmdCollection[ProcurementStageEnum.Identification].MasterId) &&
+            Model.IsFirmProcurementAdmin)
+        {
+            @Confluence.ButtonTrash(
+                text: "",
+                name: "remove",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        { "hasOperativeTask", row.HasOperativeTask.ToString().ToLower() }
+                    })
+        }
+
+        @(Html.CollapseSingle("collapseDetail")
+            .HtmlClass("arrow")
+            .TargetRegionSelector(string.Format("tr[data-id=\"{0}\"]:not(:first)", row.Id))
+            .AsociatedCollapseAllSelector("[data-name=collapseAllRow]"))
+    </div>
+}
+
+@helper Row(ProcurementRowViewModel row)
+{
+    <tr data-id="new-" class="template hide">
+        <td class="procListEditId">@ColumnId(row, true)</td>
+        <td class="procListEditName">@ColumnName(row, true)</td>
+        <td class="procListEditStage">@ColumnStage(row, true)</td>
+        <td class="procListEditStatus">@ColumnStatus(row, true)</td>
+        <td class="procListEditModality">@ColumnModality(row, true)</td>
+        <td class="procListEditConfidential">@ColumnConfidential(row, true)</td>
+        <td class="procListEditAction">@ColumnActions(row, true)</td>
+    </tr>
+}
+
+@helper Detail(ProcurementRowViewModel row, bool isTemplate)
+{
+    var strClass = isTemplate ? "template hide" : "";
+    var strDataId = isTemplate ? "new-" : row.Id.ToString();
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    var idTaskSimplified = cmdCollection[ProcurementModalityEnum.TaskSimplifiedSelection].MasterId;
+    var idTaskSingleSource = cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId;
+    var isReadOnlyAttribute = new MvcHtmlString("data-is-read-only=\"true\"");
+
+    if (row.IsReadOnly)
+    {
+        <tr data-id="@row.Id" class="read-only extend-custom" @(row.IsReadOnly ? isReadOnlyAttribute : null)>
+            <td colspan="9">
+                <div class="row mb20">
+                    @if ((row.ModalityId == cmdCollection[ProcurementModalityEnum.Framework].MasterId) ||
+                        (row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSimplifiedSelection].MasterId) ||
+                        (row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId))
+                    {
+                        <div class="col-xs-8">
+                            @Confluence.LabelsGroup(
+                                Localization.GetText("COMMON.Comments"),
+                                contentAlways: Confluence.InputTextArea(
+                                    row.Comments,
+                                    "comments",
+                                    width: "100%",
+                                    height: "100px",
+                                    disabled: true))
+                        </div>
+                        <div class="col-xs-4 valign-top">
+                            @if (row.ModalityId == cmdCollection[ProcurementModalityEnum.Framework].MasterId)
+                            {
+                                @Confluence.LabelsGroup(
+                                    Localization.GetText("TCP.FirmProcurement.TableTitle.AssociatedTasks"),
+                                    contentAlways: Confluence.InputTextArea(
+                                        string.Join("\r\n", row.AssociatedTasksRO),
+                                        "associatedTasks",
+                                        width: "100%",
+                                        height: "100px",
+                                        disabled: true))
+                            }
+                            else if ((row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSimplifiedSelection].MasterId) ||
+                                (row.ModalityId == cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId))
+                            {
+                                @Confluence.LabelsGroup(
+                                    Localization.GetText("TCP.FirmProcurement.TableHeader.AssociatedFramework"),
+                                    contentAlways: Confluence.LabelBold(row.AssociatedFrameworkText))
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="col-xs-12">
+                            @Confluence.LabelsGroup(
+                                Localization.GetText("COMMON.Comments"),
+                                contentAlways: Confluence.InputTextArea(
+                                    row.Comments,
+                                    "comments",
+                                    width: "100%",
+                                    height: "100px",
+                                    disabled: true))
+                        </div>
+                    }
+                </div>
+
+                @Confluence.InputText(row.IsReadOnly.ToString(), name: "IsReadOnly", htmlClass: "hide")
+            </td>
+        </tr>
+    }
+    else
+    {
+        <tr class="@strClass extend-custom" data-id="@strDataId">
+            <td colspan="9">
+                <div class="row mb20">
+                    <div class="col-xs-12" data-section="comment">
+                        @Confluence.LabelsGroup(
+                            Localization.GetText("COMMON.Comments"),
+                            contentAlways: Confluence.InputTextArea(
+                                row.Comments,
+                                "comments",
+                                width: "100%",
+                                height: "100px",
+                                disabled: isTemplate,
+                                maxLength: 1000,
+                                required: false))
+                    </div>
+                    <div class="col-xs-4 hide valign-top" data-section="associatedFramework">
+                        @Confluence.LabelsGroup(
+                            Localization.GetText("TCP.FirmProcurement.TableHeader.AssociatedFramework"),
+                            contentAlways: Confluence.InputDropDownAsync(
+                                row.AssociatedFrameworkValue,
+                                "associatedFramework",
+                                Url.Action(
+                                    "SearchFrameworkProcuremet",
+                                    "FirmProcurement",
+                                    new { area = "Procurement" }),
+                                textSelected: row.AssociatedFrameworkText,
+                                width: "100%",
+                                disabled: isTemplate,
+                                required: (row.ModalityId == idTaskSimplified || row.ModalityId == idTaskSingleSource)))
+                    </div>
+                    @if (!isTemplate)
+                    {
+                        <div class="col-xs-4 hide valign-top read-only" data-section="associatedTasks">
+                            @Confluence.LabelsGroup(
+                                Localization.GetText("TCP.FirmProcurement.TableTitle.AssociatedTasks"),
+                                contentAlways: Confluence.InputTextArea(
+                                    string.Join("\r\n", row.AssociatedTasksRO),
+                                    "associatedTasks",
+                                    width: "100%",
+                                    height: "100px",
+                                    required: false,
+                                    disabled: true))
+                        </div>
+                    }
+                </div>
+
+                @Confluence.InputText(row.IsReadOnly.ToString(), name: "IsReadOnly", htmlClass: "hide")
+            </td>
+        </tr>
+    }
+}
+
+@helper columhide(ProcurementRowViewModel row)
+{
+    <div class="hide">
+        @Confluence.InputText(row.Name, "name")
+    </div>
+}
+
+@helper Text(string text)
+{
+    @text.HtmlEncode()
+}
+
+@functions{
+    static bool CheckIdInConvergence(
+        CustomEnumDictionary<MasterDataViewModel> convergence, Enum enumValue, int masterId)
+    {
+        if (!convergence.ContainsKey(enumValue))
+        {
+            return false;
+        }
+
+        return convergence[enumValue].MasterId == masterId;
+    }
+}

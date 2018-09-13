@@ -1,0 +1,254 @@
+﻿@using System.Globalization
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.CountryStrategyModule.ViewModels.UseCountry
+@using NewConfluence
+
+@model List<UCSExpectedOutcomeIndicatorViewModel>
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+
+    var config = Html.RenderDataTable(Model);
+    config.TableClass = "tableNormal tableResultsMatrixEdit";
+    config.Name("resultMatrixDataTable")
+    .PrimaryKey(m => m.UCSStrategicObjectiveId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .UsePageMode(false)
+    .UseDataTableNet(false)
+    .Columns(columns =>
+    {
+        columns.Template(ExpectedOutcome)
+         .Persistent()
+         .Attribute("rowspan", x => x.RowSpanIndicatos.ToString())
+         .CssClassDynamic(c => GetClassOutcome(c.IsInitialOutcome))
+         .Attribute("style", x => "vertical-align: top !important; padding-bottom: 2px !important;")
+         .Attribute("style", x => "width:23%;")
+         .Header(Localization.GetText("CS.UseCountrySystem.ExpectedOutcome"));
+
+        columns.Template(Indicator)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.Indicator"))
+         .Attribute("style", x => "width:23%;");
+
+        columns.Template(UnitOfMeasure)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.UnitMeasure"))
+         .HeaderAttribute("style", "min-width: 80px;");
+
+        columns.Template(Baseline)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.Baseline"))
+         .HeaderAttribute("style", "min-width: 80px;");
+
+        columns.Template(BaselineYear)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.BaselineYear"))
+         .HeaderAttribute("style", "min-width: 80px;");
+
+        columns.Template(Source)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.MainTarget"))
+         .HeaderAttribute("style", "min-width: 80px;");
+
+        columns.Template(Timming)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.ResultMatrix.Timming"))
+         .Attribute("style", c => "vertical-align: top;")
+         .HeaderAttribute("style", "min-width: 120px;");
+
+        columns.Template(AlignmentToCRF)
+         .Persistent()
+         .Header(Localization.GetText("CS.UseCountrySystem.AlignmentCRF"))
+         .Attribute("style", x => "padding-top:0px !important;vertical-align: top !important;")
+         .HeaderAttribute("style", "min-width: 152px;");
+
+        columns.Template(Actions)
+         .Persistent()
+         .Attribute("style", x => "vertical-align: top !important;padding-top:0px !important;")
+         .HeaderAttribute("style", "width: 50px;");
+
+    })
+    .RowTemplates(x => x.Create(RowTemplateType.AllRows, i => i.LastRowOutcome ? RowButtonAddImpact(i) : null))
+    .RowDynamicAttributes(c => GetOutcomeAtribute(c.IsInitialOutcome))
+    .RowDynamicAttributes(c => GetOutcomeAtributeId(c.ExpectedOutcomeId));
+}
+
+@Html.Partial("Controls/DataTable", config)
+
+@helper ExpectedOutcome(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    @Confluence.InputTextArea(row.ExpectedOutcome, "ExpectedOutcome", width: "100%", height: ((row.RowSpanIndicatos * 170) - 20) + "px", htmlClass: "textAreaResultMatrix", disabled: !row.IsInitialOutcome, maxLength: 500, dataAttributes: attributes)
+}
+
+@helper Indicator(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    @Confluence.InputTextArea(row.Indicator, "Indicator", width: "100%", height: "150px", maxLength: 500, htmlClass: "input80Height", dataAttributes: attributes)
+}
+
+@helper UnitOfMeasure(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    @Confluence.InputTextArea(row.UnitOfMeasure, "UnitOfMeasure", width: "100%", height: "150px", htmlClass: "input80Height", maxLength: 300, dataAttributes: attributes)
+}
+
+@helper Baseline(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    @Confluence.InputTextArea(row.Baseline, "Baseline", width: "100%", height: "150px", htmlClass: "input80Height", maxLength: 140, dataAttributes: attributes)
+}
+
+@helper BaselineYear(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var expRegYearInterval = appSettings.ValidationYearIntervalRegExp;
+
+    var attributes = GetAttributes(row);
+    attributes.Add("parsley-intervalYear", "true");
+
+    @Confluence.InputText(row.BaselineYear, "BaselineYear", width: "100%", htmlClass: "inputResultMatrix", maxLength: 140, dataAttributes: attributes, expReg: expRegYearInterval)
+}
+ 
+@helper Source(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    @Confluence.InputTextArea(row.Source, "Source", width: "100%", height: "150px", htmlClass: "input80Height", maxLength: 300, dataAttributes: attributes)
+}
+
+@helper Timming(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    @Confluence.InputDropDown(row.TimmingTypeId.ToString(), "timming", ViewBag.TimmingList, orderAsc: false, width: "100px", dataAttributes: attributes)
+}
+
+@helper Actions(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    @Confluence.ButtonTrash("", "removeOutcome")
+}
+
+@helper RowButtonAddImpact(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var classHide = string.Empty;
+
+    if (!row.LastRowOutcome)
+    {
+        classHide = "hide";
+    }
+    <td colspan="9" class="text-center @classHide" style="padding-top:15px;">
+        @Confluence.ButtonAddNewRows(Localization.GetText("CS.UseCountrySystem.NewButtonIndicator"), "", name: "newIndicator")
+    </td>
+}
+
+@helper AlignmentToCRF(UCSExpectedOutcomeIndicatorViewModel row)
+{
+    var attributes = GetAttributes(row);
+    <div data-outcome-container="@row.ExpectedOutcomeId" class="lblvalue bold" style="height: 100%;">
+        <div style="text-align: center;margin-bottom:10px;">
+            @Confluence.ButtonFlagFixed("", name: "linkCRFIndicator")
+            @Confluence.ButtonUnlink("", name: "unlinkCRFIndicator")
+        </div>
+        <div style="margin-left: 20px;margin-bottom:10px; font-size:11px !important;">
+            @if (row.LinkedIndicators.Any())
+            {
+                <ul class="linked-indicators">
+                    @foreach (var indicator in row.LinkedIndicators)
+                    {
+                        <li title="@(getCRFType(indicator, ViewBag.CRFIndicators))" class="@(getCRFType(indicator, ViewBag.CRFIndicators))">
+                            <span data-linked="input">
+                                @Confluence.InputText(indicator.ToString(), name: "LinkedIndicator", required: false, htmlClass: "hide", dataAttributes: attributes)
+                            </span>
+                            <span data-linked="text">
+                                @FunctionConfluence.GetSelectedText(indicator.ToString(), ViewBag.CRFIndicators)
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <ul class="linked-indicators"></ul>
+            }
+        </div>
+    </div>
+}
+
+@functions {
+
+    private static string GetClassOutcome(bool IsInitialOutcome)
+    {
+        var classOutcome = string.Empty;
+
+        if (!IsInitialOutcome)
+        {
+            classOutcome = "hide";
+        }
+        return classOutcome;
+    }
+
+    private static Dictionary<string, string> GetAttributes(UCSExpectedOutcomeIndicatorViewModel row)
+    {
+
+        var attributes = new Dictionary<string, string>();
+        if (row.UCSStrategicObjectiveId == 0)
+        {
+            attributes.Add("id", "new-");
+        }
+        else
+        {
+            attributes.Add("id", row.UCSStrategicObjectiveId.ToString());
+        }
+
+        if (row.ExpectedOutcomeId == 0)
+        {
+            attributes.Add("persist-outcomeId", "new-");
+        }
+        else
+        {
+            attributes.Add("persist-outcomeId", row.ExpectedOutcomeId.ToString());
+        }
+
+        if (row.IndicatorId == 0)
+        {
+            attributes.Add("persist-indicatorId", "new-");
+        }
+        else
+        {
+            attributes.Add("persist-indicatorId", row.IndicatorId.ToString());
+        }
+        return attributes;
+    }
+
+    private static string getCRFType(int indicatorId, List<SelectListItem> indicators)
+    {
+        var crfType = "";
+        var indicator = indicators.Where(x => x.Value == indicatorId.ToString());
+        crfType = indicator.Select(x => x.Group.Name).First();
+        return crfType;
+    }
+    
+    private static Tuple<string, string> GetOutcomeAtribute(bool IsInitialOutcome)
+    {
+        var classOutcome = new Tuple<string, string>("data-is-initialOutcome", "false");
+
+        if (IsInitialOutcome)
+        {
+            classOutcome = new Tuple<string, string>("data-is-initialOutcome", "true");
+        }
+        return classOutcome;
+    }
+
+    private static Tuple<string, string> GetOutcomeAtributeId(int outcomeId)
+    {
+        var classOutcome = new Tuple<string, string>("data-outcomeid", outcomeId.ToString());
+
+        return classOutcome;
+    }
+}

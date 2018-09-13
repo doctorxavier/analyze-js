@@ -1,0 +1,323 @@
+@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.ApplicationParameter
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.Architecture.DataTables.Common
+
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Application.BEOProcurementModule.Enums
+
+@model List<FirmScoringRowViewModel>
+
+@{
+    if (ViewBag.FirmList == null)
+    {
+        ViewBag.FirmList = new List<SelectListItem>();
+    }
+    if (ViewBag.StatusList == null)
+    {
+        ViewBag.StatusList = new List<SelectListItem>();
+    }
+
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "FirmScoring";
+
+    var config = Html.RenderDataTable(Model)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.OfferId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(ColumnWinner)
+                .Orderable(false)
+                .CssClass("textalign-center evaFirmScoringWinner")
+                .CssHeaderClass("evaFirmScoringWinner")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.Winners"))
+                .Hidden(false);
+            columns.Template(ColumnFirmName)
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmNameShortListed"))
+                .Hidden(false);
+            columns.Template(ColumnTechnicalScoring)
+                .Orderable(false)
+                .CssClass("textalign-center evaFirmScoringScore")
+                .CssHeaderClass("evaFirmScoringScore")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TechnicalScoring"))
+                .Hidden(false);
+            columns.Template(ColumnFinancialScoring)
+                .Orderable(false)
+                .CssClass("textalign-center evaFirmScoringScore")
+                .CssHeaderClass("evaFirmScoringScore")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FinancialScoring"))
+                .Hidden(false);
+            columns.Template(ColumnTotalScore)
+                .Orderable(false)
+                .CssClass("textalign-center evaFirmScoringScore")
+                .CssHeaderClass("evaFirmScoringScore")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TotalScore"))
+                .Hidden(false);
+            columns.Template(ColumnCurrency)
+                .Orderable(false)
+                .CssClass("colCurrencyEdit")
+                .CssHeaderClass("colCurrencyEdit")
+                .Header(Localization.GetText("COMMON.Currency"))
+                .Hidden(false);
+            columns.Template(ColumnPrice)
+                .Orderable(false)
+                .CssClass("textalign-right colAmount")
+                .CssHeaderClass("colAmount")
+                .Header(Localization.GetText("COMMON.Price"))
+                .Hidden(false);
+            columns.Template(ColumnStatus)
+                .Orderable(false)
+                .CssClass("evaFirmScoringStatus")
+                .CssHeaderClass("evaFirmScoringStatus")
+                .Header(Localization.GetText("COMMON.Status"))
+                .Hidden(false);
+            columns.Template(ColumnActions)
+                .Orderable(false)
+                .CssClass("colAction90")
+                .CssHeaderClass("colAction90")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.FirstRow, t => Detail(new FirmScoringRowViewModel(), true));
+            x.Create(RowTemplateType.AllRows, t => Detail(t, false));            
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+        @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.FirmScoringFirstRow"))
+                @(new HtmlString("&nbsp;"))
+                @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.FirmScoringSecondRow"))
+            </td>
+            <td class="table-transparent-buttons">
+        @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+                name: "viewTemplatesLink",
+                url: AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+                htmlClass: "bold ml20")
+
+            </td>
+            <td class="table-transparent-buttons">
+        @(Html.CollapseAll("collapseAllFirmsScoring")
+            .CollapseSingleSelector("tr:not(.template) [data-name=\"collapseFirmSocring\"]"))
+            </td>
+        </tr>
+    </tbody>
+</table> 
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper ColumnWinner(FirmScoringRowViewModel c)
+{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    var modalityFrwId = cmdCollection[ProcurementModalityEnum.Framework].MasterId;
+    
+    var tableName = "FirmScoring";
+    if (ViewBag.ModalityId == modalityFrwId)
+    {
+        @Confluence.InputCheckbox(
+            isChecked: c.IsWinner,
+            name: tableName + "-Winner",
+            disabled: false)
+    }
+    else
+    {
+        @Confluence.InputRadioButton(
+            value: "True",
+            name: "ScoringWinner",
+            isChecked: c.IsWinner,
+            disabled: true)
+    }
+}
+
+@helper ColumnFirmName(FirmScoringRowViewModel c)
+{
+    @Confluence.LabelGetDropDown(c.OfferId, ViewBag.FirmList, false)
+}
+
+@helper ColumnCurrency(FirmScoringRowViewModel c)
+{
+    var tableName = "FirmScoring";
+    var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" }
+    };
+    <div name="currencyChange">
+        @Confluence.InputDropDown(c.CurrencyId.ToString(),
+            tableName + "-CurrencyScore",
+            ViewBag.CurrencyList,
+            orderAsc: false,
+            width: "100%",
+            required: false,
+            htmlClass: "dropdown-menus",
+            dataAttributes: dataAttr)
+    </div>
+}
+
+@helper ColumnTechnicalScoring(FirmScoringRowViewModel c)
+{
+    var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" }
+
+    };
+    var tableName = "FirmScoring";
+    @Confluence.InputNumberText(
+        c.TechnicalScoring,
+        tableName + "-TechnicalScoring",
+        disabled: false,
+        width: "100%",
+        minValue: "0",
+        maxValue: "100",
+        required: false,
+        dataAttributes: dataAttr)
+}
+
+@helper ColumnFinancialScoring(FirmScoringRowViewModel c)
+{
+        var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" }
+    };
+
+    var tableName = "FirmScoring";
+    @Confluence.InputNumberText(
+        value: c.FinancialScoring,
+        name: tableName + "-FinancialScoring",
+        width: "100%",
+        maxValue: "100",
+        disabled: !c.TechnicalScoring.HasValue,
+        minValue: "0",
+        required: false,
+        dataAttributes: dataAttr)
+}
+
+@helper ColumnTotalScore(FirmScoringRowViewModel c)
+{
+    var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" }
+    };
+    var tableName = "FirmScoring";
+    @Confluence.Label(c.TotalScoring.ToString(), htmlClass: "totalScoring")
+    @Confluence.InputNumber(
+        c.TotalScoring,
+        tableName + "-TotalScoring",
+        disabled: false,
+        width: "100%",
+        minValue: "0",
+        maxValue: "100",
+        required: false,
+        htmlClass: "hide",
+        dataAttributes: dataAttr)
+}
+
+@helper ColumnPrice(FirmScoringRowViewModel c)
+{
+        var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" }
+    };
+    var tableName = "FirmScoring";
+    @Confluence.InputDecimal(c.Price,
+        tableName + "-Price",
+        disabled: false,
+        width: "100%",
+        maxValue:
+        "999999999999",
+        decimalPrecision: 2,
+        required: false,
+        dataAttributes: dataAttr)
+}
+
+@helper ColumnStatus(FirmScoringRowViewModel c)
+{
+        var dataAttr = new Dictionary<string, string>()
+    {
+        { "optional-required", "true" }
+    };
+    var tableName = "FirmScoring";
+    @Confluence.InputDropDown(
+        c.StatusId.ToString(),
+        tableName + "-StatusId",
+        ViewBag.ScoringStatusList,
+        disabled: false,
+        width: "100%",
+        htmlClass: "textalign-right",
+        required: false,
+        dataAttributes: dataAttr)
+}
+
+@*@helper ColumnComment(FirmScoringRowViewModel c)
+{
+    var tableName = "FirmScoring";
+    @Confluence.InputText(
+        c.Comment,
+        tableName + "-Comment",
+        disabled: false,
+        width: "100%",
+        required: false)
+}*@
+
+@helper Detail(FirmScoringRowViewModel c, bool isTemplate) 
+{
+    var id = (c.OfferId < 0 ? "new" : "") + c.OfferId.ToString(CultureInfo.InvariantCulture);
+    var tableName = "FirmScoring";
+    var tableNames = tableName + "-Comment";
+    var htmlClass = isTemplate ? "template hide" : string.Empty;
+    
+    <tr data-id="@id" class="@htmlClass extend-custom">
+        <td colspan="9">
+            <div class="row">
+                <div class="col-xs-12">
+                    @Confluence.Label(Localization.GetText("COMMON.Comments"), htmlClass: "")
+                    @Confluence.InputTextArea(
+                        c.Comment,
+                        tableNames,
+                        disabled: false,
+                        width: "100%",
+                        htmlClass: "hCollapse",
+        required: false)
+                </div>
+            </div>
+        </td>
+    </tr>
+}
+
+@helper ColumnActions(FirmScoringRowViewModel c)
+{
+    <div class="textalign-center">
+    @(Html.CollapseSingle("collapseFirmSocring")
+    .AsociatedCollapseAllSelector("[data-name=\"collapseAllFirmsScoring\"]")
+        .TargetRegionSelector(x => x.Closest("tr").Next())
+        .HtmlClass("arrow")
+    )
+    </div>
+}
+

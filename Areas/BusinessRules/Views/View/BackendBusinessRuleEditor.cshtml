@@ -1,0 +1,148 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+
+@model IDB.MW.Business.BusinessRulesModule.DTOs.BRERuleDTO
+
+@{
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+}
+
+@section Header
+{
+
+
+}
+
+<div class="page">
+    <div id="RenderedForm"
+         data-parsley-validate="data-parsley-validate"
+         data-loadurl="@Url.Action("BackendBusinessRuleEditorPartial", "View", new { area = "BusinessRules", brCode = Model.Code })"
+         data-url="@Url.Action("SaveBackendBusinessRule", "Save", new { area = "BusinessRules", brCode = Model.Code ?? "0" })">
+
+        @Html.Partial("Partials/BackendBusinessRuleEditor/BackendBusinessRuleEditorPartial", Model)
+    </div>
+</div>
+
+
+@section scripts{
+
+    <script src="~/Scripts/codemirror-2.37/lib/codemirror.js"></script>
+    <script src="~/Scripts/codemirror-2.37/mode/clike/clike.js" type="text/javascript"></script>
+    <link href="~/Scripts/codemirror-2.37/lib/codemirror.css" rel="stylesheet" type="text/css"/>
+    <link href="~/Scripts/codemirror-2.37/theme/cobalt.css" rel="stylesheet" type="text/css"/>
+
+    <style type="text/css">
+        .CodeMirror {
+            border: 1px solid rgb(169, 169, 169);
+            height: 500px;
+        }
+    </style>
+
+
+    <script type="text/javascript">
+
+
+        var editorRead;
+        var editorEdit;
+
+
+        registerCallback(function () {
+        });
+
+        function editForm(source) {
+            enterEditMode(false, $('#RenderedForm'), false);
+            LoadEditCodeMirror();
+           
+        }
+
+        function back() {
+            history.back();
+        }
+
+        function cancelEditForm(source) {
+            exitEditMode(true, $('#RenderedForm'), false, true);
+            LoadReadOnlyCodeMirror();
+            bindHandlers();
+        }
+
+        function saveForm(source) {
+
+            //Save SourceCode
+            $("#hiddenSourceCode").val(editorEdit.getValue());
+
+            var response = saveContainer($('#RenderedForm'), '#hidViewModel');
+            if (response !== false) {
+                response.done(function(data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                        showMessage(data.ErrorMessage);
+                    } else {
+                        //exitEditMode(false, $('#BackendRuleEditForm'), false, false);
+                        LoadReadOnlyCodeMirror();
+                    }
+
+                });
+            }
+        }
+        
+        function Compile() {
+                $("#CompilerOutput").val("Compiling...");
+                $.ajax({
+                    url: "@Url.Action("Compile", "View")",
+                    method: "POST",
+                data: {
+                    "brid": "@Model.Code",
+                    "sourcecode": editorEdit.getValue()
+                }
+            }).done(function(data, textStatus, jqXHR) {
+
+                if (data.IsValid) {
+                    $("#CompilerOutput").val("Compilation...OK");
+                    //Check if all went ok and enable Save Button
+                } else {
+
+                    if (data.Errors != null) {
+
+                        var errorStr = "";
+                        for (var i = 0; i < data.Errors.length; i++) {
+                            errorStr += "Line: " + data.Errors[i].Line + " Column: " + data.Errors[i].Column + ". " + data.Errors[i].ErrorText + "\n";
+                        }
+                        $("#CompilerOutput").val(errorStr);
+                    }
+
+                }
+
+
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                alert("error");
+            });
+        }
+
+        function LoadReadOnlyCodeMirror() {
+            editorRead = CodeMirror.fromTextArea(document.getElementById("SourceCodeRead"), {
+                lineNumbers: true,
+                readOnly: true,
+                matchBrackets: true,
+                mode: "text/x-csharp"
+            });
+            editorRead.setSize("100%", 500);
+        }
+
+        function LoadEditCodeMirror() {
+           editorEdit = CodeMirror.fromTextArea(document.getElementById("SourceCodeEdit"), {
+                lineNumbers: true,
+                matchBrackets: true,
+                mode: "text/x-csharp"
+            });
+            editorEdit.setSize("100%", 500);
+        }
+
+
+        $(document).ready(function() {
+            LoadReadOnlyCodeMirror();
+            if ('@ViewBag.EditMode' === 'True') {
+                editForm();
+            }
+        });
+    </script>
+
+
+}

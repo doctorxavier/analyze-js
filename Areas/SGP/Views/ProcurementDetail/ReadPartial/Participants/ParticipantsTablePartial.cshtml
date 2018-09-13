@@ -1,0 +1,222 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Architecture.DataTables.Common
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+
+@model ParticipantTabViewModel
+
+@{
+    var isTechnicalScoreVisible = Model.TechnicalScoreVisible;
+    var isFinancialScoreVisible = Model.FinancialScoreVisible;
+    var isOverallScoreVisible = Model.OverallScoreVisible;
+    var isAwardedAmountVisible = Model.AwardedAmountVisible;
+    
+    if (Model.NumberColumn == null)
+    {
+        Model.NumberColumn = 0;
+    }
+    
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    
+    var config = Html.RenderDataTable(Model.Bidders)
+        .Name("ParticipantsTable")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.BidderId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(BidderName)
+            .Orderable(false)
+            .Header(Localization.GetText("SGP.Label.Bidder"))
+            .Hidden(false);
+
+            columns.Template(ConsortiumTemplate)
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 105px;")
+            .Header(Localization.GetText("SGP.Label.Consortium?"))
+            .Hidden(false);
+
+            columns.Bound(c => c.NationalityTypeText)
+            .Orderable(false)
+            .Attribute("name", c => "nationality-bidder")
+            .Header(Localization.GetText("COMMON.SVQ.Nationality"))
+            .Hidden(false);
+
+            if (isTechnicalScoreVisible)
+            {
+                columns.Bound(c => c.TechnicalScore.HasValue ? c.TechnicalScore.ToString() : string.Empty)
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 50px;")
+                .Header(Localization.GetText("SGP.Label.TechnicalScore"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1; 
+            }
+
+            if (isFinancialScoreVisible)
+            {
+                columns.Bound(c => c.FinancialScore.HasValue ? c.FinancialScore.ToString() : string.Empty)
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 70px;")
+                .Header(Localization.GetText("SGP.Label.FinancialScore"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1; 
+            }
+
+            if (isOverallScoreVisible)
+            {
+                columns.Bound(c => c.OverallScore.HasValue ? c.OverallScore.ToString() : string.Empty)
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 50px;")
+                .Header(Localization.GetText("SGP.Label.OveralScore"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1; 
+            }
+
+            if (isAwardedAmountVisible)
+            {
+                columns.Bound(c => FormatHelper.Format(c.AwardedAmount, formatDecimal))
+                .Orderable(false)
+                .CssClass("text-right")
+                .HeaderAttribute("style", "width: 125px;")
+                .Header(Localization.GetText("SGP.Label.AwardedAmount"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1; 
+            }
+            
+            columns.Bound(c => c.ResultsTypeText)
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 120px;")
+            .Header(Localization.GetText("SGP.Label.Results"))
+            .Hidden(false);
+
+            columns.Template(DetailsTemplate)
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 110px;")
+            .Header(Localization.GetText("COMMON.SVQ.Details"))
+            .Hidden(false);
+
+            columns.Template(ActionTemplate)
+            .Orderable(false)
+            .CssClass("columnActionOnlyCollapse")
+            .HeaderAttribute("style", "width: 25px;")
+            .Header(Localization.GetText(""))
+            .Hidden(false);
+           
+        })
+        .RowTemplates(x => x.Create(RowTemplateType.AllRows, i => i.Participants.Any() ? RowParticipants(i) : null));
+        config.TableClass = "tableNormal";
+}
+
+@Html.Partial("Controls/DataTable", config)
+@Html.Partial("ReadPartial/Participants/Modal/BidderViewDetailsModal")
+
+@helper BidderName(BidderRowViewModel row)
+{
+    <span name="bidder">@row.NameBidderText</span>
+    @Confluence.InputHidden(row.Details.GenderTypeText, name: "gender-bidder");
+    @Confluence.InputHidden(row.Details.EconomicSectorText, name: "economicSector-bidder");
+    @Confluence.InputHidden(row.Details.Address, name: "address-bidder");
+    @Confluence.InputHidden(row.Details.Country, name: "country-bidder");
+    @Confluence.InputHidden(row.Details.State, name: "state-bidder");
+    @Confluence.InputHidden(row.Details.District, name: "district-bidder");
+}
+
+@helper ParticipantName(ParticipantRowViewModel row)
+{
+    <span name="participant">@row.NameParticipantText</span>
+    @Confluence.InputHidden(row.Details.GenderTypeText, name: "gender-participant");
+    @Confluence.InputHidden(row.Details.EconomicSectorText, name: "economicSector-participant");
+    @Confluence.InputHidden(row.Details.Address, name: "address-participant");
+    @Confluence.InputHidden(row.Details.Country, name: "country-participant");
+    @Confluence.InputHidden(row.Details.State, name: "state-participant");
+    @Confluence.InputHidden(row.Details.District, name: "district-participant");
+}
+
+@helper ConsortiumTemplate(BidderRowViewModel row)
+{
+    @Confluence.InputCheckbox(row.Consortium, name: "consortium-bidder", disabled: true)
+}
+
+@helper DetailsTemplate(BidderRowViewModel row)
+{
+    @Confluence.LabelLink(Localization.GetText("SGP.Label.ViewDetails"), name:"view-bidder-details")
+}
+
+@helper DetailsParticipantTemplate(ParticipantRowViewModel row)
+{
+    @Confluence.LabelLink(Localization.GetText("SGP.Label.ViewParticipantsDetails"), name: "view-participant-details")
+}
+
+@helper ActionTemplate(BidderRowViewModel row)
+{
+    if (row.Participants.Any())
+    {
+        <div class="textalign-center collapse-container wh0">
+            @(Html.CollapseSingle("collapseParticipantDetailsRead")
+                .HtmlClass("arrow vat")
+                .TargetRegionSelector(x => x.Closest("tr").Next())
+                .UseClassToHide("custom-hide")
+                .AsociatedCollapseAllSelector("[data-name=\"collapseAllParticipantRead\"]"))
+        </div>
+    }
+}
+
+@helper RowParticipants(BidderRowViewModel row)
+{
+    var finalColspan = 6 + Model.NumberColumn;
+    
+    <tr>
+        <td colspan="@finalColspan" class="tab-detail-row">
+        @{
+            var configTable = Html.RenderDataTable(row.Participants)
+                .Name("ParticipantsTable")
+                .AddPrimaryKeyToName(false)
+                .PrimaryKey(x => x.ParticipantId.ToString(CultureInfo.InvariantCulture))
+                .UseDataTableNet(false)
+                .UsePageMode(false)
+                .Columns(columns =>
+                {
+                    columns.Template(ParticipantName)
+                    .Orderable(false)
+                    .Header(Localization.GetText("SGP.Label.ConsortiumParticipants"))
+                    .Hidden(false);
+
+                    columns.Bound(c => c.NationalityTypeText)
+                    .Orderable(false)
+                    .Attribute("name", c => "nationality-participant")
+                    .Header(Localization.GetText("COMMON.SVQ.Nationality"))
+                    .Hidden(false);
+
+                    columns.Template(DetailsParticipantTemplate)
+                    .Orderable(false)
+                    .CssClass("textalign-center")
+                    .HeaderAttribute("style", "width: 180px;")
+                    .Header(Localization.GetText("SGP.Label.ParticipantsDetails"))
+                    .Hidden(false);
+
+                });
+                configTable.TableClass = "tableNormal";
+        }
+
+        @Html.Partial("Controls/DataTable", configTable)
+        </td>
+    </tr>
+}
+

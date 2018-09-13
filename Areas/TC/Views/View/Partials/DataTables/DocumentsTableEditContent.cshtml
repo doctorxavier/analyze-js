@@ -1,0 +1,165 @@
+﻿@using IDB.Architecture.Language
+@using System.Configuration
+@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.TC.Models
+@using IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService
+
+@model IDB.Presentation.MVC4.Areas.TC.Models.DocumentTableViewModel
+@{
+    var tableName = string.IsNullOrWhiteSpace(Model.DocumentTableName) ? "documentTable" : Model.DocumentTableName;
+    var addFunctionName = string.IsNullOrWhiteSpace(Model.AddFunctionName) ? "addDocument" : Model.AddFunctionName;
+}
+<div class="row row-header">
+    <div class="col-md-12">
+        <p>
+            <b>@Localization.GetText("TC.Documents.Title")</b>
+            @if (!string.IsNullOrWhiteSpace(Model.DocumentsInstructions))
+            {
+                <span class="icon-information info-documents"></span><span class="information">@Model.DocumentsInstructions</span>
+            }
+        </p>
+    </div>
+</div>
+
+@if (Model.ShowAddButton)
+{
+    <div id="@tableName-modal-add" class="hide">
+        @Html.Partial("Controls/IDBDocs/AddIDBDoc", new SearchDocumentModalViewModel { SearchModalId = "documentTable", MultipleSelection = true, TargetFunction = addFunctionName })
+    </div>
+    
+    <div class="row row-header text-right">
+        <div class="col-md-12">
+            <div data-PageMode="edit">
+                <button data-id="@tableName-add" class="btn btn-primary"
+                        data-modal-allowclose="true"
+                        data-custom-modal="@tableName-modal-add"
+                        data-custom-modal-style=""
+                        data-custom-modal-title="@Localization.GetText("Document.Title.Search")"
+                        data-custom-modal-validate="false">
+                    @Localization.GetText("TC.Documents.Add")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row-body-50">
+    @{
+        var dateFormat = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+        
+        var config = Html.RenderDataTable(Model.Documents);
+        config.Name(tableName)
+            .PrimaryKey(m => m.DocumentId.ToString())
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+                columns.Template(
+                    @<div data-PageMode="edit">
+                            <input type="hidden" name="@tableName-docNumber" value="@item.DocNumber" />
+                        </div>
+                    ).Hidden(true).Persistent();
+                
+                columns.Bound(c => c.User).Header(@Localization.GetText("TC.Documents.User"))
+                    .Persistent();
+
+                columns.Bound(c => FormatHelper.Format(c.Date, dateFormat)).Header(@Localization.GetText("TC.Documents.Date"))
+                    .Persistent();
+
+                columns.Bound(c => c.DocNumber).Header(@Localization.GetText("TC.Documents.DocNumber"))
+                    .Persistent();
+
+                //columns.Bound(c => c.Description).EditableTemplate(row => InputDescription(row)).Persistent().Header(Localization.GetText("TC.Documents.Content"));
+                columns.Bound(c => c.Description).Header(@Localization.GetText("TC.Documents.Content"))
+                    .Persistent();
+
+                if (Model.CanDelete)
+                {
+                    columns.Template(@<button class="btn btn-sm download boxImg" 
+                                            data-action="DownloadDocumentGeneric" 
+                                            data-url="@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })"
+                                            data-id="@item.DocNumber">
+                                    </button>).EditableTemplate(
+                                    @<div>
+                                        <button class="btn btn-sm download boxImg" 
+                                                    data-action="DownloadDocumentGeneric" 
+                                                    data-url="@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })"
+                                                    data-id="@item.DocNumber">
+                                        </button>
+                                        @*<button class="btn btn-sm delete boxImg trash-icon"*@
+                                         <button class="btn btn-sm trash-icon boxImg"
+                                                 data-action="DeleteDocumentGeneric"
+                                                 @(string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : new MvcHtmlString(string.Format("data-before-delete=\"{0}\"", Model.BeforeDeleteFuncionName)))></button>
+                                    </div>)
+                    .Header(@Localization.GetText("TC.Documents.Actions"));
+                }
+                else
+                {
+                    columns.Template(@<button class="btn btn-sm download boxImg" 
+                                            data-action="DownloadDocumentGeneric" 
+                                            data-url="@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })"
+                                            data-id="@item.DocNumber">
+                                    </button>).Header(@Localization.GetText("TC.Documents.Actions")).Persistent();
+                }
+            });
+        config.RowTemplates(x =>
+        {
+            if (Model.CanDelete)
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="newDocument" role="row" class="hide">
+                         <td class="hide">
+                             <div data-pagemode="edit" class="">
+                                 <input type="hidden" name="@tableName-docNumber" value="">
+                             </div>
+                         </td>
+                         <td><span></span></td>
+                         <td><span></span></td>
+                         <td data-name="idb-doc-number"><span></span></td>
+                         <td><span></span></td>
+                         <td>
+                            <button class="btn btn-sm download boxImg" data-action="DownloadDocumentGeneric" data-url="@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })" data-id=""></button>
+                            <button class="btn btn-sm delete boxImg" data-action="DeleteDocumentGeneric" @(string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : new MvcHtmlString(string.Format("data-before-delete=\"{0}\"", Model.BeforeDeleteFuncionName)))></button>
+                         </td>
+                     </tr>
+                    );
+            }
+            else
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="newDocument" role="row" class="hide">
+                         <td class="hide">
+                             <div data-pagemode="edit" class="">
+                                 <input type="hidden" name="@tableName-docNumber" value="">
+                             </div>
+                         </td>
+                         <td><span></span></td>
+                         <td><span></span></td>
+                         <td data-name="idb-doc-number"><span></span></td>
+                         <td><span></span></td>
+                         <td>
+                            <button class="btn btn-sm download boxImg" data-action="DownloadDocumentGeneric" data-url="@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })" data-id=""></button>
+                         </td>
+                     </tr>
+                    );
+            }
+        });
+    }
+
+    @helper ComponentContent(DocumentViewModel viewModel)
+    {
+        
+        
+     
+    }
+
+
+
+
+    @Html.Partial("Controls/DataTable", config)
+</div>

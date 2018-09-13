@@ -1,0 +1,584 @@
+﻿@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Components
+@using IDB.MW.Domain.Values
+@using IDB.Presentation.MVC4.Helpers
+@model FinancialProgressViewModel
+
+<input type="hidden" id="hidFinancialProgressModel" value="@PageSerializationHelper.SerializeObject(Model)" />
+
+<div data-pagemode="edit">
+    <input type="hidden" name="hdSaveInResultMatrix" value="@Model.Interval" />
+    <input type="hidden" name="hdResultMatrixId" value="@Model.ResultsMatrixId" />
+</div>
+
+@{
+    var list = Model.Component != null ? Model.Component.Select(component => string.Format("OutputComponentTable{0}", component.ComponentId)).ToList() : new List<string>();
+}
+
+<div class="floatRight mb10">
+    @Confluence.ButtonColapseAll(list)
+    <input type="button" class="buttonWhite square-button" data-expanded="true" data-collapsable-element="row-disaggregation" value="@Localization.GetText("TCM.Outputs.InactiveOutputs")" name="inactiveOutput" />
+</div>
+
+<div class="ml35 col-md-12">
+    <div class="col-md-12 mb10">
+        @Confluence.Label(Localization.GetText("TCM.Outputs.TotalOperationalCost"), htmlClass: "font15Important")
+    </div>
+    <div class="col-md-2 ml50">
+        <p class="lgTit">@Localization.GetText("TCM.Outputs.OriginalApprovedAmount")</p>
+        <p class="lgCont">@Confluence.LabelDecimal(Model.OriginalApprovedAmount, true)</p>
+    </div>
+    <div class="col-md-2">
+        <p class="lgTit">@Localization.GetText("TCM.Outputs.CurrentApprovedAmount")</p>
+        <p class="lgCont">@Confluence.LabelDecimal(Model.CurrentApprovedAmount, true)</p>
+    </div>
+    <div class="col-md-6">
+        @Confluence.InformationSection(Localization.GetText("TCM.Outputs.AmountsExpressedInUSD"))
+    </div>
+</div>
+
+<div class="overflow col-md-12">
+@foreach (var component in Model.Component)
+{
+    var hasOutput = component.Outputs.Any();
+    <table id="@string.Format("OutputComponentTable{0}", component.ComponentId)" class="tableNormal lineNonStop tablePrincipal mb20 financialOutput">
+        <thead>
+        <tr>
+            <td class="treeNumber">@component.OrderNumber</td>
+            <th class="tree icon">
+                @Confluence.ButtonExpandTable()
+                <div class="number"></div>
+            </th>
+            <td colspan="@Convert.ToInt32(Model.YearPlans.Count + 5)">
+                <div class="row">
+                    <div class="col-md-9 tcmTitleTable mt12">
+                        @Localization.GetText("TCM.Outputs.Component"): @component.Statement
+                    </div>
+                    <div class="col-md-3 text-right h40px">
+                        <p class="lgTit">@Localization.GetText("TCM.Outputs.ComponentRevisedCost")</p>
+                        <p class="lgCont">@Confluence.LabelDecimal(component.ComponentRevisedCost, true) </p>
+                    </div>
+                </div>
+            </td>
+        </tr>
+        <tr class="tableHeader">
+            @if (hasOutput)
+            {
+                <td class="tree">
+                    <span></span>
+                    <div class="number"></div>
+                </td>
+                <th class="outputFinancial" colspan="3">@Localization.GetText("TCM.Outputs.OutputIndicator")</th>
+                <th class="outputPPaA"></th>
+                foreach (var year in Model.YearPlans)
+                {
+                    <th class="tcmHeaderYear">@year</th>
+                }
+                <th class="tcmHeaderYear">@Localization.GetText("TCM.Outputs.Cost")</th>
+            }
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var output in component.Outputs)
+        {
+            <tr class="trYc" data-id="@output.OutputId" attr-acalc="@output.IsAutoCalcPhysycalEop.ToString().ToLower()" attr-inactive="@output.IsDeactivated.ToString().ToLower()">
+                <td class="tree">
+                    <span> </span>
+                    <div class="number">@string.Format(component.OrderNumber + "." + output.OrderNumber)</div>
+                </td>
+                <td class="@string.Format(output.LinkedToStandardOutput && output.LinkedToCRFIndicator ? "w65" : "w50")">
+
+                    @if (output.CRFIndicatorsLinked != null)
+                    {
+                        foreach (var crfIndicator in output.CRFIndicatorsLinked)
+                        {
+                            @ControlTemplatesTCM.BlackFlag()
+                        }
+                    }
+
+                    @if (output.LinkedToStandardOutput)
+                    {
+                        @ControlTemplatesTCM.MagentaFlag()
+                    }
+                </td>
+                <td class="pl0" colspan="2">
+                    <a href="@Url.Action("OutputIndicatorDetail", "Components", new {area = "TCM", id = output.OutputId})">
+                        @( IDBContext.Current.CurrentLanguage == Language.ES ? output.AlternativeDefinition : output.Definition )
+                    </a>
+                </td>
+                <td class="nopadding">
+                    <div data-pagemode="read">
+                        <table class="wp100">
+                            <tr>
+                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div data-pagemode="edit">
+                        <table class="non-border-table wp100">
+                            <tr>
+                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                @foreach (var yearPlan in output.OutputYearPlans)
+                {
+                    <td class="nopadding yearPlan">
+                        <div data-pagemode="read">
+                            <table class="wp100">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">@Confluence.LabelDecimal(yearPlan.OriginalPlan)</td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">@Confluence.LabelDecimal(yearPlan.AnnualPlan)</td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">@Confluence.LabelDecimal(yearPlan.ActualValue)</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div data-pagemode="edit">
+                            <table data-attr="@yearPlan.Year" class="wp100 ouput-year-plans">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0 originalP">
+                                        @Confluence.InputDecimal(yearPlan.OriginalPlan, "ipdOriginalPlan", disabled: yearPlan.IsOriginalPlanDisabled, required: false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(output.OutputId + "|" + yearPlan.OutputYearPlanId + "|" + yearPlan.Year)}}, htmlClass: "input-text-grid custom-black")
+                                    </td>
+
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0 annualP">
+                                        @Confluence.InputDecimal(yearPlan.AnnualPlan, "ipdAnnualPlan", disabled: yearPlan.IsAnnualPlanDisabled, required: false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(output.OutputId + "|" + yearPlan.OutputYearPlanId + "|" + yearPlan.Year)}}, htmlClass: "input-text-grid custom-black")
+                                        <input type="hidden" value="@yearPlan.AnnualPlan" name="original-ipdAnnualPlan" />
+                                        <input type="hidden" value="@yearPlan.PreviousAnnualPlan" name="previous-ipdAnnualPlan" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0 actualP">
+                                        @Confluence.InputDecimal(yearPlan.ActualValue, "ipdActualValue", disabled: yearPlan.IsActualValueDisabled, required: false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(output.OutputId + "|" + yearPlan.OutputYearPlanId + "|" + yearPlan.Year)}}, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </td>
+                }
+                <td class="nopadding CostEop">
+                    <div data-pagemode="read">
+                        @{
+                            <table class="wp100">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(output.EndOfProject.OriginalPlan)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right  pt0 pb0">
+                                        @Confluence.LabelDecimal(output.EndOfProject.AnnualPlan)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right  pt0 pb0">
+                                        @Confluence.LabelDecimal(output.EndOfProject.ActualValue)
+                                    </td>
+                                </tr>
+                            </table>
+                        }
+                    </div>
+                    <div data-pagemode="edit">
+                        @{
+                            <table data-attr="@TCMGlobalValues.END_OF_PROJECT_YEAR" class="wp100 ouput-year-plans">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(output.EndOfProject.OriginalPlan, "ipdTotalOriginalPlan", false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(output.OutputId + "|" + output.EndOfProject.OutputYearPlanId)}}, disabled: output.EndOfProject.IsOriginalPlanDisabled, htmlClass: "input-text-grid custom-black")
+                                        <input type="hidden" value="@output.EndOfProject.OriginalPlan" name="original-ipdTotalOriginalPlan"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(output.EndOfProject.AnnualPlan, "ipdTotalAnnualPlan", false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(output.OutputId + "|" + output.EndOfProject.OutputYearPlanId)}}, disabled: output.EndOfProject.IsAnnualPlanDisabled, htmlClass: "input-text-grid custom-black")
+                                        <input type="hidden" value="@output.EndOfProject.AnnualPlan" name="original-ipdTotalAnnualPlan"/>
+                                        <input type="hidden" value="@output.EndOfProject.AnnualPlanEndOfProjectPreviousCycle" name="AnnualPlanEndOfProjectPreviousCycle"/>
+                                        <input type="hidden" value="@output.EndOfProject.PreviousAnnualPlan" name="previous-ipdTotalAnnualPlan" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(output.EndOfProject.ActualValue, "ipdTotalActualPlan", false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(output.OutputId + "|" + output.EndOfProject.OutputYearPlanId)}}, disabled: output.EndOfProject.IsActualValueDisabled, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                            </table>
+                        }
+                    </div>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (Model.OtherCost != null)
+{
+    <table id="OtherCostTable" class="tableNormal mb20 otherCost">
+        <thead>
+        <tr>
+            <td class="outputFinancialEmpty"></td>
+            <th class="outputFinancial">@Localization.GetText("TCM.Outputs.OtherCosts")</th>
+            <th class="outputPPaA"></th>
+            @foreach (var year in Model.YearPlans)
+            {
+                <th class="tcmHeaderYear">@year</th>
+            }
+            <th class="tcmHeaderYear">
+                @Localization.GetText("TCM.Outputs.Cost")
+            </th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var otherCost in Model.OtherCost)
+        {
+            <tr class="oCost" other-cost-row data-id="@otherCost.OtherCostId" onmouseover="ShowMainActionBar(this)" onmouseout="HideMainActionBar(this)">
+                <td class="tree"></td>
+                <td>
+                    <div data-pagemode="read">
+                        @otherCost.Definition
+                    </div>
+                    <div data-pagemode="edit">
+                        @Confluence.InputTextArea(otherCost.Definition, "otherCostDefinition", width: "100%", height: "100px", dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCost.OrderNumber)}})
+                        <input type="hidden" value="@otherCost.Definition" name="original-otherCostDefinition"/>
+                        <div class="action-bar" style="display: none">
+                            @Confluence.ButtonMove(null, action: "MoveUpOtherCost")
+                            @{
+                                var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(otherCost.OrderNumber.ToString());
+                            }
+                            <a href=@secureUrl target="_blank">
+                                @Confluence.ButtonDownload("")
+                            </a>
+                            @Confluence.ButtonTrash(null, action: "OtherCostDelete", dataAttributes: new Dictionary<string, string> {{"id", otherCost.OtherCostId.ToString()}})
+                        </div>
+                    </div>
+                </td>
+
+                <td class="nopadding">
+                    <div data-pagemode="read">
+                        <table class="wp100">
+                            <tr>
+                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div data-pagemode="edit">
+                        <table class="non-border-table wp100">
+                            <tr>
+                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                @foreach (var otherCostYearPlan in otherCost.OtherCostYearPlan)
+                {
+                    <td class="nopadding">
+                        <div data-pagemode="read">
+                            <table class="wp100">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(otherCostYearPlan.OriginalPlan)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(otherCostYearPlan.AnnualPlan)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(otherCostYearPlan.ActualValue)
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div data-pagemode="edit">
+                            <table data-attr="@otherCostYearPlan.Year" class="wp100 other-cost-year-plans">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0 oOriginal">
+                                        @Confluence.InputDecimal(otherCostYearPlan.OriginalPlan, "ipdOriginalPlanOtherCost", disabled: otherCostYearPlan.IsOriginalPlanDisabled, required: false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCostYearPlan.OtherCostYearPlanId + "|" + otherCostYearPlan.Year)}}, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0 oAnnual">
+                                        @Confluence.InputDecimal(otherCostYearPlan.AnnualPlan, "ipdAnnualPlanOtherCost", disabled: otherCostYearPlan.IsAnnualPlanDisabled, required: false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCostYearPlan.OtherCostYearPlanId + "|" + otherCostYearPlan.Year)}}, htmlClass: "input-text-grid custom-black")
+                                        <input type="hidden" value="@otherCostYearPlan.AnnualPlanEndOfProjectPreviousCycle" name="previous-ipdAnnualPlanOtherCost" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0 oActual">
+                                        @Confluence.InputDecimal(otherCostYearPlan.ActualValue, "ipdActualPlanOtherCost", disabled: otherCostYearPlan.IsActualValueDisabled, required: false, dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCostYearPlan.OtherCostYearPlanId + "|" + otherCostYearPlan.Year)}}, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </td>
+                }
+                @{
+                    <td class="nopadding">
+                        <div data-pagemode="read">
+                            <table class="wp100">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(otherCost.EndOfProject.OriginalPlan)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(otherCost.EndOfProject.AnnualPlan)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(otherCost.EndOfProject.ActualValue)
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div data-pagemode="edit">
+                            <table data-attr="@TCMGlobalValues.END_OF_PROJECT_YEAR" class="wp100 other-cost-year-plans">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(otherCost.EndOfProject.OriginalPlan, "TotalOriginalPlanOtherCost", false, disabled: otherCost.EndOfProject.IsOriginalPlanDisabled, dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCost.EndOfProject.OtherCostYearPlanId)}}, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(otherCost.EndOfProject.AnnualPlan, "TotalAnnualPlanOtherCost", false, disabled: otherCost.EndOfProject.IsAnnualPlanDisabled, dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCost.EndOfProject.OtherCostYearPlanId)}}, htmlClass: "input-text-grid custom-black")
+                                        <input type="hidden" value="@otherCost.EndOfProject.AnnualPlan" name="original-TotalAnnualPlanOtherCost" />
+                                        <input type="hidden" value="@otherCost.EndOfProject.AnnualPlanEndOfProjectPreviousCycle" name="previous-TotalAnnualPlanOtherCost" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(otherCost.EndOfProject.ActualValue, "TotalActualPlanOtherCost", false, disabled: otherCost.EndOfProject.IsActualValueDisabled, dataAttributes: new Dictionary<string, string> {{"id", string.Format(otherCost.OtherCostId + "|" + otherCost.EndOfProject.OtherCostYearPlanId)}}, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </td>
+                }
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+<div data-pagemode="edit" class="text-center">
+    @Confluence.ButtonAddNewRows(Localization.GetText("TCM.Outputs.AddNewOtherCost"), null, action: "NewRowOtherCost", dataAttributes: new Dictionary<string, string> {{"year", string.Join(",", Model.YearPlans)}, {"periodYear", Model.TcmPeriodYear.ToString()}})
+</div>
+
+@if (Model.Component.Any() || Model.OtherCost.Any())
+{
+    
+
+    <table id="TotalCostsInactiveOutputs" class="tableNormal mb20 hide">
+        <thead>
+            <tr>
+                <td class="outputFinancialEmpty"></td>
+                <th class="outputFinancial">@Localization.GetText("TCM.Outputs.Total")</th>
+                <th class="outputPPaA"></th>
+                @foreach (var year in Model.YearPlans)
+                {
+                    <th class="tcmHeaderYear">@year</th>
+                }
+                <th class="tcmHeaderYear">@Localization.GetText("TCM.Outputs.Cost")</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr data-id>
+                <td class="tree"></td>
+                <td>@Localization.GetText("TCM.Outputs.TotalCost")</td>
+
+                <td class="nopadding">
+                    <div data-pagemode="read">
+                        <table class="wp100">
+                            <tr>
+                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div data-pagemode="edit">
+                        <table class="non-border-table wp100">
+                            <tr>
+                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                @foreach (var costByYear in Model.TotalCost.TotalCostByYear)
+                {
+                    <td class="nopadding">
+                        <div data-pagemode="read">
+                            <table class="wp100">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(costByYear.OriginalPlanTotalByYear)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(costByYear.AnnualPlanTotalByYear)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">
+                                        @Confluence.LabelDecimal(costByYear.ActualValueTotalByYear)
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div data-pagemode="edit">
+                            <table data-attr="@costByYear.Year" class="wp100 total-output-year-plans">
+                                <tr>
+                                    <td class="original-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(costByYear.OriginalPlanTotalByYear, "ipdOriginalPlanTotalByYear", false, disabled: true, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="annual-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(costByYear.AnnualPlanTotalByYear, "ipdAnnualPlanTotalByYear", false, disabled: true, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="actual-value-row text-right pt0 pb0">
+                                        @Confluence.InputDecimal(costByYear.ActualValueTotalByYear, "ipdActualPlanTotalByYear", false, disabled: true, htmlClass: "input-text-grid custom-black")
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </td>
+                }
+                <td class="nopadding">
+                    <div data-pagemode="read">
+                        <table class="wp100">
+                            <tr>
+                                <td class="original-value-row text-right pt0 pb0">@Confluence.LabelDecimal(Model.TotalCost.TotalOriginalPlan)</td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-right pt0 pb0">@Confluence.LabelDecimal(Model.TotalCost.TotalAnnualPlan)</td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-right pt0 pb0">@Confluence.LabelDecimal(Model.TotalCost.TotalActualValue)</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div data-pagemode="edit">
+                        <table data-attr="@TCMGlobalValues.END_OF_PROJECT_YEAR" class="wp100 total-output-year-plans">
+                            <tr>
+                                <td class="original-value-row text-right pt0 pb0">
+                                    @Confluence.InputDecimal(Model.TotalCost.TotalOriginalPlan, "TotalOriginalPlan", false, disabled: true, htmlClass: "input-text-grid custom-black")
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="annual-value-row text-right pt0 pb0">
+                                    @Confluence.InputDecimal(Model.TotalCost.TotalAnnualPlan, "TotalAnnualPlan", false, disabled: true, htmlClass: "input-text-grid custom-black")
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="actual-value-row text-right pt0 pb0">
+                                    @Confluence.InputDecimal(Model.TotalCost.TotalActualValue, "TotalActualValue", false, disabled: true, htmlClass: "input-text-grid custom-black")
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                </td>
+            </tr>
+        </tbody>
+    </table>
+}
+
+</div>
+@if (Model.Component.Any() || Model.OtherCost.Any())
+{
+    <div class="col-md-12">
+        <table data-attr="@TCMGlobalValues.END_OF_PROJECT_YEAR" class="total-output-year-plans mb20 floatRight mr10">
+            <tbody>
+                <tr>
+                    <th colspan="2" class="text-right w30 mb20 h20">@Localization.GetText("TCM.Outputs.TotalCost")</th>
+                </tr>
+                <tr>
+                    <td class="text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                    <td class="text-right pl20">
+                        @LabelBoldTCM(Model.TotalCost.TotalOriginalPlan, "TotalOriginalPlan")
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                    <td class="text-right pl20">
+                        @LabelBoldTCM(Model.TotalCost.TotalAnnualPlan, "TotalAnnualPlan")
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                    <td class="text-right pl20">
+                        @LabelBoldTCM(Model.TotalCost.TotalActualValue, "TotalActualValue")
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-12">
+        <div class="floatRight">
+            @Confluence.InformationSection(Localization.GetText("TCM.Outputs.TotalCostsIncludeInactiveOutputs"))
+        </div>
+    </div>
+}
+
+<div data-pagemode="read" class="col-md-12 text-right mb20">
+        @Confluence.ButtonWord("doc", "downloadFinancialProgressDocument")
+        @Confluence.ButtonExcel("xls", "downloadFinancialProgressDocument")
+        @Confluence.ButtonPdf("pdf", "downloadFinancialProgressDocument")
+    </div>
+
+    @Html.Partial("~/Areas/TCM/Views/Components/Partial/IndicatorFlagLegend.cshtml")
+
+
+    @helper LabelBoldTCM(decimal? text, string name = null, string htmlClass = null)
+{
+    <label name="@name" class="labelNormal bold @htmlClass">@IDB.MVCControls.General.Helpers.FormatHelper.Format(text, FormatDecimal)</label>
+}
+
+    @functions {
+
+        private static readonly string FormatDecimal = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    }

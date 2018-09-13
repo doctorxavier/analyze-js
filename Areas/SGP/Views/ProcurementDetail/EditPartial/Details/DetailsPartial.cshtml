@@ -1,0 +1,355 @@
+﻿@using System.Web.Mvc
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.Models.Documents
+
+
+@model ProcDetailTabViewModel
+
+@if (Model != null)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var formatPercent = appSettings.FormatPercent;
+
+    <div class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"common-remove-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-common-remove",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+        .AddButton(name: "btn-common-remove-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+        .AddButton(name: "btn-common-remove-ok",
+                    text: Localization.GetText("Common.Continue"),
+                    type: CssClass.Button05,
+                    callback: "removeRow",
+                    closeAtEnd: true))
+        <div data-name="common-remove-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.ThisActionCannotBeUndone")
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-modal\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+        .AddButton(name: "btn-cancel-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+        .AddButton(name: "btn-cancel-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okCancelDetails",
+                    closeAtEnd: true))
+        <div data-name="cancel-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.CommonCancel")
+        </div>
+    </div>
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Details/Buttons")
+            @Confluence.LabelSubTitleGroup(Localization.GetText("SGP.Label.GeneralInf"))
+            @Confluence.InputText(Model.ProcurementId.ToString(), name: "details-procurementId", htmlClass: "hide")
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="grouping-section">
+            <div class="col-xs-2 lineGrayRight">
+                <div data-idb-fieldname="createdDate">
+                    <div class="col-md-12 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.CreatedDate"))
+                    </div>
+                    <div class="col-md-12 lblvalue" style="margin-bottom:35px;">
+                        @Confluence.LabelBold(FormatHelper.Format(Model.CreatedDate, formatDate))
+                    </div>
+                </div>
+                <div data-idb-fieldname="lastUpdated">
+                    <div class="col-md-12 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.LastUpdated"))
+                    </div>
+                    <div class="col-md-12 lblvalue">
+                        @Confluence.LabelBold(FormatHelper.Format(Model.LastUpdated, formatDate))
+                    </div>
+                </div>
+            </div>
+            <div class="col-xs-2 lineGrayRight">
+                <div data-idb-fieldname="manualId">
+                    <div class="col-md-12 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.ManualID"))
+                    </div>
+                    <div class="col-md-12 lblvalue">
+                        @Confluence.InputText(value: Model.ManualId, name: "manualId", required: false, maxLength: 13)
+                    </div>
+                </div>
+                <div data-idb-fieldname="lastUpdated">
+                    <div class="col-md-12 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.PepId"))
+                    </div>
+                    <div class="col-md-12 lblvalue">
+                        @Confluence.LabelBold(Model.PepId)
+                    </div>
+                </div>
+            </div>
+            <div class="col-xs-8">
+                <div data-idb-fieldname="location">
+                    <div class="col-md-4 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.LocationOfProcurementProcess"))
+                    </div>
+                    <div class="col-md-8 lblcontent" style="text-align:right;">
+                        <div style="width : 100%">
+                            <div id="subnationalDropdown" class="details-search">
+                                @if (string.IsNullOrEmpty(Model.Country))
+                                {
+                                    @Confluence.InputButton(null, "subnationalSearch", "subnationalLevelSearch", false, width: "100%;",
+                       placeholder: Localization.GetText("SGP.Label.PleaseSubnationalLevel"))
+                                }
+                                <ul id="listSubnational" class="dropdown-menu" aria-labelledby="id-dropdown" style="width: 100%;"></ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-12 lblvalue" style="height: 15.2px;">
+                    </div>
+                </div>
+                @{
+                                // Hide button when country,state and distrist is empty
+                                var hideDeleteButton = string.IsNullOrWhiteSpace(Model.Country) && string.IsNullOrWhiteSpace(Model.State) && string.IsNullOrWhiteSpace(Model.District);
+                }
+                <div data-idb-fieldname="levels">
+                    <div class="col-md-3 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.Level1"))
+                    </div>
+                    <div class="col-md-4 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.Level2"))
+                    </div>
+                    <div class="col-md-5 lblcontent">
+                        @Confluence.Label(Localization.GetText("SGP.Label.Level3"))
+                    </div>
+                    <div class="col-md-3 lblvalue">
+                        @Confluence.LabelBold(Model.Country, dataAttributes: new Dictionary<string, string> { { "country", "data" } })
+                        @Confluence.InputText(Model.Country, name: "country", required: false, htmlClass: "hide")
+                    </div>
+                    <div class="col-md-4 lblvalue">
+                        @Confluence.LabelBold(Model.State, dataAttributes: new Dictionary<string, string> { { "state", "data" } })
+                        @Confluence.InputText(Model.State, name: "state", required: false, htmlClass: "hide")
+                    </div>
+                    <div class="col-md-4 lblvalue">
+                        @Confluence.LabelBold(Model.District, dataAttributes: new Dictionary<string, string> { { "district", "data" } })
+                        @Confluence.InputText(Model.District, name: "district", required: false, htmlClass: "hide")
+                    </div>
+                    <div class="col-md-1 lblcontent floatRight">
+                        @if (string.IsNullOrEmpty(Model.Country))
+                        {
+                            @Confluence.ButtonTrash(string.Empty, name: "clear-subnational-data", htmlClass: "trashMarginTop0" + (hideDeleteButton ? " hide" : string.Empty))
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="col-xs-12">
+            @Confluence.LabelSubTitleGroup(Localization.GetText("SGP.Label.Financials"))
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.PercentIDBCost"),
+                                 contentAlways: FormatHelper.Format(Model.IDBCostPercent, formatPercent), asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.PercentCounterpart"),
+                                 contentAlways: FormatHelper.Format(Model.CounterpartPercent, formatPercent), asterisk: false)
+        </div>
+        <div class="col-xs-8">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.PercentCoFinancer"),
+                                 contentAlways: FormatHelper.Format(Model.CoFinancerPercent, formatPercent), asterisk: false)
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.OtherDocuments"), htmlClass: "subTitleSG mb10")
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Details/DetailsDocDataTable", Model)
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Details/Buttons")
+        </div>
+    </div>
+
+
+    @Html.ScriptBlock(
+    @<script type="text/javascript">
+        var razorDetailsEdit = {
+            Urls: {
+                DownLoadDoc: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })',
+                CancelToReadMode: '@Url.Action("Cancel", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL })',
+            }
+        };
+
+        /*------- DOCUMENTS FUNCTION ------- */
+        registerCallback(function () {
+
+            $(document).on('click', '[name="DownLoadDoc"]', function () {
+                var source = $(this);
+                var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                var url = razorDetailsEdit.Urls.DownLoadDoc;
+                url = url + '?documentNumber=' + documentNumber;
+                window.open(url, '_blank');
+            });
+
+            $(document).on('click', '[name="RemoveRow"]', function () {
+                var source = $(this);
+                var table = source.closest('table');
+                var rows = table.find('> tbody > tr:not(.template)');
+                var tableName = source.closest('table').attr('id');
+                var prefix = tableName.substring(0, 3);
+
+                var button = $('[name="btn-open-popup-common-remove"]');
+                button.data('pressed-by', source);
+                button.click();
+            });
+        })
+
+        function removeRow(event, source) {
+            var promise = $.Deferred();
+            source.closest('tr').remove();
+            promise.resolve();
+            return promise;
+        }
+
+        function AddIDBDocProc(items, type, source) {
+            var table = $('#documentTableDetails');
+            var tbody = table.children('tbody');
+            var template = tbody.children(':first');
+
+            var docs = [];
+            if (type == 'added') {
+                items.forEach(function (item, index, list) {
+                    docs.push({ DocumentNumber: item, Description: '' });
+                });
+            } else {
+                docs = items;
+            }
+
+            docs.forEach(
+                function (elem, index, list) {
+                    var newId = table.GenerateNewId();
+
+                    var newTr = template.clone(false);
+
+                    newTr.removeClass('hide');
+                    newTr.removeClass('template');
+                    newTr.attr('data-id', 'new-' + newId);
+
+                    CustomEnable(newTr);
+
+                    $(newTr).find('.document-number').text(elem.DocumentNumber);
+                    $(newTr).find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                    $(newTr).find('input[name*="Description"]').val(elem.Description);
+
+                    var choosens = newTr.find('[data-role="drop-multiple"]');
+                    choosens.attr('data-bind', 'true');
+
+                    var datepickers = newTr.find('.hasDatepicker');
+                    datepickers.removeAttr('id');
+
+                    newTr.appendTo(tbody);
+                    bindHandlers(newTr);
+                });
+
+
+            validateChangeTable(table);
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley()
+        }
+
+        function CustomEnable(container) {
+            var inputs = container.find('input, select, textarea, div.inputSearch.lupa.ctlAsyncr > button, div.dropdown > button');
+            inputs = inputs.filter(function () {
+                var input = $(this);
+                return input.attr('data-keep-disabled') != 'true';
+            });
+            inputs.removeAttr('disabled');
+        }
+
+
+        function validateChangeTable(source) {
+
+            var associatedRows = source.data('checklist-associated-rows');
+            if (associatedRows != null) {
+                for (var key in associatedRows) {
+                    var row = associatedRows[key];
+                    var table = row.closest('table[data-role="checklist"]');
+                    table.trigger('checklist-validate-row', row);
+                }
+            }
+        }
+
+        /*------- BUTTONS CANCEL------- */
+        registerCallback(function () {
+            $(document).on('click', '[name="cancel-Details"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+        })
+
+        function okCancelDetails() {
+            var promise = $.Deferred();
+            var procurementId = $('input[name="details-procurementId"]').val();
+            var url = razorDetailsEdit.Urls.CancelToReadMode;
+            url = url + "&procurementId=" + procurementId;
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+
+        function Save(formSelector, hiddenViewModelSelector) {
+            var response = saveContainer($(formSelector), hiddenViewModelSelector, false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        }
+
+        /*------- BUTTONS SAVE------- */
+        registerCallback(function () {
+            $(document).on('click', '[name="save-Details"]', function () {
+                var formSelector = '#@(ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL)';
+                var hiddenViewModelSelector = '[name="hideDetailsModel"]';
+                Save(formSelector, hiddenViewModelSelector);
+            });
+        })
+
+    </script>
+                    )
+}

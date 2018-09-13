@@ -1,0 +1,148 @@
+﻿@using IDB.MW.Domain.Values
+<div class="col-md-12 mb40">
+    @Confluence.LabelMainTitle(Localization.GetText("AD.RE.RuleEngine"))
+</div>
+
+<div class="col-md-12 mb20">
+    <div class="filterNormal mb20" name="searchRuleEngine">
+        <div class="row">
+            <div class="col-md-4">
+                @Confluence.LabelBold(Localization.GetText("AD.RE.Module"))
+            </div>
+            <div class="col-md-8">
+                @Confluence.LabelBold(Localization.GetText("AD.RE.RuleCode"))
+            </div>
+        </div>
+
+        <div class="row mb20">
+            <div class="col-md-4">
+                @Confluence.InputDropDown(null, "SearchRuleModule", ViewBag.RuleGroupModule, width: "100%", required: false)
+            </div>
+            <div class="col-md-8">
+                @Confluence.InputText(string.Empty, "SearchRuleCode", width: "100%", required: false)
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-9">
+                @Confluence.LabelBold(Localization.GetText("AD.RE.RuleName"))
+            </div>
+            <div class="col-md-3">
+                @Confluence.LabelBold(Localization.GetText("COMMON.Status"))
+            </div>
+        </div>
+
+        <div class="row mb20">
+            <div class="col-md-9">
+                @Confluence.InputText(string.Empty, "SearchRuleName", width: "100%", required: false)
+            </div>
+            <div class="col-md-3">
+                @Confluence.InputDropDown(null, "SearchRuleStatus", ViewBag.Status, width: "100%", required: false)
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="floatRight">
+                    @Confluence.ButtonBlue(@Localization.GetText("Common.ClearAll"), action: "cleanfilter")
+                    @Confluence.ButtonBlue(@Localization.GetText("OP.IN.Filter"), action: "searchRuleFilter")
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb20">
+        <div class="floatRight">
+            @Confluence.ButtonBlue(Localization.GetText("COMMON.Add"), action: "newRule")
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb20">
+        <div id="tableRuleContent"></div>
+    </div>
+</div>
+
+@section Scripts{
+    <script type="text/javascript">
+
+        function searchRuleFilter() {
+
+            var searchModule = $("[name='SearchRuleModule']").val() !== "" ?
+                $("[name='SearchRuleModule']").val() : 0;
+            var searchRuleCode = $("[name='SearchRuleCode']").val();
+            var searchRuleName = $("[name='SearchRuleName']").val();
+            var ruleStatus = $("[name='SearchRuleStatus']");
+            var searchRuleStatus = ruleStatus.val() !== "" ?
+                ruleStatus.val() : 99;
+
+            postUrlWithOptions("@Url.Action("SearchRuleFilter", "RuleEngView", new{area="AdministrationSecondPhase"})",
+                { async: false },
+                {
+                    searchModule: searchModule,
+                    searchRuleCode: searchRuleCode,
+                    searchRuleName: searchRuleName,
+                    searchRuleStatus: searchRuleStatus
+                })
+                .done(function(data) {
+                    var resultSearchPanel = $('#tableRuleContent');
+                    resultSearchPanel.html(data);
+                    bindHandlers(resultSearchPanel);
+                    $('#RuleGroupTable').paginationConfluense(@RulesEngAttributes.MAX_PAGINATION);
+                    $("#RuleGroupTable").sortableConfluense();
+                });
+
+                return false;
+        }
+
+        function cleanfilter() {
+            $("[name='SearchRuleModule']").FirstorDefault();
+            $("[name='SearchRuleStatus']").FirstorDefault();
+            $("[name='SearchRuleCode']").val("");
+            $("[name='SearchRuleName']").val("");
+            $("#RuleGroupTable tbody").empty();
+            $("#RuleGroupTable").siblings('[dd-table="RuleGroupTable"]').remove();
+            $('#results label').text('0 Result');
+        }
+
+        function newRule() {
+            window.location.href = '@Url.Action(controllerName: "RuleEngView", actionName: "RulesCreateAndEdit")';
+        }
+
+        function deleteRule(source) {
+            var ruleEngId = source.closest('tr').find('[name="RuleEngIdValue"]').val();
+            var row = source.closest('tr');
+            var ruleCode = row.find('td:nth-child(3) button').html().trim();
+            var ruleName = row.find('td:nth-child(4)').html().trim();
+            var msg = '@Localization.GetText("AD.RE.Message.DeleteRule")';
+            msg = msg.replace("{0}", ruleCode).replace("{1}", ruleName);
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions("@Url.Action("DeleteRuleFilter", "RuleEngView", new{area="AdministrationSecondPhase"})",
+                    { async: false },
+                    {
+                        ruleEngId: ruleEngId
+                    })
+                    .done(function (data) {
+                        if (data.IsValid) {
+                            row.remove();
+                        }
+                    });
+                }
+            });
+        }
+
+        $(document).keyup(function (event) {
+            var enterValue = @RulesEngAttributes.ENTER_VALUE;
+            if (event.which == enterValue) {
+                searchRuleFilter();
+            }
+        });
+
+    </script>
+
+
+}

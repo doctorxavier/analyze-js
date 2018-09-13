@@ -1,0 +1,146 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Application.MrBlueModule.Enums;
+@using IDB.MVCControls.DataTable.Models;
+
+@model SupervisionReportDashboardViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+
+    var formatDate = appSettings.FormatDateHourMinTT;
+}
+
+<div class="row mb20">
+    <div class="col-md-12">
+        <div class="row mb20">
+            <div class="col-md-12">
+                @Confluence.LabelSubTitleGroup(
+                    Localization.GetText("MrBlue.SupervisionReport.CompleteReports"))
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                @{
+                    var config = Html.RenderDataTable(Model.SupervisionReportComplete);
+                    config.Name("historyTable")
+                        .PrimaryKey(c => c.RowId.ToString(CultureInfo.InvariantCulture))
+                        .AddPrimaryKeyToName(false)
+                        .Columns(columns =>
+                        {
+                            columns.Bound(c => c.Reporter)
+                                .Persistent()
+                                .Header(Localization.GetText("MrBlue.SupervisionReport.Reporter"))
+                                .ColumnName("reporter");
+
+                            columns.Bound(c => String.Format(
+                                    "{0} - {1}", c.SupervisionDateFrom, c.SupervisionDateTo))
+                                .Persistent()
+                                .Header(Localization
+                                    .GetText("MrBlue.SupervisionReport.SupervisionDates"))
+                                .ColumnName("supervisionDates");
+
+                            columns.Bound(c => c.CreatedOn)
+                                .Persistent()
+                                .Header(Localization.GetText("MrBlue.SupervisionReport.CreationDate"))
+                                .CssClass("fechaHistoryCreation")
+                                .ColumnName("createdOn");
+
+                            columns.Bound(c => c.SafeguardPerformance)
+                                .Persistent()
+                                .Header(Localization.GetText("MrBlue.SupervisionReport.SafeguardPerfomance"))
+                                .ColumnName("safeguardPerformance");
+
+                            columns.Bound(c => c.Type)
+                                .Persistent()
+                                .Header(Localization.GetText("Type"))
+                                .CssClass("typeDoc")
+                                .ColumnName("type");
+
+                            columns.Template(ActionComplete)
+                                .Persistent()
+                                .Header(Localization.GetText("Action"))
+                                .ColumnName("action")
+                                .Center()
+                                .CssHeaderClass("w150");
+
+                            columns.Template(x => GetRelatedExpandedButton())
+                                .Persistent()
+                                .CssHeaderClass("w100")
+                                .Center();
+
+                            columns.Template(mostRecent)
+                                .Persistent()
+                                .Hidden(true);
+                        }).RowTemplates(rows => rows
+                            .Create(RowTemplateType.AllRows, MasterDataNamesRow));
+                            
+                    config.TableClass = "tableNormal";
+                }
+                @Html.Partial("Controls/DataTable", config)
+            </div>
+        </div>
+    </div>
+</div>
+
+    @helper ActionComplete(SupervisionReportCompleteRowViewModel viewModel)
+{
+    @Confluence.ButtonPdf(
+    name: "exportSupervisionReportPDF",
+    action: "downloadReport")
+    
+    if (ViewBag.WriteRole) {
+        @MrBlue.TableButonTrash(Url.Action(
+            "SupervisionReportDeleteReport",
+            "SupervisionReport",
+            new { area = "MrBlue", versionId = viewModel.RowId }))
+    }    
+}
+
+@helper mostRecent(SupervisionReportCompleteRowViewModel viewModel)
+{
+    @Confluence.InputHidden(value : viewModel.RowId.ToString(),
+    name : "isMostRecent",
+    required : false,
+    dataAttributes : new Dictionary<string, string> 
+    { 
+        { "isMostRecent", viewModel.isMostRecent.ToString() }
+    })
+}
+
+@helper GetRelatedExpandedButton()
+{
+    @Confluence.ButtonShowRow()
+}
+
+@helper MasterDataNamesRow(SupervisionReportCompleteRowViewModel row)
+{
+    <tr class="template" name="rowIdiom" id="rowIdiom" data-persist="true" data-row-parent-id=@row.RowId>
+        <td class="custom-detail-table-row" colspan="7">
+
+            <div class="row row-header">
+                <div class="col-md-12">
+                    <p>@Localization.GetText("MrBlue.SupervisionReport.Rationale").HtmlEncode()</p>
+                </div>
+            </div>
+
+            <div class="row row-body-40">
+                <div data-pagemode="read">
+                    <div class="col-md-12">
+                        <p>
+                            <b>
+                                @Localization.GetText(row.Rationale).HtmlEncode()
+                            </b>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+}

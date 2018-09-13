@@ -1,0 +1,231 @@
+﻿@model IDB.Presentation.MVC4.Models.Impacts.CustomDeleteImpactModel
+@{
+    ViewBag.Title = "Delete";
+}
+
+@section JavaScript
+{
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/common.js")"></script>
+}
+
+<script>
+    $(document).ready(function () {
+
+        $(".optionSelectDeleteImpact").kendoDropDownList();
+
+        $("#saveDeleteImpact").click(function (e) {
+            e.preventDefault();
+            if ($("#intervalId").val() == 3 || ($("#AccessedByAdministrator").val() === "True" && $("#IsThirdInterval").val() == "True")) {
+                hideDefaulDeleteImpactWarningContent();
+            } else {
+                $("#DeleteImpactForm").submit();
+                removeModalContent();
+            }
+        });
+
+        $("#cancelDeleteImpact").click(function (e) {
+            e.preventDefault();
+            removeModalContent();
+        });
+
+        $("#saveDeleteImpactThirdInterval").click(function (e) {
+            e.preventDefault();
+            idbg.lockUiRM(null, true);
+            $("#DeleteImpactForm").submit();
+            removeModalContent();
+        });
+
+        $("#cancelDeleteImpactThirdInterval").click(function (e) {
+            e.preventDefault();
+            // ShowDefaulDeleteImpactWarningContent();
+            removeModalContent();
+        });
+
+    });
+
+    function hideDefaulDeleteImpactWarningContent() {
+
+        // Hide default controls
+        $("#cancelDeleteImpact").hide();
+        $("#saveDeleteImpact").hide();
+        $("#defaultImpactWarningContainer").hide();
+
+        // Show third interval comtrols
+        $("#thirdIntervalImpactWarningContainer").show();
+        $("#cancelDeleteImpactThirdInterval").show();
+        $("#saveDeleteImpactThirdInterval").show();
+
+    }
+
+    function ShowDefaulDeleteImpactWarningContent() {
+
+        // Hide default controls
+        $("#cancelDeleteImpact").show();
+        $("#saveDeleteImpact").show();
+        $("#defaultImpactWarningContainer").show();
+
+        // Show third interval comtrols
+        $("#thirdIntervalImpactWarningContainer").hide();
+        $("#cancelDeleteImpactThirdInterval").hide();
+        $("#saveDeleteImpactThirdInterval").hide();
+
+    }
+
+    function removeModalContent() {
+        $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+        $(".ui-widget-overlay").remove();
+        $(".k-window").remove();
+    }
+
+
+
+</script>
+
+@{
+    var impactList = new List<SelectListItem>();
+
+    foreach (var impact in Model.existingImpacts)
+    {
+        impactList.Add(new SelectListItem()
+        {
+            Value = impact.ImpactId.ToString(),
+            Text = impact.Statement,
+            Selected = impact.Statement.Equals("Delete") ? true : false
+        });
+    }
+
+    int flagMessage = 0;
+
+    if (Model.AccessedByAdministrator)
+    {
+        if (Model.currentImpact.ImpactIndicators.Any() && 
+            Model.existingImpacts.Any())
+        {
+            flagMessage = 1;
+        }
+        else
+        {
+            flagMessage = 3;
+        }
+    }
+    else
+    {
+        flagMessage = 0;
+    }
+
+}
+
+@using (Html.BeginForm("DeleteImpact", "Impacts", FormMethod.Post, new { area = "ResultsMatrix", id = "DeleteImpactForm", @class = "" }))
+{
+
+    @Html.HiddenFor(x => x.currentImpact.ImpactId)
+    @Html.HiddenFor(m => m.intervalId)
+    @Html.HiddenFor(r => r.resultsMatrixId)
+    @Html.HiddenFor(x => x.AccessedByAdministrator);
+    @Html.HiddenFor(x => x.IsThirdInterval);
+
+    <div class="contentImpacts">
+        <div id="defaultImpactWarningContainer">
+            @if (flagMessage == 1 || flagMessage == 3)
+            {
+                <div class="dataContent1">
+                    <p class="dataTitle">@Localization.GetText("Impact Name")</p>
+                    <p class="dataText">@Model.currentImpact.Statement</p>
+                </div>
+            }
+            <div class="dataContent1">
+
+                @if (flagMessage == 1)
+                {
+                    <p class="dataText">
+                        @Localization.GetText("TCM.DO.DeleteOutcomeStatement.RelatedIndicatorsMessage")
+                    </p>
+                }
+                else
+                {
+                    if (flagMessage == 0)
+                    { 
+                        <div class="dataText">
+                            @Localization.GetText("RM.Impact.Message.ImpactValidated")
+                        </div>
+                    }
+                }
+
+            </div>
+
+            @if (flagMessage == 1)
+            {
+                <div class="dataContent1" id="deleteImpactWarningContainer">
+                    <div class="mod_tabla no_sortable">
+                        <table class="grid4">
+                            <thead>
+                                <tr>
+                                    <th class="btn_azul_oscuro" data-field="Operation">@Localization.GetText("Impact Indicator")</th>
+                                    <th class="btn_azul_oscuro" data-field="LoanNumber">@Localization.GetText("Impact")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (var indicatorIndex = 0; indicatorIndex < Model.currentImpact.ImpactIndicators.Count(); indicatorIndex++)
+                                {
+                                    <tr>
+                                        <td>
+                                            @Html.HiddenFor(x => x.currentImpact.ImpactIndicators[indicatorIndex].ImpactIndicatorId)
+                                            @Model.currentImpact.ImpactIndicators[indicatorIndex].Definition
+                                        </td>
+                                        <td>
+                                            <fieldset>
+                                                <legend class="hide">Dropdown con opciones</legend>
+                                                <ul class="optionList">
+                                                    <li class="small">
+                                                        @Html.DropDownListFor(x => x.currentImpact.ImpactIndicators[indicatorIndex].ReassignToImpact, impactList, new { @class = "optionSelect optionSelectDeleteImpact" })
+                                                    </li>
+                                                </ul>
+                                            </fieldset>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+        </div>
+        <div id="thirdIntervalImpactWarningContainer" style="display: none">
+
+            @if (Model.intervalId == 3 && ViewData["message"] != null || (Model.IsThirdInterval && Model.AccessedByAdministrator && ViewData["message"] != null))
+            {
+                <div class="dataContent1">
+
+                    @ViewData["message"]
+
+                </div>
+            }
+        </div>
+    </div>
+    <div class="contentImpacts">
+        @if (Model.AccessedByAdministrator)
+        {
+            <p class="text-center alert alert-warning mb0 font15">
+                @Localization.GetText("TCM.DO.DeleteOutcomeStatement.WarningMessage")
+            </p>
+        }
+    </div>
+
+    <div class="pie pieReassign">
+        <div class="botones">
+            <a title="@Localization.GetText("Cancel")" class="cancel cancelDeleteImpact" id="cancelDeleteImpact" href="javascript:void(0)">@Localization.GetText("Cancel")</a>
+            <a title="@Localization.GetText("Cancel")" style="display: none" class="cancel" id="cancelDeleteImpactThirdInterval" href="javascript:void(0)">@Localization.GetText("Cancel")</a>
+             @if (Model.AccessedByAdministrator)
+             {
+                <label for="delete">
+                    <input type="button" value="@Localization.GetText("Delete")" class="btn btn-warning deleteImpact" id="saveDeleteImpact">
+                </label>
+             }
+            <label for="delete">
+                <input type="button" value="@Localization.GetText("Save")" class="btn btn-warning" style="display:none" id="saveDeleteImpactThirdInterval">
+            </label>
+        </div>
+    </div>
+
+}

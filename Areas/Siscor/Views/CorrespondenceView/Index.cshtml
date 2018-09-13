@@ -1,0 +1,238 @@
+﻿@using IDB.Architecture.Language;
+
+@model IDB.MW.Application.SiscorModule.ViewModels.SiscorCorrespondenceViewModel
+
+<input hidden data-idb-pagename="Siscor-Correspondence" />
+<input hidden id="lastSearch" />
+
+<div id="pageContent">
+    <div class="col-md-12 mt20">
+        @Html.Partial("Partials/SiscorCorrespondenceHeader")
+    </div>
+    <div class="col-md-12 mt20">
+        @Html.Partial("Partials/SiscorCorrespondenceFilter", Model)
+    </div>
+    <div class="col-md-12 mt20">
+        @Html.Partial("Partials/Controls/SiscorCorrespondenceResponseButtons", Model)
+    </div>
+    <div class="col-md-12 mt20" id="grid">
+        @Html.Partial("Partials/DataTables/Grid", Model.CorrespondenceGridViewModel)
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+
+
+        $(document).ready(function () {
+            orderSiscorCorrespondenceTable();
+        });
+
+        function SCCancel(source) {
+            exitEditMode(false, $('#pageContent'), false, false);
+            $('div.responseButtons').find('button.responseButton').attr('disabled', 'disabled');
+            $('input[name=chkPendient]:checked').removeAttr("checked");
+        }
+
+        function SCFilter(source) {
+            if ($("#CorrespondenceFilter").hasClass("hide")) {
+                $("#CorrespondenceFilter").removeClass("hide");
+                return 0;
+            }
+            $("#CorrespondenceFilter").addClass("hide");
+        }
+
+        function SCClearAll(source) {
+            $(".js_txtFilter").val("");
+            $(".js_pkFilter").val("");
+            $(".js_cbFilter").FirstorDefault();
+            CommonSearchClear();
+        }
+
+        function SCSearch(source) {
+            if (validateContainer($("#toValidate")) && isFromDateLessThanToDate()) {
+                CommonSearchClear();
+            }
+        }
+
+        function CommonSearchClear() {
+            showLoader();
+            var dataForm = new FormData();
+            //Set Values DataForm
+            @if (!string.IsNullOrEmpty(Model.CorrespondenceGridViewModel.OperationNumber))
+            {
+                @: dataForm.append('OperationNumber', '@Model.CorrespondenceGridViewModel.OperationNumber');
+            }
+            else
+            {
+               @: dataForm.append('OperationNumber', $('input[name="txtSearch"]').val());
+            }
+
+            dataForm.append('SubmissionDateFrom', $('input[name="pkSubmissionDateFrom"]').val());
+            dataForm.append('SubmissionDateTo', $('input[name="pkSubmissionDateTo"]').val());
+            dataForm.append('BusinessAreaCode', $('[name="cbBusinessArea"]').GetValue());
+            dataForm.append('DocNumber', $('input[name="txtDocumentNumber"]').val());
+            dataForm.append('SISCORNumber', $('input[name="txtSISCORNumber"]').val());
+            dataForm.append('StatusCodeType', $('[name="cbDocumentStatus"]').GetValue());
+            dataForm.append('DocumentTypeCode', $('[name="cbDocumentType"]').GetValue());
+            dataForm.append('Subject', $('input[name="txtSubject"]').val());
+
+            $("#lastSearch").val(dataForm);
+
+            $.ajax({
+                url: '@Url.Action("Search", "CorrespondenceView", new { area = "Siscor" })?operationNumber=' + '@Model.CorrespondenceGridViewModel.OperationNumber',
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                async: false,
+                type: 'POST'
+            }).done(function (result) {
+                $("#grid").html(result.Data.partial);
+                if (!result.Data.IsValid) {
+                    errorBar(result.Data.ErrorMessage);
+                } else {
+                    if (isInEditMode($("#pageContent"))) {
+                        enterEditMode(false, $("#grid"), false);
+                    } else {
+                        exitEditMode(false, $('#grid'), false, false);
+                    }
+                }
+                orderSiscorCorrespondenceTable();
+                enabledDisableResponseButttons();
+            });
+        }
+
+        function isFromDateLessThanToDate() {
+            var validData = true;
+            var fromDate = new Date($('input[name="pkSubmissionDateFrom"]').val() != null) ? $('input[name="pkSubmissionDateFrom"]').val() : "";
+            var toDate = new Date($('input[name="pkSubmissionDateTo"]').val() != null) ? $('input[name="pkSubmissionDateTo"]').val() : "";
+
+            if (fromDate != "" && toDate != "")
+            {
+                var dateStart = new Date(fromDate);
+                var dateEnd = new Date(toDate);
+
+                if (dateStart > dateEnd)
+                {
+                    showMessage('@Localization.GetText("SC.SC.Correspondence.Messages.ErrorDateFromGreaterThanDateTo")');
+                    validData = false;
+                }
+
+            }
+
+            return validData;
+        }
+
+        function ajaxResponse(siscorNumbers) {
+            var dataForm = new FormData();
+            dataForm.append('OperationNumber', '@Model.CorrespondenceGridViewModel.OperationNumber');
+            dataForm.append('ViewTo', '@Model.CorrespondenceGridViewModel.ViewTo');
+
+            sendSelect = "";
+
+            if (siscorNumbers.length > 0)
+            {
+                sendSelect = '&selects=' + siscorNumbers;
+            }
+
+            $.ajax({
+                url: '@Url.Action("ResponseOuput", "CorrespondenceView", new { area = "Siscor" })?' + sendSelect,
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                async: false,
+                type: 'POST'
+            }).done(function (result) {
+                if (result.Data.IsValid)
+                    window.location.href = '@Url.Action(controllerName: "Response", actionName: "Index")';
+            });
+        }
+
+        function correspondenceIdListToSend()
+        {
+            if (hasChecked()) {
+                var checkeds = $("input:checked");
+                var correspondenceIds = [];
+                checkeds.each(function () {
+                    if ($(this).parent().parent().parent().parent().attr("data-id")) {
+                        correspondenceIds.push($(this).parent().parent().parent().parent().attr("data-id"));
+                    }
+                })
+                return correspondenceIds;
+            }
+            return false;
+        }
+
+        function SCSiscorOutputNumberLink(source)
+        {
+            var currentOutputNumber = source.html();
+            var operationNumber = "";
+            currentOutputNumber = $.trim(currentOutputNumber);
+
+            if (source.parents('tr').find('td.operationNumberColumn label').length > 0) {
+                operationNumber = source.parents('tr').find('td.operationNumberColumn label').text();
+            }
+            else {
+                operationNumber = '@Model.CorrespondenceGridViewModel.OperationNumber';
+            }
+
+            showLoader();
+
+            var url = '@Url.Action("Index", "Response", new { area = "Siscor" })?operationNumber=' +
+                    operationNumber + '&siscorNumber=' + currentOutputNumber;
+
+            window.location.href = url;
+        }
+
+        function closeModal()
+        {
+            var vexModal = $('.ResponseModal').parents('.vex');
+            if (vexModal.length > 0) {
+                vex.closeByID(vexModal.data().vex.id);
+            }
+
+        }
+
+        function downloadDocument(source)
+        {
+            var docNumber = source.attr('data-DocNumber');
+            var BACode = source.parents("tr").find("input#hiddenBACode").val();
+            var currentOperationNumber = source.parents('tr').find('td.operationNumberColumn label').text();
+
+            var isDocumentAvailableResponse = checkIfDocumentIsAvailable(docNumber, BACode, currentOperationNumber);
+            if (isDocumentAvailableResponse.responseJSON.IsValid) {
+                var url = '@Url.Action("DownloadDocument", "Response", new { area = "Siscor" })' + '?documentId=' + docNumber + '&opDownNumber=' + currentOperationNumber + '&businessAreaCode=' + BACode;
+                window.open(url, '_blank');
+            } else {
+                showMessage("Error: " + isDocumentAvailableResponse.responseJSON.ErrorMessage);
+            }
+        }
+
+        function checkIfDocumentIsAvailable(docNumber, BACode, currentOperationNumber)
+        {
+            var url = '@Url.Action("CheckIfDocumentIsAvailable", "Response", new { area = "Siscor" })' + '?documentId=' + docNumber + '&opDownNumberF=' + currentOperationNumber + '&businessAreaCode=' + BACode;
+            var result = postUrl(url, { documentId: docNumber });
+            return result;
+        }
+
+        function enabledDisableResponseButttons()
+        {
+            $('input[name=chkPendient]').change(function () {
+                if ($('input[name=chkPendient]:checked').length > 0) {
+                    $('div.responseButtons').find('button.responseButton').removeAttr('disabled');
+                }
+                else {
+                    $('div.responseButtons').find('button.responseButton').attr('disabled', 'disabled');
+                }
+            });
+        }
+
+        function orderSiscorCorrespondenceTable()
+        {
+            $("#tabla01").paginationConfluense(10).sortableConfluense();
+            $('.dateHeader').click().click();
+        }
+    </script>
+}

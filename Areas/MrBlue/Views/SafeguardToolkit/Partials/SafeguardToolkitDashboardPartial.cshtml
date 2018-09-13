@@ -1,0 +1,200 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using System.Globalization
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.SafeguardToolkit
+@using IDB.MW.Application.MrBlueModule.Enums
+
+@model SafeguardToolkitDashboardViewModel
+
+
+@if(Model != null)
+{
+    int? lastSFTId = null;
+    if (Model.History != null && Model.History.Any())
+    {
+        lastSFTId = Model.History.OrderByDescending(x => x.CompletedOn).FirstOrDefault().RowId;
+    }
+    
+    <input type="hidden" id="hidViewModel" value="@ViewBag.SerializedViewModel" />
+
+    if(Model.History != null)
+    {
+        <div class="row mb20">
+            <div class="col-md-12">
+                @if (!Model.DemLockReviewProcessDataViewModel.IsLockReviewProcessDEM)
+                {
+                    <div class="row" style="margin-bottom:1%;">
+                        <div class="col-md-12">
+                            <div class="float-left">
+                                @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.SafeguardToolkit.History.HistoryTitle"))
+                            </div>
+                            <div class="float-right">
+
+                                @Confluence.ButtonBlue(Localization.GetText("MrBlue.SafeguardToolkit.History.NewFromSelected"),
+                                    name: "buttonNewFromSelected",
+                                    action: "newReportFromSelected",
+                                    disabled: true)
+
+
+                                @Confluence.ButtonBlue(Localization.GetText("MrBlue.SafeguardToolkit.History.New"),
+                                    name: "buttonNew",
+                                    action: "newReport")
+
+
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-right bold">@Html.Raw(Model.DemLockReviewProcessDataViewModel.LockDescription)</div>
+                    @:&nbsp;
+                }
+
+                @{
+        var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+        var config = Html.RenderDataTable(Model.History);
+        config.Name("historyTable")
+        .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .RowAttributes("data-lastSFTId", lastSFTId.ToString())
+        .Columns(columns =>
+        {
+
+            columns.Bound(c => c.CreatedBy)
+            .Header(Localization.GetText("MrBlue.SafeguardToolkit.History.CreatedByActionColumn"))
+            .Persistent();
+
+            columns.Bound(c => c.CompletionDate)
+                .Header(Localization.GetText("MrBlue.SafeguardToolkit.History.CompletionDateActionColumn"))
+                .Persistent();
+
+            columns.Template(CreateHistoryReportSPF)
+                .Header(Localization.GetText("MrBlue.SafeguardToolkit.History.ReportSPF"))
+                .Persistent()
+                .Center();
+
+            columns.Template(CreateHistoryReportSSF)
+                .Header(Localization.GetText("MrBlue.SafeguardToolkit.History.ReportSSF"))
+                .Persistent()
+                .Center();
+
+            columns.Template(CreateHistoryActions)
+              .Header(Localization.GetText("MrBlue.SafeguardToolkit.History.ActionColumn"))
+              .Persistent()
+              .Center();
+
+        });
+
+        config.TableClass = "tableNormal selectedRowTable";
+                }
+                @Html.Partial("Controls/DataTable", config)
+            </div>
+        </div>
+    }
+
+    if(Model.Draft != null)
+    {
+        <div class="row mb20">
+            <div class="col-md-12">
+                <div class="row">
+                    <div class="col-md-12">
+                        @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.SafeguardToolkit.Draft.HistoryTitle"))
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12 contextualHelp" style="margin-bottom:5px;">
+                        <p>@MrBlue.LabelHelper(Localization.GetText("MrBlue.SafeguardToolkit.Draft.ClickMessage"))</p>
+                    </div>
+                </div>
+                @{
+        var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+        var config = Html.RenderDataTable(Model.Draft);
+        config.Name("draftTable")
+        .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .Columns(columns =>
+        {
+
+            columns.Bound(c => c.Reporter)
+            .Header(Localization.GetText("MrBlue.SafeguardToolkit.Draft.ReporterColumn"))
+            .Persistent();
+
+            columns.Bound(c => c.CreationDate)
+                .Header(Localization.GetText("MrBlue.SafeguardToolkit.Draft.CreationDateColumn"))
+                .Persistent();
+
+            columns.Bound(c => c.LastUpdate)
+                .Header(Localization.GetText("MrBlue.SafeguardToolkit.Draft.LastUpdateColumn"))
+                .Persistent();
+
+            columns.Template(CreateDraftActions)
+              .Header(Localization.GetText("MrBlue.SafeguardToolkit.Draft.ActionColumn"))
+              .Persistent()
+              .Center();
+
+        });
+        config.TableClass = "tableNormal selectedRowTable";
+                }
+                @Html.Partial("Controls/DataTable", config)
+            </div>
+        </div>
+    }
+}
+
+@helper CreateHistoryReportSPF(SafeguardToolkitHistoryRowViewModel viewModel)
+{
+if (viewModel.HasDocumentSPF)
+{
+    var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(viewModel.DocumentNumberSPF);
+            <a href=@secureUrl target="_blank" data-toggle="tooltip" title="SPF">
+                @Confluence.ButtonPdf(name: "historyDownload" + viewModel.RowId)
+            </a>
+    }
+}
+
+@helper CreateHistoryReportSSF(SafeguardToolkitHistoryRowViewModel viewModel)
+{
+if (viewModel.HasDocumentSSF)
+{
+    var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(viewModel.DocumentNumberSSF);
+            <a href=@secureUrl target="_blank" data-toggle="tooltip" title="SSF">
+                @Confluence.ButtonPdf(name: "historyDownload" + viewModel.RowId)
+            </a>
+    }
+}
+
+@helper CreateHistoryActions(SafeguardToolkitHistoryRowViewModel viewModel)
+{
+
+    @MrBlue.TableButonTrash(Url.Action("SaveSafeguardToolkitDeleteReport",
+        "SafeguardToolkit",
+        new { area = "MrBlue", versionId = viewModel.RowId }))
+    <span data-completion-on-date="@viewModel.CompletionDate.Substring(0,11)" />
+
+
+    @Confluence.InputHidden(value : viewModel.isB13.ToString(),
+    name : "isB13",
+    required : false)
+}
+
+@helper CreateDraftActions(SafeguardToolkitDraftRowViewModel viewModel)
+{
+
+    @MrBlue.TableButonTrash(Url.Action("SaveSafeguardToolkitDeleteReport",
+        "SafeguardToolkit",
+        new { area = "MrBlue", versionId = viewModel.RowId }))
+
+}
+
+@helper ButtonStepsHistory(SafeguardToolkitHistoryRowViewModel viewModel)
+{
+    @Confluence.ButtonBlue(
+        Localization.GetText("MrBlue.SafeguardToolkit.History.Step6"),
+        name : "buttonHistoryStep6",
+        dataNavigation : Url.Action("SafeguardToolkit6", "SafeguardToolkit", new { area = "MrBlue", versionId = viewModel.RowId }))
+}

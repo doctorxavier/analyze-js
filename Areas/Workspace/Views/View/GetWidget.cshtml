@@ -1,0 +1,118 @@
+﻿@using IDB.MW.Business.WorkSpaceModule.ViewModels
+@using IDB.Presentation.MVC4.Areas.Workspace.Models
+@model BoxesModel
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+
+<table name="tableBoxes" class="workspaceContent">
+    <tbody>
+        @if (Model != null)
+        {
+            <tr>
+                <td @(!string.IsNullOrEmpty(Model.ChartQuery) ? new MvcHtmlString(string.Format("box-sql=\"{0}\"", Model.ChartQuery)) : null)
+                    @(!string.IsNullOrEmpty(Model.ChartQueryExport) ? new MvcHtmlString(string.Format("box-excel=\"{0}\"", Model.ChartQueryExport)) : null)
+                    @(!string.IsNullOrEmpty(Model.ChartMaxDeep.ToString()) ? new MvcHtmlString(string.Format("box-deep=\"{0}\"", Model.ChartMaxDeep)) : null)
+                    @(!string.IsNullOrEmpty(Model.ChartUrl) ? new MvcHtmlString(string.Format("box-url=\"{0}\"", Model.ChartUrl)) : null)
+                    box-partial="@Model.ChartPartial"
+                    box-name="@Model.ChartName"
+                    box-id="@ChartIdGenerated(Model.ChartId, Model.ChartName, Model.TemplateId)"
+                    box-type="@Model.CharType"
+                    class="@ChartClass(Model.CharType) fullSize"
+                    colspan="@Model.ChartWidth"
+                    rowspan="@Model.ChartHeight"></td>
+
+                <td class="w5 noborder">&nbsp;</td>
+            </tr>
+
+        }
+    </tbody>
+</table>
+
+@functions {
+
+    public string ChartClass(string type)
+    {
+        return type.Equals(WorkSpaceConstants.BLANKCHART) ? "boxEmpty" : "box boxLoad boxLoadBack";
+    }
+
+    public string ChartIdGenerated(int idChart, string name, int idTemplate)
+    {
+        return string.Format("{0}_{1}_{2}", idChart, name.Replace(" ", "_"), idTemplate);
+    }
+
+}
+
+
+<form method="POST" action="@Url.Action("GetDownload", "View", new {area = "Workspace"})" name="exportExcel">
+    @Confluence.InputHidden(null, "name")
+    @Confluence.InputHidden(null, "head")
+    @Confluence.InputHidden(null, "data")
+</form>
+<div class="blkScreen hide"></div>
+@section scripts{
+    <script type="text/javascript">
+        var workspaceContent;
+        var localUrlWS = "https://" + "@IDBContext.Current.ContextRequestContext.HttpContext.Request.Url.Host" + ":" + "@IDBContext.Current.ContextRequestContext.HttpContext.Request.Url.Port";
+
+        $(document).ready(function() {
+            $('.box').each(function() {
+                var $this = $(this);
+                var url = "@Url.Action("Index", "Box", new {area = "Workspace"})" + "/" + $this.attr('box-partial');
+
+                postUrlWithOptions(url, { async: true }, { name: $this.attr('box-name'), id: $this.attr('box-id') })
+                    .done(function (data) {
+                        try {
+                            $this.html(data);
+                            $this.removeClass('boxLoad').removeClass('boxLoadBack');
+                            if (!$this.is('[box-excel]')) {
+                                $this.find('.buttonExcel').remove();
+                            }
+                            $this.find('.boxMenuNew').remove();
+                            $this.find('.boxMenuMax').remove();
+                            $this.find('.boxMenuMin').remove();
+
+                            $('.buttonExcel').off('click');
+                            $('.buttonExcel').click(function () {
+                                showLoader();
+                                $this = $(this).closest('.box');
+                                var sql = $this.attr('box-excel');
+
+                                data = processedQueryExport(sql);
+
+                                if (data.data === '' && data.head === '') {
+                                    showMessage("@Localization.GetText("Workspace.View.NoData")");
+                                    hideLoader();
+                                    return;
+                                }
+                                var form = $('[name="exportExcel"]');
+                                form.find('[name="name"]').val($this.attr('box-name'));
+                                form.find('[name="head"]').val(data.head);
+                                form.find('[name="data"]').val(data.data);
+                                form.submit();
+                                hideLoader();
+                            });
+
+                        } catch (err) {
+                            $this.find('.buttonExcel').remove();
+                            $this.removeClass('boxLoad').addClass('icoAlert');
+                        }
+                    })
+                    .error(function () {
+                        $this.removeClass('boxLoad').addClass('icoAlert');
+                    });
+            });
+
+            var msgError = "@ViewBag.Error";
+            if (msgError.length > 0) {
+                showMessage(msgError);
+            }
+
+            postUrlWithOptions("@Url.Action("Loader", "View", new {area = "Workspace"})", { async: true })
+                .done(function (data) {
+                    $('body').prepend(data);
+                });
+        });
+    </script>
+}

@@ -1,0 +1,281 @@
+﻿@using IDB.Presentation.MVC4.Areas.ResultsMatrix.Business;
+@using IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs
+@using IDB.MW.Domain.Models.Architecture.Enumerations
+@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.ResultsMatrixModel
+
+@{
+    int componentIndex = (int)ViewBag.componentIndex;
+    int outputIndex = (int)ViewBag.outputIndex;
+    List<Tuple<int, bool>> totalOutputsYearPlan = (List<Tuple<int, bool>>)ViewBag.totalOutputsYearPlan;
+
+}
+@if (Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations != null &&
+    Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations.Count() > 0)
+{
+    <tr class="nivel02">
+        <td colspan="@(totalOutputsYearPlan.Count + 5)">
+            <div class="minimizeTable">
+                <div class="minimizeBar">
+                    <div class="tableOperator">Minimize/Maximize</div>
+                </div>
+                <div class="operatorBar"></div>
+                <div class="tableGrid">
+                    <table class="grid milestoneTable">
+                        <thead>
+                            <tr>
+                                <th class="btn_azul_oscuro dato00">
+                                    <span>@Localization.GetText("Disaggregation")</span>
+                                    <span class="glyphicon glyphicon-info-sign toolTipDisaggregation"
+                                          title="@Localization.GetText("Same unit of measure as indicator/output")">
+                                    </span>
+                                </th>
+                                <th class="btn_azul_oscuro dato04"></th>
+                                @for (var disaggregationYearPlanIndex = 0;
+                                    disaggregationYearPlanIndex < totalOutputsYearPlan.Count;
+                                    disaggregationYearPlanIndex++)
+                                {
+                                    <th class="btn_azul_oscuro selects"
+                                        data-milestoneyearplanindex="@(disaggregationYearPlanIndex + 1)">
+                                        @Html.Raw(totalOutputsYearPlan[disaggregationYearPlanIndex].Item1)
+                                    </th>
+                                }
+                                <th class="btn_azul_oscuro dato04"
+                                    style="text-align: center; vertical-align: middle; width: 1em;"></th>
+                                <th class="btn_azul_oscuro dato05">EOP @Model.EndProjectYear</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var disaggregationIndex = 0;
+                                disaggregationIndex < Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations.Count;
+                                disaggregationIndex++)
+                            {
+                                @Html.Hidden("disaggregationIndex", disaggregationIndex);
+                                bool isCalculated = Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].IsCalculated;
+                                bool isAutoCalculated = Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].isAutoCalculated;
+                                bool isLinked = Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].IsLinked;
+
+                                <tr class="hoverMilestone"
+                                    data-milestoneindex="@disaggregationIndex"
+                                    @(Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].OrderNumber % 2 == 0 ? "class=impar" : "")>
+                                    <td class="dato01 verticalAlignBottom" style="position: static;">
+                                        @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].OutputDisaggregationId, new { data_val = "false", @class = "MilestoneId" })
+                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations.Index", disaggregationIndex)
+                                        @if (Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].IsCalculated ||
+                                            Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].IsLinked)
+                                        {
+                                            <p class="txtAreaDisaggregation mb5" rows="2" cols="55" readonly="readonly" data_val="false">
+                                                @(Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].DisaggregationName)
+                                                <span class="txtPredefined">@Localization.GetText("Predefined")</span>
+                                            </p>
+                                        }
+                                        else
+                                        {
+                                           @Html.TextAreaFor(x => x.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].DisaggregationName, new { @class = "dato01 mb5", rows = "2", cols = "55" })
+                                        }
+                                        @if (!Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].IsCalculated)
+                                        {
+                                            <div class="actionbar2">
+                                                <a class="btn_entypo first" title="@Localization.GetText("Delete")"
+                                                   onclick="removeDisaggregation(this);" href="javascript:void(0);"></a>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <table class="minHeight90px">
+                                            <tbody>
+                                                <tr>
+                                                    <td class="rm_edit_rh verticalAlignMiddle">P</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="rm_edit_rh verticalAlignMiddle">P(a)</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="rm_edit_rh verticalAlignMiddle">A</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                    @if (totalOutputsYearPlan != null && totalOutputsYearPlan.Count > 0)
+                                    {
+                                        for (var disaggregationYearPlanIndex = 0; disaggregationYearPlanIndex < totalOutputsYearPlan.Count; disaggregationYearPlanIndex++)
+                                        {
+                                            var currentDisaggregationYearPlan = Model.Components[componentIndex].Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].OutputDisaggregationYearPlans.
+                                                Where(x => x.Year == totalOutputsYearPlan[disaggregationYearPlanIndex].Item1).FirstOrDefault();
+                                            currentDisaggregationYearPlan = currentDisaggregationYearPlan ?? new OutputDisaggregationYearPlanModel()
+                                            {
+                                                ActualValue = null,
+                                                OriginalPlan = null,
+                                                OutputDisaggregationYearPlanId = 0,
+                                                Year = totalOutputsYearPlan[disaggregationYearPlanIndex].Item1,
+                                                AnnualPlan = null
+                                            };
+                                            var _disaggregationYearPlanIndex = disaggregationYearPlanIndex + 1;
+                                            ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper1 =
+                                                new ResultsMatrixBusinessRulesPhysicalProgress(Model.Components[componentIndex].
+                                                    Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].
+                                                        OutputDisaggregationYearPlans);
+
+                                            int referenceLastYearOutputProduct1 =
+                                                rmBusinessRuleHelper1.GetReferenceLastYearOutputProduct();
+                                            int pmrYear1 = rmBusinessRuleHelper1.GetPmrYear();
+                                            int referenceYear1 =
+                                                rmBusinessRuleHelper1.GetReferenceYear(referenceLastYearOutputProduct1, pmrYear1);
+
+                                            <td data-rowcolumnrelated="@_disaggregationYearPlanIndex" class="dato07">
+                                                <input id="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__OutputDisaggregationYearPlanId" class="hiddenId"
+                                                       name="Components[@(componentIndex)].Outputs[@(outputIndex)].OutputDisaggregations[@(disaggregationIndex)].OutputDisaggregationYearPlans[@(_disaggregationYearPlanIndex)].OutputDisaggregationYearPlanId" type="hidden" value="@(currentDisaggregationYearPlan.OutputDisaggregationYearPlanId)">
+                                                <input class="hiddenYear" id="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__Year"
+                                                       name="Components[@(componentIndex)].Outputs[@(outputIndex)].OutputDisaggregations[@(disaggregationIndex)].OutputDisaggregationYearPlans[@(_disaggregationYearPlanIndex)].Year" type="hidden" value="@(currentDisaggregationYearPlan.Year)">
+                                                @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans.Index", _disaggregationYearPlanIndex)
+                                                <table class="fixedTableDisaggregation">
+                                                    <tbody>
+                                                        <tr class="rm_p_row"
+                                                            @(isCalculated ?
+                                                                string.Format("{0}{1}",
+                                                                    "data-autocalculatedrelated=rm_p_row_",
+                                                                    totalOutputsYearPlan[disaggregationYearPlanIndex].Item1) :
+                                                                string.Empty)>
+                                                            <td>
+                                                                <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__OriginalPlan">
+                                                                    <input class="input min_input numberInput floatLeft mb5"
+                                                                           id="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__OriginalPlan"
+                                                                           name="Components[@(componentIndex)].Outputs[@(outputIndex)].OutputDisaggregations[@(disaggregationIndex)].OutputDisaggregationYearPlans[@(_disaggregationYearPlanIndex)].OriginalPlan"
+                                                                           type="text"
+                                                                           data-referenceyear=@referenceYear1
+                                                                           data-pmryear=@pmrYear1
+                                                                           value="@(currentDisaggregationYearPlan.OriginalPlan)" @( !currentDisaggregationYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator || isAutoCalculated ? "readonly='readonly'" : "")>
+                                                                    @(isAutoCalculated ? "%" : string.Empty)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_pa_row"
+                                                            @(isCalculated ?
+                                                                string.Format("{0}{1}",
+                                                                    "data-autocalculatedrelated=rm_pa_row_",
+                                                                    totalOutputsYearPlan[disaggregationYearPlanIndex].Item1) :
+                                                                string.Empty)>
+                                                            <td>
+                                                                <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__AnnualPlan">
+                                                                    <input class="input min_input numberInput floatLeft mb5"
+                                                                           id="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__AnnualPlan"
+                                                                           name="Components[@(componentIndex)].Outputs[@(outputIndex)].OutputDisaggregations[@(disaggregationIndex)].OutputDisaggregationYearPlans[@(_disaggregationYearPlanIndex)].AnnualPlan"
+                                                                           type="text"
+                                                                           data-referenceyear=@referenceYear1
+                                                                           data-pmryear=@pmrYear1
+                                                                           value="@(currentDisaggregationYearPlan.AnnualPlan)" @( !currentDisaggregationYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator || isAutoCalculated ? "readonly='readonly'" : "")>
+                                                                    @(isAutoCalculated ? "%" : string.Empty)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_ac_row"
+                                                            @(isCalculated ?
+                                                                string.Format("{0}{1}",
+                                                                    "data-autocalculatedrelated=rm_ac_row_",
+                                                                    totalOutputsYearPlan[disaggregationYearPlanIndex].Item1) :
+                                                                string.Empty)>
+                                                            <td>
+                                                                <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__ActualValue">
+                                                                    <input class="input min_input numberInput floatLeft mb5"
+                                                                           id="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(_disaggregationYearPlanIndex)__ActualValue"
+                                                                           name="Components[@(componentIndex)].Outputs[@(outputIndex)].OutputDisaggregations[@(disaggregationIndex)].OutputDisaggregationYearPlans[@(_disaggregationYearPlanIndex)].ActualValue"
+                                                                           type="text"
+                                                                           data-referenceyear=@referenceYear1
+                                                                           data-pmryear=@pmrYear1
+                                                                           value="@(currentDisaggregationYearPlan.ActualValue)" @( !currentDisaggregationYearPlan.isActualValueEditable && !Model.AccessedByAdministrator || isAutoCalculated ? "readonly='readonly'" : "")>
+                                                                    @(isAutoCalculated ? "%" : string.Empty)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        }
+                                    }
+                                    <td></td>
+                                    <td class="fixedTableDisaggregation totalMilestoneYearPlan dato07">
+                                        @{
+                                            var disaggregationYearPlanIndexEOP = 0;
+                                            bool isAutoCalc = Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop;
+                                            var EOPDisaggregationYearPlan = Model.Components[componentIndex].Outputs[outputIndex].
+                                                OutputDisaggregations[disaggregationIndex].OutputDisaggregationYearPlans.
+                                                Where(x => x.Year == ResultsMatrixCodes.EndOfProjectYear).FirstOrDefault();
+
+                                            ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                new ResultsMatrixBusinessRulesPhysicalProgress(Model.Components[componentIndex].
+                                                    Outputs[outputIndex].OutputDisaggregations[disaggregationIndex].
+                                                        OutputDisaggregationYearPlans);
+
+                                            int referenceLastYearOutputProduct =
+                                                rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+
+                                            int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                            int referenceYear =
+                                                rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+
+                                            EOPDisaggregationYearPlan = EOPDisaggregationYearPlan ?? new OutputDisaggregationYearPlanModel()
+                                            {
+                                                OriginalPlan = rmBusinessRuleHelper.GetOriginalPlanSum(),
+                                                ActualValue = rmBusinessRuleHelper.GetActualValueSum(),
+                                                AnnualPlan = rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear),
+                                                OutputDisaggregationYearPlanId = 0,
+                                                Year = ResultsMatrixCodes.EndOfProjectYear
+                                            };
+                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans[" + disaggregationYearPlanIndexEOP + "].OutputYearPlanId",
+                                                EOPDisaggregationYearPlan.OutputDisaggregationYearPlanId, new { @class = "hiddenId" })
+                                            @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans[" + disaggregationYearPlanIndexEOP + "].Year",
+                                                EOPDisaggregationYearPlan.Year)
+                                            @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans.Index",
+                                                disaggregationYearPlanIndexEOP)
+                                            object commonEOPPropertiesP = new { @class = "input min_input numberInput floatLeft mb5", @data_seccion = isCalculated ? "p" : "" };
+                                            object commonEOPPropertiesPA = new { @class = "input min_input numberInput floatLeft mb5", @data_seccion = isCalculated ? "pa" : ""};
+                                            object commonEOPPropertiesA = new { @class = "input min_input numberInput floatLeft mb5", @data_seccion = isCalculated ? "a" : "" };
+
+                                            if (isAutoCalc)
+                                            {
+                                                commonEOPPropertiesP = new { @class = "input min_input numberInput floatLeft mb5", @readonly = "readonly", @data_seccion = isCalculated ? "p" : "" };
+                                                commonEOPPropertiesPA = new { @class = "input min_input numberInput floatLeft mb5", @readonly = "readonly", @data_seccion = isCalculated ? "pa" : ""};
+                                                commonEOPPropertiesA = new { @class = "input min_input numberInput floatLeft mb5", @readonly = "readonly", @data_seccion = isCalculated ? "a" : "" };
+                                            }
+
+                                <table class="fixedTableDisaggregation totalMilestoneYearPlan">
+                                    <tbody>
+                                        <tr class="rm_p_row">
+                                            <td>
+                                                <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(disaggregationYearPlanIndexEOP)__OriginalPlan">
+                                                    @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans[" + disaggregationYearPlanIndexEOP + "].OriginalPlan",
+                                                                    EOPDisaggregationYearPlan.OriginalPlan, commonEOPPropertiesP)
+                                                    @(isAutoCalculated ? "%" : string.Empty)
+                                                </label>
+                                            </td>
+                                        </tr>
+                                        <tr class="rm_pa_row">
+                                            <td>
+                                                <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(disaggregationYearPlanIndexEOP)__AnnualPlan">
+                                                    @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans[" + disaggregationYearPlanIndexEOP + "].AnnualPlan",
+                                                                    EOPDisaggregationYearPlan.AnnualPlan, commonEOPPropertiesPA)
+                                                    @(isAutoCalculated ? "%" : string.Empty)
+                                                </label>
+                                            </td>
+                                        </tr>
+                                        <tr class="rm_ac_row">
+                                            <td>
+                                                <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__OutputDisaggregations_@(disaggregationIndex)__OutputDisaggregationYearPlans_@(disaggregationYearPlanIndexEOP)__ActualValue">
+                                                    @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputDisaggregations[" + disaggregationIndex + "].OutputDisaggregationYearPlans[" + disaggregationYearPlanIndexEOP + "].ActualValue",
+                                                                    EOPDisaggregationYearPlan.ActualValue, commonEOPPropertiesA)
+                                                    @(isAutoCalculated ? "%" : string.Empty)
+                                                </label>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </td>
+    </tr>
+}

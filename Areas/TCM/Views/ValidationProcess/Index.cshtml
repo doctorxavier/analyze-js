@@ -1,0 +1,117 @@
+﻿@using IDB.Presentation.MVC4.Helpers;
+@using IDB.Architecture.Language;
+
+@model IDB.MW.Domain.Models.Architecture.TCM.TCMValidationWorkFlow.ValidationProcessModel
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+}
+<input hidden data-idb-pagename="UI-VP-001-ValidationProcess" />
+<div>
+    @Html.Partial("Partials/IndexHeader", Model)
+</div>
+
+@if (Model.IsCndOperation)
+{
+    <div class="col-md-12 text-center mt20">
+        @Confluence.LabelMainSubTitle(
+            Localization.GetText("TCM.VP.ValidationProcess.ValidationProcess") +
+            Localization.GetText("GLOBAL.PAGE.NOT.AVAILABLE.CND"))
+    </div>
+}
+else
+{
+    <div class="row">
+        @Html.Partial("Partials/IndexButtons", Model)
+    </div>
+
+    <div class="row" id="idTableValidation">
+        @Html.Partial("Partials/IndexDataTableContent", Model.ValidationProcessStatus)
+    </div>
+
+    <br />
+    <div class="text-right">
+        @Html.Partial("Partials/IndexReport", null)
+    </div>
+    <input type="hidden" id="hiddenResultMatrixId" value="@Model.ResultsMatrixId">
+}
+@section scripts{
+    <script type="text/javascript">
+
+    function startWorkflowRequest() {
+        showLoader();
+        var param = "?resultMatrixId=" + $('#hiddenResultMatrixId').val()
+            + "&isFinalReport="
+            + $('[name=ckIsFinalReportEdit]').is(':checked');
+
+        window.location.href = "@Url.Action("SubmitWorkflow", "WorkflowK2", new { area = "TCM" })" + param;
+    }
+
+    function warningMessageValidation(source) {
+        var warningTop = '@Model.TextCodeCycle';
+        var warningFooter = '@Localization.GetText("TCM.VP.ValidationProcess.WarningMessageFooter")';
+
+        var warningMessage = warningTop + '<br/><br/>' + warningFooter;
+        confirmAction(warningMessage).done(function (selectionOk) {
+            if (selectionOk) {
+                $("[data-action=warningMessageValidation]").attr("disabled", "disabled");
+                startWorkflowRequest();
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        $("#tableValidationProcess").paginationConfluense(10).sortableConfluense(false);
+    });
+
+    function refreshTable() {
+        $("#idTableValidation").empty();
+        $('#idTableValidation').load('@Url.Action("RefreshTableProcess", "ValidationProcess", new { area = "TCM" })');
+        $("#tableValidationProcess").paginationConfluense(10).sortableConfluense(false);
+
+    }
+
+    function downloadReport(source) {
+        var formatType = source.attr('name').toString();
+        var url = '@Url.Action("DownloadExportsValidation", "ValidationProcess", new { area = "TCM" })' + "?formatType=" + formatType;
+        window.open(url, '_blank');
+    }
+
+    function editValidationProcess() {
+        $('[name=ckIsFinalReportEdit]').prop('checked', $('[name=ckIsFinalReportRead]').is(':checked'));
+        enterEditMode(false, $('#headerButtons'), true);
+        $("[name='ckIsFinalReport']").attr("disabled", false);
+        $("[name='btTlSumit']").show();
+    }
+
+    function cancelValidationProcess() {
+        exitEditMode(false, $('#headerButtons'), false, true);
+        $("[name='ckIsFinalReport']").attr("disabled", true);
+        $("[name='btTlSumit']").hide();
+    }
+
+    function saveValidationProcess() {
+        showLoader();
+        
+        $.ajax({
+            url: "@Url.Action("SaveIsFinalReportCheckbox", "WorkflowK2", new { area = "TCM" })",
+            type: "POST",
+            data: {
+                "resultsMatrixId" : $('#hiddenResultMatrixId').val() ,
+                "isFinalReportChecked": $('[name=ckIsFinalReportEdit]').is(':checked')
+            },
+            success: function (data) {
+                $('[name=ckIsFinalReportRead]').prop('checked', $('[name=ckIsFinalReportEdit]').is(':checked'));
+            },
+            error: function (data) {
+                $('[name=ckIsFinalReportRead]').prop('checked', $('[name=ckIsFinalReportEdit]').is(':checked'));
+            }
+        });
+
+        hideLoader();
+        exitEditMode(false, $('#headerButtons'), false, false);
+        $("[name='ckIsFinalReport']").attr("disabled", true);
+        $("[name='btTlSumit']").show();
+    }
+
+</script>
+}

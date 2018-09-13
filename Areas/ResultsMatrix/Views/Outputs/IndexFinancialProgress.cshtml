@@ -1,0 +1,637 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Enumerations
+@using IDB.Presentation.MVC4.Areas.ResultsMatrix.Business;
+@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.ResultsMatrixModel
+
+@Scripts.Render("~/bundles/BootstrapTooltip")
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/botonActivo/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Outputs/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/VerifyContent/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Common/common.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Mainframe/fixIframe.js")"></script>
+<script type="text/javascript">
+        $(document).ready(function () {
+            $('.tableOperator').click(resizeIframeCloud());
+        });
+</script>
+}
+
+@Styles.Render("~/Content/BootstrapTooltip")
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Outputs/ResultMatrix_Outputs.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/VerifyContent.css")" />
+}
+@Html.Hidden("urlRoute", Url.Action("IndexFinancialProgress", "Outputs", new { area = "ResultsMatrix", OperationNumber = Model.Operation.OperationNumber }))
+
+
+@************ Hidden fields for interval *************@
+@Html.Hidden("hdnIntervalId", Model.interval.IntervalId)
+@Html.Hidden("hdnCycleId", Model.interval.CycleId)
+@{
+    bool isLessTaskFive = ViewBag.isLessTaskFive ?? false;
+
+    decimal? sumEopPaOutputs =
+                   Model.Components.SelectMany(x => x.Outputs).SelectMany(y => y.OutputYearPlans).
+                   Where(z => z.IsCost == true && z.Year == -1).Select(i => i.AnnualPlan).Sum(j => j);
+
+    decimal? sumEopPaOtherCost = Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).
+        Where(z => z.Year == -1).Select(i => i.AnnualPlan).Sum(j => j);
+
+    decimal? allCostFull = sumEopPaOutputs + sumEopPaOtherCost;
+    string CRFTemplateName = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory
+        .Current.GetApplicationSettings().CRFTemplateName;
+}
+
+<h2 class="hide">Seccion central de Contenido</h2>
+<div class="mod_contenido_central impacts">
+    @Html.Partial("IndexSharedHeader", Model, new ViewDataDictionary { { "isFinancialProgress", true }, { "isLessTaskFive", ViewBag.isLessTaskFive } })
+
+    @if (Model.Components != null && Model.Components.Count() != 0)
+    {
+        <div class="operationData">
+            <h4 class="headingh5">@Localization.GetText("Total operation cost")</h4>
+            <div class="data4">
+                <p class="dataTitle">@Localization.GetText("Original Estimate")</p>
+                <p>@Html.CustomFormatDecimalNumber(Model.OriginalEstimate)</p>
+            </div>
+            <div class="data4">
+                <p class="dataTitle">@Localization.GetText("Current")</p>
+                <p>@Html.CustomFormatDecimalNumber(Model.CurrentCost)</p>
+            </div>
+            <div class="verticalMargin20 leftPadding40" style="font-size: 80%">
+                <div class="informationStatement leftPadding40">@Localization.GetText("Amounts expressed in USD")</div>
+            </div>
+        </div>
+
+    }
+
+    <div class="editingButtonsEdit">
+        <table>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="btn-action-group activo">
+                            <label class="btn-action-fondo" for="btn-actionid">
+                                <span class="btn-action-punto">Punto Blanco</span>
+                            </label>
+                            <input type="button" class="btn-action" value="@Localization.GetText("Collapse Components")" id="btn-actionid">
+                        </div>
+                    </td>
+                    <td style="vertical-align: middle; padding-left: 5px; font-size: 0.75em;">
+                        @Localization.GetText("Show")
+                    </td>
+                    <td>
+                        <div id="radio">
+                            <input type="checkbox" @(Model.showInactiveOutputs ? "checked=checked" : "") id="showInactiveOutputs" name="showInactiveOutputs" /><label for="showInactiveOutputs">@Localization.GetText("Inactive Outputs")</label>
+                            <input type="checkbox" @(Model.showMilestones ? "checked=checked" : "") id="showMilestones" name="showMilestones" /><label for="showMilestones">@Localization.GetText("Milestones")</label>
+                        </div>
+
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- END TABLE 02.1-->
+    <!-- TABLE 02.1-->
+    @{int Validator = 0;}
+    @if (Model.Components != null)
+    {
+
+        foreach (var component in Model.Components.OrderBy(x => x.OrderNumber))
+        {
+            Validator = 1;
+            <div class="mod_tabla_impacts table_outputs milestone">
+                <div class="minimizeTable">
+                    <div class="minimizeBar">
+                        <div class="trackOrder">@component.OrderNumber</div>
+                        <div class="tableOperator">@Localization.GetText("Minimize/Maximize")</div>
+                    </div>
+                    <div class="operatorBar"></div>
+                    <h4 class="headingh3 plegableTitle">@component.Statement</h4>
+                    <div class="operationData" style="width: 95%;">
+                        <div class="data4" style="float: right; text-align: right;">
+                            <p class="dataTitle">@Localization.GetText("Component Revised Cost")</p>
+                            <p>
+                                @{
+                                    var ComponentRevisedCost = component.Outputs.
+                                        SelectMany(x => x.OutputYearPlans).
+                                        Where(x => x.IsCost && x.Year == ResultsMatrixCodes.EndOfProjectYear).
+                                        Select(x => x.AnnualPlan).DefaultIfEmpty(0.0m).Sum(x => x);
+                                }
+                                @Html.CustomFormatDecimalNumber(ComponentRevisedCost)
+                            </p>
+                        </div>
+                    </div>
+                    @if (component.Outputs != null)
+                    {
+                        component.Outputs.Sort((x1, x2) => x1.OrderNumber.CompareTo(x2.OrderNumber));
+                        var totalOutputYearsPlan = component.getTotalOutputsYearPlan();
+                        <div class="tableGrid">
+                            <table class="grid">
+                                <thead>
+                                    <tr>
+                                        <th class="btn_azul_oscuro dato00">@Localization.GetText("Outputs")</th>
+                                        <th class="btn_azul_oscuro dato04"></th>
+
+                                        @foreach (var ouputYearPlan in totalOutputYearsPlan)
+                                        {
+                                            <th class="btn_azul_oscuro dato06">@ouputYearPlan</th>
+                                        }
+
+                                        <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{int countColor = 0;}
+                                    @for (var i = 0; i < component.Outputs.Count; i++)
+                                    {
+                                        if ((component.Outputs[i].IsDeactivated == false) || (component.Outputs[i].IsDeactivated == true && Model.showInactiveOutputs == true))
+                                        {
+                                            countColor = 1 + countColor;
+
+                                            <tr class="trackOrderRow">
+                                                <td>@(component.OrderNumber + "." + component.Outputs[i].OrderNumber)</td>
+                                            </tr>
+                                            <tr class="nivel01 @(component.Outputs[i].IsDeactivated ? " inactiveOutput " : "") @(countColor % 2 != 0 ? " impar " : "")">
+                                                <td class="dato01">
+                                                    <div>
+                                                        @if (component.Outputs[i].PredefinedIndicator != null)
+                                                        {
+                                                            <span class="@component.Outputs[i].PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                        }
+                                                        @if (component.Outputs[i].IsProgender)
+                                                        {
+                                                            <a href="#" title="badge_flag" class="ico_badge_flag purple"></a>
+                                                        }
+                                                        @if (component.Outputs[i].UsedForStrategicAlignment)
+                                                        {
+                                                            <span class="ico_badge_flag lime"></span>
+                                                        }
+                                                        @if (component.Outputs[i].IsProethnicity)
+                                                        {
+                                                            <a href="#" title="badge_flag" class="ico_badge_flag grey"></a>
+                                                        }
+                                                        <a href="javascript:void(0)" style="margin-right: 0.6em" class="outputDetail @(component.Outputs[i].IsDeactivated ? "inactiveOutput" : "") " data-route="@(Url.Action("IndexOutputDetail", "Outputs", new { area = "ResultsMatrix", outputID = component.Outputs[i].OutputId }))">@component.Outputs[i].Definition</a>
+                                                    </div>
+
+
+
+                                                </td>
+                                                <td class="dato07">
+                                                    <table>
+                                                        <tbody>
+                                                            <tr class="rm_p_row">
+                                                                <td>P</td>
+                                                            </tr>
+                                                            <tr class="rm_pa_row">
+                                                                <td>P(a)</td>
+                                                            </tr>
+                                                            <tr class="rm_ac_row">
+                                                                <td>A</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                                @foreach (var year in totalOutputYearsPlan)
+                                                {
+                                                    var currentSelectedYear = component.Outputs[i].OutputYearPlans.Where(x => x.Year == year).FirstOrDefault();
+                                                    if (currentSelectedYear == null)
+                                                    {
+                                                        currentSelectedYear = new IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OutputYearPlanModel()
+                                                        {
+                                                            OriginalPlan = null,
+                                                            AnnualPlan = null,
+                                                            ActualValue = null
+                                                        };
+                                                    }
+                                                    <td class="dato07">
+                                                        <table>
+                                                            <tbody>
+                                                                <tr class="rm_p_row">
+                                                                    <td>@Html.CustomFormatDecimalNumber(currentSelectedYear.OriginalPlan) </td>
+                                                                </tr>
+                                                                <tr class="rm_pa_row">
+                                                                    <td>@Html.CustomFormatDecimalNumber(currentSelectedYear.AnnualPlan)</td>
+                                                                </tr>
+                                                                <tr class="rm_ac_row">
+                                                                    <td>@Html.CustomFormatDecimalNumber(currentSelectedYear.ActualValue)</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                }
+                                                <td class="dato07">
+                                                    @{    ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                  new ResultsMatrixBusinessRulesPhysicalProgress(
+                                      component.Outputs[i].OutputYearPlans);
+
+                                                        int referenceLastYearOutputProduct =
+                                                           rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                        int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                        int referenceYear =
+                                                           rmBusinessRuleHelper.GetReferenceYear(
+                                                               referenceLastYearOutputProduct, pmrYear);
+                                                        decimal? originalPlanSum =
+                                                           rmBusinessRuleHelper.GetOriginalPlanSum();
+                                                        decimal? annualPlanSum =
+                                                           rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear);
+                                                        decimal? actualValueSum =
+                                                           rmBusinessRuleHelper.GetActualValueSum();
+
+                                                        <table>
+                                                            <tbody>
+                                                                <tr class="rm_p_row">
+                                                                    <td>@Html.CustomFormatDecimalNumber(originalPlanSum)</td>
+                                                                </tr>
+                                                                <tr class="rm_pa_row">
+                                                                    <td>
+                                                                        @Html.CustomFormatDecimalNumber(annualPlanSum)
+                                                                    </td>
+                                                                </tr>
+                                                                <tr class="rm_ac_row">
+                                                                    <td>@Html.CustomFormatDecimalNumber(actualValueSum)</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    }
+                                                </td>
+                                            </tr>
+                                            @*-----------------------------------------------------------Milestones---------------------------------------------------------------------------------*@
+                                                        @*-----------------------------------------------------------Milestones---------------------------------------------------------------------------------*@
+
+                                    if (Model.showMilestones && component.Outputs[i].Milestones != null && component.Outputs[i].Milestones.Count > 0 && component.Outputs[i].MileStoneBasedPmi)
+                                    {
+                                        <tr class="nivel02">
+                                            <td colspan="@(totalOutputYearsPlan.Count + 3)">
+                                                <div class="minimizeTable">
+                                                    <div class="minimizeBar">
+                                                        <div class="tableOperator">Minimize/Maximize</div>
+                                                    </div>
+                                                    <div class="operatorBar"></div>
+                                                    <div class="tableGrid">
+                                                        <table class="grid">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th class="btn_azul_oscuro dato00">@Localization.GetText("Milestones")</th>
+                                                                    <th class="btn_azul_oscuro dato04"></th>
+                                                                    <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach (var milestones in component.Outputs[i].Milestones.OrderBy(x => x.OrderNumber))
+                                                                {
+                                                                    <tr class="@(milestones.OrderNumber % 2 == 0 ? " impar " : "") @(component.Outputs[i].IsDeactivated ? " inactiveOutput " : "")">
+                                                                        <td class="dato01 @(component.Outputs[i].IsDeactivated ? " inactiveOutput " : "")">
+                                                                            <a href="javascript:void(0)" class="outputDetail @(component.Outputs[i].IsDeactivated ? " inactiveOutput " : "") "
+                                                                               data-route="@(Url.Action("IndexMilestoneDetails", "Outputs", new { area = "ResultsMatrix", milestoneId = milestones.MilestoneId }))">@milestones.Definition</a>
+                                                                        </td>
+                                                                        <td class="dato07">
+                                                                            <table>
+                                                                                <tbody>
+                                                                                    <tr class="rm_p_row">
+                                                                                        <td>@Localization.GetText("P")</td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_pa_row">
+                                                                                        <td>@Localization.GetText("P(a)")</td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_ac_row">
+                                                                                        <td>@Localization.GetText("A")</td>
+                                                                                    </tr>
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </td>
+                                                                        <td class="dato07">
+                                                                            <table>
+                                                                                <tbody>
+                                                                                    <tr class="rm_p_row">
+                                                                                        <td>@Html.CustomFormatDecimalNumber(milestones.OriginalEopCost)</td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_pa_row">
+                                                                                        <td>@Html.CustomFormatDecimalNumber(milestones.AnnualEopCost)</td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_ac_row">
+                                                                                        <td>@Html.CustomFormatDecimalNumber(milestones.ActualEopCost)</td>
+                                                                                    </tr>
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </td>
+                                                                    </tr>
+                                                                }
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                            }
+
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                                                        }
+
+                </div>
+            </div>
+            <div class="operationData" style="width: 100%; padding-top: 1.5em;"></div>
+                                                            }
+
+                                                        }
+
+                                                        @*------------------------------------------Cost--------------------------------------------------------------*@
+                                                        @*------------------------------------------Cost--------------------------------------------------------------*@
+                                                        <div class="mod_tabla_impacts financial">
+                                                            <div class="minimizeTable2">
+                                                                @if (Model.OtherCosts != null)
+                                                                {
+                                                                    Model.OtherCosts.Sort((x, y) => x.OrderNumber.CompareTo(y.OrderNumber));
+                                                                    var totalOtherCostYearPlan = Model.getTotalOtherCostYearPlan();
+                                                                    <div class="tableGrid">
+                                                                        <table class="grid">
+                                                                            <thead>
+                                                                                <tr>
+                                                                                    <th class="btn_azul_oscuro dato00">@Localization.GetText("Other Costs")</th>
+                                                                                    <th class="btn_azul_oscuro dato04"></th>
+                                                                                    @foreach (var otherCostYears in totalOtherCostYearPlan)
+                                                                                    {
+                                                                                        <th class="btn_azul_oscuro dato06">@otherCostYears</th>
+                                                                                    }
+                                                                                    <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                @foreach (var otherCost in Model.OtherCosts)
+                                                                                {
+                                                                                    <tr class="@(otherCost.OrderNumber % 2 == 0 ? "impar nivel01" : "nivel01")">
+                                                                                        <td class="dato01">@otherCost.Definition</td>
+                                                                                        <td class="dato07">
+                                                                                            <table>
+                                                                                                <tbody>
+                                                                                                    <tr class="rm_p_row">
+                                                                                                        <td>P</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_pa_row">
+                                                                                                        <td>P(a)</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_ac_row">
+                                                                                                        <td>A</td>
+                                                                                                    </tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </td>
+                                                                                        @foreach (var otherCostYears in totalOtherCostYearPlan)
+                                                                                        {
+                                                                                            var currentOtherCostYearPlan = otherCost.OtherCostYearPlans.FirstOrDefault(x => x.Year == otherCostYears);
+                                                                                            if (currentOtherCostYearPlan == null)
+                                                                                            {
+                                                                                                currentOtherCostYearPlan = new IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OtherCostYearPlanModel()
+                                                                                                {
+                                                                                                    OriginalPlan = null,
+                                                                                                    AnnualPlan = null,
+                                                                                                    ActualValue = null
+                                                                                                };
+                                                                                            }
+                                                                                            <td class="dato07">
+                                                                                                <table>
+                                                                                                    <tbody>
+                                                                                                        <tr class="rm_p_row">
+                                                                                                            <td>@Html.CustomFormatDecimalNumber(currentOtherCostYearPlan.OriginalPlan)</td>
+                                                                                                        </tr>
+                                                                                                        <tr class="rm_pa_row">
+                                                                                                            <td>@Html.CustomFormatDecimalNumber(currentOtherCostYearPlan.AnnualPlan)</td>
+                                                                                                        </tr>
+                                                                                                        <tr class="rm_ac_row">
+                                                                                                            <td>@Html.CustomFormatDecimalNumber(currentOtherCostYearPlan.ActualValue)</td>
+                                                                                                        </tr>
+                                                                                                    </tbody>
+                                                                                                </table>
+                                                                                            </td>
+                                                                                        }
+                                                                                        @{
+                                                                                            ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                                                                new ResultsMatrixBusinessRulesPhysicalProgress(
+                                                                                                    otherCost.OtherCostYearPlans);
+
+                                                                                            int referenceLastYearOutputProduct =
+                                                                                                rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                                                            int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                                                            int referenceYear = rmBusinessRuleHelper.GetReferenceYear(
+                                                                                                referenceLastYearOutputProduct, pmrYear);
+                                                                                            decimal? originalPlanSum =
+                                                                                                rmBusinessRuleHelper.GetOriginalPlanSum();
+                                                                                            decimal? annualPlanSum =
+                                                                                                rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear);
+                                                                                            decimal? actualValueSum =
+                                                                                                rmBusinessRuleHelper.GetActualValueSum();
+
+                                                                                            <td class="dato07">
+                                                                                                <table>
+                                                                                                    <tbody>
+                                                                                                        <tr class="rm_p_row">
+                                                                                                            <td>@Html.CustomFormatDecimalNumber(originalPlanSum)</td>
+                                                                                                        </tr>
+                                                                                                        <tr class="rm_pa_row">
+                                                                                                            <td>
+                                                                                                                @Html.CustomFormatDecimalNumber(annualPlanSum)
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr class="rm_ac_row">
+                                                                                                            <td>@Html.CustomFormatDecimalNumber(actualValueSum)</td>
+                                                                                                        </tr>
+                                                                                                    </tbody>
+                                                                                                </table>
+                                                                                            </td>
+                                                                                        }
+                                                                                    </tr>
+                                                                                            }
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+
+                                                                    <div class="operationData" style="width: 100%; padding-top: 2em;"></div>
+                                                                                            }
+
+                                                                <div class="operationData" style="width: 100%; padding-top: 2em;"></div>
+
+                                                                @*-----------------------------------------Total Cost--------------------------------------------------------------*@
+                                                                @*-----------------------------------------Total Cost--------------------------------------------------------------*@
+
+                                                                @{
+                                                                    var totalYearsOtherCostAndOutputs = Model.getTotalYearsOtherCostAndOutputs();
+                                                                }
+
+                                                                @if (totalYearsOtherCostAndOutputs != null && totalYearsOtherCostAndOutputs.Count() != 0)
+                                                                {
+                                                                    <div class="tableGrid">
+                                                                        <div style="font-size: 80%">
+                                                                            <div class="informationStatement leftPadding40">@Localization.GetText("Total Costs include inactive outputs")</div>
+                                                                        </div>
+                                                                        <table class="grid">
+                                                                            <thead>
+                                                                                <tr>
+                                                                                    <th class="btn_azul_oscuro dato00">@Localization.GetText("Total")</th>
+                                                                                    <th class="btn_azul_oscuro dato04"></th>
+                                                                                    @foreach (var year in totalYearsOtherCostAndOutputs)
+                                                                                    {
+                                                                                        <th class="btn_azul_oscuro dato06">@year</th>
+                                                                                    }
+                                                                                    <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                <tr class="nivel01">
+                                                                                    <td class="dato01">@Localization.GetText("Total cost")</td>
+                                                                                    <td class="dato07">
+                                                                                        <table>
+                                                                                            <tbody>
+                                                                                                <tr class="rm_p_row">
+                                                                                                    <td>P</td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_pa_row">
+                                                                                                    <td>P(a)</td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_ac_row">
+                                                                                                    <td>A</td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    </td>
+
+                                                                                    @foreach (var year in totalYearsOtherCostAndOutputs)
+                                                                                    {
+                                                                                        var totalPlanned =
+                                                                                             Model.Components.SelectMany(x => x.Outputs).SelectMany(x => x.OutputYearPlans).Where(x => x.Year == year).Select(x => x.OriginalPlan).DefaultIfEmpty(0.0m).Sum(x => x) +
+                                                                                             Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).Where(x => x.Year == year).Select(x => x.OriginalPlan).DefaultIfEmpty(0.0m).Sum(x => x);
+
+
+                                                                                        var totalRevised =
+                                                                                       Model.Components.SelectMany(x => x.Outputs).SelectMany(x => x.OutputYearPlans).Where(x => x.Year == year).Select(x => x.AnnualPlan).DefaultIfEmpty(0.0m).Sum(x => x) +
+                                                                                       Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).Where(x => x.Year == year).Select(x => x.AnnualPlan).DefaultIfEmpty(0.0m).Sum(x => x);
+
+
+                                                                                        var totalActual =
+                                                                                           Model.Components.SelectMany(x => x.Outputs).SelectMany(x => x.OutputYearPlans).Where(x => x.Year == year).Select(x => x.ActualValue).DefaultIfEmpty(0.0m).Sum(x => x) +
+                                                                                           Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).Where(x => x.Year == year).Select(x => x.ActualValue).DefaultIfEmpty(0.0m).Sum(x => x);
+
+                                                                                        <td class="dato07">
+                                                                                            <table>
+                                                                                                <tbody>
+                                                                                                    <tr class="rm_p_row">
+                                                                                                        <td>@Html.CustomFormatDecimalNumber(totalPlanned)</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_pa_row">
+                                                                                                        <td>@Html.CustomFormatDecimalNumber(totalRevised)</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_ac_row">
+                                                                                                        <td>@Html.CustomFormatDecimalNumber(totalActual)</td>
+                                                                                                    </tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </td>
+
+                                                                                    }
+                                                                                    <td class="dato07">
+                                                                                        @{
+                                                                                            ResultsMatrixBusinessRulesFinancialProgress rmBusinessRuleHelperFinancialprogress =
+                                                                                                new ResultsMatrixBusinessRulesFinancialProgress(Model.Components.SelectMany(
+                                                                                                x => x.Outputs).SelectMany(x => x.OutputYearPlans),
+                                                                                                Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans));
+
+                                                                                            var totalCostOriginalSum = rmBusinessRuleHelperFinancialprogress.GetCostOriginalSum();
+                                                                                            int referenceLastYearFinancialOutputProduct =
+                                                                                                rmBusinessRuleHelperFinancialprogress.GetReferenceLastYearOutputProduct();
+                                                                                            int pmrYearFinancial = rmBusinessRuleHelperFinancialprogress.GetPmrYear();
+                                                                                            int referenceYearFinancial = rmBusinessRuleHelperFinancialprogress.GetReferenceYear(
+                                                                                                referenceLastYearFinancialOutputProduct, pmrYearFinancial);
+                                                                                            var totalCostAnnualSum =
+                                                                                                rmBusinessRuleHelperFinancialprogress.GetCostAnnualSum(referenceYearFinancial);
+                                                                                            var totalCostActualSum = rmBusinessRuleHelperFinancialprogress.GetTotalCostActualSum();
+
+                                                                                            <table>
+                                                                                                <tbody>
+                                                                                                    <tr class="rm_p_row">
+                                                                                                        <td>
+                                                                                                            @Html.CustomFormatDecimalNumber(totalCostOriginalSum)
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_pa_row">
+                                                                                                        <td>@Html.CustomFormatDecimalNumber(allCostFull)</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_ac_row">
+                                                                                                        <td>@Html.CustomFormatDecimalNumber(totalCostActualSum)</td>
+                                                                                                    </tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        }
+                                                                                    </td>
+                                                                                </tr>
+                                                                            </tbody>
+                                                                        </table>
+
+                                                                    </div>
+                                                                    <div class="plegableSeparator">Borde de separacion</div>
+                                                                                            }
+                                                            </div>
+                                                        </div>
+                                                        <!-- END TABLE 02.1-->
+                                                        @if (Validator == 1)
+                                                        {
+                                                            <div class="styleContentReport">
+                                                                <a title="Export PDF" class="exportdata pdf styleExportReport"
+                                                                   onclick='downloadReport(this);'
+                                                                   data-href='@(Url.Action("DownloadReportFinancialProgress", "Outputs", new {
+                                    area = "ResultsMatrix",
+                                    operationNumber = Model.OperationNumber,
+                                    formatType = "PDF",
+                                    inactiveOutput = Model.showInactiveOutputs
+                                }))'></a>
+
+                                                                <a title="Export Excel" class="exportdata excel styleExportReport"
+                                                                   onclick="downloadReport(this);"
+                                                                   data-href='@(Url.Action("DownloadReportFinancialProgress", "Outputs", new {
+                                    area = "ResultsMatrix",
+                                    operationNumber = Model.OperationNumber,
+                                    formatType = "Excel",
+                                    inactiveOutput = Model.showInactiveOutputs
+                                }))'></a>
+                                                            </div>
+                                                        }
+
+                                                        <div class="operationData" style="float: right;">
+                                                            @Html.Partial("../Partials/_BadgeFlagPartial")
+                                                        </div>
+
+                                                        <div class="editingButtonsEdit bottom">
+            @if (!Model.DEMLockReviewProcessData.IsLockReviewProcessDEM)
+            {
+                <a href="javascript:void(0)" class="verify" title="verify">@Localization.GetText("Verify content")</a>
+                if (Model.AccessedByAdministrator)
+                {
+                    if (Model.isEditable && Html.HasPermission("Results Matrix Write"))
+                    {
+                        <a href="javascript:void(0)" data-route="@(Url.Action("EditFinancialProgress", "Outputs",
+                           new { area = "ResultsMatrix", operationNumber = Model.Operation.OperationNumber }))"
+                           class="btn-secondary editFinancialProgress" title="@Localization.GetText("Edit")">@Localization.GetText("Edit")</a>
+                    }
+
+                }
+                else if (isLessTaskFive && Model.isEditable && Html.HasPermission("Results Matrix Write"))
+                {
+                    <a href="javascript:void(0)" data-route="@(Url.Action("EditFinancialProgress", "Outputs",
+                       new { area = "ResultsMatrix", operationNumber = Model.Operation.OperationNumber }))"
+                       class="btn-secondary editFinancialProgress" title="@Localization.GetText("Edit")">@Localization.GetText("Edit")</a>
+
+                }
+            }
+            else
+            {
+                @:&nbsp;
+                <div id="dem-block-description-outputs">@Html.Raw(Model.DEMLockReviewProcessData.LockDescription)</div>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    <!--end div mod contenido central-->

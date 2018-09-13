@@ -1,0 +1,1364 @@
+﻿@using Areas.DEM
+@using IDB.MW.Domain.Values.Dem
+
+@model IDB.MW.Application.DEMModule.ViewModels.DemViewModel
+
+<div id="dem" data-loadurl="@Url.Action("Dem", "View", new { area = "DEM" })">
+    @if (Model.EnabledForThisUser || (!Model.EnabledForThisUser && Model.IsDemAfterApproved))
+    {
+        <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+
+        <div class="row" id="header-section">
+            <div class="col-md-12">
+                @Html.Partial("Partials/PHeader", Model)
+            </div>
+        </div>
+
+        <div data-id="ModalRegion" class="hide">
+            <button data-id="butttonNewDemVersionsModal"
+                    data-modal-allowclose="true"
+                    data-custom-modal="newDemVersionsModal"
+                    data-custom-modal-style=""
+                    data-custom-modal-title='Dem Versions'
+                    data-custom-modal-validate="false"
+                    data-custom-modal-onclose=""
+                    data-custom-modal-closeonoverlayclick="false"></button>
+            <div id="newDemVersionsModal" class="hide modalBody newDemVersionsModal"></div>
+        </div>
+
+        <div>
+            @Html.Partial("Partials/PHeaderInfo", Model)
+        </div>
+
+        <div class="row" id="grid-section">
+            <div class="col-md-12">
+                @Html.Partial("Partials/PTabsContent", Model)
+            </div>
+        </div>
+
+        <br />
+
+        <div class="row" id="footer-section">
+            <div class="col-md-12 text-right">
+                @Html.Partial("Partials/PFooter", Model)
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row" id="header-section">
+            <div class="col-md-12">
+                @Html.Partial("Partials/PMessage", Model)
+            </div>
+        </div>
+    }
+</div>
+@section scripts{
+    <script type="text/javascript">
+
+        var activeTab;
+
+        registerCallback(function () {
+            $(document).on('click', 'button[name="linktoprofile"]',
+            function () {
+                var source = $(this);
+                var url = source.attr('data-url');
+                window.open(url, '_blank');
+            });
+
+            $(document).ready(function () {
+                var loadScore = true;
+                loadingFunctions(loadScore);
+                loadTabs();
+                hideEditButtonOnValidationProcessStatus();
+                showEditButtonOnValidationProcessStatus();
+                hideSubmitButtonOnSummaryOrResumen();
+                hideEditButtonOnSummaryOnLoad();
+                hideEditButtonOnSummaryTabOnClick();
+                setTableRowsProperColours();
+                setBiggerInfoCommentBox();
+                hideComments(@Html.Raw(Json.Encode(Model.IsCommentVisible)));
+                marginFix();
+                newCommentDesign();
+            });
+        });
+
+        function editDem() {
+            initialCheckState();
+            funcHideLinkCommentCountry();
+            funcHideLinkCommentStrategic();
+            funcHideLinkCommentSectionCountryStrategy();
+            funcHideLinkCommentSectionCountryProgram();
+            enterEditMode(false, $('#dem'), false);
+            enterEditMode(false, $('#header-section'), true);
+            enterEditMode(false, $('#footer-section'), true);
+            disableEnableTabs(true);
+            verifyRequiredDEM();
+            bindHandlers();
+            setRemoveCustomRowOdd();
+
+            var tabContainerActive = $('#containerTabs').children('.active').attr('id');
+            var tabPaneActive = $('#' + tabContainerActive + ' div.active').attr('id');
+
+            if (tabPaneActive == "tabCountryDevelopmentResults") {
+                $('.classViewModeCountry').removeClass("hide");
+            }
+            if (tabPaneActive == "tabStrategic") {
+                startEditComboState();
+            }
+
+            if ('@Model.IsEditSPDCompletedTL' === 'True') {
+                var checkListStatus = '@DemGlobalValues.DRAFT';
+                $('#demChecklistStatusId').html(capitalizeFirstLetter(checkListStatus.toLowerCase()));
+            }
+            var isCountryStrategyApproved = $('input[name=hiddenIsCountryStrategyApproved]').val();
+            if(isCountryStrategyApproved === "True")
+            {
+                hideOrShowRegionRelevanceOperation();
+            }
+
+            addTooltipSummaryNote();
+            treeFilterTablesDEM();
+            newCommentDesign();
+
+        }
+
+        function cancelDem() {
+            var tabActivo = $('ul.tabs').find('li.active');
+            loadCurrentTabs();
+            exitEditMode(false, $('#dem'), false, false);
+            exitEditMode(false, $('#header-section'), true, true);
+            exitEditMode(false, $('#footer-section'), true, true);
+            freeDemLock();
+            disableEnableTabs(false);
+            var loadScore = false;
+            var actualTab = getTabActive();
+
+            if(actualTab === 'tabEvaluability' || actualTab === 'tabValidationProcessStatus' ) {
+                loadScore = true;
+            }
+
+            loadingFunctions(loadScore);
+            setTableRowsProperColours();
+            treeFilterTablesDEM();
+            newCommentDesign();
+
+            if ('@Model.IsEditSPDCompletedTL' === 'True') {
+                var checkListStatus = '@Model.DemChecklistStatus';
+                $('#demChecklistStatusId').html(checkListStatus);
+            }
+        }
+
+        function saveDem() {
+            var tabContainerActive = $('#containerTabs').children('.active').attr('id');
+
+            var tabPaneActive = $('#' + tabContainerActive + ' div.active').attr('id');
+
+            switch (tabPaneActive) {
+                case "tabStrategic":
+                    var modelSerialized = '#hidSADataViewModel';
+                    var response = saveContainer($('#' + tabPaneActive), modelSerialized, true, $('#headerButtons'));
+                    if (response !== false) {
+                        response.done(function(result) {
+                            var loadScore = false;
+                            if (!result.Data.IsValid && result.Data.ErrorMessage != null && result.Data.ErrorMessage !== '') {
+                                errorBar(result.Data.ErrorMessage, 3, true);
+                                loadingFunctions(loadScore);
+                                return false;
+                            } else {
+                                $("#tabSummary").html(result.Data.partialSummary);
+                                $("#tabResumen").html(result.Data.partialResumen);
+                                $("#headerInfoDem").html(result.Data.partialHeader);
+                                $("#ValidationProcess").html(result.Data.partialValidation);
+                                loadingFunctions(loadScore);
+                            }
+                        });
+                    } else {
+                        var objectivesNotAligned = $('[name=objectivesNotAligned]');
+                        objectivesNotAligned.parent().parent().find('Br').remove();
+                        objectivesNotAligned.parent().after('<Br/>');
+                        var objectives = $('[name=objectives]');
+                        objectives.parent().parent().find('Br').remove();
+                        objectives.parent().after('<Br/>');
+                        strategicAligmentErrorVerification();
+                    }
+
+                    if (response !== false) {
+                        cancelDem();
+                    }
+                    break;
+
+                case "tabCountryDevelopmentResults":
+                    var isDeleteComment = parseInt($('input[name=hiddenCountDeleteComments]').val());
+                    var countUnLink = parseInt($('input[name=hiddenCountIndicatorsRMCountryCurrent]').attr('value'));
+                    var countInitial = parseInt($('input[name=hiddenCountIndicatorsRMCountryInitial]').attr('value'));
+
+                    if ((isDeleteComment == 1) || (countUnLink != countInitial))
+                    {
+                        var msg = '@Localization.GetText("R6.DEM.CountryDevelopmentResults.ValidationUnLink")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                SaveCountryDevlopmentResults(tabPaneActive);
+                            }
+                        });
+                    } else {
+                        SaveCountryDevlopmentResults(tabPaneActive);
+                    }
+                    break;
+
+                default:
+                    var demStage = @Html.Raw(Json.Encode(Model.Stage));
+                    var ermStage = @Html.Raw(Json.Encode(DemGlobalValues.STAGE_ERM));
+
+                    if (demStage.toLowerCase() === ermStage.toLowerCase()) {
+                        $('textarea[name*=EvaluabilityAssessmentNote]').attr('data-parsley-required', 'false');
+                    }
+
+                    var divSave = $('#' + tabPaneActive);
+
+                    divSave.find('div').attr('data-url', divSave.attr('data-base-url'));
+
+                    var response = saveContainer(divSave, '#hiddenModel', false, null, null, false, true);
+
+                    if (response !== false) {
+                        response.done(function (result) {
+                            if (!result.Data.IsValid && result.Data.ErrorMessage != null && result.Data.ErrorMessage !== '') {
+                                showMessage(result.Data.ErrorMessage);
+                                return false;
+                            } else {
+
+                                switch (tabPaneActive) {
+                                    case "tabSummary":
+                                        $("#dem").load(location.href + ' #dem > *');
+                                        break;
+                                    case "tabResumen":
+                                        $("#tabSummary").html(result.Data.partialSummary);
+                                        $("#tabResumen").html(result.Data.partialResumen);
+                                        break;
+                                    default:
+                                        divSave.html(result.Data.partial);
+                                        $("#tabSummary").html(result.Data.partialSummary);
+                                        $("#tabResumen").html(result.Data.partialResumen);
+                                        $("#headerInfoDem").html(result.Data.partialHeader);
+                                        $("#ValidationProcess").html(result.Data.partialValidation);
+                                        break;
+                                }
+
+                                cancelDem();
+                                if (tabPaneActive === "tabSummary"){
+                                    loadTabsAfterSave();
+                                    hideEditButtonOnValidationProcessStatus();
+                                    showEditButtonOnValidationProcessStatus();
+                                    hideSubmitButtonOnSummaryOrResumen();
+                                    setTableRowsProperColours();
+                                    setBiggerInfoCommentBox();
+                                    loadRequiredDEM();
+                                    requiredDEMAfterSave();
+                                    verifyRequiredDEM();
+                                }
+                            }
+                        });
+                    }
+                    break;
+            }
+            setBiggerInfoCommentBox();
+            freeDemLock();
+        }
+
+        function addNewValidation() {
+            var table = $("#ValidationProcessTable > tbody > tr:first");
+
+            $('#ValidationProcessTable > tbody > tr:first >td:last > span > button').remove();
+
+            var newRow = '@DEM.RowElement(readContent: new List<HelperResult>
+            {
+                Confluence.Label("14 Apr 2016",htmlClass:"lblDate"),
+                Confluence.Label("Test User"),
+                Confluence.Label("SPD DEM Coordinator"),
+                Confluence.Label("Post-QRR"),
+                Confluence.Label("SPD Validated"),
+                Confluence.Label("7.50",htmlClass:"lblScore"),
+                Confluence.ButtonDownload(text: "", action: "downloadDocument",
+                    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnDownloadDocument" }}),
+
+            }, readOnly: true, tdClass: "text-left").ToString().Replace("\r\n", "").Replace("\n", "")';
+
+            newRow = newRow.replace(/&amp;#59177/g, '&#59177');
+
+            addNewRow(table, newRow);
+
+            $(".buttonDownload").closest('td').removeClass("text-left").addClass("text-center");
+            $(".lblDate").closest('td').removeClass("text-left").addClass("text-center");
+            $(".lblScore").closest('td').removeClass("text-left").addClass("text-center");
+            $(".lblAction").closest('td').removeClass("text-left").addClass("text-center");
+
+            bindHandlers();
+        }
+
+        function switchInputTextToLabelForRiskTab() {
+            switchInputTextToLabel("tableRiskMatrix");
+            switchInputTextToLabel("tableMitigationMeasures");
+        }
+
+        function switchInputTextToLabelForAdditionalityTab() {
+            switchInputTextToLabel("tableCountrySystems");
+            switchInputTextToLabel("tableIDBInvolvement");
+            switchInputTextToLabel("tableTechnicalAssistance");
+            switchInputTextToLabel("tableImpactEvaluation");
+        }
+
+        function switchInputTextToLabelForEvaluabilityTab() {
+            switchInputTextToLabel("tableEvaluability");
+            switchInputTextToLabel("tableEconomicAnalysis");
+            switchInputTextToLabel("tableMonitoringAndEvaluation");
+        }
+
+        function gotoStrategicAlignment() {
+            var url = "~/OPUS/View/OperationData?OperationNumber=";
+            window.open(url, '_blank');
+        }
+
+        function clickAddDocument() {
+            var msg = '@Localization.GetText("R6.DEM.ValidationProcessStatus.Offline.Warning")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    $(".inputFile").click();
+                    $("input:file").change(function (event){
+                        showLoaderOptional();
+                        setTimeout(function(event){
+                            submitFileUploaded(event);
+                        }, 1000, event);
+                        ;
+                    });
+                }
+            });
+        }
+
+        function submitFileUploaded(e) {
+            var files = e.target.files;
+            if (files.length > 0) {
+                if (window.FormData !== undefined) {
+                    var data = new FormData();
+                    for (var x = 0; x < files.length; x++) {
+                        data.append("file" + x, files[x]);
+                    }
+                    
+                    var urlImport = "@Url.Action("ImportExcel", "Importer", new { area = "DEM" })";
+                    window.setTimeout( importExcelDem(urlImport, data), 10);
+                } else {
+                    alert("This browser doesn't support HTML5 file uploads!");
+                }
+            }
+        }
+
+        function importExcelDem(urlImport, data) 
+        {
+            $.ajax({
+                type: "POST",
+                url: urlImport,
+                contentType: false,
+                processData: false,
+                data: data,
+                success: function (result) {
+                    if (result.success) {
+                        hideLoaderOptional();
+                        showMessage("The upload of DEM Document was Successful!");
+                        $("#tabRisk").load(location.href + ' #tabRisk > *');
+                        $("#tabAdditionality").load(location.href + ' #tabAdditionality > *');
+                        $("#tabEvaluability").load(location.href + ' #tabEvaluability > *');
+                        $("#tabSummary").load(location.href + ' #tabSummary > *');
+                        $("#tabResumen").load(location.href + ' #tabResumen > *');
+                        cancelDem();
+                    } else {
+                        showMessage("Error: " + result.message);
+                    }
+                    $(".inputFile").val("");
+                    hideLoaderOptional();
+                },
+                error: function (xhr, status, p3, p4) {
+                    var err = "Error " + " " + status + " " + p3 + " " + p4;
+                    if (xhr.responseText && xhr.responseText[0] == "{")
+                        err = JSON.parse(xhr.responseText).Message;
+                    console.log(err);
+                    $(".inputFile").val("");
+                    hideLoaderOptional();
+                }
+            });
+        }
+
+        function requiredDEM() {
+            $(".tab-content").find('.active').find('.requiredDEM [name="txtRequiredDEM"]').click(function () {
+                var required = $(".tab-content").find('.active').find('.requiredDEM [name="txtRequiredDEM"]').is(':checked');
+                if (required) {
+                    var tabContent = $(".tab-content").find('.active');
+                    tabContent.find('.requiredArea').hide();
+                    tabContent.find('.lblRequiredDEM').hide();
+                    tabContent.find('.requiredArea [name="textRequired"]')
+                        .removeAttr("data-parsley-required");
+                }
+                else {
+                    var msg = '@Localization.GetText("R6.DEM.Summary.Required.WarningRequired")';
+                    var tabContent = $(".tab-content").find('.active');
+                    confirmAction(msg).done(function (pressOk) {
+                        if (pressOk) {
+                            tabContent.find('.requiredArea').show();
+                            tabContent.find('.lblRequiredDEM').show();
+                            tabContent.find('.requiredArea [name="textRequired"]')
+                                .attr("data-parsley-required", "True");
+                        }
+                        else
+                        {
+                            tabContent.find('.requiredDEM [name="txtRequiredDEM"]')
+                                .click();
+                        }
+                    });
+                }
+            });
+        }
+
+        function requiredDEMAfterSave() {
+            var tabContent = $(".tab-content").find('.active');
+            tabContent.find('.requiredDEM [name="txtRequiredDEM"]').click(function () {
+                var required = tabContent.find('.requiredDEM [name="txtRequiredDEM"]').is(':checked');
+                if (required) {
+                    tabContent.find('.requiredArea').hide();
+                    tabContent.find('.lblRequiredDEM').hide();
+                    tabContent.find('.requiredArea [name="textRequired"]')
+                        .removeAttr("data-parsley-required");
+                }
+                else {
+                    var msg = '@Localization.GetText("R6.DEM.Summary.Required.WarningRequired")';
+                    confirmAction(msg).done(function (pressOk) {
+                        if (pressOk) {
+                            tabContent.find('.requiredArea').show();
+                            tabContent.find('.lblRequiredDEM').show();
+                            tabContent.find('.requiredArea [name="textRequired"]')
+                                .attr("data-parsley-required", "True");
+                        }
+                        else
+                        {
+                            tabContent.find('.requiredDEM [name="txtRequiredDEM"]')
+                                .click();
+                        }
+                    });
+                }
+            });
+        }
+
+        function verifyRequiredDEM() {
+            var tabPaneActive = $(".tab-pane.active").attr("id");
+            var tabContentActive =  $(".tab-content").find('.active');
+
+            if (tabPaneActive === "tabSummaryContent" || tabPaneActive === "tabSummary") {
+
+                var required =tabContentActive.find('.requiredDEM [name="txtRequiredDEM"]')
+                    .is(':checked');
+
+                if (required) {
+                    tabContentActive.find('.requiredArea').hide();
+                    tabContentActive.find('.requiredArea [name="textRequired"]')
+                        .removeAttr("data-parsley-required");
+                }
+                else {
+                    tabContentActive.find('.requiredArea').show();
+
+                    tabContentActive.find('.requiredArea [name="textRequired"]')
+                        .attr("data-parsley-required", "True");
+                }
+            }
+        }
+
+
+        function downloadDocument(source) {
+            var nameButton = source.attr("data-demversion");
+
+            var url = '@Url.Action("DownloadFile", "View", new { area = "DEM" })' +
+                "?operationNumber=" +
+                '@Model.OperationNumber' +
+                '&version='+nameButton;
+
+            window.open(url, '_blank');
+        }
+
+        function downloadReport(source) {
+            var formatType = source.attr('name').toString();
+            var languaje = source.attr('data-lang');
+
+            var url = '@Url.Action("DownloadAssessmentNote", "View", new { area = "DEM" })' +
+                "?formatType=" + formatType + "&language=" + languaje + "&demoperation=" + @Model.DemOperationId;
+
+            window.open(url, '_blank');
+        }
+
+        function downloadSummaryReport(source) {
+            var formatType = source.attr('name').toString();
+            var languageTab = $('#tabSummaryContent .tabs').find('li.active').attr('dd-tab');
+            languageTab = languageTab.substring(1, languageTab.length);
+
+            var url = '@Url.Action("DownloadSummaryReport", "View", new { area = "DEM" })' +
+                "?formatType=" + formatType + "&language=" + languageTab + "&demoperation=" + @Model.DemOperationId;
+
+            window.open(url, '_blank');
+        }
+
+
+        function showBiggerText(source) {
+            var url = '@Url.Action("GetPartialView", "View", new {partial = "_ShowBiggerText"})';
+
+            var response = $.get(url + "&inputIdentifier=" + source.parents('div.textAreaBody')
+                .find('span[data-pagemode=edit] textarea.txtInputComment')
+                .attr('id'));
+
+            var isReadMode = source.parents('span[data-pagemode=read]').length > 0;
+            response.done(function (data) {
+                var  showBiggerText = $('div#showBiggerText');
+                showBiggerText.html(data);
+                $('h3.modalTitle').text(source.parents('div.textAreaBody').prev('h4').text());
+
+                $('div#showBiggerText:last').find('textArea')
+                    .text(source.parents('div.textAreaBody span.showDataEdit')
+                    .find('textarea').val());
+
+                if (isReadMode) {
+
+                    showBiggerText.find('textarea[name=biggerText]').prop('disabled', true);
+
+                    if ($('div#showBiggerText textarea:disabled').length > 0) {
+                        showBiggerText.find('.buttonBlue').addClass('hide');
+                    }
+
+                    showBiggerText.find('textArea').text(source.parents('div.textAreaBody')
+                        .find('span[data-pagemode=read]')
+                        .find('textarea')
+                        .val());
+                }
+            });
+            
+        }
+
+        registerCallback(function () {
+            initialState();
+            $(document).on('click', '[name=indicator-Check]:not([data-isValid=false])', function (e) {
+                var source = $(this);
+                showOwnDataClick(source);
+                checkChecks(source);
+            });
+
+
+
+            $(document).on('click', '[name=SAcreateLog]', function (e) {
+                var url = '@Url.Action("StrategicAlignmentCreateLog", "View", new {area = "OPUS", operationNumber = "BO0200", rol = 182})';
+                var response = postUrl(url);
+                response.done(function (result) {
+                    var divMessage = $('[name=isValidMessage]');
+                    if (result.IsValid) {
+                        divMessage.html("Log created");
+                    } else {
+                        divMessage.html(result.ErrorMessage);
+                    }
+                });
+            });
+
+            function checkChecks(source) {
+                if (typeof (source.attr('data-persist-subindicatorid')) == "undefined") {
+                    if (!source.is(':checked')) {
+                        $('div[data-parent-indicator=' + source.attr('data-id') + '] input[name=indicator-Check]').each(function (e, data, source) {
+                            $(data).prop('checked', false);
+                            showOwnData(data);
+                        });
+                    }
+                } else {
+                    if (source.is(':checked')) {
+                        var parent = $('[data-target-section=' + source.attr('data-id') + ']');
+                        parent.prop('checked', true);
+                        showOwnData(parent);
+                    }
+                }
+            }
+
+            window.ParsleyValidator
+                .addValidator('valitationermcombos', function (value, requirement) {
+                    var result = true;
+                    var source = $('div[' + requirement + ']');
+                    var impact = source.find('[name=impactIndicators-Combo]');
+                    var outcome = source.find('[name=outcomeIndicators-Combo]');
+                    var outputs = source.find('[name=outputs-Combo]');
+                    var instruction = source.find('div[name="instructionMessage"]');
+                    var isCheck = source.closest('div[data-parent-indicator]').find('[name=indicator-Check]').is(':checked');
+
+                    if ((impact.val() === '' || impact.val() == null) &&
+                        (outcome.val() === '' || outcome.val() == null) &&
+                        (outputs.val() === '' || outputs.val() == null) &&
+                        isCheck) {
+                        result = false;
+                    }
+                    return result;
+
+                }, 32)
+                .addMessage('en', 'valitationermcombos', 'Please select at least one indicator.');
+        });
+
+
+        function cancelSubnationalLevel() {
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    $('.vex-close').click();
+                }
+            });
+        }
+
+        function cancelDemButton() {
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    cancelDem();
+                }
+            });
+        }
+
+
+        $(document).on("click", 'a#openSubnationalCreation', function () {
+
+            var url = '@Url.Action("GetSubnationalLevel", "View", new {area = "OPUS", partial = "_SubnationalLevel"})';
+            postUrlWithOptions(url, { async: false })
+                .done(function (data) {
+                    $('#subnationalLevelContent').html(data);
+                    if (isInEditMode($('.tab-pane.active'))) {
+                        enterEditMode(false, $('#subnationalLevelContent'), false);
+                    }
+                    $('[data-id="butttonsubnationalLevel"]').click();
+                    allowMultiPopUp();
+                });
+        });
+
+
+        $(document).on("click", "[name=itemSubnational]", function () {
+            var itemSelected = $(this).html();
+            $("#subnationalDropdown").removeClass("dropdown open");
+            for (var i = 0; i < resultSubnational.length; i++) {
+                var item = resultSubnational[i];
+
+                if (itemSelected == item.value) {
+                    var countryRegion = item.countryRegion;
+                    var adminDistrict = item.adminDistrict;
+                    var locality = item.locality;
+
+                    newResultSubnational.push({
+                        value: itemSelected,
+                        countryRegion: item.countryRegion,
+                        adminDistrict: item.adminDistrict,
+                        locality: item.locality
+                    });
+
+                    $.get("@Url.Action("GetRowSubnationalLevel", new {tp = "noTree"})",
+                        {
+                            countryRegion: countryRegion,
+                            adminDistrict: adminDistrict,
+                            locality: locality
+                        },
+                        function (data) {
+                            $("#subnationalLevelList").append(data);
+                        });
+
+                    itemSelected = "";
+                    $("[name=subnationalSearch_text]").val("");
+                    resultSubnational = [];
+                }
+            }
+        });
+
+        $(document).on("click", "[name=subnationalSearch_text]", function () {
+            $("[name=subnationalSearch_text]").val("");
+            $("#listSubnational").empty();
+            $("#subnationalDropdown").removeClass("dropdown open");
+        });
+
+        function saveSubnationalLevel() {
+            if (newResultSubnational.length === 0 && deleteSubnationalItems.length === 0) {
+                $("div.vex-close").click();
+                return false;
+            }
+
+            postUrlWithOptions(
+                '@Url.Action("SaveRowSubnationalLevel", "View", new {area = "OPUS"})', { async: false },
+                {
+                    newResultSubnational: newResultSubnational,
+                    deleteSubnationalItems: deleteSubnationalItems
+                })
+                .done(function (data) {
+                    if (data) {
+                        $("div.vex-close").click();
+                        resultSubnational = [];
+                        deleteSubnationalItems = [];
+                    }
+                });
+            return true;
+        }
+
+
+        function newCommentRisk(source) {
+            var commentsSectionId = source.attr("data-commentsSectionId");
+            var commentsSectionDiv = '#' + commentsSectionId;
+            var criterionId = source.attr("data-criterionId");
+
+            $(commentsSectionDiv).removeClass("hide");
+            $('[data-criterionId ="' + criterionId + '"]').addClass('hide');
+            var newBlock = '<br /><span data-pagemode="edit">' +
+                "@DEMHelpers.InputNewCommentBox(
+                    section1: Confluence.Label(Model.FullName + " (" + Model.CurrentRole + ")"),
+                    section2: Confluence.LabelGetDate(DateTime.Now),
+                    section3: Confluence.Label(Model.Stage),
+                    section4: Confluence.ButtonTrash(text: "", action: "deleteTableCommentRiskRow",
+                    disabled: false,
+                    dataAttributes: new Dictionary<string, string> {
+                        { "commentId", 0.ToString() },
+                        { "idb-fieldname", "btnDeleteComment" },
+                        { "buttonCriterion","criterionButtonId"}}),
+                    required: true,
+                    value: "",
+                    name: "nameRisk",
+                    isEditMode:true,
+                    maxLength: 1000,
+                    disabled: false,
+                    isNewMark: false,
+                    htmlClass: "textAreaLabelAndInput myCommentBlue",
+                   dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtTextComment01" } }).ToString().Replace("\r\n", "").Replace("\n", "")" + '</span>';
+
+            $(commentsSectionDiv).append(newBlock.replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;#59177/g, '&#59177')
+                .replace('nameRisk', criterionId)
+                .replace("criterionButtonId", criterionId));
+
+            enterEditMode(false, $(commentsSectionDiv), false);
+            bindHandlers($(commentsSectionDiv));
+            alignTrashCan();
+        }
+
+        function showOrHideComments(source) {
+            if (source.text() === "@Localization.GetText("R6.DEM.General.HideComments")") {
+                source.text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                source.parents("span[data-pagemode=read]").find('div.inputComment').addClass("hide");
+            } else {
+                source.text("@Localization.GetText("R6.DEM.General.HideComments")");
+                source.parents("span[data-pagemode=read]").find('div.inputComment').removeClass("hide");
+            }
+        }
+
+        function showOrHideCommentsRisk(source) {
+            var commentsToBeShownOrHidden = source.parents('div.contentComment')
+                .find('.oldCommentGray')
+                .not('.borderLightBlue')
+                .parents("li.oldComment");
+
+            if (source.text() === '@Localization.GetText("R6.DEM.General.ShowComments")') {
+                source.text('@Localization.GetText("R6.DEM.General.HideComments")');
+
+                if (source[0].name === 'showOrHideCommentsRiskRate') {
+                    $('[name=showOrHideCommentsRiskRateEdit]')
+                        .text('@Localization.GetText("R6.DEM.General.HideComments")');
+                }
+                if (source[0].name === 'showOrHideCommentsClassification') {
+                    $('[name=showOrHideCommentsClassificationEdit]')
+                        .text('@Localization.GetText("R6.DEM.General.HideComments")');
+                }
+
+                commentsToBeShownOrHidden.removeClass("hide");
+            } else {
+                source.text('@Localization.GetText("R6.DEM.General.ShowComments")');
+
+                if (source[0].name === 'showOrHideCommentsRiskRate') {
+                    $('[name=showOrHideCommentsRiskRateEdit]')
+                        .text('@Localization.GetText("R6.DEM.General.ShowComments")');
+                }
+                if (source[0].name === 'showOrHideCommentsClassification') {
+                    $('[name=showOrHideCommentsClassificationEdit]')
+                        .text('@Localization.GetText("R6.DEM.General.ShowComments")');
+                }
+
+                commentsToBeShownOrHidden.addClass("hide");
+            }
+        }
+
+        $('.showNewCommentButtonAddComment .iconAddNew').on('click', function () {
+            var a = $(this).siblings('.buttonLink');
+            if (a.text() == '@Localization.GetText("R6.DEM.General.ShowComments")') {
+                a.html('@Localization.GetText("R6.DEM.General.HideComments")');
+            }
+        });
+
+
+
+        function newCommentIndicatorCountry(source) {
+            var addCommentIndicatorSection = source.attr("data-showNewCommentButtonAddComment");
+            source.next(".addNewCommentLabelLink").html('@Localization.GetText("R6.DEM.General.ShowComments")');
+            $('#' + addCommentIndicatorSection).find('.iconAddNew').hide();
+
+            var indicadorId = source.attr("data-indicatorId");
+            var currentDivIndicator = "#divCommentsIndicator" + indicadorId;
+            $(currentDivIndicator).removeClass("hide");
+
+            var newBlock = '<div class="showNewCommentLastVersion"><span data-pagemode="edit">' +
+                '@DEMHelpers.InputNewCommentBox(
+                     section1: Confluence.Label(Model.AlignmentContribution.InformationDem.FullName + " (" +
+                         Model.AlignmentContribution.InformationDem.Role + ")"),
+                     section2: Confluence.LabelGetDate(DateTime.Now),
+                     section3: Confluence.Label(Model.AlignmentContribution.InformationDem.Stage),
+                     section4: Confluence.ButtonTrash(text: "", action: "deleteCommentIndicatorCountry",
+                         dataAttributes: new Dictionary<string, string>
+                         {
+                             { "commentId", Convert.ToString(0) },
+                             { "idb-fieldname", "btnDeleteComment" },
+                             {"showNewCommentButtonAddComment", "showNewCommentReplace"}
+                         }, htmlClass: "commentIndicatorCountryContribution"),
+                     required: true,
+                     value: "",
+                     name: "newTextCommentIndicatorCountry",
+                     isEditMode:true,
+                     maxLength: 1000,
+                     disabled: false,
+                     isNewMark: false,
+                     htmlClass: "textAreaLabelAndInput myCommentBlue commentIndicatorCountryContribution",
+                     dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '<input type="hidden" name="newIndicatorIdIndicatorCountry" value="' + indicadorId + '">' + '</span></div>';
+
+            $(currentDivIndicator).append(newBlock.replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;#59177/g, '&#59177')
+                .replace('showNewCommentReplace', addCommentIndicatorSection));
+
+            enterEditMode(false, $(currentDivIndicator), false);
+            bindHandlers($(currentDivIndicator));
+            alignTrashCan();
+        }
+
+
+
+        function showOrHideCommentsCountry(source) {
+            var currentDivIndicator = "#divCommentsIndicator" + source.attr("data-indicatorId");
+
+            if (source.text() === "@Localization.GetText("R6.DEM.General.ShowComments")") {
+                source.text("@Localization.GetText("R6.DEM.General.HideComments")");
+
+                source.closest('.hiddenAddCommentSectionCountryProgram')
+                    .prev('div')
+                    .find('.contentComment')
+                    .find('.oldCommentGray')
+                    .not('.borderLightBlue')
+                    .removeClass("hide");
+            } else {
+                source.text("@Localization.GetText("R6.DEM.General.ShowComments")");
+
+                source.closest('.hiddenAddCommentSectionCountryProgram')
+                    .prev('div').find('.contentComment')
+                    .find('.oldCommentGray')
+                    .not('.borderLightBlue')
+                    .addClass('hide');
+            }
+        }
+
+        function showOrHideCommentsCountrySection(source) {
+            var commentsToBeShownOrHidden = source.closest('.hiddenAddCommentCountry')
+                .prev('div').find('.contentComment')
+                .find('.oldCommentGray')
+                .not('.borderLightBlue1')
+                .parents("li.oldComment");
+
+            if (source.text() === "@Localization.GetText("R6.DEM.General.ShowComments")") {
+                source.text("@Localization.GetText("R6.DEM.General.HideComments")");
+
+                $('[name='+source[0].name+'Edit]')
+                    .text('@Localization.GetText("R6.DEM.General.HideComments")');
+
+                commentsToBeShownOrHidden.removeClass("hide");
+            } else {
+                source.text("@Localization.GetText("R6.DEM.General.ShowComments")");
+
+                $('[name='+source[0].name+'Edit]')
+                    .text('@Localization.GetText("R6.DEM.General.ShowComments")');
+
+                commentsToBeShownOrHidden.addClass('hide');
+            }
+        }
+
+        function funcHideLinkCommentCountry() {
+            $('.hiddenAddCommentCountry').each(function () {
+                var valor = $(this).find('input[name=hiddenOneComment]').val();
+                if (valor == "1") {
+                    $(this).find('.buttonLink').text("@Localization.GetText("R6.DEM.General.HideComments")");
+                }
+            });
+        }
+
+
+
+        function newCommentIndicator(source) {
+            var addCommentIndicatorSection = source.attr("data-sectionAddLinkCommentStrategic");
+            source.next(".addNewCommentLabelLink").html('@Localization.GetText("R6.DEM.General.ShowComments")');
+            $('#' + addCommentIndicatorSection).find('.iconAddNew').hide();
+
+            var indicadorId = source.attr("data-indicatorId");
+
+            var subIndicadorId = source.attr("data-subIndicatorId");
+
+            var currentDivIndicator = "";
+            if (subIndicadorId == "0" || subIndicadorId == null) {
+                currentDivIndicator = "#divCommentsIndicator" + indicadorId;
+            } else {
+                currentDivIndicator = "#divCommentsIndicator" + indicadorId + subIndicadorId;
+            }
+
+            $(currentDivIndicator).removeClass("hide");
+
+            var nameColapsable = source.attr("data-colapsableDem");
+            var nameColapsableId = '#' + source.attr("data-colapsableDem");
+
+            var newBlock = '<div class="sectionCommentStrategic mb20"><span data-pagemode="edit">' +
+                '@DEMHelpers.InputNewCommentBox(
+                    section1: Confluence.Label(Model.StrategicAlignment.InformationDem.FullName + " (" + Model.StrategicAlignment.InformationDem.Role + ")"),
+                    section2: Confluence.LabelGetDate(DateTime.Now),
+                    section3: Confluence.Label(Model.StrategicAlignment.InformationDem.Stage),
+                    section4: Confluence.ButtonTrash(text: "",
+                    action: "deleteCommentIndicator",
+                    disabled: false,
+                    dataAttributes: new Dictionary<string, string> {
+                                    { "commentId", Convert.ToString(0) },
+                                    { "idb-fieldname", "btnDeleteComment" },
+                                    {"sectionAddLinkCommentStrategic", "showNewCommentReplace"}}),
+                    required: true,
+                    value: "",
+                    name: "newTextCommentIndicator",
+                    isEditMode:true,
+                    maxLength: 1000,
+                    disabled: false,
+                    isNewMark: false,
+                    htmlClass: "textAreaLabelAndInput  myCommentBlue",
+                    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                        '<input type="hidden" name="newIndicatorIdIndicator" value="' + indicadorId + '">' +
+                        '<input type="hidden" name="newSubIndicatorIdIndicator" value="' + subIndicadorId + '">' +
+                        '</span><div">';
+
+            $(currentDivIndicator).append(newBlock.replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;#59177/g, '&#59177')
+                .replace('showNewCommentReplace', addCommentIndicatorSection));
+
+            enterEditMode(false, $(currentDivIndicator), false);
+            bindHandlers($(currentDivIndicator));
+            alignTrashCan();
+        }
+
+        function showOrHideCommentsStrategicAlignment(source) {
+            var commentsToBeShownOrHidden = source.closest('.hiddenAddCommentStrategic')
+                .prev('div')
+                .find('.contentComment')
+                .find('.oldCommentGray')
+                .not('.borderLightBlue')
+                .parents('li.oldComment');
+
+            if (source.text() === "@Localization.GetText("R6.DEM.General.ShowComments")") {
+                source.text("@Localization.GetText("R6.DEM.General.HideComments")");
+                $('[name='+source[0].name+'Edit]').text('@Localization.GetText("R6.DEM.General.HideComments")');
+                commentsToBeShownOrHidden.removeClass("hide");
+
+            } else {
+                source.text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                $('[name='+source[0].name+'Edit]').text('@Localization.GetText("R6.DEM.General.ShowComments")');
+                commentsToBeShownOrHidden.addClass('hide');
+            }
+        }
+
+        $('.sectionAddLinkCommentStrategic .iconAddNew').on('click', function () {
+            var a = $(this).siblings('.buttonLink');
+
+            if (a.text() == '@Localization.GetText("R6.DEM.General.ShowComments")') {
+                a.html('@Localization.GetText("R6.DEM.General.HideComments")');
+            }
+        });
+
+        function funcHideLinkCommentStrategic() {
+            $('.hiddenAddCommentStrategic').each(function () {
+                var valor = $(this).find('input[name=hiddenOneCommentStrategic]').val();
+                if (valor == "1") {
+                    $(this).find('.buttonLink').text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                }
+            });
+        }
+
+         function newCommentSectionCountryStrategy(source) {
+            source.next(".addNewCommentLabelLink").html('@Localization.GetText("R6.DEM.General.ShowComments")');
+            $('#sectionAddLinkCommentCountryStrategy').find('.iconAddNew').hide();
+
+            var currentDivCountryStrategy = '#divCommentsCountryStrategy';
+            $(currentDivCountryStrategy).removeClass("hide");
+
+            var newBlock = '<span data-pagemode="edit">' +
+               '@DEMHelpers.InputNewCommentBox(section1: Confluence.Label(Model.StrategicAlignment.InformationDem.FullName + " (" + Model.StrategicAlignment.InformationDem.Role + ")"),
+            section2: Confluence.LabelGetDate(DateTime.Now),
+            section3: Confluence.Label(Model.StrategicAlignment.InformationDem.Stage),
+            section4: Confluence.ButtonTrash(text: "",
+            action: "deleteCommentSectionCountryStrategy",
+            disabled: false,
+            dataAttributes: new Dictionary<string, string> {
+                                { "commentId", Convert.ToString(0) },
+                                { "idb-fieldname", "btnDeleteComment" }}),
+            required: true,
+            value: "",
+            name: "newTextCommentCountryStrategy",
+            isEditMode:true,
+            maxLength: 1000,
+            disabled: false,
+            isNewMark: false,
+            htmlClass:"textAreaLabelAndInput myCommentBlue",
+            dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+           '</span>';
+
+            $(currentDivCountryStrategy).append(newBlock.replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;#59177/g, '&#59177'));
+
+            enterEditMode(false, $(currentDivCountryStrategy), false);
+            bindHandlers($(currentDivCountryStrategy));
+            alignTrashCan();
+        }
+
+
+        function showOrHideCommentsSectionCountryStrategy(source) {
+            var commentsToBeShowOrHidden = source.parents()
+                .find('#colapseSectionCountryStrategy')
+                .find('.contentComment')
+                .find('.oldCommentGray')
+                .not('.borderLightBlue')
+                .parents('li.oldComment');
+
+            if (source.text() === "@Localization.GetText("R6.DEM.General.ShowComments")") {
+                source.text("@Localization.GetText("R6.DEM.General.HideComments")");
+                $('[name=showOrHideCommentsCountryStrategyEdit]')
+                    .text('@Localization.GetText("R6.DEM.General.HideComments")');
+                commentsToBeShowOrHidden.removeClass('hide');
+            } else {
+                source.text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                $('[name=showOrHideCommentsCountryStrategyEdit]')
+                    .text('@Localization.GetText("R6.DEM.General.ShowComments")');
+                commentsToBeShowOrHidden.addClass('hide');
+            }
+        }
+
+        $('.hiddenAddCommentSectionCountryStrategy .iconAddNew').on('click', function () {
+            var a = $(this).siblings('.buttonLink');
+            if (a.text() == '@Localization.GetText("R6.DEM.General.ShowComments")') {
+                a.html('@Localization.GetText("R6.DEM.General.HideComments")');
+            }
+        });
+
+        function funcHideLinkCommentSectionCountryStrategy() {
+            $('.hiddenAddCommentSectionCountryStrategy').each(function () {
+                var valor = $(this).find('input[name=hiddenOneSectionCountryStrategy]').val();
+                if (valor == "1") {
+                    $(this).find('.buttonLink').text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                }
+            });
+        }
+
+
+        function newCommentSectionCountryProgram(source) {
+            source.next(".addNewCommentLabelLink").html('@Localization.GetText("R6.DEM.General.ShowComments")');
+            $('#sectionAddLinkCommentCountryProgram').find('.iconAddNew').hide();
+
+            var currentDivCountryProgram = '#divCommentsCountryProgram';
+            $(currentDivCountryProgram).removeClass("hide");
+
+            var newBlock = '<span data-pagemode="edit">' +
+               '@DEMHelpers.InputNewCommentBox(section1: Confluence.Label(Model.StrategicAlignment.InformationDem.FullName + " (" + Model.StrategicAlignment.InformationDem.Role + ")"),
+		    section2: Confluence.LabelGetDate(DateTime.Now),
+		    section3: Confluence.Label(Model.StrategicAlignment.InformationDem.Stage),
+		    section4: Confluence.ButtonTrash(text: "",
+		    action: "deleteCommentSectionCountryProgram",
+		    disabled: false,
+		    dataAttributes: new Dictionary<string, string> {
+                                { "commentId", Convert.ToString(0) },
+                                { "idb-fieldname", "btnDeleteComment" }}),
+		    required: true,
+		    value: "",
+		    name: "newTextCommentCountryProgram",
+		    isEditMode:true,
+		    maxLength: 1000,
+		    disabled: false,
+		    isNewMark: false,
+            htmlClass:"textAreaLabelAndInput myCommentBlue",
+		    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '</span>';
+
+            $(currentDivCountryProgram).append(newBlock.replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;#59177/g, '&#59177'));
+
+            enterEditMode(false, $(currentDivCountryProgram), false);
+            bindHandlers($(currentDivCountryProgram));
+            alignTrashCan();
+        }
+
+        function showOrHideCommentsSectionCountryProgram(source) {
+            var commentsToBeShownOrHidden = source.parents()
+                .find('#colapseSectionCountryProgram')
+                .find('.contentComment')
+                .find('.oldCommentGray')
+                .not('.borderLightBlue')
+                .parents('li.oldComment');
+
+            if (source.text() === "@Localization.GetText("R6.DEM.General.ShowComments")") {
+                source.text("@Localization.GetText("R6.DEM.General.HideComments")");
+                $('[name=showOrHideCommentsCountryProgramEdit]')
+                    .text('@Localization.GetText("R6.DEM.General.HideComments")');
+                commentsToBeShownOrHidden.removeClass('hide');
+            } else {
+                source.text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                $('[name=showOrHideCommentsCountryProgramEdit]')
+                    .text('@Localization.GetText("R6.DEM.General.ShowComments")');
+                commentsToBeShownOrHidden.addClass('hide');
+            }
+        }
+
+        $('.hiddenAddCommentSectionCountryProgram .iconAddNew').on('click', function () {
+            var a = $(this).siblings('.buttonLink');
+            if (a.text() == '@Localization.GetText("R6.DEM.General.ShowComments")') {
+                a.html('@Localization.GetText("R6.DEM.General.HideComments")');
+            }
+        });
+
+        function funcHideLinkCommentSectionCountryProgram() {
+            $('.hiddenAddCommentSectionCountryProgram').each(function () {
+                var valor = $(this).find('input[name=hiddenOneSectionCountryProgram]').val();
+                if (valor == "1") {
+                    $(this).find('.buttonLink').text("@Localization.GetText("R6.DEM.General.ShowComments")");
+                }
+            });
+        }
+
+        function hideEditButtonOnSummaryOnLoad() {
+            var activeTab = $('ul.tabs:first li.active').attr('dd-tab');
+            var isEditButtonHide = @Html.Raw(Json.Encode(Model.IsEditButtonHide));
+
+            if(activeTab === '#tabSummaryContent' && isEditButtonHide === true){
+                $('[name=editDem]').addClass("hide");
+            }
+        }
+
+        function hideEditButtonOnSummaryTabOnClick() {
+            var isEditButtonHide = @Html.Raw(Json.Encode(Model.IsEditButtonHide));
+
+            if(isEditButtonHide === true){
+                $('[dd-tab=#tabSummaryContent]').click(function () {
+
+                    $('[name=editDem]').addClass("hide");
+
+                });
+            }
+        }
+
+
+        function draftVersionToCompletedVersion() {
+            var checklistStatus = $('ul[aria-labelledby=id-DemChecklistStatus] li a[dd-selected]').text().trim();
+
+            var url;
+            if (checklistStatus === '(select option)') {
+                url = '@Url.Action("DraftVersionToCompletedVersion", "Save")';
+            } else {
+                url = '@Url.Action("DraftVersionToCompletedVersion", "Save")' + '?nextChecklistStatus=' + checklistStatus;
+            }
+
+            postUrl(url)
+                .success(function (data) {
+                    if (data.IsValid) {
+                        showMessage("Draft version completed.");
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }})
+                .error(function (response) {
+                    showMessage(response.ErrorMessage);
+                });
+        }
+
+        function updateDEMStageDraftVersion() {
+            var newStageCode = $('ul[aria-labelledby=id-DemStage] li a[dd-selected]').text().trim();
+
+            if (newStageCode === '(select option)') {
+                showMessage("Select an option");
+                return;
+            }
+
+            var url = '@Url.Action("UpdateDEMStageDraftVersion", "Save")' + '?newStageCode=' + newStageCode;
+
+            postUrl(url)
+                .success(function (data) {
+                    if (data.IsValid) {
+                        showMessage("Draft version updated.");
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }})
+                .error(function (response) {
+                    showMessage(response.ErrorMessage);
+                });
+        }
+
+        function setDraftChecklistStatus() {
+            var isBlocked = $("#id-DemDraftVersionChecklistStatus").GetValue();
+
+            if (isBlocked === "") {
+                showMessage("Select an option");
+                return;
+            }
+
+            var url = '@Url.Action("SetDraftChecklistStatus", "Save")' + '?isBlocked=' + isBlocked;
+
+            postUrl(url)
+                .success(function (data) {
+                    if (data.IsValid) {
+                        showMessage("Draft Version Write Status Updated.");
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                })
+                .error(function (response) {
+                    showMessage(response.ErrorMessage);
+                });
+        }
+
+        function submitDraftVersionBlocked() {
+            var isBlocked = 1;
+            var url = '@Url.Action("SetDraftChecklistStatus", "Save")' + '?isBlocked=' + isBlocked;
+
+            showLoader();
+
+            postUrl(url)
+                .success(function (data) {
+                    if (data.IsValid) {
+                        var headerSection = $('#header-section');
+                        headerSection.find('.buttonBlue').remove();
+                        headerSection.find('.buttonOrange').remove();
+                        headerSection.find('.buttonLink').remove();
+
+                        var footerSection = $('#footer-section');
+                        footerSection.find('.buttonBlue').remove();
+                        footerSection.find('.buttonOrange').remove();
+                        footerSection.find('.buttonLink').remove();
+
+                        var headerChecklistStatusText = '@DemGlobalValues.SPD_REVIEW_STATUS';
+                        $("#demChecklistStatusId label").text(headerChecklistStatusText);
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+
+                    hideLoader();
+                })
+                .error(function (response) {
+                    showMessage(response.ErrorMessage);
+                });
+        }
+
+        function addTooltipSummaryNote() {
+            var tooltipText = @Html.Raw(Json.Encode(
+                Localization.GetText("R6.DEM.Summary.MouseOver.EvaluabilityAssessmentNote")));
+
+            $('textarea[name*=EvaluabilityAssessmentNote]').attr('title', tooltipText);
+        }
+
+        function SetUndefinedCompletedVersion() {
+            var newCode = $('ul[aria-labelledby=id-DemStatusUndefined] li a[dd-selected]').text().trim();
+
+            if (newCode === '(select option)') {
+                showMessage("Select an option");
+                return;
+            }
+
+            var url = '@Url.Action("SetCompletedVersionDem", "Save")' + '?newCode=' + newCode;
+
+            postUrl(url)
+                .success(function (data) {
+                    if (data.IsValid) {
+                        showMessage("Set undefined completed version updated.");
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }})
+                .error(function (response) {
+                    showMessage(response.ErrorMessage);
+                });
+        }
+
+        function concurrenceDemEdit() {
+            var tabContainerActive = $('#containerTabs').children('.active').attr('id');
+            var tabActiveDem = $('#' + tabContainerActive + ' div.active').attr('id');
+
+            var urlConcurrence = '@Url.Action("AccessToDemResource", "View", new { area = "DEM"})' + '?tabActive=' + tabActiveDem;
+            var result = postUrl(urlConcurrence)
+                  .success(function (data) {
+                      if (!data.IsValid) {
+                          $('[name=submitDem]').hide();
+                          showMessage(data.ErrorMessage);
+                      } else {
+                          editDem();
+                      }
+                  });
+        }
+
+        function freeDemLock() {
+            var tabContainerActive = $('#containerTabs').children('.active').attr('id');
+            var tabActiveDem = $('#' + tabContainerActive + ' div.active').attr('id');
+
+            var urlConcurrence = '@Url.Action("FreeDemResource", "View", new { area = "DEM"})' + '?tabActive=' + tabActiveDem;
+            var result = postUrl(urlConcurrence)
+                  .success(function (data) {
+                      if (!data.IsValid) {
+                          showMessage(data.ErrorMessage);
+                      }
+                  });
+        }
+
+        function concurrenceButtonSubmitDem() {
+            var msg = '@Localization.GetText("R6.DEM.Main.Message.Submit")';
+
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    var urlConcurrence = '@Url.Action("AccessToDemResource", "View", new { area = "DEM"})';
+                    postUrl(urlConcurrence)
+                        .success(function (data) {
+                            if (!data.IsValid) {
+                                $('[name=editDem]').hide();
+                                $('[name=submitDem]').hide();
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                submitDraftVersionBlocked();
+                            }
+                        });
+                }
+            });
+        }
+
+
+        function executeDemRevalidation() {
+            var msg = '@Localization.GetText("R6.DEM.Main.Message.Submit")';
+
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    var urlConcurrence = '@Url.Action("ExecuteDemRevalidation", "View", new { area = "DEM"})';
+                    postUrl(urlConcurrence)
+                        .success(function (data) {
+                            if (!data.IsValid) {
+                                $('[name=editDem]').hide();
+                                $('[name=submitDem]').hide();
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                submitDraftVersionBlocked();
+                            }
+                        });
+                }
+            });
+        }
+    </script>
+}

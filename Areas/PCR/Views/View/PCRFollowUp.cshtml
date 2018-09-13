@@ -1,0 +1,834 @@
+﻿@using IDB.MW.Application.PCRModule.ViewModels.FollowUpService
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.Architecture.Language
+@model PCRFollowUpViewModel
+@{
+    ViewBag.Title = @Localization.GetText("PCR.FollowUp.Title");
+    var msgInSeries = ViewBag.MsgInSeries;
+}
+
+<div id="followUp">
+    <div id="headerSection" data-parsley-validate="data-parsley-validate" data-loadurl="@Url.Action("PCRFollowUpHeader", "View", new { area = "PCR" })">
+        @Html.Partial("Partials/PCRFollowUpHeader", Model)
+    </div>
+
+    <div class="page">
+        @if (ViewBag.SPDCoord)
+        {
+            <div id="taskList"
+                 @(HTMLEncodeHelper.GetPCREncodedDisplayStyle(ViewBag.IsPCRRequired))
+                 data-parsley-validate="data-parsley-validate"
+                 data-base-url="@Url.Action("FollowUp", "Save", new { area = "PCR" })"
+                 data-loadurl="@Url.Action("PCRFollowUpTaskList", "View", new { area = "PCR" })">
+                @Html.Partial("Partials/PCRFollowUpTaskList", Model)
+            </div>
+        }
+    </div>
+</div>
+
+<div id="searchIDBDocModal" class="hide">
+    @Html.Partial("Controls/IDBDocs/SearchIDBDoc", new SearchDocumentModalViewModel { SearchModalId = "SearchModal", MultipleSelection = false, TargetFunction = "renderizeRow" })
+</div>
+
+<div id="saveModal" class="hide">
+    @Html.Partial("Partials/Modals/PCRFollowUpSave")
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+    var documentAdded = 0;
+    var documentDeleted = 0;
+    function editFollowUp(source) {
+        if (!enterEditMode(true, $('#taskList'), true)) return false;
+        enterEditMode(false, $('#headerSection'), true);
+        setDateCurrentTask();
+
+        var currentTaskId = $('#taskListFollowUp .currentTask').data('id');
+        if (currentTaskId == 2) {
+            setDateCurrentTask3();
+        }
+
+        setupDocumentsTable();
+        tableRowColorEdit();
+        if ($('input[name="isRequired"]:checked').val() == 'No') {
+            disabledScreen();
+            enableDatePicker(false);
+            enabledNotRequiredComments(true);
+        } else {
+            enabledNotRequiredComments(false);
+        }
+        handleDatePicker(null);
+    }
+
+    function cancelEditFollowUp(source) {
+        if ($('input[name="chkActive"]:checked').not(':disabled').length > 0 && $('input[name="txtUpdatedDeadLineDate"]').val() == '') {
+            $('input[name="chkActive"]:checked').next().click();
+        }
+        exitEditMode(true, $('#taskList'), true, true);
+        exitEditMode(true, $('#headerSection'), true, true);
+        setupDocumentsTable();
+        documentAdded = 0;
+        documentDeleted = 0;
+    }
+
+    function saveFollowUp(source) {
+        if (source.attr('data-ismodal') == 'true') {
+            var vexModal = $('#saveModal').parents('.vex');
+            vex.closeByID(vexModal.data().vex.id);
+        }
+
+        removeTxtDates();
+        var actualTask = $('#hidCurrentTask').val();
+
+        $('#taskList').attr('data-url', $('#taskList').attr('data-base-url') + '?currentTask=' + actualTask);
+        var response = saveContainer($('#taskList'), '#hidViewModel', true, null, null, null, null, $('#headerSection'));
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                    showMessage(data.ErrorMessage);
+                } else if (data.IsValid) {
+                    exitEditMode(true, $('#headerSection'), true, true);
+                }
+            });
+        }
+    }
+
+    function renderizeRow(documentSelected) {
+        var docNumber;
+        if (documentSelected.length > 0) {
+            docNumber = documentSelected[0].DocumentNumber;
+
+            var urlf = '@Url.Action("AddNewDocumment", "View")';
+            
+            var result = postUrl(urlf, { documentNumber: docNumber });
+            var newRow = '<tr role="row" data-id="">' +
+                '<td>' + result.responseJSON.data.User + '</td>' +
+                '<td>' + result.responseJSON.data.Date + '</td>' +
+                '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+                '<td>' +
+                '<span data-pagemode="edit">' +
+                '<select name="documentDescription" data-parsley-required="true">' +
+                '<option value="" data-pagemode="edit">Select your option</option>' +
+                '<option value="Proof of extension to start preparation" data-pagemode="edit">Proof of extension to start preparation</option>' +
+                '<option value="PCR for QRR" data-pagemode="edit">PCR for QRR</option>' +
+                '<option value="Proof of extension to produce adjusted PCR after QRR" data-pagemode="edit">Proof of extension to produce adjusted PCR after QRR</option>' +
+                '<option value="PCR and RPR after QRR" data-pagemode="edit">PCR and RPR after QRR</option>' +
+                '<option value="Government Comments" data-pagemode="edit">Government Comments</option>' +
+                '<option value="Letter of Government (approving contents)" data-pagemode="edit">Letter of Government (approving contents)</option>' +
+                '<option value="PCR after Government Comments" data-pagemode="edit">PCR after Government Comments</option>' +
+                '<option value="Letter of Government (approving disclosure)" data-pagemode="edit">Letter of Government (approving disclosure)</option>' +
+                '<option value="Published PCR" data-pagemode="edit">Published PCR</option>' +
+                '<option value="Other" data-pagemode="edit">Other</option>' +
+                '</select>' +
+                '<span>' +
+                '</td>' +
+                '<td>' +
+                //'<button class="btn btn-sm download" data-action="downloadFollowUpDocument" data-id=""></button>' +
+                '<a href=' + result.responseJSON.data.Url + ' target="_blank"><input type="button" class="btn btn-sm download"/></a>' +
+                '<span data-pagemode="edit"><button class="btn btn-sm delete pull-up pull-left" data-id="" deleteable="yes"></button></span>' +
+                '</td> ' +
+                '<td> <span data-pagemode="edit"> <input type="text" name="documentNumber" value="' + result.responseJSON.data.DocumentNumber + '" data-id=""></span> </td>' +
+                '</tr>';
+
+            $('.table').append(newRow);
+            documentAdded++;
+
+            enterEditMode(false, $('#followupDocumentsTable'));
+            $('#followupDocumentsTable tr:last td:last').addClass('hide');
+            setupDocumentsTable();
+        }
+    }
+
+    function enabledScreen() {
+        $(document).find('input, select, textarea, button').not('input[name = "isRequired"]').not('button[class="btn btn-warning"]').not('button[class="btn btn-link"]').removeAttr('disabled');
+    };
+
+    function disabledScreen(deleteEdit) {
+        $(document).find('input, select, textarea, button').not('input[name = "isRequired"]').not('button[class="btn btn-warning"]').not('button[class="btn btn-link"]').attr('disabled', 'disabled').removeAttr('data-parsley-required');
+        setModalSave(false);
+        if (deleteEdit === true) {
+            $('button[data-action^="edit"],button[data-action^="cancel"],button[data-action^="save"]').remove();
+        }
+    };
+
+
+    $(document).on('change', 'input[name=\'isRequired\']', function () {
+        if ($('input[name="isRequired"]:checked').val() == 'Yes') {
+            enabledScreen();
+            $('input[name="isRequired"]').attr('data-change', 'true');
+            enableDatePicker(true);
+            enabledNotRequiredComments(false);
+        } else {
+            disabledScreen();
+            $('input[name="txtCompletedDate"]').val('');
+            $('input[name="txtUpdatedDeadLineDate"]').val('');
+            $('textarea[name="txtExtensionReason"]').val('');
+            $('input[name="approvedBy"]').val('');
+            $('input[name="isRequired"]').attr('data-change', 'true');
+            enableDatePicker(false);
+            enabledNotRequiredComments(true);
+        }
+    });
+
+    function forceFollowUpActivation(source) {
+
+        var response = postUrlWithOptions('@Url.Action("InitializePCRWorkflow", "View", new
+                                          {
+                                              area = "PCR"
+                                          })', { dataType: 'json' });
+        hideFollowUp95(false);
+
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function setDatesForDatepicker(min, max) {
+        var datePicker = $('#taskListFollowUp .currentTask').find('.datepicker').data('datepicker');
+        if (datePicker == null) {
+            return;
+        }
+
+        if (min != null) {
+            datePicker.settings = $.extend(datePicker.settings, { minDate: min.toDate() });
+        }
+
+        if (max != null) {
+            datePicker.settings = $.extend(datePicker.settings, { maxDate: max.toDate() });
+        }
+    }
+
+    function setDatesForDatepickerTask3(min, max) {
+        var datePicker = $('input[name="txtCompletedDate"]').data('datepicker');
+        if (datePicker == null) {
+            return;
+        }
+
+        if (min != null) {
+            datePicker.settings = $.extend(datePicker.settings, { minDate: min.toDate() });
+        }
+
+        if (max != null) {
+            datePicker.settings = $.extend(datePicker.settings, { maxDate: max.toDate() });
+        }
+    }
+
+    function setDateCurrentTask() {
+        var currentTaskId = $('#taskListFollowUp .currentTask').data('id');
+        var updatedDeadLine = $('#taskListFollowUp .currentTask .updatedDeadLine').data('date');
+
+        switch (currentTaskId) {
+            case 1:
+                var completedDate = $('#taskListFollowUp .currentTask .completedDate').data('date');
+                var originalPlanned = $('#taskListFollowUp .currentTask .originalPlanned').data('date');
+                //Completed Date (Min Date - 1 and Max Date + 1)
+                if (completedDate == '' && updatedDeadLine == '' && originalPlanned == '') {
+                    setDatesForDatepicker(moment().add(-1, 'd'), moment().add(1, 'd'));
+                } else {
+                    //Completed Date (Min Date - 1 and Max Date updatedDeadLine or Date)
+                    var max = moment(updatedDeadLine) > moment() ? moment(updatedDeadLine) : moment();
+                    setDatesForDatepicker(moment().add(-1, 'd'), max);
+                }
+                break;
+            case 2:
+            case 7:
+            case 8:
+                //UpdatedDeadLine Date (Min Date - 1)
+                setDatesForDatepicker(null, null);
+                break;
+            default:
+                //Completed Date (Min Date - 1 and Max Date updatedDeadLine or Date)
+                var min = moment().add(-1, 'd');
+                var max = updatedDeadLine != null && moment(updatedDeadLine) > moment() ? moment(updatedDeadLine) : moment();
+                var lastCompletedDate = $('#taskListFollowUp .currentTask').data('last-completed-date');
+                if (min < moment(lastCompletedDate))
+                {
+                    setDatesForDatepicker(moment(lastCompletedDate), max);
+                    break;
+                }
+                setDatesForDatepicker(min, max);
+                break;
+        }
+    }
+
+    function setDateCurrentTask3() {
+        var currentTaskId = $('#taskListFollowUp .currentTask').data('id');
+        var updatedDeadLine = $('#taskListFollowUp .currentTask .updatedDeadLine').data('date');
+        var min = moment().add(-1, 'd');
+        var max = updatedDeadLine != null && moment(updatedDeadLine) > moment() ? moment(updatedDeadLine) : moment();
+        var lastCompletedDate = $('#taskListFollowUp .currentTask').data('last-completed-date');
+
+        if (min < moment(lastCompletedDate)) {
+            setDatesForDatepickerTask3(moment(lastCompletedDate), max);
+        } else {
+            setDatesForDatepickerTask3(min, max);
+        }
+    }
+
+    registerCallback(function () {
+        @if (!Model.IsRequired && !ViewBag.PCRRequiredRole)
+            {
+                @:disabledScreen(true);
+                                                                            }
+
+        @if (!string.IsNullOrWhiteSpace(ViewBag.ErrorMessage))
+            {
+                if (ViewBag.No95)
+                {
+                    @:hideFollowUp95(true);
+                                                                                }
+            }
+
+
+        @if (ViewBag.LockScreenWorkflowValidation)
+            {
+                @:$('input, select, textarea, button').not('.vex-dialog-button').not('.header button').attr('disabled', 'disabled');
+                                                                                @:$('[data-toggle]').attr('data-toggle', null);
+
+                @:var msg = "@Localization.GetText("PCR.FollowUp.ModalOperationCancelled")";
+                                                                                @:showMessage(msg);
+                                                                            }
+
+        @if (!Model.IsRequired)
+            {
+                 @:enableDatePicker(false);
+                                                                            }
+
+        setDateCurrentTask();
+        tableRowColor();
+
+    }, true);
+
+    function cancelSaveFollowUp(source) {
+        var vexModal = $('#saveModal').parents('.vex');
+        vex.closeByID(vexModal.data().vex.id);
+        $('.btn[name="save"]').attr('data-action', 'checkSave');
+        $('.btn[name="save"]').removeAttr('data-modal-allowclose');
+        $('.btn[name="save"]').removeAttr('data-modal');
+    }
+
+    $(document).on('change', 'input[name="chkActive"]', function (source) {
+        var checks = $('#taskListFollowUp input[name="chkActive"]').toArray();
+        var currentTask = $('#taskListFollowUp .currentTask');
+        var currentTaskId = currentTask.data('id');
+        var currentTargetId = source.currentTarget.getAttribute('data-id');
+        var datepicker = $('#taskListFollowUp .currentTask .datepicker');
+        var completedDate = $('input[name="editpcrcoord_1"]');
+        if (completedDate != null) {
+            $('.datepicker').addClass('deleteme');
+            $('.clseditpcrcoord').addClass('deleteme');
+            if (currentTaskId != 7) {
+                $('input[name="txtCompletedDate"]').removeClass('deleteme');
+            }
+            $('.deleteme').remove();
+        }        
+
+        performCall = true;
+        checks.forEach(function (c) {
+            if (currentTargetId == c.getAttribute('data-id')) {
+                var container = $('#taskList');
+                var performCall = false;
+
+                if (c.getAttribute('checked') == 'checked') {
+                    if (currentTaskId > currentTargetId) {
+                        datepicker.val('');
+                        datepicker.attr('disabled', 'disabled');
+                        datepicker.removeAttr('data-parsley-required');
+                        container.find('input,textarea,select').attr('disabled', 'disabled').removeAttr('data-parsley-required');
+                    }
+                } else {
+                    datepicker.removeAttr('disabled');
+                    datepicker.attr('data-parsley-required', 'true');
+                    container.find('input,textarea,select').attr('disabled', 'disabled').removeAttr('data-parsley-required');
+                    performCall = true;
+                }
+
+                if (performCall) {
+                    showLoader();
+                    window.setTimeout(function () {
+                        saveFollowUp(container);
+                        if (!isInEditMode(container)) {
+                            editFollowUp();
+                        }
+                    }, 10);
+                }
+            }
+        });
+    });
+
+
+    function setupDocumentsTable() {
+        $('[deleteable="yes"]').click(function (event) {
+            deleteFollowUpDocument(event.target);
+            documentDeleted++;
+            var completedDate = $('input[name="txtCompletedDate"]');
+            completedDate.attr('data-parsley-required', (documentAdded == documentDeleted) ? 'true' : 'false');
+        });
+
+        $('#followupDocumentsTable tr').find('input').parent().addClass('hide');
+    }
+
+
+    function deleteFollowUpDocument(target) {
+        if ($(target).closest('tr').context.attributes[1].value != '') {
+            $(target).closest('tr')[0].childNodes[11].childNodes[0].value = 'yes';
+            $(target).closest('tr').addClass('hide');
+        } else {
+            $(target).closest('tr').remove();
+        }
+    }
+
+        function setTask12() {
+            $('input[name="isCommentSent"]').attr('data-parsley-required', 'true');
+            $('input[name="isWorkshopConducted"]').attr('data-parsley-required', 'true');
+            var workshopDate = $('input[name="txtWorkshopDate"]');
+            if ($('input[name="isWorkshopConducted"]:checked').val() == 'Yes') {
+                workshopDate.attr('data-parsley-required', 'true');
+                workshopDate.attr('data-parsley-trigger', 'change');
+                workshopDate.removeAttr('disabled');
+            } else {
+                workshopDate.val('');
+                workshopDate.attr('data-parsley-required', 'false');
+            }
+        }
+
+    $(document).on('change', 'input[name="isWorkshopConducted"]', function () {
+        setTask12AOptions(true);
+    });
+
+    $(document).on('change', 'input[name="isCommentSent"]', function () {
+        setTask12AOptions(false);
+    });
+
+    function setTask12AOptions(cleanTxtWorkshopDate) {
+        var container = $('#taskList');
+
+        var completedDate = $('input[name="txtCompletedDate"]').val();
+        $('input[name="txtCompletedDate"]').val('');
+        var txtWorkshopDate = $('input[name="txtWorkshopDate"]').val();
+
+        if (cleanTxtWorkshopDate){
+            $('input[name="txtWorkshopDate"]').val('');
+        }
+
+        removeTxtDates();
+        window.setTimeout(function () {
+            if (!isInEditMode(container)) {
+                editFollowUp();
+                $('input[name="txtCompletedDate"]').val(completedDate);
+                $('input[name="txtWorkshopDate"]').val(txtWorkshopDate);
+                setCompletedDate();
+            }
+            setTask12();
+        }, 10);
+    }
+
+    $(document).on('change', 'input[name=\'isDisclosure\']', function () {
+        var container = $('#taskList');
+        var completedDate;
+        var performCall = false;
+
+        if (($(this).val() == 'Yes') || ($(this).val() == 'No' && $('div[data-id="21"]').length != 0)) {
+            $('input[name="txtCompletedDate"]').removeAttr('data-parsley-required');
+            $('input[name="txtCompletedDate"]').removeAttr('data-parsley-trigger');
+
+            $('input[name="txtCompletedDate"]').attr('disabled', 'disabled');
+            container.find('input,textarea,select').attr('disabled', 'disabled').removeAttr('data-parsley-required');
+
+            completedDate = $('input[name="txtCompletedDate"]').val();
+            $('input[name="txtCompletedDate"]').val('');
+            
+            performCall = true;
+        }
+        removeTxtDates();
+
+        showLoader();
+        window.setTimeout(function () {
+            if (performCall) {
+                saveFollowUp(container);
+            }
+
+            if (!isInEditMode(container)) {
+                editFollowUp();
+                $('input[name="txtCompletedDate"]').val(completedDate);
+                setCompletedDate();
+            }
+
+            hideLoader();
+        }, 10);
+    });
+
+    function tableRowColor() {
+        var listItem = $('div[data-listitem="true"]').children().not('div.hide').not('aside').not('div[data-pagemode="read"]');
+
+        for (var i = 0; i < listItem.size() ; i++) {
+            if (i % 2 == 0) {
+                jQuery(listItem[i]).parent().addClass('banded-child');
+            }
+        }
+    }
+
+    function tableRowColorEdit() {
+        var listItem = $('div[data-listitem="true"]');
+
+        for (var i = 0; i < listItem.size() ; i++) {
+            if (i % 2 == 0) {
+                jQuery(listItem[i]).addClass('banded');
+            }
+        }
+    }
+
+    function downloadFollowUpDocument(target) {
+        var docNumber = $(target).closest('tr').find('td:nth-child(3)')[0].outerText;
+        var operation = '@ViewBag.OperationNumber';
+
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+
+        window.open(url, '_blank');
+
+    }
+
+    function setModalSave(showModal) {
+        if (showModal) {
+            $('.btn[name="save"]').removeAttr('data-action');
+            $('.btn[name="save"]').attr('data-modal-allowclose', 'true');
+            $('.btn[name="save"]').attr('data-modal', 'saveModal');
+        } else {
+            $('.btn[name="save"]').attr('data-action', 'saveFollowUp');
+            $('.btn[name="save"]').removeAttr('data-modal-allowclose');
+            $('.btn[name="save"]').removeAttr('data-modal');
+        }
+    }
+
+    function setCompletedDate() {
+        var completedDate = $('input[name="txtCompletedDate"]');
+        completedDate.attr('data-parsley-trigger', 'change');
+
+        if ((documentAdded == 0 &&
+            documentDeleted == 0) ||
+            (documentAdded == documentDeleted)) {
+            completedDate.attr('data-parsley-required', 'true');
+        } else {
+            if ($('input[name="txtCompletedDate"]').val() == "") {
+                completedDate.attr('data-parsley-required', 'false');
+                completedDate.removeAttr('data-parsley-required');
+                completedDate.removeAttr('data-parsley-trigger');
+            }
+        }
+    }
+
+    function setUpdatedDeadline() {
+        var updatedDeadline = $('input[name="txtUpdatedDeadLineDate"]');
+        updatedDeadline.attr('data-parsley-required', 'true');
+        updatedDeadline.attr('data-parsley-trigger', 'change');
+
+        var completedDate = $('input[name="txtCompletedDate"]');
+        completedDate.attr('data-parsley-required', 'false');
+    }
+
+    function setMsgManualError(date) {
+        if (!date.hasClass('manual-error') && !date.hasClass('parsley-error')) {
+            date.addClass('manual-error');
+            var ul = document.createElement('ul');
+            ul.className = 'filled parsley-errors-list remove-error';
+            var li = document.createElement('li');
+            li.className = 'parsley-required';
+            li.textContent = '@Localization.GetText("PCR.FollowUp.MsgManualError")';
+                ul.appendChild(li);
+                date.parent().append(ul);
+            }
+        }
+
+        function removeMsgManualError(date) {
+            if (date.hasClass('manual-error')) {
+                date.removeClass('manual-error');
+                var ul = date.parent().find('ul.remove-error');
+                if (ul != '') {
+                    ul.remove();
+                }
+            }
+        }
+
+        function validateDate(isCompleted) {
+            var min, max, date, dateValue, vmax, vmin;
+
+            if (isCompleted) {
+                date = $('input[name="txtCompletedDate"]');
+                dateValue = $('input[name="txtCompletedDate"]').val();
+                vmax = moment(date.data('datepicker').settings.maxDate).format('DD/MM/YYYY');
+                max = new Date(vmax.substring(6, 10), parseInt(vmax.substring(3, 5)) - 1, vmax.substring(0, 2));
+                vmin = moment(date.data('datepicker').settings.minDate).format('DD/MM/YYYY');
+                min = new Date(vmin.substring(6, 10), parseInt(vmin.substring(3, 5)) - 1, vmin.substring(0, 2));
+
+            } else {
+                date = $('input[name="txtUpdatedDeadLineDate"]');
+                dateValue = $('input[name="txtUpdatedDeadLineDate"]').val();
+                vmax = null;
+                max = null;
+                vmin = null;
+                min = null;
+            }
+
+
+
+            if (dateValue == '') {
+                removeMsgManualError(date);
+            } else {
+                dateValue = dateValue.substring(0, 2) + '-' + dateValue.substring(3, 6) + '-' + dateValue.substring(7, 11);
+                dateValue = new Date(Date.parse(dateValue));
+
+                if ((min!= null && dateValue < min) || (max != null && dateValue > max)) {
+                    if (dateValue != '') {
+                        setMsgManualError(date);
+                    }
+                } else {
+                    removeMsgManualError(date);
+                }
+            }
+        }
+
+        $(document).on('focus click', 'input[name=\'txtCompletedDate\']', function () {
+            setCompletedDate();
+            var task = $('input[name="txtCompletedDate"]').parent().parent().parent().attr('data-id');
+
+            switch (task) {
+                case '12':
+                    $('input[name="isCommentSent"]').attr('data-parsley-required', 'true');
+                    $('input[name="isWorkshopConducted"]').attr('data-parsley-required', 'true');
+                    var workshopDate = $('input[name="txtWorkshopDate"]');
+                    if ($('input[name="isWorkshopConducted"]:checked').val() == 'Yes') {
+                        workshopDate.attr('data-parsley-required', 'true');
+                        workshopDate.attr('data-parsley-trigger', 'change');
+                    }
+                    break;
+                case '20':
+                    $('input[name="isDisclosure"]').attr('data-parsley-required', 'true');
+                    break;
+                default:
+                    break;
+            }
+        });
+        
+        $(document).on('change', 'input[name^=\'txtCompletedDate\']', function () {
+            var container = $('#taskList');           
+            var task = $(this).attr('data-taskidpicker');
+            var actualTask = $('#hidCurrentTask').val();
+            var taskNormal = $(this).attr('data-tasknormal');
+            var isSpdCoord = $(this).attr('data-isspdcoord');
+
+            if (taskNormal == "true" && task == actualTask) {
+            validateDate(true);
+            if ($('input[name="txtCompletedDate"]').val() != "") {
+                $('.datepickerspan').addClass('deleteme');
+                $('.spanpicker_' + task + '').removeClass('deleteme');
+                $('.deleteme').empty();
+                $('#withoutDocuments').show();
+                $('#withDocuments').hide();
+                } else if (documentAdded != 0 || documentDeleted != 0) {
+                    $('#withDocuments').show();
+                    $('#withoutDocuments').hide();
+                    if (isSpdCoord == "true" || isSpdCoord == "True") {
+                        $('#withDocuments').hide();
+                    }
+                }
+            } else {
+                if ($('input[name="txtCompletedDate_' + task + '"]').val() != "") {
+                    var completedDate = $('input[name="txtCompletedDate"]');
+                    completedDate.attr('data-parsley-required', 'false');
+                    $('.datepickerspan').addClass('deleteme');
+                    $('.spanpicker_' + task + '').removeClass('deleteme');
+                    if (actualTask == 12) {
+                        $('input[name="isCommentSent"]').remove();
+                        $('input[name="isWorkshopConducted"]').remove();
+                        $('input[name="txtWorkshopDate"]').remove();
+                    }
+                    $('.deleteme').empty();
+                    $('#hidCurrentTask').attr('value', '' + task + '');
+                    $('#withDocuments').hide();
+                    $('#withoutDocuments').show();
+                    if (isSpdCoord) {
+                        $('#withoutDocuments').hide();
+                    }
+                }
+            }
+        });
+
+        function removeTxtDates() {
+            var actualTask = $('#hidCurrentTask').val();
+            $('.datepickerspan').addClass('deleteme');
+            $('.spanpicker_' + actualTask + '').removeClass('deleteme');
+            $('.deleteme').empty();
+        }
+
+        $(document).on('focus click', 'input[name=\'txtUpdatedDeadLineDate\']', function () {
+            setUpdatedDeadline();
+            $('input[name="approvedBy"]').attr('data-parsley-required', 'true');
+            $('textarea[name="txtExtensionReason"]').attr('data-parsley-required', 'true');
+        });
+
+        $(document).on('change', 'input[name=\'txtUpdatedDeadLineDate\']', function () {
+            validateDate(false);
+            if ($('input[name="txtUpdatedDeadLineDate"]').val() != "") {
+                setEditExtension();
+                $('#withoutDocuments').show();
+                $('#withDocuments').hide();
+            } else if (documentAdded != 0 ||
+                documentDeleted != 0) {
+                $('#withDocuments').show();
+                $('#withoutDocuments').hide();
+            }
+        });
+
+        $(document).on('focus click', 'input[name=\'approvedBy\']', function () {
+            $('input[name="approvedBy"]').attr('data-parsley-required', 'true');
+            $('textarea[name="txtExtensionReason"]').attr('data-parsley-required', 'true');
+            setUpdatedDeadline();
+        });
+
+        $(document).on('change', 'input[name=\'approvedBy\']', function () {
+            $('input[name="approvedBy"]').attr('data-parsley-required', 'true');
+            $('textarea[name="txtExtensionReason"]').attr('data-parsley-required', 'true');
+            setUpdatedDeadline();
+            setEditExtension();
+        });
+
+        $(document).on('focus click', 'textarea[name=\'txtExtensionReason\']', function () {
+            $('textarea[name="txtExtensionReason"]').attr('data-parsley-required', 'true');
+            $('input[name="approvedBy"]').attr('data-parsley-required', 'true');
+            setUpdatedDeadline();
+        });
+
+        $(document).on('change', 'textarea[name=\'txtExtensionReason\']', function () {
+            $('textarea[name="txtExtensionReason"]').attr('data-parsley-required', 'true');
+            $('input[name="approvedBy"]').attr('data-parsley-required', 'true');
+            setUpdatedDeadline();
+            setEditExtension();
+        });
+
+        function setEditExtension() {
+            $('.datepicker').addClass('deleteme');
+            $('.clseditpcrcoord').addClass('deleteme');
+            $('input[name="txtUpdatedDeadLineDate"]').removeClass('deleteme');
+            $('.deleteme').remove();
+        }
+
+        function checkSave(source) {
+            var seriesCode = $('input[name="seriesCode"]').val();
+            var completedDate = $('input[name="txtCompletedDate"]');
+            var updatedDeadLineDate = $('input[name="txtUpdatedDeadLineDate"]');
+
+            if ((completedDate.length > 0 && completedDate.val() != "") ||
+                (updatedDeadLineDate.length > 0 && updatedDeadLineDate.val() != "")) {
+                $('#withDocuments').hide();
+                $('#withoutDocuments').show();
+            }
+            else if (documentAdded != 0 || documentDeleted != 0 || (documentAdded != documentDeleted)) {
+                $('#withDocuments').show();
+                $('#withoutDocuments').hide();
+                completedDate.attr('data-parsley-required', 'false');
+                completedDate.removeAttr('data-parsley-required');
+                completedDate.removeAttr('data-parsley-trigger');
+                removeTxtDates();
+            }
+
+            if ('@(((string) msgInSeries).ProcessStringForView())' != '' && (seriesCode == '')) {
+                showMessage('@(((string) msgInSeries).ProcessStringForView())');
+            } else {
+                var isSpdCoord = $('input[name^="txtCompletedDate"]').attr('data-isspdcoord');
+                var completed = completedDate.hasClass('manual-error');
+                var updated = updatedDeadLineDate.hasClass('manual-error');
+                var currentTask = $('#taskListFollowUp .currentTask').data('id');
+                if (validateContainer($('#taskList')) && !completed && !updated) {
+                    if ($('input[name="isRequired"]') == null || $('input[name="isRequired"]').attr('data-change') == null) {
+                        if (currentTask == 7
+                            || currentTask == 8
+                            || (currentTask == 2 && completedDate.val() == '')
+                            || (currentTask == 1 && completedDate.val() == '')
+                            ) {
+                            setModalSave(false);
+                        } else {
+                            if (isSpdCoord == "true" || isSpdCoord == "True"
+                                || currentTask == 7
+                                || currentTask == 8
+                                || currentTask == 2
+                                || currentTask == 1) {
+                                setModalSave(false);
+                            } else {
+                                setModalSave(true);
+                            }
+                        }
+                    }
+                    else {
+                        setModalSave(false);
+                    }
+                    window.setTimeout(function () {
+                        $('.btn[name="save"]')[0].click();
+                    }, 15);
+                }
+            }
+    }
+
+    function hideFollowUp95(hide) {
+        if (hide) {
+            $('#taskList').addClass('hide');
+            $('.headingh3').addClass('hide');
+            $('[data-action="editFollowUp"]').first().addClass('hide');
+            $('#95Error').removeClass('hide');
+
+        } else {
+            $('#taskList').removeClass('hide');
+            $('.headingh3').removeClass('hide');
+            $('[data-action="editFollowUp"]').first().removeClass('hide');
+        }
+    }
+
+    function handleDatePicker(source) {
+        if (source != null) {
+            var value = source.get(0).defaultValue;
+
+            if (value == "No") {
+                $('[name="txtWorkshopDate"]').datepicker("option", "disabled", true);
+            } else {
+                $('[name="txtWorkshopDate"]').datepicker("option", "disabled", false);
+            }
+        } else {
+            var value = $('[name="txtWorkshopDate"]').attr('disabled');
+            if (value == 'disabled') {
+                $('[name="txtWorkshopDate"]').datepicker("option", "disabled", true);
+            } else {
+                $('[name="txtWorkshopDate"]').datepicker("option", "disabled", false);
+            }
+        }
+
+    }
+
+    function enabledNotRequiredComments(show) {
+        var actualTask = $('#hidCurrentTask').val();
+        if (show) {
+            if (actualTask < 2) {
+                $('#txtNotRequiredReason').removeAttr("disabled");
+                $('#divTxtNotRequiredReason').removeClass('hide');
+                $('#divLabelNotRequiredReason').addClass('hide');
+            } else {
+                $('#txtNotRequiredReason').prop('disabled', 'true');
+                $('#divTxtNotRequiredReason').addClass('hide');
+                $('#divLabelNotRequiredReason').removeClass('hide');
+            }
+        }
+        else {
+            $('#txtNotRequiredReason').prop('disabled', 'true');
+            $('#divTxtNotRequiredReason').addClass('hide');
+            $('#divLabelNotRequiredReason').addClass('hide');
+        }
+    }
+
+    function enableDatePicker(flag) {
+        if (!flag) {
+            $('.datepicker').datepicker("option", "disabled", true);
+        }
+        else {
+            $('.datepicker').datepicker("option", "disabled", false);
+        }
+    }
+
+    </script>
+}

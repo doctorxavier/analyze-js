@@ -1,0 +1,271 @@
+﻿@using IDB.MW.Domain.Models.Global
+@model IDB.Presentation.MVC4.Areas.Search.Models.SearchQueryModel
+
+@{
+    ViewBag.Title = "Index";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var filtCountry = ((StatisticsFilterModel)ViewBag.Filter).Country;
+    var filtSector = ((StatisticsFilterModel)ViewBag.Filter).Sector;
+    var filtCountryDept = ((StatisticsFilterModel)ViewBag.Filter).CountryDepartment;
+    var filtSectorDept = ((StatisticsFilterModel)ViewBag.Filter).SectorDepartment;
+    var filtOverallStatus = ((StatisticsFilterModel)ViewBag.Filter).OverallStatus;
+    var filtEligibility = ((StatisticsFilterModel)ViewBag.Filter).Eligibility;
+    var queryValue = !string.IsNullOrEmpty(((StatisticsFilterModel)ViewBag.Filter).Keyword) ? ((StatisticsFilterModel)ViewBag.Filter).Keyword : "";
+    var hasFilter = !string.IsNullOrWhiteSpace(filtCountry)
+                        || !string.IsNullOrWhiteSpace(filtSector)
+                        || !string.IsNullOrWhiteSpace(filtCountryDept)
+                        || !string.IsNullOrWhiteSpace(filtSectorDept)
+                        || !string.IsNullOrWhiteSpace(filtOverallStatus)
+                        || !string.IsNullOrWhiteSpace(filtEligibility)
+                        || !string.IsNullOrWhiteSpace(queryValue);
+    var dateFromEligibility = !string.IsNullOrWhiteSpace(filtEligibility)
+                ? (filtEligibility.StartsWith("-")
+                        ? DateTime.Today.ToShortDateString()
+                        : DateTime.Today.AddDays(Convert.ToInt32(filtEligibility) * -1).ToShortDateString())
+                : "";
+    var dateToEligibility = !string.IsNullOrWhiteSpace(filtEligibility)
+                ? (filtEligibility.StartsWith("-")
+                        ? ""
+                        : DateTime.Today.ToShortDateString())
+                : "";
+    
+}
+
+
+@section CSS
+{
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo/kendo.common.min.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo.everis.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modules/searches/ui_se_001-results_matrix.css")" />
+    @*<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Pagination/jqPagination.css")" />*@
+
+}
+
+<style type="text/css">
+.k-grid .k-pager-numbers {
+float: right;
+cursor: default;
+}
+</style>
+
+
+@section JavaScript 
+    {
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery-1.10.2.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/kendo/kendo.web.min.js")"></script>
+    @*<script type="text/javascript" src="@Url.Content("~/Scripts/Pagination/Plugins/jqpagination.js")"></script>*@
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visualization/script/jquery-ui.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/radio/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Global/global.js")"></script>
+
+    @if (hasFilter) 
+    {
+        <text>
+            <script>
+                $(document).ready(function () {
+                    $("#btnSearch").click();
+                });
+            </script>
+        </text>
+    }
+}
+
+@**
+* Jira ID: CON-724
+* Fix Description: grid template to make pagination with kendo grid
+* Attended by: Jhon Astaiza 
+* Date: 20/08/2014
+* Begin Fix
+**@
+<script type="text/x-kendo-template" id="gridCell_operationName">
+        #if(StatusOSR == "Created")
+        {#            
+            <a href="@Globals.GetSetting("BasePath")/Operation/#=OperationCode#/Pages/default")  target="_parent">#=OperationName#</a>
+        #}
+        else
+        {#
+            #=OperationName#
+        #}#  
+    
+              
+</script>
+@**
+* End Fix
+**@
+
+@Html.Hidden("URLSearchQueryResult", Url.Action("QueryResult", "Search", new { area = "Search" }))
+@Html.Hidden("URLSearchIndex", Url.Action("Index", "Search", new { area = "Search" }))
+@Html.Hidden("URLSearchCountry", Url.Action("Country", "Search", new { area = "Search" }))
+@Html.Hidden("URLSearchDivision", Url.Action("Division", "Search", new { area = "Search" }))
+@Html.Hidden("hasFilterValidation", hasFilter)
+@Html.Hidden("hdnSearchPath", Url.Action("GetSearchResults", "Search", new { area = "Search" }))
+
+
+@*------------------- Multilanguage vars for grid headers --------------------*@
+@Html.Hidden("hdnGlbCountryDeptCountry", Localization.GetText("Country Dept/ Country"))
+@Html.Hidden("hdnGlbSectorDepartmentDivision", Localization.GetText("Sector Dept/ Divi"))
+@Html.Hidden("hdnGlbOperationName", Localization.GetText("Operation Name"))
+@Html.Hidden("hdnGlbOperationCode", Localization.GetText("Operation number"))
+@Html.Hidden("hdnGlbLoanNumber", Localization.GetText("Loan number(s)"))
+@Html.Hidden("hdnGlbTeamLeader", Localization.GetText("Team Leader"))
+@Html.Hidden("hdnGlbOverallStage", Localization.GetText("Overall stage"))
+@Html.Hidden("hdnGlbgetApprovalDateString", Localization.GetText("Approval Date"))
+@Html.Hidden("hdnGlbgetElegibilityDateString", Localization.GetText("Eligibility Date"))
+@*---------------- Multilanguage vars ajax error messages --------------------*@
+@Html.Hidden("hdnTimeoutErrorMessages", Localization.GetText("Our apologies, it appears the search is taking a bit longer than it should, could you help us narrow the results by entering in additional key words?"))
+
+
+<div id="ui_se_001-results_matrix" class="padding20">
+    <!-- Filter container -->
+    <div class="relative" style="margin-bottom: 3em;">
+        <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("BROWSE")</h3>
+    </div>
+    <div id="searchBoxContainerSearchesResultsMatrix" class="padding20 grayBackground font08em">
+        <div class="centerContent  leftAlign">
+            <input type="text" placeholder="@Localization.GetText("Keyword")" class="grayBorder w98-7" id="keywordFilterSearches" value="@queryValue"/>
+        </div>
+
+        <div class="centerContent  relative h50px">
+            <div class="inline-block inputContainer w24 absolute ">
+                <div class=" verticalAlignMiddle">
+                    @Html.DropDownList("DeparmentSectorDDList", new SelectList(ViewBag.SectorDepartmentList, "Code2", "Code", filtSectorDept), new { @class = "kendoDropDown", @ID = "sectorDepartmentdll" })
+                </div>
+            </div>
+
+            <div class="inline-block inputContainer w24 absolute left25">
+                <div class=" verticalAlignMiddle" id="DivisionDiv">
+                    @Html.DropDownList("DivisionDDList", new SelectList(ViewBag.DivisionList, "Code2", "Code", filtSector), new { @class = "kendoDropDown", @ID = "divisiondll" })
+                </div>
+            </div>
+
+            <div class="inline-block inputContainer w24 absolute right25">
+                <div class=" verticalAlignMiddle">
+                    @Html.DropDownList("CountryDepartmentDDList", new SelectList(ViewBag.CountryDepartmentList, "Code2", "Code", filtCountryDept), new { @class = "kendoDropDown", @ID = "countryDepartmentdll" })
+                </div>
+            </div>
+
+            <div class="inline-block inputContainer w24 absolute absRight">
+                <div class=" verticalAlignMiddle" id="CountryDiv">
+                    @Html.DropDownList("CountryDDList", new SelectList(ViewBag.CountryList, "Code", "Name_EN", filtCountry), new { @class = "kendoDropDown", @ID = "countrydll" })
+                </div>
+            </div>
+        </div>
+
+        <div class="centerContent  relative h50px">
+            <div class="inline-block inputContainer w24 absolute">
+                <div class=" verticalAlignMiddle">
+                    @Html.DropDownList("OperationTypeList", new SelectList(ViewBag.OperationTypeList, "Code", "NameEn", null), new { @class = "kendoDropDown", @ID = "operationTypedll" })
+                </div>
+            </div>
+            <div class="inline-block inputContainer w24 absolute right25">
+                <div class=" verticalAlignMiddle">
+                    @Html.DropDownList("OverallStageDDList", new SelectList(ViewBag.OverallStageList, "Code", "NameEn", filtOverallStatus), new { @class = "kendoDropDown", @ID = "overallStagedll" })
+                </div>
+            </div>
+            <div class="inline-block inputContainer w24 absolute absRight rightAlign">
+                <div class=" verticalAlignMiddle">
+                    <input type="text" placeholder="@Localization.GetText("Team Member Keyword")" class="grayBorder w95" id="teamMemeberKeywordFilterSearches" />
+                </div>
+            </div>
+        </div>
+
+        <div class="centerContent  relative h50px">
+            <div class="inline-block inputContainer w24 absolute">
+                <div class=" verticalAlignMiddle">
+                    @Html.DropDownList("FundList", new SelectList(ViewBag.FundList, "Code", "NameEn", null), new { @class = "kendoDropDown", @ID = "funddll" })
+                </div>
+            </div>
+            <div class="inline-block inputContainer w24 absolute left25">
+                <div class=" verticalAlignMiddle">
+                    <input type="text" placeholder="@Localization.GetText("Approval Year")" class="grayBorder w95" id="approvalYearFilterSearches" />
+                </div>
+            </div>
+            <div class="inline-block inputContainer w24 absolute right25">
+                <div class="verticalAlignMiddle">
+                    <input id="dateFromFilterSearches" type="text" placeholder="@Localization.GetText("Eligibility Date From")" value="@dateFromEligibility" class="kendoDatePicker">
+                </div>
+            </div>
+            <div class="inline-block inputContainer w24 absolute absRight">
+                <div class="verticalAlignMiddle">
+                    <input id="dateToFilterSearches" type="text" placeholder="@Localization.GetText("To")" value="@dateToEligibility" class="kendoDatePicker">
+                </div>
+            </div>
+
+        </div>
+
+        <div class="centerContent relative h50px marginTop1Con25">
+            <div class="inline-block inputContainer w24 absolute">
+                <div class=" verticalAlignMiddle" id="searchFilterSearchesContainer">
+                    <select id="cmbFilterMyOperation" class="kendoDropDown">
+                        <option value="0">@Localization.GetText("All Operations")</option>
+                        <option value="1" selected>@Localization.GetText("My Operations")</option>
+                    </select>
+                    <input type="hidden" id="hdnUserName" value="@Model.UserName" />
+                </div>
+            </div>
+        </div>
+
+        <!-- filters -->
+
+        <div id="partialPlaceHolder" style="display: none;">
+        </div>
+
+        <!-- End filters -->
+
+        <div class="verticalMargin20 rightAlign w97-2">
+            <input type="button" id="btnSearch" class="button blueButton" value="@Localization.GetText("Search")">
+        </div>
+    </div>
+    <!-- End filter container -->
+
+
+    @**
+    * Jira ID: CON-724
+    * Fix Description: make pagination with kendo grid
+    * Attended by: Jhon Astaiza 
+    * Date: 20/08/2014
+    * Begin Fix
+    **@
+
+    <div id="task_grid_holder" class="grid " style="height: 100%; padding: 0px; width: 100% !important">
+        <div id="countResultsContainer" class="verticalMargin80-0-20" style="margin-top: 20px; display: none">
+            <h3 class="font1-5em"><span id="countResults"></span> @Localization.GetText("Results")</h3>
+        </div>
+        <table class="grid"  id="main-results-grid" style="width:100% !important">
+            <colgroup>
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+            </colgroup>
+        </table>
+
+    </div>
+
+    <div style="margin-top: 20px; display: none" id="notFoundMessage" class="verticalMargin80-0-20">
+        <h3 class="font1-5em">
+            @Localization.GetText("Records not found")
+        </h3>
+    </div>
+
+    <div class="messages message-warning" style="margin-left: 0px; width: 96%; display: none; padding: 20px; background: url('../Images/Modulos/modal/cerrar_warning.png') #E19C23 no-repeat 99% 10px" >
+        <span>
+            @Localization.GetText("Our apologies, it appears the search is taking a bit longer than it should, could you help us narrow the results by entering in additional key words?")
+        </span>
+    </div>
+
+</div>
+
+
+@**
+    * End Fix
+    **@
+

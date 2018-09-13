@@ -1,0 +1,732 @@
+﻿@using System.Security.Cryptography
+@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Components
+@using IDB.Presentation.MVC4.Helpers
+
+@model  List<IDB.MW.Domain.Models.Security.FieldAccessModel>
+
+@Styles.Render("~/Content/overrides/indicatorsOverride.css")
+
+
+<div data-pagemode="edit" class="hide">
+    <span id="outcomes-container">
+        <form name="frmOutputs" novalidate>
+            @if (SecurityHelper.IsVisible(Model, "btnEditOutputDetails"))
+            {
+                <div class="contentFloats" style="overflow: visible">
+                    <div class="floatRight" style="margin-bottom: 1%" id="TCMAddComponentContainer">
+                        @Confluence.ButtonBlue(Localization.GetText("TCM.Outputs.NewComponent"), dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnNewComponent" }, { "ng-click", "AddComponent()" } })
+                    </div>
+                    <div class="floatRight" style="margin-bottom: 1%; display: none;" id="TCMCNDAddComponentContainer">
+                        @Confluence.ButtonBlue(Localization.GetText("TCM.Outputs.NewComponent"), dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnNewComponent" }, { "action", "RMCDNOpenModal" } })
+                    </div>
+                </div>
+            }
+            
+            <br /><br />
+            <div class="col-md-12 ml15">
+                <div class="float-right mb20">
+                    <span>@Localization.GetText("TCM.Outputs.Show")</span>
+                    <input name="btn-edit-show-milestones" type="button"
+                           class="buttonWhite square-button narrow physical-filters row-milestone"
+                           value="@Localization.GetText("TCM.Outputs.Milestones")" />
+                    <input name="btn-edit-show-disaggregations" type="button"
+                           class="buttonWhite square-button narrow physical-filters row-disaggregation"
+                           value="@Localization.GetText("TCM.Outputs.Disaggregation")" />
+                    <input name="btn-edit-show-disaggregations" type="button"
+                           class="buttonWhite square-button narrow" ng-click="ShowCRFInformation()"
+                           value="@Localization.GetText("PI.BtnText.CRFInformation")" />
+                </div>
+            </div>
+            <div class="overflow col-md-12">
+                <span ng-repeat="Component in PhysicalProgress.Components" ng-cloak ng-init="outcomeIndex = $index" repeat-end="onEnd()">
+                    <table id="{{'tableTreeRowTitle'+$index}}" class="tableNormal lineNonStop tablePrincipal-edit">
+                        <thead>
+                            <tr>
+                                <td class="treeNumber">{{Component.OrderNumber}}</td>
+                                <th class="tree icon">@Confluence.ButtonExpandTable()<div class="number"></div></th>
+                                <td class="tcmTitleTable" ng-form="Component_Statement" colspan="{{5+PhysicalProgress.ExistingPlannedYears.length}}">
+                                    <div class="floatLeft w105 pt10">
+                                        <span>@Localization.GetText("TCM.Outputs.Component"):</span>
+                                    </div>
+                                    <div class="floatLeft wOutcomesStatement">
+                                        <span data-component-id="{{Component.ComponentId}}">
+                                            @ControlTemplatesTCM.AngularInputText(model: "Component.Statement"
+         , name: "Component_Statement"
+         , width: "100%"
+         , maxLength: 350, dataAttributes: new Dictionary<string, string>()
+         {
+                                                    {"register-matrix-changes", null}
+                                                    , {"old-value", "{{::Component.Statement}}"}
+         }
+         , htmlClass: "tcmTitleTableInput {{Component.ComponentId > 0 ? 'existing' : ''}}", requiredMessage: @Localization.GetText("TCM.Outputs.StatementRequiredMessage"))
+                                        </span>
+                                    </div>
+                                    <div class="floatLeft w20 pt10">
+                                        <span title="@Localization.GetText("TCM.Delete")" ng-click="DeleteComponent(Component)" class="span-min-square">x</span>
+                                    </div>
+                                    <div class="action-bar" style="display: none">
+                                        @ControlTemplatesTCM.AngularMoveUpButton(null, Localization.GetText("TCM.EditIndicator.MoveUpTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveOutcomeUp(Component)" } })
+                                        @ControlTemplatesTCM.AngularMoveDownButton(null, Localization.GetText("TCM.EditIndicator.MoveDownTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveOutcomeDown(Component)" } })
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr ng-show="Component.Outputs.length > 0">
+                                <td class="treeNumber"></td>
+                                <td class="tree">
+                                    <span></span>
+                                    <div class="number"></div>
+                                </td>
+                                <th class="outputIndicator">@Localization.GetText("TCM.Outputs.OutputIndicator")</th>
+                                <th class="unitMeasure">@Localization.GetText("TCM.Outputs.UnitOfMeasure")</th>
+                                <th class="outputPPaA"></th>
+                                <th ng-repeat="Year in PhysicalProgress.ExistingPlannedYears" ng-init="yearIndex = $index" class="tcmHeaderYear" data-show-delete-year-icon>
+                                    <div class="floatLeft" style="width: calc(100% - 20px)" ng-if="$index == 0 && !Year.IsValidated">
+                                        <div class="dropdown " style="width: 100%;">
+                                            <button class="btn btn-default dropdown-toggle " type="button" id="id-header_YearPlans" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" ng-click="ChangePlannedYear(item, yearIndex,$event)?cargaDropDown(this):''" onkeydown="dropdownNavigation(this, event)" dd-find="" style="width: 100%;">
+
+                                                <span class="valueText  ddr-outcome-{{yearIndex}}" ng-bind="Year.Year" ng-attr-class="valueText  {{'ddr-outcome-'+yearIndex}}">2016</span>
+                                                <span class="caret"></span>
+                                            </button>
+
+                                            <input ng-model="Year.Year" type="hidden" name="header_YearPlans" ng-required="true" class="ng-pristine ng-untouched ng-valid ng-valid-required" required="required">
+                                            <ul class="dropdown-menu " aria-labelledby="id-header_YearPlans">
+                                                <li ng-repeat="item in PhysicalProgress.ApprovalYears" class="ng-scope">
+                                                    <a dd-value="item" ng-click="ChangePlannedYear(item, yearIndex,$event)" class="ng-binding">
+                                                        {{item}}
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div ng-show="(showValidationMessages || header_YearPlans.$dirty) &amp;&amp; header_YearPlans.$invalid" class="ng-hide">
+                                            <ul class="parsley-errors-list filled">
+                                                <li>
+                                                    <span ng-show="header_YearPlans.$error.required" class="ng-hide">
+                                                        @Localization.GetText("TCM.Outputs.RequiredMessage")
+                                                    </span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="floatLeft" style="width: calc(100% - 20px); height: 2.8em; padding-top: 11px;" ng-if="$index > 0 || ($index == 0 && Year.IsValidated)">{{Year.Year}}</div>
+                                    <span ng-if="$index == (PhysicalProgress.ExistingPlannedYears.length -1)" title="@Localization.GetText("TCM.Outputs.DeleteYear")" ng-click="DeletePlannedYear(Year)" class="spanYear" style="display: none">x</span>
+                                </th>
+                                <th class="outputPPaA" ng-click="AddYearPlan()" style="cursor: pointer">
+                                    <span>+</span>
+                                </th>
+                                <th class="tcmHeaderYear">@Localization.GetText("TCM.Outputs.Eop") <span ng-bind="PhysicalProgress.EndOfProjectYear"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody ng-repeat="Output in Component.Outputs"
+                               ng-init="indicatorIndex=$index; Output.ActivateAlternativeFieldEN = true;"
+                               repeat-end="onEnd()"
+                               id="components">
+                            <tr data-id data-row-type="output-row" data-row-eop-autocal="{{::Output.IsAutoCalcPhysycalEop}}" onmouseover="showActionBar(this)" onmouseout="hideActionBar(this)" ng-class="{'custom-odd':$odd}" class="{{Output.IsDeactivated ? 'hidden':''}} {{Output.OutputId == 0 ? 'newOutput' : ''}}">
+                                <td class="treeNumber">
+                                    <span class="" data-predefined-indicator-icon data-indicator-data="OutcomeIndicator">
+                                        <span>
+                                            {{Component.OrderNumber}}.{{Output.OrderNumber}}
+                                        </span>
+                                    </span>
+                                </td>
+                                <td class="tree">
+                                    <span></span><div class="number">{{Component.OrderNumber}}.{{Output.OrderNumber}}</div>
+                                </td>
+                                <td ng-form="Output_Alternative_Definition">
+                                    <span class='predefined-indicator-icon crf-indicator-edit-mode' data-crf-indicator-id="{{::crfIndicator}}" ng-repeat="crfIndicator in Output.CRFIndicatorsLinked">&#9873;</span>
+                                    <span class='predefined-indicator-icon standar-output-edit-mode' ng-show="Output.LinkedToStandardOutput">&#9873;</span>
+                                    @ControlTemplatesTCM.AngularInputTextArea(
+                                        model: "Output.Definition",
+                                        name: "Output_Definition",
+                                        maxLength: 300,
+                                        dataAttributes: new Dictionary<string, string>
+                                        {
+                                            { "ng-show", "Output.ActivateAlternativeFieldEN" },
+                                            { "ng-required", "PhysicalProgress.CanEditAlternativeFields && (!Output.AlternativeDefinition || Output.AlternativeDefinition == '')" },
+                                            { "ng-disabled", "{{ Output.LinkedToStandardOutput }}" },
+                                            { "register-matrix-changes", null },
+                                            { "old-value", "{{::Output.Definition }}" }
+                                        },
+                                        htmlClass: "{{Output.OutputId > 0 ? 'existing' : ''}} pl30 {{Output.LinkedToStandardOutput ? 'custom-black' : ''}}",
+                                        height: "100px",
+                                        width: "100%",
+                                        required: false)
+
+                                    @ControlTemplatesTCM.AngularInputTextArea(
+                                        model: "Output.AlternativeDefinition",
+                                        name: "Output_Alternative_Definition",
+                                        maxLength: 300,
+                                        dataAttributes: new Dictionary<string, string>
+                                        {
+                                            { "ng-show", "PhysicalProgress.CanEditAlternativeFields && Output.ActivateAlternativeFieldES" },
+                                            { "ng-required", "PhysicalProgress.CanEditAlternativeFields && (!Output.Definition || Output.Definition == '')" },
+                                            { "ng-disabled", "{{Output.LinkedToStandardOutput}}" },
+                                            { "register-matrix-changes", null },
+                                            { "old-value", "{{::Output.AlternativeDefinition}}" }
+                                        },
+                                        htmlClass: "{{ Output.OutputId > 0 ? 'existing' : '' }} pl30 {{ Output.LinkedToStandardOutput ? 'custom-black' : '' }}",
+                                        height: "100px",
+                                        width: "100%",
+                                        required: false)
+
+                                    <div class="ng-hide" ng-show="(showValidationMessages ||
+                                         Output_Alternative_Definition.$dirty)
+                                         &amp;&amp; Output_Alternative_Definition.$invalid">
+                                        <ul class="parsley-errors-list filled">
+                                            <li>
+                                                <span ng-show="Output_Alternative_Definition.$error.required" class="ng-hide">
+                                                    @Localization.GetText("TCM.ValueRequired")
+                                                </span>
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="crf-container pt10 pb20 pl20" ng-show="CRFToggle && Output.PredefinedIndicators.length">
+                                        <span class="bold">@Localization.GetText("CRF:")</span>
+                                        <p ng-repeat="indicator in Output.PredefinedIndicators">
+                                            <span ng-class="indicator.IsStandardIndicator ?
+                                                    'predefined-indicator-icon standar-output-edit-mode' :
+                                                    'predefined-indicator-icon crf-indicator-edit-mode'"
+                                                  data-crf-indicator-id="{{::crfIndicator}}">&#9873;
+                                            </span>
+                                            {{ indicator.IndicatorName }}
+                                        </p>
+                                    </div>
+
+                                    <div class="action-bar mt0" id="action-bar-indicator-{{indicatorIndex}}" style="display: none; width: 92.6% !important">
+                                        @ControlTemplatesTCM.AngularMoveUpButton(null, Localization.GetText("TCM.EditIndicator.MoveUpTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveOutputUp(Component, Output)" } })
+                                        @ControlTemplatesTCM.AngularMoveDownButton(null, Localization.GetText("TCM.EditIndicator.MoveDownTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveOutputDown(Component, Output)" } })
+                                        @ControlTemplatesTCM.AngularBackButton(null, Localization.GetText("TCM.EditIndicator.ReassignTooltip"), new Dictionary<string, string>() { { "ng-click", "RessignOutputIndicator(Component, Output)" } })
+                                        @ControlTemplatesTCM.AngularDisaggregationButton(null, Localization.GetText("TCM.EditIndicator.AddDisaggregationTooltip"), new Dictionary<string, string>() { { "ng-click", "AddDisaggregation(Component, Output)" }, { "ng-show", "PhysicalProgress.IsDisaggregationsEnabled" } })
+                                        @ControlTemplatesTCM.AngularDisaggregationButton(null, Localization.GetText("TCM.Outputs.AddMilestone"), new Dictionary<string, string>() { { "ng-click", "AddMilestone(Component, Output)" }, { "ng-show", "PhysicalProgress.IsMilestonesEnabled" } })
+                                        @ControlTemplatesTCM.AngularTrashButton(null, Localization.GetText("TCM.Outputs.DeleteOutput"), new Dictionary<string, string>() { { "ng-click", "DeleteOutput(Component, Output)" } })
+                                        @ControlTemplatesTCM.FlagButton(null, title: Localization.GetText("TCM.EditIndicator.LinkToPredefinedIndicatorTooltip"), name: "btn_link", dataAttributes: new Dictionary<string, string>() { { "tcm-element", "{{Output.LinkedToStandardOutput ? 'STANDARD_OUTPUT':'MANUAL_OUTPUT'}}" }, { "tcm-element-id", "{{::Output.OutputId}}" } })
+                                        @ControlTemplatesTCM.UnflagButton(null, title: Localization.GetText("Unlink Predefined Indicator"), name: "btn_unlink", dataAttributes: new Dictionary<string, string>() { { "output-id", "{{::Output.OutputId}}" }, { "ng-show", "Output.CRFIndicatorsLinked.length > 0" } })
+
+                                        <button class="buttonTrash btn-alternative hovered"
+                                                ng-if="PhysicalProgress.CanEditAlternativeFields && !Output.LinkedToStandardOutput"
+                                                ng-click="AlternativeButtonsHandler(Output, $event)"
+                                                title="@Localization.GetText("IM.EditReadIndicator.IndicatorProfile.IndicatorName")">
+                                            <span>@Language.EN.ToUpper()</span>
+                                            <span></span>
+                                            <span class="asteriskColor"
+                                                  ng-if="(!Output.Definition || Output.Definition == '') &&
+                                                  (!Output.AlternativeDefinition || Output.AlternativeDefinition == '')">*
+                                            </span>
+                                        </button>
+
+                                        <button class="buttonTrash btn-alternative"
+                                                ng-if="PhysicalProgress.CanEditAlternativeFields && !Output.LinkedToStandardOutput"
+                                                ng-click="AlternativeButtonsHandler(Output, $event)"
+                                                title="@Localization.GetText("IM.EditReadIndicator.IndicatorProfile.IndicatorNameEs")">
+                                            <span>@Language.ES.ToUpper()</span>
+                                            <span></span>
+                                            <span class="asteriskColor"
+                                                  ng-if="(!Output.Definition || Output.Definition == '') &&
+                                                  (!Output.AlternativeDefinition || Output.AlternativeDefinition == '')">*
+                                            </span>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td ng-form="Output_AlternativeUnitOfMeasure">
+                                    @ControlTemplatesTCM.AngularInputText(
+                                        model: "Output.UnitOfMeasure",
+                                        name: "Output_UnitOfMeasure",
+                                        htmlClass: "unit-of-measure {{Output.OutputId > 0 ? 'existing' : ''}} text-center fontSizes {{Output.LinkedToStandardOutput || Output.LinkedToCRFContributionIndicator ? 'custom-black' : ''}}",
+                                        dataAttributes: new Dictionary<string, string>()
+                                        {
+                                            { "ng-show", "Output.ActivateAlternativeFieldEN" },
+                                            { "ng-required", "PhysicalProgress.CanEditAlternativeFields && (!Output.AlternativeUnitOfMeasure || Output.AlternativeUnitOfMeasure == '')" },
+                                            { "ng-disabled", "(Output.LinkedToStandardOutput || Output.LinkedToCRFContributionIndicator)"},
+                                            { "register-matrix-changes", null},
+                                            { "old-value", "{{::Output.UnitOfMeasure}}"}
+                                        },
+                                        width: "100%",
+                                        required: false)
+
+                                    @ControlTemplatesTCM.AngularInputText(
+                                        model: "Output.AlternativeUnitOfMeasure",
+                                        name: "Output_AlternativeUnitOfMeasure",
+                                        htmlClass: "unit-of-measure {{Output.OutputId > 0 ? 'existing' : ''}} text-center fontSizes {{Output.LinkedToStandardOutput || Output.LinkedToCRFContributionIndicator ? 'custom-black' : ''}}",
+                                        dataAttributes: new Dictionary<string, string>()
+                                        {
+                                            { "ng-show", "PhysicalProgress.CanEditAlternativeFields && Output.ActivateAlternativeFieldES" },
+                                            { "ng-required", "PhysicalProgress.CanEditAlternativeFields && (!Output.UnitOfMeasure || Output.UnitOfMeasure == '')" },
+                                            { "ng-disabled", "(Output.LinkedToStandardOutput || Output.LinkedToCRFContributionIndicator)"},
+                                            { "register-matrix-changes", null},
+                                            { "old-value", "{{::Output.AlternativeUnitOfMeasure}}"}
+                                        },
+                                        width: "100%",
+                                        required: false)
+
+                                    <div class="ng-hide" ng-show="(showValidationMessages ||
+                                         Output_AlternativeUnitOfMeasure.$dirty)
+                                         &amp;&amp; Output_AlternativeUnitOfMeasure.$invalid">
+                                        <ul class="parsley-errors-list filled">
+                                            <li>
+                                                <span ng-show="Output_AlternativeUnitOfMeasure.$error.required" class="ng-hide">
+                                                    @Localization.GetText("TCM.ValueRequired")
+                                                </span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </td>
+                                <td>
+                                    <table class="non-border-table wp100">
+                                        <tr class="text-center">
+                                            <td class="original-value-row">@Localization.GetText("TCM.Outputs.P")</td>
+                                        </tr>
+                                        <tr class="text-center">
+                                            <td class="annual-value-row">@Localization.GetText("TCM.Outputs.Pa")</td>
+                                        </tr>
+                                        <tr class="text-center">
+                                            <td class="actual-value-row">@Localization.GetText("TCM.Outputs.A")</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td ng-repeat="YearPlan in Output.OutputYearPlans">
+                                    <table class="non-border-table wp100" data-year="{{::YearPlan.Year}}" data-is-autocalc="{{::Output.IsAutoCalcPhysycalEop}}">
+                                        <tr class="text-right">
+                                            <td ng-form="YearPlan_OriginalPlan" class="original-value-row">
+                                                @ControlTemplatesTCM.AngularInputDecimal(model: "YearPlan.OriginalPlan",
+                                                    name: "YearPlan_OriginalPlan",
+                                                    dataAttributes: new Dictionary<string, string>()
+                                                    {{"custom-remove-comma", null},
+                                                        {"custom-outputs-autocalculate-eop", null},
+                                                        {"custom-outputs-decimal-format", null},
+                                                        {"ng-disabled", "YearPlan.IsOriginalPlanDisabled"},
+                                                        {"register-matrix-changes", null},
+                                                        {"old-value", "{{::YearPlan.OriginalPlan}}"},
+                                                    },
+                                                    htmlClass: "inputText input-text-grid {{YearPlan.OutputYearPlanId > 0 ? 'existing' : ''}} {{YearPlan.IsOriginalPlanDisabled ? 'custom-black':''}}")
+                                            </td>
+                                        </tr>
+                                        <tr class="text-right">
+                                            <td ng-form="YearPlan_AnnualPlan" class="annual-value-row">
+                                                @ControlTemplatesTCM.AngularInputDecimal(model: "YearPlan.AnnualPlan",
+                                                    name: "YearPlan_AnnualPlan",
+                                                    dataAttributes: new Dictionary<string, string>()
+                                                    {
+                                                    {"custom-remove-comma", null},
+                                                        {"custom-outputs-autocalculate-eop", null},
+                                                        {"custom-outputs-decimal-format", null},
+                                                        {"ng-disabled", "YearPlan.IsAnnualPlanDisabled"},
+                                                        {"register-matrix-changes", null},
+                                                        {"old-value", "{{::YearPlan.AnnualPlan}}"},
+                                                    },
+                                                    htmlClass: "inputText input-text-grid {{YearPlan.OutputYearPlanId > 0 ? 'existing' : ''}} {{YearPlan.IsAnnualPlanDisabled ? 'custom-black':''}}")
+                                            </td>
+                                        </tr>
+                                        <tr class="text-right">
+                                            <td ng-form="YearPlan_ActualValue" class="actual-value-row">
+                                                @ControlTemplatesTCM.AngularInputDecimal(model: "YearPlan.ActualValue",
+                                                    name: "YearPlan_ActualValue",
+                                                    dataAttributes: new Dictionary<string, string>()
+                                                    {
+                                                        {"custom-remove-comma", null},
+                                                        {"custom-outputs-autocalculate-eop", null},
+                                                        {"custom-outputs-decimal-format", null},
+                                                        {"ng-disabled", "YearPlan.IsActualValueDisabled"}
+                                                    },
+                                                    htmlClass: "inputText input-text-grid {{YearPlan.IsActualValueDisabled ? 'custom-black':''}}")
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td>
+                                    <table class="non-border-table wp100">
+                                        <tr>
+                                            <td class="original-value-row"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="annual-value-row"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="actual-value-row"></td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td>
+                                    <table class="non-border-table wp100">
+                                        <tr class="text-right">
+                                            <td ng-form="Output_EndOfProject_OriginalPlan" class="original-value-row">
+                                                @ControlTemplatesTCM.AngularInputDecimal(model: "Output.EndOfProject.OriginalPlan",
+                                                    name: "Output_EndOfProject_OriginalPlan",
+                                                    dataAttributes: new Dictionary<string, string>()
+                                                    {
+                                                        {"custom-remove-comma", null},
+                                                        {"custom-outputs-decimal-format", null},
+                                                        {"ng-disabled", "Output.EndOfProject.IsOriginalPlanDisabled || Output.IsAutoCalcPhysycalEop"},
+                                                        {"register-matrix-changes", null},
+                                                        {"old-value", "{{::Output.EndOfProject.OriginalPlan}}"}
+
+                                                    },
+                                                    htmlClass: "inputText input-text-grid {{Output.EndOfProject.OutputYearPlanId > 0 ? 'existing' : ''}} {{Output.IsAutoCalcPhysycalEop ? 'custom-black':''}}")
+                                            </td>
+                                        </tr>
+                                        <tr class="text-right">
+                                            <td ng-form="Output_EndOfProject_AnnualPlan" class="annual-value-row">
+                                                @ControlTemplatesTCM.AngularInputDecimal(model: "Output.EndOfProject.AnnualPlan",
+                                                    name: "Output_EndOfProject_AnnualPlan",
+                                                    dataAttributes: new Dictionary<string, string>()
+                                                    {
+                                                        {"custom-remove-comma", null},
+                                                        {"custom-outputs-decimal-format", null},
+                                                        {"ng-disabled", "Output.EndOfProject.IsAnnualPlanDisabled || Output.IsAutoCalcPhysycalEop"},
+                                                        {"register-matrix-changes", null},
+                                                        {"old-value", "{{::Output.EndOfProject.AnnualPlan}}"},
+                                                        {"autocalc-physicaleop", "{{::Output.IsAutoCalcPhysycalEop}}"}
+
+                                                    },
+                                                    htmlClass: "inputText input-text-grid {{Output.EndOfProject.OutputYearPlanId > 0 ? 'existing' : ''}} {{Output.IsAutoCalcPhysycalEop ? 'custom-black':''}}")
+                                            </td>
+                                        </tr>
+                                        <tr class="text-right">
+                                            <td ng-form="Output_EndOfProject_ActualValue" class="actual-value-row">
+                                                @ControlTemplatesTCM.AngularInputDecimal(model: "Output.EndOfProject.ActualValue",
+                                                    name: "Output_EndOfProject_ActualValue",
+                                                    dataAttributes: new Dictionary<string, string>()
+                                                    {
+                                                        {"custom-remove-comma", null},
+                                                        {"custom-outputs-decimal-format", null},
+                                                        {"ng-disabled", "Output.EndOfProject.IsActualValueDisabled  || Output.IsAutoCalcPhysycalEop"}
+
+                                                    },
+                                                    htmlClass: "inputText input-text-grid {{Output.IsAutoCalcPhysycalEop ? 'custom-black':''}}")
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                </td>
+                            </tr>
+
+                            <tr ng-show="Output.OutputDisaggregations.length > 0" class="{{Output.IsVisible && PhysicalProgress.IsDisaggregationsEnabled ? '':'custom-hidden' }}">
+                                <td class="treeNumber"></td>
+                                <td class="tree noNumber"><span></span><div class="number"></div></td>
+                                <td colspan="{{7+PhysicalProgress.ExistingPlannedYears.length}}" class="subnivel">
+                                    <div>
+                                        <table class="tableNormal lineNonStop">
+                                            <thead>
+                                                <tr>
+                                                    <th class="tree icon noCreateNumber">@Confluence.ButtonExpandTable()</th>
+                                                    <th class="wDisaggregation">@Localization.GetText("TCM.Outputs.Disaggregation")</th>
+                                                    <th class="outputPPaA"></th>
+                                                    <th class="tcmHeaderYear" ng-repeat="Year in PhysicalProgress.ExistingPlannedYears" ng-init="yearIndex = $index"><span class="ddr-outcome-{{yearIndex}}">{{Year.Year}}</span></th>
+                                                    <th class=" outputPPaA"></th>
+                                                    <th class="tcmHeaderYear">@Localization.GetText("TCM.Outputs.Eop") <span ng-bind="PhysicalProgress.EndOfProjectYear"></span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody ng-repeat="outputDisaggregation in Output.OutputDisaggregations">
+                                                <tr data-id onmouseover="showActionBar(this)" onmouseout="hideActionBar(this)" ng-class="{'custom-odd':$odd}">
+                                                    <td class="tree noCreateNumber"><span></span></td>
+                                                    <td ng-form="outputDisaggregation_DisaggregationName">
+                                                        @ControlTemplatesTCM.AngularInputTextArea(model: "outputDisaggregation.DisaggregationName", name: "outputDisaggregation_DisaggregationName", maxLength: 300, height: "100px", width: "100%")
+                                                        <div class="action-bar bar-outcomes mt0" style="display: none">
+                                                            @ControlTemplatesTCM.AngularMoveUpButton(null, Localization.GetText("TCM.EditIndicator.MoveUpTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveOutputDisaggregationUp(Component, Output, outputDisaggregation)" } })
+                                                            @ControlTemplatesTCM.AngularMoveDownButton(null, Localization.GetText("TCM.EditIndicator.MoveDownTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveOutputDisaggregationDown(Component, Output, outputDisaggregation)" } })
+                                                            @ControlTemplatesTCM.AngularTrashButton(null, Localization.GetText("TCM.Outputs.RemoveOutputDisaggregation"), new Dictionary<string, string>() { { "ng-click", "DeleteDisaggregation(Component, Output, outputDisaggregation)" } })
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <table class="non-border-table wp100">
+                                                            <tr>
+                                                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                    <td ng-repeat="disaggregationYearPlan in outputDisaggregation.OutputDisaggregationYearPlans">
+                                                        <table class="non-border-table wp100">
+                                                            <tr class="text-right">
+                                                                <td ng-form="disaggregationYearPlan_OriginalPlan" class="original-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "disaggregationYearPlan.OriginalPlan",
+                                                                        name: "disaggregationYearPlan_OriginalPlan",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "disaggregationYearPlan.IsOriginalPlanDisabled"}
+
+                                                                        }, htmlClass: "inputText input-text-grid")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="disaggregationYearPlan_AnnualPlan" class="annual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "disaggregationYearPlan.AnnualPlan",
+                                                                        name: "disaggregationYearPlan_AnnualPlan",
+                                                                        dataAttributes: new Dictionary<string, string>
+                                                                            ()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "disaggregationYearPlan.IsAnnualPlanDisabled"}
+                                                                        }, htmlClass: "inputText input-text-grid")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="disaggregationYearPlan_ActualValue" class="actual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "disaggregationYearPlan.ActualValue"
+                                                                        , name: "disaggregationYearPlan_ActualValue",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            //{ "ng-blur", "DecimalInputForPhysicalCompnent($event);" },
+                                                                            //{ "ng-disabled", "disaggregationYearPlan.IsActualValueDisabled" }
+
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "disaggregationYearPlan.IsActualValueDisabled"}
+                                                                        }, htmlClass: "inputText input-text-grid")
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                    <td>
+                                                        <table class="non-border-table wp100">
+                                                            <tr>
+                                                                <td class="original-value-row"></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="annual-value-row"></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="actual-value-row"></td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                    <td>
+                                                        <table class="non-border-table wp100">
+                                                            <tr class="text-right">
+                                                                <td form="outcomeDisaggregation_EndOfProject_OriginalPlan" class="original-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "outputDisaggregation.EndOfProject.OriginalPlan",
+                                                                        name: "outputDisaggregation_EndOfProject_OriginalPlan",
+                                                                        dataAttributes: new Dictionary<string, string>
+                                                                            ()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "outputDisaggregation.EndOfProject.IsOriginalPlanDisabled"}
+                                                                        }, htmlClass: "inputText input-text-grid")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="outcomeDisaggregation_EndOfProject_AnnualPlan" class="annual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "outputDisaggregation.EndOfProject.AnnualPlan",
+                                                                        name: "outputDisaggregation_EndOfProject_AnnualPlan",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "outputDisaggregation.EndOfProject.IsAnnualPlanDisabled"}
+                                                                        }, htmlClass: "inputText input-text-grid")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="outcomeDisaggregation_EndOfProject_ActualValue" class="actual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "outputDisaggregation.EndOfProject.ActualValue",
+                                                                        name: "outputDisaggregation_EndOfProject_ActualValue",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "outputDisaggregation.EndOfProject.IsActualValueDisabled"}
+                                                                        }, htmlClass: "inputText input-text-grid")
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr ng-show="Output.Milestones.length > 0" class="{{(Output.IsVisible && PhysicalProgress.IsMilestonesEnabled) ? '':'custom-hidden' }}">
+                                <td class="treeNumber"></td>
+                                <td class="tree noNumber"><span></span><div class="number"></div></td>
+                                <td colspan="{{5+PhysicalProgress.ExistingPlannedYears.length}}" class="subnivel">
+                                    <div>
+                                        <table class="tableNormal lineNonStop">
+                                            <thead>
+                                                <tr>
+                                                    <th class="tree icon noCreateNumber">@Confluence.ButtonExpandTable()</th>
+                                                    <th class="wMilestone">@Localization.GetText("TCM.Outputs.Milestone")</th>
+                                                    <th class="unitMeasure">@Localization.GetText("TCM.Outputs.UnitOfMeasure")</th>
+                                                    <th class="outputPPaA"></th>
+                                                    <th class="tcmHeaderYear" ng-repeat="Year in PhysicalProgress.ExistingPlannedYears" ng-init="yearIndex = $index"><span class="ddr-outcome-{{yearIndex}}">{{Year.Year}}</span></th>
+                                                    <th class="outputPPaA"></th>
+                                                    <th class="tcmHeaderYear">@Localization.GetText("TCM.Outputs.Eop") <span ng-bind="PhysicalProgress.EndOfProjectYear"></span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody ng-repeat="Milestone in Output.Milestones">
+                                                <tr data-id data-row-type="milestone-row" data-row-eop-autocal="{{::Milestone.IsAutoCalcPhysycalEop}}" onmouseover="showActionBar(this)" onmouseout="hideActionBar(this)" ng-class="{'custom-odd':$odd}">
+                                                    <td class="tree noCreateNumber"><span></span></td>
+                                                    <td ng-form="Milestone_Definition">
+                                                        @ControlTemplatesTCM.AngularInputTextArea(model: "Milestone.Definition",
+                                                            name: "Milestone_Definition",
+                                                            maxLength: 300,
+                                                            htmlClass: "{{Milestone.MilestoneId > 0 ? 'existing' : ''}} pl30",
+                                                            dataAttributes: new Dictionary<string, string>
+                                                            {
+                                                                {"register-matrix-changes", null},
+                                                                {"old-value", "{{::Milestone.Definition}}"}
+                                                            },
+                                                            height: "100px",
+                                                            width: "100%")
+                                                        <div class="action-bar bar-outcomes mt0" style="display: none">
+                                                            @ControlTemplatesTCM.AngularMoveUpButton(null, Localization.GetText("TCM.EditIndicator.MoveUpTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveMilestoneUp(Component, Output, Milestone)" } })
+                                                            @ControlTemplatesTCM.AngularMoveDownButton(null, Localization.GetText("TCM.EditIndicator.MoveDownTooltip"), new Dictionary<string, string>() { { "ng-click", "MoveMilestoneDown(Component, Output, Milestone)" } })
+                                                            @ControlTemplatesTCM.AngularTrashButton(null, Localization.GetText("TCM.Outputs.RemoveMilestone"), new Dictionary<string, string>() { { "ng-click", "DeleteMilestone(Component, Output, Milestone)" } })
+                                                        </div>
+                                                    </td>
+                                                    <td ng-form="Milestone_UnitOfMeasure">
+                                                        @ControlTemplatesTCM.AngularInputText(model: "Milestone.UnitOfMeasure",
+                                                            name: "Milestone_UnitOfMeasure",
+                                                            maxLength: 40,
+                                                            htmlClass: "unit-of-measure {{Milestone.MilestoneId > 0 ? 'existing' : ''}} text-center",
+                                                            dataAttributes: new Dictionary<string, string>()
+                                                            {
+                                                                {"register-matrix-changes", null},
+                                                                {"old-value", "{{::Milestone.UnitOfMeasure}}"}
+                                                            },
+                                                            width: "100%")
+                                                    </td>
+                                                    <td>
+                                                        <table class="non-border-table wp100">
+                                                            <tr>
+                                                                <td class="original-value-row text-center">@Localization.GetText("TCM.Outputs.P")</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="annual-value-row text-center">@Localization.GetText("TCM.Outputs.Pa")</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="actual-value-row text-center">@Localization.GetText("TCM.Outputs.A")</td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                    <td ng-repeat="milestoneYearPlan in Milestone.MilestoneYearPlans">
+                                                        <table class="non-border-table wp100" data-year="{{::milestoneYearPlan.Year}}" data-is-autocalc="{{::Milestone.IsAutoCalcPhysycalEop}}">
+                                                            <tr class="text-right">
+                                                                <td ng-form="milestoneYearPlan_OriginalPlan" class="original-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "milestoneYearPlan.OriginalPlan",
+                                                                        name: "milestoneYearPlan_OriginalPlan",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-autocalculate-eop", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "milestoneYearPlan.IsOriginalPlanDisabled"}
+                                                                        },
+                                                                        htmlClass: "inputText input-text-grid {{milestoneYearPlan.IsOriginalPlanDisabled ? 'custom-black':''}}")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="milestoneYearPlan_AnnualPlan" class="annual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "milestoneYearPlan.AnnualPlan",
+                                                                        name: "milestoneYearPlan_AnnualPlan",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-autocalculate-eop", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "milestoneYearPlan.IsAnnualPlanDisabled"}
+                                                                        },
+                                                                        htmlClass: "inputText input-text-grid {{milestoneYearPlan.IsAnnualPlanDisabled ? 'custom-black':''}}")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="milestoneYearPlan_ActualValue" class="actual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "milestoneYearPlan.ActualValue",
+                                                                        name: "milestoneYearPlan_ActualValue",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-autocalculate-eop", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "milestoneYearPlan.IsActualValueDisabled"},
+                                                                        },
+                                                                        htmlClass: "inputText input-text-grid {{milestoneYearPlan.IsActualValueDisabled ? 'custom-black':''}}")
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                    <td>
+                                                        <table class="non-border-table wp100">
+                                                            <tr>
+                                                                <td class="original-value-row"></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="annual-value-row"></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="actual-value-row"></td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                    <td>
+                                                        <table class="non-border-table wp100">
+                                                            <tr class="text-right">
+                                                                <td form="Milestone_EndOfProject_OriginalPlan" class="original-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "Milestone.EndOfProject.OriginalPlan",
+                                                                        name: "Milestone_EndOfProject_OriginalPlan",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "Milestone.EndOfProject.IsOriginalPlanDisabled  || Milestone.IsAutoCalcPhysycalEop"}
+
+                                                                        },
+                                                                        htmlClass: "inputText input-text-grid {{Milestone.IsAutoCalcPhysycalEop ? 'custom-black':''}}")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="Milestone_EndOfProject_AnnualPlan" class="annual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "Milestone.EndOfProject.AnnualPlan",
+                                                                        name: "Milestone_EndOfProject_AnnualPlan",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "Milestone.EndOfProject.IsAnnualPlanDisabled || Milestone.IsAutoCalcPhysycalEop"}
+
+                                                                        },
+                                                                        htmlClass: "inputText input-text-grid {{Milestone.IsAutoCalcPhysycalEop ? 'custom-black':''}}")
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="text-right">
+                                                                <td ng-form="Milestone_EndOfProject_ActualValue" class="actual-value-row">
+                                                                    @ControlTemplatesTCM.AngularInputDecimal(model: "Milestone.EndOfProject.ActualValue",
+                                                                        name: "Milestone_EndOfProject_ActualValue",
+                                                                        dataAttributes: new Dictionary<string, string>()
+                                                                        {
+                                                                            {"custom-remove-comma", null},
+                                                                            {"custom-outputs-decimal-format", null},
+                                                                            {"ng-disabled", "Milestone.EndOfProject.IsActualValueDisabled || Milestone.IsAutoCalcPhysycalEop"}
+
+                                                                        },
+                                                                        htmlClass: "inputText input-text-grid {{Milestone.IsAutoCalcPhysycalEop ? 'custom-black':''}}")
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="mt20 text-center">
+                        @ControlTemplatesTCM.AngularButtonAddNewRows(Localization.GetText("TCM.Outputs.NewOutputIndicator"), "AddOutput(Component)")
+                    </div>
+                    <br /><br /><br />
+                </span>
+            </div>
+</form>
+    </span>
+</div>

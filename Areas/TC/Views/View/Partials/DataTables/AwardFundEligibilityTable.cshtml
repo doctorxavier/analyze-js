@@ -1,0 +1,121 @@
+﻿@using System.Configuration
+@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.MW.Infrastructure.Configuration
+
+@model List<IDB.MW.Application.TCAbstractModule.ViewModels.AwardFundEligibility.AwardFundEligibilityRowViewModel>
+
+<div class="row-body-50">
+    @{
+        var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+        var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+        
+        var rowRequested = Model.FirstOrDefault(x => x.Type == AwardFundEligibilityRowTypeEnum.Requested);
+        var totalRequested = 0M;
+        if (rowRequested != null)
+        {
+            totalRequested = rowRequested.AmountRequested;
+        }
+        var rowApproved = Model.FirstOrDefault(x => x.Type == AwardFundEligibilityRowTypeEnum.Approved);
+        var totalApproved = 0M;
+        if (rowApproved != null)
+        {
+            totalApproved = rowApproved.AmountRequested;
+        }
+        
+        var config = Html.RenderDataTable(Model.Where(x => x.Type == AwardFundEligibilityRowTypeEnum.Component).ToList());
+        config.Name("awardFundEligibilityTable")
+            .PrimaryKey(m => m.ComponentId.ToString(CultureInfo.InvariantCulture))
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+                columns.Bound(c => c.ComponentName).Persistent()
+                    .Attribute("style", x => "width:225px;word-break: break-word;");
+
+                columns.Bound(c => FormatHelper.Format(c.AmountRequested, formatDecimal)).Persistent()
+                    .Attribute("data-name", x => "amount-requested")
+                    .Attribute("style", x => "width:100px");
+
+                columns.Bound(c => FormatHelper.Format(c.SF1Amount, formatDecimal))
+                    .Attribute("data-name", x => "sf1-amount")
+					.Attribute("style", x => "width:230px")
+                    .EditableTemplate(modelRow => ControlTemplates.InputDecimal(modelRow.SF1Amount ?? 0m, "sf1Amount", false, minValue: "0.00", maxValue: "999999999999.99", numberSeparator: ",", decimalSeparator: ".", expReg: expRegDecimal));
+
+                columns.Bound(c => FormatHelper.Format(c.SF1Percent, "P"))
+                    .Attribute("data-name", x => "sf1-percent")
+                    .Persistent();
+                
+                columns.Bound(c => FormatHelper.Format(c.SF2Amount, formatDecimal))
+                    .Attribute("data-name", x => "sf2-amount")
+                    .Attribute( "style" , x => "width:230px" )
+                    .Persistent();
+
+                columns.Bound(c => FormatHelper.Format(c.SF2Percent, "P"))
+                    .Attribute("data-name", x => "sf2-percent")
+                    .Attribute("style", x => "width:100px")
+                    .Persistent();
+
+                columns.Bound(c => FormatHelper.Format(c.Total, formatDecimal)).Persistent()
+                    .Attribute("data-name", x => "funds-total")
+                    .Attribute("style", x => "width:70px");
+            });
+
+            config.TableClass = "table-default";
+
+            config.RowTemplates(x => 
+            {
+                x.Create(RowTemplateType.LastRow, @<tr data-name="rowRequested" class="awardTableFooter">
+                                                        <td><b>@Localization.GetText("TC.AwardFundEligibility.Table.Row.TotalRequested")</b></td>
+                                                        <td data-name="total-requested">
+                                                            @FormatHelper.Format(totalRequested, formatDecimal)
+                                                       
+                                                        @ControlTemplates.InputText(name: "input-total-requested", htmlClass: "hide",
+                                                        value: FormatHelper.Format(totalRequested, formatDecimal), dataAttributes:
+                                                        new Dictionary<string, string> { { "name", "input-total-requested" } })
+                                                       
+                                                        @ControlTemplates.InputText(name: "input-total-approved", htmlClass: "hide",
+                                                        value: FormatHelper.Format(totalApproved, formatDecimal), dataAttributes:
+                                                        new Dictionary<string, string> { { "name", "input-total-approved" } })
+                                                        </td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td></td>
+                                                   </tr>);
+                x.Create(RowTemplateType.LastRow, @<tr data-name="rowApproved" class="awardTableFooter">
+                                                        <td><b>@Localization.GetText("TC.AwardFundEligibility.Table.Row.TotalApproved")</b></td>
+                                                        <td data-name="total-approved">
+                                                            @FormatHelper.Format(totalApproved, formatDecimal)
+                                                        </td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td></td>
+                                                   </tr>);
+            });
+            config.UseCustomHeader = true;
+            config.CustomHeader = (@<thead class="headTextCenter">
+                                    <tr>
+                                        <th rowspan="2">@Localization.GetText("TC.AwardFundEligibility.Table.Col.ComponentName")</th>
+                                        <th rowspan="2">@Localization.GetText("TC.AwardFundEligibility.Table.Col.AmountRequested")</th>
+                                        <th colspan="2">@Localization.GetText("TC.AwardFundEligibility.Table.Col.SF1")</th>
+                                        <th colspan="2">@Localization.GetText("TC.AwardFundEligibility.Table.Col.SF2")</th>
+                                        <th rowspan="2">@Localization.GetText("TC.AwardFundEligibility.Table.Col.Total")</th>
+                                    </tr>
+                                    <tr>
+                                        <th>@Localization.GetText("TC.AwardFundEligibility.Table.Col.Amount")</th>
+                                        <th>@Localization.GetText("TC.AwardFundEligibility.Table.Col.Percentage")</th>
+                                        <th>@Localization.GetText("TC.AwardFundEligibility.Table.Col.Amount")</th>
+                                        <th>@Localization.GetText("TC.AwardFundEligibility.Table.Col.Percentage")</th>
+                                    </tr>
+                                </thead>);
+    }
+
+    @Html.Partial("Controls/DataTable", config)
+</div>

@@ -1,0 +1,416 @@
+﻿@using IDB.Presentation.MVC4.Models.Modal
+@using System.Collections.Generic;
+@using IDB.MW.Application.ActivityProgram.Messages;
+@using IDB.MW.Application.ActivityProgram.ViewModels;
+
+@model IDB.Presentation.MVC4.Areas.ActivityProgram.Models.AAPViewModel
+
+@{
+    Layout = null;
+    var buttonInfo = new List<ModalButtonsViewModel>
+    {
+        new ModalButtonsViewModel {
+            Id = "ModalInformation",
+            Name ="ModalInformation",
+            Text = Localization.GetText("AAP.Button.OK"),
+            Type = "buttonWhite",
+            CloseAtEnd = false
+        }
+    };
+    var buttonsSap = new List<ModalButtonsViewModel>
+    {
+        new ModalButtonsViewModel {
+            Id = "ModalErrorSap",
+            Name ="ModalErrorSap",
+            Text = Localization.GetText("AAP.Button.OK"),
+            Type = "buttonWhite",
+            CloseAtEnd = false
+        }
+    };
+    var buttonsConv = new List<ModalButtonsViewModel>
+    {
+        new ModalButtonsViewModel {
+            Id = "ModalErrorConvergence",
+            Name ="ModalErrorConvergence",
+            Text = Localization.GetText("AAP.Button.OK"),
+            Type = "buttonWhite",
+            CloseAtEnd = false
+        }
+    };
+
+    var InfoSapResponse = new SapInfoResponse
+    {
+        InfoSap = new List<SapInfoViewModel>()
+    };
+}
+
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/overrides/aapOverride.css")" />
+
+<div id="PageContent">
+    <div class="col-md-12">
+        @Html.Partial("~/Areas/ActivityProgram/Views/ReadPartial/ReadActivityProgram.cshtml", Model)
+    </div>
+</div>
+@Confluence.ModalInformation(new HtmlString(""), id: "idModalInformation", buttons: buttonInfo, title: Localization.GetText("Information"), showTitleIcon:true, showDefaultCancelButton:false)
+@Confluence.ModalInformation(new HtmlString(""), id: "idModalErrorSap", buttons: buttonsSap, title: Localization.GetText("Information"), showTitleIcon: true, showDefaultCancelButton: false)
+@Confluence.ModalInformation(new HtmlString(""), id: "idModalErrorConvergence", buttons: buttonsConv, title: Localization.GetText("Information"), showTitleIcon: true, showDefaultCancelButton: false)
+<script type="text/javascript">
+
+    $(document).ready(function () {
+        bindHandlers();
+        Pagination();
+    });
+
+    $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-dropDownYearActivity"] a', function () {
+        ReadActivityProgram();
+    });
+
+    $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-dropDownDisplayed"] a', function () {
+        var displayVal = $("[name='dropDownDisplayed']").val();
+        if (displayVal == 'All') {
+            var activityProgramCount = $("#activityTable tbody tr").length;
+            displayVal = activityProgramCount;
+        }
+        $("#activityTable").paginationConfluence(parseInt(displayVal));
+        $(".Pagination").css("float", "right");
+        $("#activityTable").sortableConfluence();
+    });
+
+    var listDefaultAct = new Array();
+    var listSap = new Array();
+    var modifiedDeletedCreatedAct;
+    var operationNumber = '@Model.OperationNumber';
+
+    function EditActivityProgram() {
+        showLoaderOptional();
+        var yearSelected = $("#id-dropDownYearActivity").GetValue();
+        var displaySelected = $("#id-dropDownDisplayed").GetValue();
+        var paginationSelected = $('.Pagination[dd-table="activityTable"]').find('.Pagination_Active').text();
+        var request = { Year: yearSelected, Display: displaySelected, Pagination: paginationSelected };
+        var url = '@Url.Action("EditActivityProgram", "ActivityProgram", new { area = "ActivityProgram" })';
+        var container = $("#containerAAP");
+        $.ajax({
+            url: url,
+            cache: false,
+            data: { operationNumber: operationNumber, request: request },
+            async: true,
+            type: 'POST'
+        }).done(function (data) {
+            listDefaultAct = [];
+            modifiedDeletedCreatedAct = [];
+            $(container).empty();
+            $(container).html(data);
+            bindHandlers();
+            hideLoaderOptional();
+        });
+    }
+
+    function ReadActivityProgram() {
+        showLoaderOptional();
+        var yearSelected = $("#id-dropDownYearActivity").GetValue();
+        var displaySelected = $("#id-dropDownDisplayed").GetValue();
+        var paginationSelected = $('.Pagination[dd-table="activityTable"]').find('.Pagination_Active').text();
+        var request = { Year: yearSelected, Display: displaySelected, Pagination: paginationSelected };
+        var url = '@Url.Action("ReadActivityProgram", "ActivityProgram", new { area = "ActivityProgram" })';
+        var container = $("#containerAAP");
+        $.ajax({
+            url: url,
+            cache: false,
+            data: { operationNumber: operationNumber, request: request },
+            async: true,
+            type: 'POST'
+        }).done(function (data) {
+            $(container).empty();
+            $(container).html(data);
+            bindHandlers();
+            hideLoaderOptional();
+        });
+    }
+
+    function findById(source, id) {
+        for (var i = 0; i < source.length; i++) {
+            if (source[i].ActitvityId === id) {
+                return source[i];
+            }
+        }
+    }
+
+    function SaveModifiedRows(listRowsModified) {
+        listRowsModified.each(function () {
+            var activityId = $(this).attr('data-id');
+            var result = findById(listDefaultAct, activityId);
+            if (typeof result === "object") {
+                var wbsDescriptionModified = $(this).find("td.ActivityDescription input").val();
+                if (wbsDescriptionModified !== result.WBSDescription) {
+                    modifiedDeletedCreatedAct.push({
+                        annualActivityId: activityId,
+                        wbsNumber: result.WBSCode,
+                        activityDescription: wbsDescriptionModified,
+                        yearActivity: $("#id-dropDownYearActivity").GetValue(),
+                        deleteStatus: 0,
+                        organizationalUnit: result.WBSOrganizationalUnit,
+                        created: result.WBSCreationDate,
+                        createdBy: result.WBSCreatedBy,
+                        modified: new Date(),
+                        modifiedBy: '@Model.DataUser.UserName',
+                        activityNumber: result.WBSActivityNumber
+                    });
+                }
+            }
+        });
+    }
+
+    function SaveNewRows(listRowsCreated) {
+        listRowsCreated.each(function () {
+            modifiedDeletedCreatedAct.push({
+                annualActivityId: $(this).attr('data-id'),
+                wbsNumber: '',
+                activityDescription: $(this).find("td.ActivityDescription input").val(),
+                yearActivity: $("#id-dropDownYearActivity").GetValue(),
+                deleteStatus: 0,
+                organizationalUnit: '@Model.DataUser.UnitOrganizational',
+                created: new Date(),
+                createdBy: '@Model.DataUser.UserName',
+                modified: null,
+                modifiedBy: null
+            });
+        });
+    }
+
+    function PrepairParametersSave() {
+        //modifiedDeletedCreatedAct = [];
+        var listRowsModified = $("[data-new-row='false']").not(".delete-Logic-Row");
+        if (listRowsModified.length > 0) {
+            SaveModifiedRows(listRowsModified);
+        }
+
+        var listRowsCreated = $("[data-new-row='true']");
+        if (listRowsCreated.length > 0) {
+            SaveNewRows(listRowsCreated);
+        }
+    }
+
+    function NewSave() {
+        var containerTable = $("#activityTable");
+        if (Validation.Container(containerTable)) {
+            showLoaderOptional();
+            PrepairParametersSave();
+            if (modifiedDeletedCreatedAct.length == 0) {
+                ReadActivityProgram();
+            } else {
+                var yearSelected = $("#id-dropDownYearActivity").GetValue();
+                var displaySelected = $("#id-dropDownDisplayed").GetValue();
+                var request =
+                    {
+                        year: yearSelected,
+                        display: displaySelected,
+                        modifiedDeleteNewAct: modifiedDeletedCreatedAct
+                    };
+                var url = '@Url.Action("SaveActivityProgramNew", "ActivityProgram", new { area = "ActivityProgram" })';
+                $.ajax({
+                    url: url,
+                    cache: false,
+                    data: { operationNumber: operationNumber, request: request },
+                    async: true,
+                    type: 'POST'
+                }).done(function (data) {
+                    var contentModal;
+                    if (data.ErrorSap) {
+                        contentModal = $("#idModalErrorSap div.modal-body");
+                        contentModal.empty();
+                        contentModal.html(data.ErrorMessage);
+                        hideLoaderOptional();
+                        $("#idModalErrorSap").modal();
+                    } else if (data.ErrorConvergence) {
+                        contentModal = $("#idModalErrorConvergence div.modal-body");
+                        contentModal.empty();
+                        contentModal.html(data.ErrorMessage);
+                        hideLoaderOptional();
+                        $("#idModalErrorConvergence").modal();
+                    } else if (data.ReLoadView) {
+                        ReadActivityProgram();
+                    } else {
+                        if (data.SapInfo != null) {
+                            var url = '@Url.Action("SaveInSapPartial", "ActivityProgram", new { area = "ActivityProgram" })';
+                            $.ajax({
+                                url: url,
+                                cache: false,
+                                data: { request: data.SapInfo },
+                                async: true,
+                                type: 'POST'
+                            }).done(function (data) {
+                                listSap = [];
+                                var contentModal = $("#idModalInformation div.modal-body");
+                                contentModal.empty();
+                                contentModal.html(data);
+                                hideLoaderOptional();
+                                $("#idModalInformation").modal();
+                            }).fail(function (jqXHR, textStatus) {
+                                hideLoaderOptional();
+                            });
+                        }
+                    }
+                }).fail(function (jqXHR, textStatus) {
+                    hideLoaderOptional();
+                });
+            }
+        }
+    }
+
+
+    function Save() {
+        showLoaderOptional();
+        if (listSap.length == 0) {
+            ReadActivityProgram();
+        } else {
+            var yearSelected = $("#id-dropDownYearActivity").GetValue();
+            var displaySelected = $("#id-dropDownDisplayed").GetValue();
+            var paginationSelected = $('.Pagination[dd-table="activityTable"]').find('.Pagination_Active').text();
+            var request =
+                {
+                    year: yearSelected,
+                    display: displaySelected,
+                    pagination: paginationSelected,
+                    listSap: listSap
+                };
+            var url = '@Url.Action("SaveActivityProgram", "ActivityProgram", new { area = "ActivityProgram" })';
+            var container = $("#containerAAP");
+
+            $.ajax({
+                url: url,
+                cache: false,
+                data: { operationNumber: operationNumber, request: request },
+                async: true,
+                type: 'POST'
+            }).done(function (data) {
+                $(container).empty();
+                $(container).html(data);
+                bindHandlers();
+                hideLoaderOptional();
+            }).fail(function (jqXHR, textStatus) {
+                hideLoaderOptional();
+            });
+        }
+    }
+
+    function RemoveRow(source) {
+        var msg = '@Localization.GetText("AAP.AlertContentConv.Message")';
+        var title = '@Localization.GetText("AAP.AlertHeader.Warning")';
+        var button = source;
+        Confirm.ShowWarning(msg, title, '@Localization.GetText("AAP.Button.OK")', '@Localization.GetText("AAP.Button.Cancel")').done(function (answer) {
+            if (answer) {
+                showLoaderOptional();
+                var row = $(button).closest("tr");
+                if (row.hasClass('tableNormalBorder')) {
+                    var rowPrevious = row.prev('tr');
+                    if (rowPrevious.length > 0) {
+                        rowPrevious.addClass('tableNormalBorder');
+                        row.removeClass('tableNormalBorder');
+                    }
+                }
+                var activityId = row.attr('data-id');
+                if (activityId !== "0") {
+                    var result = findById(listDefaultAct, activityId);
+                    modifiedDeletedCreatedAct.push({
+                        annualActivityId: result.ActitvityId,
+                        wbsNumber: result.WBSCode,
+                        activityDescription: result.WBSDescription,
+                        //cost: result.WBSCost,
+                        yearActivity: result.WBSyear,
+                        organizationalUnit: result.WBSOrganizationalUnit,
+                        created: result.WBSCreationDate,
+                        createdBy: result.WBSCreatedBy,
+                        modified: result.WBSLastUpdated,
+                        modifiedBy: result.WBSModifiedBy,
+                        activityNumber: result.WBSActivityNumber,
+                        deleteStatus: 1
+                    });
+                }
+
+                row.remove();
+                hideLoaderOptional();
+            }
+        });
+    }
+
+    function AddNewAnnualActivityProgram() {
+        var dataUser =
+            {
+                userFullName: '@Html.Raw(HttpUtility.JavaScriptStringEncode(Model.DataUser.UserFullName))',
+                unitOrganizational: '@Model.DataUser.UnitOrganizational'
+            };
+        var url = '@Url.Action("AddNewAnnualActivityProgram", "ActivityProgram", new { area = "ActivityProgram" })';
+        $.ajax({
+            url: url,
+            cache: false,
+            data: { dataUser: dataUser },
+            async: false,
+            type: 'POST'
+        }).done(function (data) {
+            var rowBorderTable = $("#activityTable tbody tr.tableNormalBorder");
+            var nextRow = rowBorderTable.next('tr');
+            if (nextRow.hasClass('hide')) {
+                nextRow.before(data);
+                rowBorderTable.removeClass('tableNormalBorder');
+                nextRow.prev().addClass('tableNormalBorder');
+            } else { 
+                if (rowBorderTable.length > 0) {
+                    rowBorderTable.after(data);
+                    rowBorderTable.next().addClass('tableNormalBorder');
+                    rowBorderTable.removeClass('tableNormalBorder');
+                } else {
+                    var table = $("#activityTable");
+                    table.append(data);
+                }
+            }
+            bindHandlers();
+        });
+    }
+
+    function ExportFileAAP(source) {
+        var formatDoc = source.attr('name');
+        var yearSelected = $("#id-dropDownYearActivity").GetValue();
+
+        var urlAnnualActivityProgramFile = '@Url.Action("DownloadAnnualActivityProgramFile", "ActivityProgram", new {area = "ActivityProgram" })' +
+            "?operationNumber=" + operationNumber +
+            "&formatType=" + formatDoc +
+            "&organizationalUnit=" + '@Model.DataUser.UnitOrganizational' +
+            "&year=" + yearSelected;
+
+        window.open(urlAnnualActivityProgramFile, '_blank');
+    }
+
+    $("#ModalInformation").click(function () {
+        $("#idModalInformation").modal('hide');
+        Save();
+    });
+
+    $("#idModalInformation div.modal-header button.close").click(function () {
+        Save();
+    });
+
+    $("#ModalErrorSap").click(function () {
+        $("#idModalErrorSap").modal('hide');
+        ReadActivityProgram();
+    });
+
+    $("#idModalErrorSap div.modal-header button.close").click(function () {
+        ReadActivityProgram();
+    });
+
+    $("#ModalErrorConvergence").click(function () {
+        $("#idModalErrorConvergence").modal('hide');
+    });
+
+    function Pagination() {
+        var displayVal = $("[name='dropDownDisplayed']").val();
+        if (displayVal == 'All') {
+            var activityProgramCount = $("#activityTable tbody tr").length;
+            displayVal = activityProgramCount;
+        }
+        var activityTable = $("#activityTable");
+        activityTable.paginationConfluence(parseInt(displayVal));
+        $(".Pagination").css("float", "right");
+        activityTable.sortableConfluence();
+    }
+</script>

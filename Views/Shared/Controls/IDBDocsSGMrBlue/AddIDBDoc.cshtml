@@ -1,0 +1,279 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Models.DocumentManagement
+@model IDB.Presentation.MVC4.Models.Documents.SearchDocumentModalViewModel
+
+
+<div data-id="@Model.SearchModalId">
+    <ul class="tab03" data-tab=".vex [data-id=@Model.SearchModalId] [data-id-selector=tabContainer]">
+        <li class="active" data-tab-id="add" data-tab-active="true" data-tab-url="@Url.Action("AddIDBDocFormSG", "DocumentModal", new { area = "", businessAreaCode = "BA_ESG" })">
+            @Localization.GetText("Document.Tabs.AddDocto")
+        </li>
+    </ul>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="modalContent" data-id="modalContent">
+                <div data-id-selector="tabContainer">
+                    @Html.Partial("Controls/IDBDocsSG/AddIDBDocForm", Model)
+                </div>
+                <div data-id="modalButtonsContainer" class="footer-search-add-modal">
+                    <div data-id="search-result-count" class="search-result-count">
+                        <input type="hidden" name="count"/>
+                        <span data-id="total" class="total"></span>
+                        <span data-id="selected" class="selected"></span>
+                    </div>
+                    <div class="footer-search-add-moda-buttons">
+                        @Display.ButtonLink(Localization.GetText("Document.Button.Cancel"), attributes: new Dictionary<string, string>() { { "data-id", "cancelButton" } })
+                        @Display.Button01(Localization.GetText("Document.Button.Add"), attributes: new Dictionary<string, string>() { { "data-id", "performButton" } })
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+
+    registerCallback(function () {
+
+        // Set text for buttons when change the tab
+        $(document).off("click", "[data-id=@Model.SearchModalId] [data-tab-id]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [data-tab-id]", function () {
+            var source = $(this);
+            var tabId = source.attr("data-tab-id");
+
+
+            var modalContent = source.parents("[data-id=@Model.SearchModalId]");
+            var button = modalContent.find('[data-id=performButton]');
+
+            var actionButtonText = '';
+
+            if (tabId === "add") {
+                actionButtonText = '@Localization.GetText("Document.Button.Add")';
+            } else if (tabId === "search") {
+                actionButtonText = '@Localization.GetText("Document.Button.Search")';
+            }
+            button.html(actionButtonText);
+        });
+
+        // Action for cancel button
+        $(document).off("click", "[data-id=@Model.SearchModalId] [data-id=cancelButton]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [data-id=cancelButton]", function () {
+            var button = $(this);
+            var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+            var vexModal = modalContainer.parents(".vex");
+            vex.closeByID(vexModal.data().vex.id);
+        });
+
+        // Action when is pressed the button "ok/search/submit..."
+        $(document).off("click", "[data-id=@Model.SearchModalId] [data-id=performButton]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [data-id=performButton]", function () {
+            var button = $(this);
+            var modalContent = button.parents("[data-id=modalContent]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+            var isSearchForm = tabContainer.find("[data-id-selector=search-form]").length != 0;
+            var isSearchFormResults = tabContainer.find("[data-id-selector=search-form-results]").length != 0;
+            var isAddDocForm = tabContainer.find("[data-id-selector=add-form]").length != 0;
+
+           
+
+            if (isSearchForm) {
+                executeSearch(tabContainer, button, '@Localization.GetText("Document.Button.Send")');
+            } else if (isSearchFormResults) {
+                executeSendSelected(tabContainer, button);
+            } else if (isAddDocForm) {
+                var form = tabContainer.find('form');
+                var inputFile = form.find("input[type=file]")[0];
+
+                var input = $(inputFile).closest('.upload-container');
+                input.find('[data-name=file-empty]').addClass('hide');
+                var input = $(inputFile).closest('.upload-container');
+                input.find('[data-name=file-error]').addClass('hide');
+
+                var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+                var vexModal = modalContainer.parents(".vex");
+                if (inputFile.files.length == 0)
+                {
+	                    @*@if (!string.IsNullOrEmpty(Model.TargetFunction))
+                    {
+                        @:window["@Model.TargetFunction"]([], 'added');
+                    }*@
+                    var errorRegion = $(inputFile).siblings("[data-name=file-empty]");
+                    errorRegion.removeClass("hide");
+                    var input = $(inputFile).closest('.upload-container');
+                    input.find('[data-name=file-empty]').removeClass('hide');
+                    //vex.closeByID(vexModal.data().vex.id);
+
+                    setTimeout(
+                        function ()
+                        {
+                            button.removeAttr('disabled');
+                            errorRegion.addClass("hide");
+                        }
+                           , 600)
+                    return false;
+                }
+                var validExtensions = false;
+                var extensions = ['.pdf', '.xls', '.xlsx', '.pst', '.ppt', '.pptx', '.mpp', '.pub', '.vsd', '.vss', '.vst', '.vdx', '.vsx', '.vtx', '.doc', '.docx', '.wpd', '.msg', '.jpg', '.png', '.avi', '.mkv', '.mp4'];
+                var dataForm = new FormData();
+
+                jQuery.each(inputFile.files, function (i, file) {
+                    var index = file.name.lastIndexOf(".");
+                    if (index >= 0) {
+                        var extension = file.name.substr(index).toLowerCase();
+                        if ($.inArray(extension, extensions) >= 0) {
+                            validExtensions = true;
+                        }
+                        dataForm.append('files', file);
+                    }
+                });
+
+                if (validExtensions) {
+                    $.ajax({
+                        url: '@Url.Action("IDBDocUploadDocument", "DocumentModal", new { area = ""})?OperationNumber=@Model.OperationNumber&BusinessAreaCode=@Model.BusinessAreaCode',
+                        data: dataForm,
+                        cache: false,
+                        contentType: false,
+                        async: true,
+                        processData: false,
+                        type: 'POST'
+                    }).done(function (data) {
+
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        } else if (data.IsValid) {
+                            @if (!string.IsNullOrEmpty(Model.TargetFunction))
+                                {
+                                    @:window["@Model.TargetFunction"](data.DocumentNumbers, 'added');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            }
+                            vex.closeByID(vexModal.data().vex.id);
+                        }
+                    });
+                } else {
+                    var errorRegion = $(inputFile).siblings("[data-name=file-error]");
+                    errorRegion.removeClass("hide");
+                    var input = $(inputFile).closest('.upload-container');
+                    input.find('[data-name=file-error]').removeClass('hide');
+                }
+            }
+        });
+
+
+        //JS For Search TAB
+        $(document).off("click", "[data-id=@Model.SearchModalId] [name=chkInputCorrespondence]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [name=chkInputCorrespondence]", function () {
+            var source = $(this);
+            var inputOutput = source.parents('.row:first').next('[data-id-selector=output-input-container]');
+            var input = inputOutput.find('[data-id-selector=input-correspondence-container]');
+            var output = inputOutput.find('[data-id-selector=output-correspondence-container]');
+            input.toggleClass('hide');
+            inputOutput.addClass('hide');
+            if (!input.hasClass('hide') || !output.hasClass('hide')) {
+                inputOutput.removeClass('hide');
+            }
+        });
+
+        $(document).off("click", "[data-id=@Model.SearchModalId] [name=chkOutputCorrespondence]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [name=chkOutputCorrespondence]", function () {
+            var source = $(this);
+            var inputOutput = source.parents('.row:first').next('[data-id-selector=output-input-container]');
+            var input = inputOutput.find('[data-id-selector=input-correspondence-container]');
+            var output = inputOutput.find('[data-id-selector=output-correspondence-container]');
+            output.toggleClass('hide');
+            inputOutput.addClass('hide');
+            if (!input.hasClass('hide') || !output.hasClass('hide')) {
+                inputOutput.removeClass('hide');
+            }
+        });
+
+        $(document).off("click", "[data-id=@Model.SearchModalId] [data-id=clearFilters]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [data-id=clearFilters]", function () {
+            var source = $(this);
+            var modalContent = source.parents("[data-id=modalContent]");
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            var buttonSearchFormText = '@Localization.GetText("Document.Button.Search")';
+            button.html(buttonSearchFormText);
+
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+            tabContainer.load('@Url.Action("SearchIDBDocSearchFormSG", "DocumentModal", new { area = "" })');
+        });
+
+        $(document).off("click", "[data-id=@Model.SearchModalId] [data-id=selectableDocument]");
+        $(document).on("click", "[data-id=@Model.SearchModalId] [data-id=selectableDocument]", function () {
+            var source = $(this);
+            var document = source.children(".documentLabel");
+
+            @if (!Model.MultipleSelection)
+                {
+                    @:source.siblings(".document-box").find(".documentLabel").removeClass("selected");
+                                                                                                                                                                                                    }
+
+            document.toggleClass('selected');
+
+            var allSelectedDocuments = source.parent().find('.documentLabel.selected');
+            $('[data-id=search-result-count] span[data-id=selected]').html(String.format('({0} selected)', allSelectedDocuments.length));
+
+            var preview = source.parents("[data-id-selector=result-container-main]").children(".documentPreview");
+
+
+            var preview = source.parents("[data-id-selector=result-container-main]").children("[data-id-selector=document-preview]");
+
+            if (document.hasClass('selected')) {
+                try {
+                    var documentData = $.parseJSON(source.attr('data-json'));
+                    preview.find('[data-id-selector=documentName]').text(documentData.DocumentName != null ? documentData.DocumentName : '');
+                    preview.find('[data-id-selector=documentDate]').text(documentData.CreationDate != null ? documentData.CreationDate : '');
+                    preview.find('[data-id-selector=idbNumber]').text(documentData.DocumentNumber != null ? documentData.DocumentNumber : '');
+                    preview.find('[data-id-selector=docDescription]').text(documentData.Description != null ? documentData.Description : '');
+                    preview.find('[data-id-selector=docAuthor]').text(documentData.FullName != null ? documentData.FullName : '');
+                    preview.find('[data-id-selector=operationNumber]').text(documentData.MultiLoans != null ? documentData.MultiLoans : '');
+                    preview.find('[data-id-selector=contractNumber]').text(documentData.MultiLoans != null ? documentData.MultiLoans : '');
+                }
+                catch (e) {
+                }
+            }
+            else {
+                preview.find('[data-id-selector=documentName]').html('&nbsp;');
+                preview.find('[data-id-selector=documentDate]').html('&nbsp;');
+                preview.find('[data-id-selector=idbNumber]').html('&nbsp;');
+                preview.find('[data-id-selector=docDescription]').html('&nbsp;');
+                preview.find('[data-id-selector=docAuthor]').html('&nbsp;');
+                preview.find('[data-id-selector=operationNumber]').html('&nbsp;');
+                preview.find('[data-id-selector=contractNumber]').html('&nbsp;');
+            }
+        });
+
+        function executeSearch(tabContainer, button, actionButtonText) {
+            postUrl('@Url.Action("SearchIDBDocumentsSG", "DocumentModal", new { area = "" })', serializeContainer(tabContainer))
+                .done(function (data) {
+                    tabContainer.html(data);
+                    button.html(actionButtonText);
+                });
+        }
+
+        function executeSendSelected(tabContainer, button) {
+
+            var documentContainer = tabContainer.find("[data-id-selector=documents-container]");
+            var documentList = documentContainer.children(".document-box").children(".selected").parent();
+
+            var documentsObject = [];
+            documentList.each(function (index, element) {
+                documentsObject.push($.parseJSON($(element).attr('data-json')));
+            });
+
+            @if (!string.IsNullOrEmpty(Model.TargetFunction))
+                {
+                    @:window["@Model.TargetFunction"](documentsObject, 'selected');
+                                                                                                                                                                                                    }
+
+            var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+            var vexModal = modalContainer.parents(".vex");
+            vex.closeByID(vexModal.data().vex.id);
+        }
+    });
+
+    </script>)

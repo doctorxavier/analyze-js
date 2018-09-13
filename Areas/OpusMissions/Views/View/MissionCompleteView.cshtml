@@ -1,0 +1,1140 @@
+﻿@using System.Globalization;
+
+@using IDB.Architecture.Language;
+@using IDB.MW.Application.OpusMissionsModule.Enums;
+@using IDB.MW.Domain.Values;
+@using IDB.MW.Infrastructure.Configuration;
+@using IDB.Presentation.MVC4.Helpers;
+
+@model IDB.MW.Application.MissionsModule.ViewModels.MissionCompleteViewModel
+
+<input hidden data-idb-pagename="Missions-NewEditView-Mode" />
+
+<div id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-url="@Url.Action("Mission", "Save", new { area = "OpusMissions" })">
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel"  />
+    <input type="hidden" id="origin" value="none"  />
+   
+    <div class="reloadpage" data-loadurl="@Url.Action("MissionCompleteView", "View", new { area = "OpusMissions" })?missionId=@Model.MissionId&ispartial=1">
+        @Html.Partial("Partials/MissionPage", Model)
+    </div>
+    <div class="row" id="footer-section">
+        @Html.Partial("Partials/MissionViewButtons", Model.Header)
+    </div>
+    <div data-pagemode="edit">
+        <input type="hidden" id="hiddenSelectNeededNewApproval" name="hiddenSelectNeededNewApproval" value="False"  />
+        <input type="hidden" id="hiddenSelectUpdateActual" name="hiddenSelectUpdateActual" value="False"  />
+        <input type="hidden" id="hiddenIsNewMission" name="hiddenIsNewMission" value="@ViewBag.New.ToString()"  />
+        <input type="hidden" id="hiddenMissionIdEdit" name="hiddenMissionIdEdit" value="@Model.MissionId"  />
+        <input type="hidden" id="hiddenIsSaveOnly" name="hiddenIsSaveOnly" value="False" />
+
+
+        @if (Model.Header.StatusCode != null
+                && (Model.Header.StatusCode == MissionStatusCode.MISSION_STATUS_PENDING_APP
+                    || Model.Header.StatusCode == MissionStatusCode.MISSION_STATUS_APPROVED
+                    || Model.Header.StatusCode == MissionStatusCode.MISSION_STATUS_APPROVED_MOD
+                    || ((Model.Header.StatusCode == MissionStatusCode.MISSION_STATUS_REJECTED_MODIFICATION
+                        || Model.Header.StatusCode == MissionStatusCode.MISSION_STATUS_PEND_APPR_MODIFICATION)
+                        && Model.Header.IsGroupCodeVps)))
+        {
+            <input type="hidden" id="hiddenIsNeededNewApproval" name="hiddenIsNeededNewApproval" value="True"  />
+        }
+        else
+        {
+            <input type="hidden" id="hiddenIsNeededNewApproval" name="hiddenIsNeededNewApproval" value="False"  />
+        }
+    </div>
+</div>
+<input type="hidden" id="hiddenTodayMission"  />
+@if (Model.ExecutionPhase && Model.HasSupervisionPlan)
+{
+    <input type="hidden" id="hiddenExecutionPhase" value="1"  />
+    <input type="hidden" id="hiddenNumberActual" value="@Model.NumberActual"  />
+    <input type="hidden" id="hiddenMessageNumberActual" value="@ViewBag.MessageNumberActual"  />
+}
+else
+{
+    <input type="hidden" id="hiddenExecutionPhase" value="2" />
+    <input type="hidden" id="hiddenNumberActual" value=""  />
+}
+<input type="hidden" id="hiddenUrlSave" data-idb-fieldname="txtHiddenUrlSave" />
+
+<input type="hidden" id="hiddenCountryId" value="@Model.Header.CountryId"  />
+
+<div data-id="ModalRegionTwo" class="hide">
+    <button data-id="butttonNewApprovalMission" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="newMissionModal"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["no", "yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("OP.MS.MissionCompleteView.Message.Si")"
+            data-custom-button-yes-style="btn btn-warning vex-dialog-button vex-first"
+            data-custom-button-yes-callback="MissionApprovalSi"
+            data-custom-button-yes-closeatend="true"
+            data-custom-button-no-id="no"
+            data-custom-button-no="@Localization.GetText("OP.MS.MissionCompleteView.Message.No")"
+            data-custom-button-no-style="btn btn-link"
+            data-custom-button-no-callback="MissionApprovalNo"
+            data-custom-button-no-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div data-id="ModalRegion" class="">
+        <div id="newMissionModal" class="hide modalBody missionsModal">@Localization.GetText("OP.MS.MissionCompleteView.Message.RequestNewApproval")</div>
+    </div>
+</div>
+
+<div data-id="ModalRegionThree" class="hide">
+    <button data-id="plannedAdministrationMission" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="messageNumberActualMission"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["no", "yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("OP.MS.MissionCompleteView.Message.Si")"
+            data-custom-button-yes-style="btn btn-warning vex-dialog-button vex-first"
+            data-custom-button-yes-callback="PlannedAdministrationYes"
+            data-custom-button-yes-closeatend="true"
+            data-custom-button-no-id="no"
+            data-custom-button-no="@Localization.GetText("OP.MS.MissionCompleteView.Message.No")"
+            data-custom-button-no-style="btn btn-link"
+            data-custom-button-no-callback="PlannedAdministrationNo"
+            data-custom-button-no-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div data-id="ModalRegion2" class="">
+        <div id="messageNumberActualMission" class="hide modalBody missionsModal">@ViewBag.MessageNumberActual</div>
+    </div>
+</div>
+
+<div data-id="ModalRegionFour" class="hide">
+    <button data-id="twoWeeksMission" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="TwoWeeksStartDateMission"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["no", "yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("OP.MS.MissionCompleteView.Message.Si")"
+            data-custom-button-yes-style="btn btn-warning vex-dialog-button vex-first"
+            data-custom-button-yes-callback="TwoWeeksMissionYes"
+            data-custom-button-yes-closeatend="true"
+            data-custom-button-no-id="no"
+            data-custom-button-no="@Localization.GetText("OP.MS.MissionCompleteView.Message.No")"
+            data-custom-button-no-style="btn btn-link"
+            data-custom-button-no-callback=""
+            data-custom-button-no-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="true"></button>
+    <div data-id="ModalRegion3" class="">
+        <div id="TwoWeeksStartDateMission" class="hide modalBody missionsModal">@Localization.GetText("OP.MS.MissionCompleteView.Message.TwoWeeksStartDate")</div>
+    </div>
+</div>
+
+<div data-id="ModalRegionFive" class="hide">
+    <button data-id="buttonFailNotification" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="FailNotification"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("Document.Button.Send")"
+            data-custom-button-yes-style="btn btn-warning"
+            data-custom-button-yes-callback="exitEditModeAfterError"
+            data-custom-button-yes-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="true"></button>
+
+        <div id="FailNotification" class="hide modalBody missionsModal">@Localization.GetText("OP.MS.SendNotification.Service.Fail")</div>
+</div>
+
+<div data-id="ModalRegionSix" class="hide">
+    <button data-id="button-sendnotification-representative" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="sendnotification-country-representative"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("OP.MS.MissionsWorkflow.Send")"
+            data-custom-button-yes-style="btn btn-warning"
+            data-custom-button-yes-callback="sendCountryRepresentativeEmail"
+            data-custom-button-yes-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="true"></button>
+
+    <div id="sendnotification-country-representative" 
+         class="hide modalBody missionsModal">@Localization.GetText("OP.MS.EMAIL.ESG.MODAL.MESSAGE")</div>
+</div>
+
+<div data-id="ModalRegionSeven" class="hide">
+    <button data-id="butttonResendApprovalMission" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="ResendMissionModal"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("COMMON.Ok")"
+            data-custom-button-yes-style="btn btn-warning vex-dialog-button floatNone"
+            data-custom-button-yes-callback="missionResendApprovalOk"
+            data-custom-button-yes-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="false"></button>
+        <div id="ResendMissionModal" class="hide modalBody missionsModal">@Localization.GetText("OP.MS.MissionCompleteView.Message.RequestResendApproval")</div>
+</div>
+
+<div data-id="ModalRegionErrorMessage" class="hide">
+    <button data-id="butttonModalDocumentDisclosure" class="buttonOrange"
+            data-modal-allowclose="true"
+            data-custom-modal="missionModalDocumentDisclosure"
+            data-custom-modal-style="vex-theme-warning"
+            data-custom-modal-title="@Localization.GetText("OP.MS.MissionCompleteView.Message.Warning")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["yes"]'
+            data-custom-button-yes-id="yes"
+            data-custom-button-yes="@Localization.GetText("COMMON.Ok")"
+            data-custom-button-yes-style="btn btn-warning vex-dialog-button floatNone"
+            data-custom-button-yes-callback="closeModalDocumentDisclosure"
+            data-custom-button-yes-closeatend="true"
+            data-custom-modal-onclose="true"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="missionModalDocumentDisclosure" class="hide modalBody missionsModal">
+        @Localization.GetText("ESG.DD.Mission.Message.CantInitWorkflow")
+    </div>
+</div>
+@section scripts
+    {
+    <script type="text/javascript">
+
+        var isRequestApproval = false;
+
+        $(document).ready(function () {
+
+            @if ((bool)ViewBag.New)
+            {
+                @:enterOrExitEdit(false);
+            }
+
+            @if (Model.IsRead.HasValue)
+            {
+                var isRead = Model.IsRead.Value;
+                @:enterOrExitEdit(@isRead.ToString().ToLower());
+            }
+
+            startDateChange();
+            teamNameClick();
+            typeClick();
+            relatedCountry();
+            $('#hiddenTodayMission').attr("value", $('input[name=dtStartDate]').val());
+            $('#hiddenUrlSave').attr("value", $('#pageContent').attr('data-url'));
+            $('label').css('white-space', 'pre-line');
+            ShowAllowAnalysisMission();
+            requestAllowAnalysisMission();
+            isRequestApproval = false;
+        });
+
+        function relatedCountry() {
+            $("[aria-labelledby=id-countryDepartment] li a").click(function (source) {
+                var countryDepartment = source.target.attributes["dd-value"].value;
+                $('ul[aria-labelledby=id-country] li a[dd-parent-id=' + countryDepartment + ']').removeClass('hide');
+                $('ul[aria-labelledby=id-country] li a[dd-parent-id!=' + countryDepartment + ']').addClass('hide');
+                $('[name=country]').FirstorDefault();
+            });
+        }
+
+        function email(documentNumber, urlDocument, isTOR) {
+            var body = "";
+            var missionId = $('#hiddenMissionIdEdit').val();
+            var url = '@Url.Action("GetMailTemplate", "View")' + '?documentNumber=' + documentNumber + '&missionId=' + missionId + '&urlDocument=' + urlDocument + '&isTOR=' + isTOR;
+            var result = postUrl(url)
+                 .success(function (data) {
+                     if (data.IsValid) {
+                         var recipientList = data.MissionMailTemplateViewModel.RecipientList;
+                         if (recipientList == "")
+                             recipientList = " ";
+                         var sendToList = data.MissionMailTemplateViewModel.SendToList;
+                         if (sendToList == "")
+                             sendToList = " ";
+                         var mailSubject = data.MissionMailTemplateViewModel.MailSubject;
+                         body = data.MissionMailTemplateViewModel.MailBodyPartOne + '\n' + data.MissionMailTemplateViewModel.MailBodyPartTwo + '\n';
+                         var mail = String.format("mailto:{0}?cc={1}&subject={2}&body={3}", sendToList, recipientList, mailSubject, encodeURIComponent(body));
+                         if (mail.length <= 2000) {
+                             window.location.href = mail;
+                         } else {
+                             showMessage('@Localization.GetText("OP.AP.Mailto.ErrorContenido")');
+                         }
+                     } else {
+                         showMessage(data.ErrorMessage);
+                     }
+
+                 })
+                 .error(function (response) {
+                     showMessage(response.ErrorMessage);
+                 });
+        }
+
+        function sendDocumenttoMail(source) {
+            var docNumber = getDocNumber(source);
+            var url = getDocumentUrl(source);
+            var isTOR = source.attr('data-isTOR');;
+            email(docNumber, url, isTOR);
+        }
+
+        function verifyDeleteDocument(source) {
+            if (IsHelpMemoryDocument(source)) {
+                confirmAction('@Localization.GetText("OP.MS.MissionCompleteView.Message.DeleteHelpDocument")').done(function (selectionOk) {
+                    if (!selectionOk) {
+                        return;
+                    }
+                    deleteDocument(source);
+                });
+            }
+            else {
+                confirmAction('@Localization.GetText("OP.MS.MissionCompleteView.Message.DeleteDocument")').done(function (selectionOk) {
+                    if (!selectionOk) {
+                        return;
+                    }
+                    deleteDocument(source);
+                });
+            }
+        }
+
+        function deleteDocument(source) {
+            var docNumber = getDocNumber(source);
+            var urlDelete = '@Url.Action("DeleteDocument", "Save")' + '?documentNumber=' + docNumber;
+            var result = postUrl(urlDelete)
+                  .success(function (data) {
+                      if (data.IsValid) {
+                          window.location.reload();
+                      } else {
+                          showMessage(data.ErrorMessage);
+                      }
+                  })
+                  .error(function (response) {
+                      showMessage(response.ErrorMessage);
+                  });
+        }
+
+        function IsHelpMemoryDocument(source) {
+            var docDescription = getDocDescription(source);
+            if (docDescription.substring(0, 12) == "Aide Memoire")
+                return true;
+            else
+                return false;
+        }
+
+        function getDocDescription(source) {
+            var docDescription = source.attr('data-docdescription');
+            return docDescription;
+        }
+
+        function downloadDocument(source) {
+            var docNumber = getDocNumber(source);
+            var url = getDocumentUrl(source);
+            window.open(url, '_blank');
+        }
+
+        function getDocNumber(source) {
+            var docNumber = source.attr('data-docnumber');
+            return docNumber;
+        }
+
+        function getDocumentUrl(source) {
+            var docNumber = getDocNumber(source);
+            var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+            return url;
+        }
+
+        function saveDocumentsInViewMode() {
+
+            var url = $('#documentContent').attr('data-url', url);
+            var missionId = $('#hiddenMissionIdEdit').val();
+            $('#hiddenMissionIdDocument').val(missionId);
+
+            var response = saveContainer($('#documentContent'), '#hiddenModel', true, null, null, true);
+            if (response !== false) {
+                response.done(function (data) {
+
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null || data.ErrorMessage != '') {
+                            {
+                                showMessage('@Localization.GetText("OP.MS.MissionCompleteView.ErrorSavingDocuments")');
+                            }
+                        }
+                    }
+                    else {
+                        window.location.reload(false);
+                    }
+
+                });
+            }
+        }
+
+        function renderizeRow(documentList, sourceType, fileNames) {
+            var docNumber;
+            var fileName;
+            if (documentList.length <= 0)
+                return;
+            if (sourceType === "selected") {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0].DocumentNumber;
+                    fileName = documentList[0].DocumentName;
+                }
+
+            }
+            else {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0];
+                }
+                if (fileNames.length > 0) {
+                    fileName = fileNames[0];
+                }
+            }
+
+            var urlf = '@Url.Action("AddNewDocument", "View")';
+            var result = postUrl(urlf, { documentNumber: docNumber });
+            var newRow = '<tr role="row" data-id="">' +
+                        '<td>' + result.responseJSON.data.User + '</td>' +
+                        '<td>' + result.responseJSON.data.Date + '</td>' +
+                        '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+                        '<td> <span data-pagemode="edit">' +
+                        '@Confluence.InputText(value: "documentDefaultDescription", name: "documentDescription", maxLength: 250, width: "100%", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtDocumentDescription" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                        '@Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "")' +
+                       '</span></td><td>' +
+                       @*'@Confluence.ButtonDownload(text: "", action: "downloadDocument", name: "downloadDocument", dataAttributes: new Dictionary<string, string> { { "docnumber", "docNumberValue" }, { "idb-fieldname", "btnDownloadDocument01" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +*@
+                        '<a href=' + result.responseJSON.data.Url + ' target="_blank">' +
+                        '<button class="buttonDownload">' +
+                        '<span class="icon"></span>' +
+                        '<span></span>' +
+                        '</button>' +
+                        '</a>' +
+                       '</td></tr>';
+
+
+            $('#tableDocuments').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber).replace(/documentDefaultDescription/g, fileName));
+            $('#tableDocuments tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+
+            if (!isInEditMode($('#header-section'))) {
+                $('#saveDocumentButton').removeClass("hide");
+            }
+            closeModal();
+            hideLoaderOptional();
+        }
+
+        function closeModal() {
+            var vexModal = $('[data-id="mainContainer"]').parents('.vex');
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+
+        function validationsSaveMission() {
+            if (validateContainer($('#pageContent'))) {
+                var statusBeforeApproved = '@Model.IsBeforeApproved';
+
+                if (statusBeforeApproved == 'True' && !validateLastDate()) {
+                    showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Message.LastDate")');
+                }
+                else {
+                    if (!validateStartDateLessEndDate()) {
+                        showMessage('@Localization.GetText("OP.MS.MissionData.Message.DateMinor")');
+                    }
+                    else {
+                        var fecha = $('#hiddenTodayMission').val();
+                        var today = new Date();
+                        var dateTwoWeeksBefore = new Date(today.getTime() + (14 * 24 * 3600 * 1000));
+                        var startDateSelected = ($('input[name=dtStartDate]').val() != null) ? $('input[name=dtStartDate]').val() : "";
+                        var dateSelected = new Date(startDateSelected);
+
+                        if (dateSelected < dateTwoWeeksBefore) {
+                            $('[data-id="twoWeeksMission"]').click();
+                            $('[data-id=mainContainer]').find('h3').addClass('modalWarning');
+                        }
+                        else {
+                            validationNumberActual();
+                        }
+                    }
+                }
+            }
+        }
+
+        function validationRoles() {
+            var elements = [];
+            var exit = false;
+            var actualName, actualRole;
+
+            $("[name=editMissionRole], [name=newMissionRole]").each(function () {
+                actualRole = $(this).val();
+                actualName = $(this).parents("td").prev().find("[name=editTeamName], [name=newTeamName]").first().val();
+
+                elements.forEach(function (pair) {
+                    if (pair['role'] == actualRole && pair['name'] == actualName) {
+                        showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Messsage.ErrorRole")');
+                        exit = true;
+                        return false;
+                    }
+                });
+
+                elements.push({ 'role': actualRole, 'name': actualName });
+
+                if (exit) {
+                    return false;
+                }
+            });
+
+            if (!exit)
+                validationRequestNewApproval();
+        }
+
+        function checkVpsNeededWorkflow()
+        {
+            validationContactName();
+            validationInstitutionName();
+            validationContactInformation();
+            var clientData = [];
+            processContainer($('#pageContent'), clientData);
+
+            var url = '@Url.Action("CheckResend", "Save")';
+            var result = postUrl(url, JSON.stringify({ ClientFieldData: clientData }))
+                 .success(function (data) {
+                     if (!data.HasStatusTypeCondition) {
+                         $('[data-id="butttonNewApprovalMission"]').click();
+                         $('[data-id=mainContainer]').find('h3').addClass('modalWarning');
+                     } else if (data.HasRequiredMofications) {
+                         $('[data-id="butttonResendApprovalMission"]').click();
+                         var container = $('[data-id=mainContainer]');
+
+                         container.find('h3').addClass('modalWarning');
+                         container.find('#modalButtonsContainer')
+                             .has('button.floatNone')
+                             .addClass('text-center');
+                     } else {
+                         closeModal();
+                         showLoaderOptional();
+                         saveMission();
+                     }
+                 })
+                 .error(function (response) {
+                     showMessage(response.ErrorMessage);
+                 });
+
+        }
+
+        function validationRequestNewApproval() {
+            var isNewMission = $('#hiddenIsNewMission').val();
+            if (isNewMission === "False") {
+                var isNeededNewApproval = $('#hiddenIsNeededNewApproval').val();
+                if (isNeededNewApproval === "True") {
+                    checkVpsNeededWorkflow();
+                } else {
+                    saveMission();
+                }
+            }
+            else {
+                saveMission();
+            }
+        }
+
+        function validationNumberActual() {
+            var isNewMission = $('#hiddenIsNewMission').val();
+            if (isNewMission === "True") {
+                var executionPhase = $('#hiddenExecutionPhase').val();
+                if (executionPhase == 1) {
+                    var number = $('#hiddenNumberActual').val();
+                    $('[data-id="plannedAdministrationMission"]').click();
+                    $('[data-id=mainContainer]').find('h3').addClass('modalWarning');
+                }
+                else {
+                    validationRoles();
+                }
+            }
+            else {
+                validationRoles();
+            }
+        }
+
+        function saveMission() {
+            assignIsSaveOnly();
+            var url = $('#hiddenUrlSave').val();
+            var origin = $("#origin").val();
+            $('#pageContent').attr('data-url', url);
+
+            validationContactName();
+            validationInstitutionName();
+            validationContactInformation();
+
+            var response = saveContainer($('#pageContent'), '#hiddenModel', false, null, null, false, false, null, true);
+            if (response !== false) {
+                response.done(function (data) {
+                    hideLoaderOptional();
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null || data.ErrorMessage != '') {
+                            if (data.ErrorMessage == "OP.MS.MissionCompleteView.Alert.OrgUnitLeaderESG") {
+                                showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Alert.OrgUnitLeaderESG")');
+                            } else if (data.ErrorMessage == "OP.MS.MissionCompleteView.Alert.OrgUnitESG") {
+                                showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Alert.OrgUnitESG")');
+                            } else {
+                                showMessage(data.ErrorMessage);
+                            }
+                        }
+                        else {
+                            showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Messsage.ErrorSavingMission")');
+                        }
+                    } else {
+                        if (data.FailSendingNotification) {
+                            $('[data-id="buttonFailNotification"]').attr("missionId", data.missionId);
+                            $('[data-id="buttonFailNotification"]').click();
+                            $('[data-id=mainContainer]').find('h3').addClass('modalWarning');
+                        } else {
+                            if (origin == "none") {
+                                var isNewMission = $('#hiddenIsNewMission').val();
+                                if (isNewMission === "True") {
+                                    window.location.href = '@Url.Action("Missions", "View", new { area = "OpusMissions"})';
+                                } else {
+                                    window.location.reload();
+                                }
+                            } else {
+                                var urlWF = '@Url.Action("MissionCreateWorkflow", "View", new { area = "OpusMissions", missionId = "_missionId" })';
+                                window.location.href = urlWF.replace("_missionId", data.MissionId);
+                            }
+                        }
+                    }
+
+                });
+            }
+        }
+
+
+        function returnSearch(source) {
+            window.location.href = '@Url.Action("Missions", "View", new { area = "OpusMissions"})';
+        }
+
+        function saveNewMissions(source) {
+            isRequestApproval = true;
+            var date = new Date($("[name='dtEndDate']").val());
+            var year = date.getFullYear();
+            var result = postUrl("@Url.Action("IsSpDetailed", "View", new { area = "OpusMissions" })", { year: year });
+            result.done(function (data) {
+                var messageNumberActualMission = $('#messageNumberActualMission');
+                var textMsg = messageNumberActualMission.text().replace(/\d+/g, data);
+                messageNumberActualMission.text(textMsg);
+            });
+            if (validateContainer($('#pageContent'))) {
+                $("#origin").val("none");
+                if (!validateLastDate()) {
+                    showMessage('@Localization.GetText("OP.MS.MissionCompleteView.Message.LastDate")');
+                }
+                else {
+                    if (!validateStartDateLessEndDate()) {
+                        showMessage('@Localization.GetText("OP.MS.MissionData.Message.DateMinor")');
+                    }
+                    else {
+                        validationsSaveMission();
+                    }
+                }
+            }
+        }
+
+        function saveNewRequestMissions(source) {
+            $("#origin").val("sendrequest");
+            var date = new Date($("[name='dtEndDate']").val());
+            var year = date.getFullYear();
+
+            var missionTypeId = parseInt($('[name="Type"]').val());
+            var url = '@Url.Action(
+            "AllowAnalysisMissionCreation",
+            "View",
+            new
+            {
+                area = "OpusMissions",
+
+            })' + '?missionType=' + missionTypeId + '&operationNumber=@Model.operationNumber';
+
+            var result = postUrl(url)
+                .success(function (data) {
+                    hideLoaderOptional();
+                    if (data.IsValid) {
+                        var result = postUrl("@Url.Action("IsSpDetailed", "View", new { area = "OpusMissions" })", { year: year });
+                        result.done(function (data) {
+                            var messageNumberActualMission = $('#messageNumberActualMission');
+                            var textMsg = messageNumberActualMission.text().replace(/\d+/g, data);
+                            messageNumberActualMission.text(textMsg);
+                        });
+                        validationsSaveMission();
+                    } else {
+                        confirmAction(data.ErrorMessage);
+                        $('.vex-dialog-buttons').html('');
+                    }
+                });
+        }
+
+        function editRequestMissions(source) {
+            enterEditMode(false, $('#header-section'), true);
+            enterEditMode(false, $('#footer-section'), true);
+            enterEditMode(false, $('.page'), true);
+
+            var countryDepartment = $('select[name=countryDepartment]').val();
+            var objCountry = $('select[name=countryDepartment]').parent().parent().parent().parent().find('select[name=country]').find('option[data-parent-id=0]');
+            var country = $('select[name=countryDepartment]').parent().parent().parent().parent().find('select[name=country]').children();
+
+            if (countryDepartment != null) {
+                country.addClass('hidden');
+                objCountry.removeClass('hidden');
+                objCountry.attr("selected", true)
+                country.toArray().forEach(function (c) {
+                    if (countryDepartment == c.getAttribute('data-parent-id')) {
+                        c.className = '';
+                    }
+                });
+            }
+            else {
+                country.removeClass('hidden');
+            }
+            $('select[name=country').val($('#hiddenCountryId').val());
+            ShowAllowAnalysisMission();
+        }
+
+        function cancelRequestMissions(source) {
+            exitEditMode(false, $('#footer-section'), true, true);
+            exitEditMode(true, $('.reloadpage'), true, true);
+            startDateChange();
+            teamNameClick();
+            typeClick();
+            relatedCountry();
+            $('label').css('white-space', 'pre-line');
+            freeMissionLock();
+            ShowAllowAnalysisMission();
+        }
+
+        function newContact(source) {
+            var container = $("#" + source.attr("dd-table"));
+            var template = '<tr data-id=""><td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.InputText(value: "", name: "newCantactName", maxLength: 250, width: "100%", required: false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewCantactName" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.InputDropDownAsync(value: "", name: "newInstitutionName", width: "100%", required: false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlNewInstitutionName" } }, searchUrl: Url.Action("GetInstitutionName", "View", new { area = "OpusMissions" })).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.InputText(value: "", name: "newCantactInformation", maxLength: 250, width: "100%", required: false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewCantactInformation" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">@Confluence.ButtonTrash(text: "", action: "deleteContact", name: "deleteContact", dataAttributes: new Dictionary<string, string> { { "name", "" }, { "idb-fieldname", "btnDeleteContact01" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td></tr>';
+            $(container).append(template.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+
+        }
+
+        function newMember(source) {
+            var container = $("#" + source.attr("dd-table"));
+            var template = '<tr data-id=""><td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.InputDropDown(value: "", name: "newTeamName", width: "100%", elements: ViewBag.MissionTeamMembers, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlNewTeamName" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.InputDropDown(value: "", name: "newMissionRole", elements: ViewBag.MemberRole, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlNewMissionRole" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.Label(text: "", dataAttributes: new Dictionary<string, string> { { "name", "TeamRole" }, { "idb-fieldname", "lblTeamRole" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">' + '@Confluence.Label(text: "", dataAttributes: new Dictionary<string, string> { { "name", "OrdanizationalUnit" },{ "idb-fieldname", "lblOrdanizationalUnit" }  }).ToString().Replace("\r\n", "").Replace("\n","")' + '</span></td>';
+            template = template + '<td><span data-pagemode="edit" class="showDataEdit">@Confluence.ButtonTrash(text: "", action: "deleteMember", name: "deleteMember", dataAttributes: new Dictionary<string, string> { { "OperationTeamDataId", "" }, { "idb-fieldname", "btnDeleteMember01" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></td></tr>';
+
+            $(container).append(template.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+            $("[name=hasMissionTeam]").val("1");
+
+            teamNameClick();
+        }
+
+        function typeClick() {
+            $("[aria-labelledby=id-Type] li a").click(function () {
+                var element = this;
+                var typeValue = $(element).text();
+                if (typeValue == "ESG") {
+                    $("#id-organizationalUnit").parents(".dropdown").addClass("hide");
+                    $("input[name=organizationalUnitUV]").removeClass("hide");
+                    $("input[name=orgUnitOneBool]").val("true");
+                    var actualValOU = $("input[name=organizationalUnit]").val();
+                    if (actualValOU == "") {
+                        $("[aria-labelledby=id-organizationalUnit] li a").removeAttr("dd-selected");
+                        var OUValue = $("[aria-labelledby=id-organizationalUnit] li a").eq(1).attr("dd-value");
+                        $("[aria-labelledby=id-organizationalUnit] li a").eq(1).attr("dd-selected");
+                        $("input[name=organizationalUnit]").val(OUValue);
+                    }
+                } else {
+                    $("#id-organizationalUnit").parents(".dropdown").removeClass("hide");
+                    $("input[name=organizationalUnitUV]").addClass("hide");
+                }
+
+            });
+        }
+
+        function teamNameClick() {
+            $("[aria-labelledby=id-newTeamName] li a, [aria-labelledby=id-editTeamName] li a").click(function () {
+                var element = this;
+                var OperationTeamDataId = $(element).attr("dd-value");
+                var result = postUrl("@Url.Action("GetRoleMember", "View", new { area = "OpusMissions" })", { OperationTeamDataId: OperationTeamDataId });
+                result.done(function (response) {
+                    if (response.IsValid) {
+                        var item = response.Data.Role
+                        var organizational = response.Data.organizationalId
+                        $(element).closest('tr').find('[data-name=TeamRole]').text(item);
+                        $(element).closest('tr').find('[data-name=OrdanizationalUnit]').text(organizational);
+                    }
+                });
+            });
+        }
+
+        function deleteContact(source) {
+            if (source.attr("data-missionContactId")) {
+                $("[name=deleteContacts]").val($("[name=deleteContacts]").val() + source.attr("data-missionContactId") + "|");
+            }
+            deleteRow(source);
+        }
+
+        function deleteMember(source) {
+            var msjValidation = '@Localization.GetText("OP.MS.MissionTeam.WarningDeleteTeam")';
+            confirmAction(msjValidation).done(function (selectionOk) {
+                if (selectionOk) {
+                    if (source.attr("data-operationteamdataid")) {
+                        $("[name=deleteMissionTeam]").val($("[name=deleteMissionTeam]").val() + source.attr("data-operationteamdataid") + "|");
+                    }
+                    deleteRow(source);
+                    if ($("#tableTeamMember tbody tr").length == 0) {
+                        $("[name=hasMissionTeam]").val("");
+                    }
+
+                }
+            });
+        }
+
+        function deleteRow(source) {
+            source.parents("tr").remove();
+        }
+
+        function requestApproval(source) {
+            var missionTypeId = parseInt($('[name="Type"]').val());
+            var url = '@Url.Action(
+            "AllowAnalysisMissionCreation",
+            "View",
+            new
+            {
+                area = "OpusMissions",
+
+            })' + '?missionType=' + missionTypeId + '&operationNumber=@Model.operationNumber';
+
+            var model = null;
+
+            var result = postUrl(url)
+                  .success(function (data) {
+                      hideLoaderOptional();
+                      if (data.IsValid) {
+                          url = '@Url.Action(
+                            "MissionCreateWorkflow",
+                            "View",
+                            new
+                            {
+                                area = "OpusMissions",
+                                missionId = Model.MissionId
+                            })';
+
+                          if ($('#origin').val() === 'resendRequest') {
+                              url += '&isVpsResend=true';
+
+                              var roles = [];
+                              $('label[data-name="TeamRole"]').each(function () {
+                                  var role = $(this).text();
+
+                                  if (roles.indexOf(role) === -1) {
+                                      roles.push($(this).text());
+                                  }
+                              });
+
+                              url += '&missionRoles=' + roles.join(',');
+
+                              url += '&missionTypeId=' + missionTypeId;
+                          }
+
+                          window.location.href = url;
+
+                          return;
+                      }
+
+                      closeAllActiveModal();
+                      $('[data-id="butttonModalDocumentDisclosure"]').click();
+                      formatModalDocumentDisclosure();
+                  });
+        }
+
+        function closeModalMission($modal) {
+            var vexModal = $modal.parents('.vex');
+            if (vexModal.length)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+
+        function closeModalDocumentDisclosure() {
+            closeModalMission($('.missionsModal'));
+            cancelRequestMissions();
+        }
+
+        function closeAllActiveModal() {
+            var $modals = $('.missionsModal');
+            $modals.each(function () {
+                closeModalMission($(this))
+            });
+        }
+
+        function formatModalDocumentDisclosure() {
+            var container = $('[data-id=mainContainer]');
+
+            container.find('h3').addClass('modalWarning');
+            container.find('#modalButtonsContainer')
+                .has('button.floatNone').addClass('text-center');
+        }
+
+        function validationContactName() {
+            $("[name=contactName], [name=newCantactName]").each(function () {
+                var name = $(this).val();
+                if (name.trim() == "" || name == undefined || name == null) {
+                    $(this).val(" ");
+                }
+            });
+        }
+
+        function validationInstitutionName() {
+            $("[name=SearchInstitutionName], [name=newInstitutionName]").each(function () {
+                var name = $(this).val();
+                if (name.trim() == "" || name == undefined || name == null || name == "0") {
+                    $(this).val(" ");
+                }
+            });
+        }
+
+        function validationContactInformation() {
+            $("[name=contactInformation], [name=newCantactInformation]").each(function () {
+                var name = $(this).val();
+                if (name.trim() == "" || name == undefined || name == null) {
+                    $(this).val(" ");
+                }
+            });
+        }
+
+        function startDateChange() {
+            $("input[name=dtStartDate]").change(
+                function () {
+                    $("input[name=dtEndDate]").val($("input[name=dtStartDate]").val());
+
+                });
+        }
+
+        function validateStartDateLessEndDate() {
+            var validData = true;
+            var startDateSelected = ($('input[name=dtStartDate]').val() != null) ? $('input[name=dtStartDate]').val() : "";
+            var endDateSelected = ($('input[name=dtEndDate]').val() != null) ? $('input[name=dtEndDate]').val() : "";
+            if (startDateSelected != "" && endDateSelected != "") {
+                var dateStart = new Date(startDateSelected);
+                var dateEnd = new Date(endDateSelected);
+                if (dateStart > dateEnd) {
+                    validData = false;
+                }
+            }
+            return validData;
+        }
+
+        function validateLastDate() {
+            var validData = true;
+            var startDateSelected = ($('input[name=dtStartDate]').val() != null) ? $('input[name=dtStartDate]').val() : "";
+
+            var dt = new Date();
+            var month = dt.getMonth() + 1;
+            var day = dt.getDate();
+            var year = dt.getFullYear();
+
+            if (startDateSelected != "" && dt != "") {
+                var dateStart = new Date(startDateSelected);
+                var today = new Date(month + '/' + day + '/' + year);
+                if (dateStart < today) {
+                    validData = false;
+                }
+            }
+            return validData;
+        }
+
+        function MissionApprovalSi() {
+            $('#hiddenSelectNeededNewApproval').val("True");
+            $('#fullTaskContainer', window.parent.document).hide();
+            saveMission();
+        }
+
+        function MissionApprovalNo() {
+            saveMission();
+        }
+
+        function PlannedAdministrationYes() {
+            $('#hiddenSelectUpdateActual').val("True");
+            validationRoles();
+        }
+
+        function PlannedAdministrationNo() {
+            validationRoles();
+        }
+
+        function TwoWeeksMissionYes() {
+            validationNumberActual();
+        }
+
+        function missionResendApprovalOk() {
+            var isRejected = '@(Model.Header.StatusCode == MissionStatus.RejectedModifications)';
+            showLoaderOptional();
+            $('#hiddenSelectNeededNewApproval').val("True");
+            $('#fullTaskContainer', window.parent.document).hide();
+            $('#origin').val('resendRequest');
+
+            if (isRejected === 'True') {
+                saveMission();
+
+                return;
+            }
+
+            assignIsSaveOnly();
+            validationContactName();
+            validationInstitutionName();
+            validationContactInformation();
+
+            var clientData = [];
+            processContainer($('#pageContent'), clientData);
+            localStorage.setItem('missionData', JSON.stringify({ ClientFieldData: clientData }));
+
+            requestApproval();
+        }
+
+        function exitEditModeAfterError(missionId) {
+            window.location.reload();
+        }
+
+        function exitEditModeAfterSave(source) {
+            exitEditMode(false, $('#header-section'), true);
+            exitEditMode(false, $('#footer-section'), true);
+            exitEditMode(false, $('.page'), true);
+        }
+
+        function tryToEditMission() {
+            urlConcurrence = '@Url.Action("AccessToResource", "View", new { area = "OpusMissions", missionId = Model.MissionId })';
+            var result = postUrl(urlConcurrence)
+                  .success(function (data) {
+                      if (!data.IsValid) {
+                          showMessage(data.ErrorMessage);
+                      } else {
+                          editRequestMissions();
+                      }
+                  });
+        }
+
+        function freeMissionLock() {
+            urlConcurrence = '@Url.Action("FreeResource", "View", new { area = "OpusMissions", missionId = Model.MissionId })';
+            var result = postUrl(urlConcurrence)
+                  .success(function (data) {
+                      if (!data.IsValid) {
+                          showMessage(data.ErrorMessage);
+                      }
+                  });
+        }
+
+        function enterOrExitEdit(isRead) {
+            if (isRead) {
+                exitEditMode(false, $('#header-section'), true);
+                exitEditMode(false, $('#footer-section'), true);
+                exitEditMode(false, $('.page'), true);
+                $("[data-id=MissionDocuments-add]").hide();
+                return;
+            }
+
+            enterEditMode(false, $('#header-section'), true);
+            enterEditMode(false, $('#footer-section'), true);
+            enterEditMode(false, $('.page'), true);
+
+        }
+        function ShowAllowAnalysisMission() {
+
+            $('[name="Type"]').on('change', function () {
+                requestAllowAnalysisMission();
+            });
+        }
+
+        function requestAllowAnalysisMission() {
+            var missionTypeId = $('[name="Type"]').val();
+            if (missionTypeId === '')
+                return;
+
+            var url = '@Url.Action(
+                "AllowAnalysisMissionCreation",
+                "View",
+                new
+                {
+                    area = "OpusMissions",
+
+                })' + '?missionType=' + missionTypeId + '&operationNumber=@Model.operationNumber';
+
+            var result = postUrl(url)
+              .success(function (data) {
+                  if (!data.IsValid) {
+                      $('#messageAnalysis').removeClass('hide')
+                          .find('.information-text').html(data.ErrorMessage);
+                  } else {
+                      $('#messageAnalysis').addClass('hide')
+                          .find('.information-text').html('');
+                  }
+              });
+        }
+
+        function assignIsSaveOnly() {
+            $('#hiddenIsSaveOnly').val(isRequestApproval);
+        }
+
+        function sendEmailToCountryRepresentativeWarningModal() {
+            var destinationCountryValue = $("[name='validatorCountry']").val();
+
+            if (destinationCountryValue == "" || destinationCountryValue == null) {
+                showMessage('@Localization.GetText("OP.MS.EMAIL.ESG.MESSAGE.SELECT.DESTINATION.COUNTRY")');
+
+                return;
+            }
+
+            $('[data-id="button-sendnotification-representative"]').click();
+            $('[data-id=mainContainer]').find('h3').addClass('modalWarning');
+
+            var destinationCountry = $("#id-validatorCountry span.valueText").text().trim();
+            var sendNotificationCountryRepresentativeText = $("#sendnotification-country-representative");
+
+            sendNotificationCountryRepresentativeText
+                .text(sendNotificationCountryRepresentativeText
+                    .text().replace("(COUNTRY)", destinationCountry));
+        }
+
+        function sendCountryRepresentativeEmail() {
+            var countryId = $("[name='validatorCountry']").val();
+            var endDate = $("input[name=dtEndDate]").val();
+            var startDate = $('input[name=dtStartDate]').val();
+
+            $('.vex-close').click();
+
+            $.ajax({
+                type: "POST",
+                data: JSON.stringify(
+                    {
+                        countryId: countryId,
+                        operationNumber: '@Model.operationNumber',
+                        missionId: '@Model.MissionId',
+                        endDate: endDate,
+                        startDate: startDate
+                    }),
+                url: '@Url.Action("SendEmailToCountryRepresentative", "Save", new
+             {
+                 area = "OpusMissions",
+             })',
+                contentType: "application/json; charset=utf-8"
+            }).success(function (data) {
+                if (!data.IsValid) {
+                    showMessage('@Localization.GetText("OP.MS.EMAIL.ESG.MESSAGE.ERRORMESSAGE")');
+                } else {
+                    showMessage('@Localization.GetText("OP.MS.EMAIL.ESG.MESSAGE.VALIDMESSAGE")');
+                }
+            });
+        }
+</script>
+}

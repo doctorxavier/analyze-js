@@ -1,0 +1,3204 @@
+﻿@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Domain.Values
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.OPUSModule.Services.ApprovalOperationService
+
+@model ICollection<IDB.MW.Application.OPUSModule.ViewModels.ApprovalOperationService.ApprovalOperationViewModel>
+
+@{
+    ViewBag.fixLoad = true;
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+    var modelCurrent = Model.Single(x => x.IsCurrent);
+}
+
+<link href="@Url.Content("~/Content/Reformulation/reformulation.css")" rel="stylesheet" />
+<link href="@Url.Content("~/Content/Modules/Opus/approvalData.css")" rel="stylesheet" />
+
+<div id="mailContainer"></div>
+<a class="hide" id="email_hide" href="#">enviar e-mail data</a>
+<div class="header"></div>
+
+<div class="row">
+    <div class="col-md-12">
+        @Confluence.LabelMainTitle(Localization.GetText("OP.AP.Header.Title.Approval"), dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "lblApprovalTitle" } })
+        <br />
+        <div class="pull-left hide">
+            @Confluence.InformationSection(Localization.GetText("OP.AP.Message.PreparationPhaseInformation"), "100%")
+        </div>
+        <br />
+        @if (Model != null && Model.Count > 1)
+        {
+            <div class="clearfix"></div>
+            <div class="btn-group tabs-reformulation">
+                @foreach (var approvalData in Model)
+                {
+                    <button class="btn
+                                   @(approvalData.IsCurrent ? "active is-current" : "")
+                                   @(approvalData.IsCurrent || approvalData.ReformulationApprovalDate == null ? "is-editable" : "")"
+                            dd-tab="#activity-plan-@approvalData.ActivityPlanId">
+                        @(approvalData.Name ?? "Original Data")
+                    </button>
+                }
+            </div>
+        }
+    </div>
+    <div class="row row-header hide">
+        <div class="col-md-12">
+            <h4 class="">@Localization.GetText("OP.AP.Header.Info").HtmlEncode()</h4>
+        </div>
+    </div>
+    <div class="row row-header hide">
+        <div class="col-md-12">
+            @Confluence.ButtonPdf("pdf", "downloadReport", false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnPdf" } }, clase: "floatleft")
+            @Confluence.ButtonExcel("xls", "downloadReport", false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnXls" } }, clase: "floatleft")
+        </div>
+    </div>
+    <div class="row row-header hide">
+        <div class="col-md-12">
+            @Confluence.LabelMail(Localization.GetText("OP.AP.Mailto"), action: "email", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnEmail" } })
+        </div>
+    </div>
+    <br />
+    <br />
+</div>
+<div data-id="ModalRegion">
+    <button data-id="buttonNewTransaction" class="buttonBlue hide"
+            data-modal-allowclose="true"
+            data-custom-modal="addNewTransaction"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("OP.AP.PopUp.NewTransaction")"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false">
+        Modal
+    </button>
+    <div id="addNewTransaction" class="hide" data-parsley-validate="data-parsley-validate"></div>
+</div>
+<div class="page tab-content">
+    <div class="reformulation-group-content">
+        @if (Model != null && Model.Count > 1)
+        {
+            foreach (var approvalData in Model)
+            {
+                <div id="activity-plan-@approvalData.ActivityPlanId"
+                     data-activity-plan-id="@approvalData.ActivityPlanId"
+                     class="tab-pane approval-data-content @(approvalData.IsCurrent ? "current" : "")"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]">
+
+                    @{
+                        var dictionaryTabs = new Dictionary<string, string>()
+                        {
+                            {"approvalOperation-" + (approvalData.ActivityPlanId != null ? approvalData.ActivityPlanId : 0), Localization.GetText("OP.AP.Approvals")},
+                            {"tabDocuments-" + (approvalData.ActivityPlanId != null ? approvalData.ActivityPlanId : 0), Localization.GetText("PCR.Checklist.TabValidation.Documents") + " (0)"},
+                            { "tabRemarks-" + (approvalData.ActivityPlanId != null ? approvalData.ActivityPlanId : 0), Localization.GetText("OP.AP.Remarks") + " ("+ approvalData.Comments.Count +")"}
+                        };
+                    }
+                    @Confluence.Tabs(dictionaryTabs)
+                    <div id="approvalOperation-@approvalData.ActivityPlanId"
+                         data-activity-plan-id="@approvalData.ActivityPlanId"
+                         class="content-expandable tab-pane active"
+                         data-tab-control-id="approvalOperation"
+                         data-parsley-validate="data-parsley-validate"
+                         data-parsley-excluded="[disabled]"
+                         data-loadurl="@Url.Action("ApprovalOperationPartial", "View", new { area = "OPUS" })"
+                         data-url="@Url.Action("ApprovalOperation", "Save", new { area = "OPUS" })">
+
+                        @Html.Partial("Partials/ApprovalOperation/ApprovalOperationPartial", approvalData)
+                        <input hidden id="page-name" data-idb-pagename="Approval-View-Mode" />
+                    </div>
+                    <div id="tabDocuments-@approvalData.ActivityPlanId"
+                         data-activity-plan-id="@approvalData.ActivityPlanId"
+                         class="content-expandable tab-pane"
+                         data-parsley-validate="data-parsley-validate"
+                         data-tab-control-id="tabDocuments"
+                         data-parsley-excluded="[disabled]"
+                         data-loadurl="@Url.Action("ApprovalOperationPartial", "View", new { area = "OPUS" })"
+                         data-url="@Url.Action("ApprovalOperation", "Save", new { area = "OPUS" })">
+
+                        @if (Model != null)
+                        {
+                            @Html.Partial("Partials/ApprovalOperation/ApprovalDocuments", approvalData.Documents)
+                        }
+                        <input hidden id="page-name" data-idb-pagename="Documents-View-Mode" />
+                    </div>
+
+                    <div id="tabRemarks-@approvalData.ActivityPlanId"
+                         data-activity-plan-id="@approvalData.ActivityPlanId"
+                         class="content-expandable tab-pane"
+                         data-parsley-validate="data-parsley-validate"
+                         data-tab-control-id="tabRemarks"
+                         data-parsley-excluded="[disabled]"
+                         data-loadurl="@Url.Action("GetRemarksApproval", "View", new { area = "OPUS" })"
+                         data-url="@Url.Action("AddRemarks", "Save", new { area = "OPUS" })">
+
+                        @if (Model != null)
+                        {
+                            @Html.Partial("Partials/ApprovalOperation/ApprovalRemarks", approvalData)
+                        }
+                        <input hidden id="page-name" data-idb-pagename="Remarks-View-Mode" />
+                    </div>
+                </div>
+            }
+        }
+        else if (Model != null)
+        {
+            var dictionaryTabsNotReformulation = new Dictionary<string, string>()
+            {
+                {"approvalOperation-" + (modelCurrent.ActivityPlanId != null ? modelCurrent.ActivityPlanId : 0), Localization.GetText("OP.AP.Approvals")},
+                {"tabDocuments-" + (modelCurrent.ActivityPlanId != null ? modelCurrent.ActivityPlanId : 0), Localization.GetText("PCR.Checklist.TabValidation.Documents") + " (0)"},
+                {"tabRemarks-" + (modelCurrent.ActivityPlanId != null ? modelCurrent.ActivityPlanId : 0), Localization.GetText("OP.AP.Remarks") + " ("+ modelCurrent.Comments.Count +")"}
+            };
+                            <div class="tab-pane approval-data-content current"
+                                 data-activity-plan-id="@(modelCurrent.ActivityPlanId != null ? modelCurrent.ActivityPlanId : 0)">
+                                @Confluence.Tabs(dictionaryTabsNotReformulation)
+                                <div id="approvalOperation-@modelCurrent.ActivityPlanId"
+                                     data-activity-plan-id="@(Model.First().ActivityPlanId != null ? Model.First().ActivityPlanId : 0)"
+                                     class="content-expandable tab-pane"
+                                     data-tab-control-id="approvalOperation"
+                                     data-parsley-validate="data-parsley-validate"
+                                     data-parsley-excluded="[disabled]"
+                                     data-loadurl="@Url.Action("ApprovalOperationPartial", "View", new { area = "OPUS" })"
+                                     data-url="@Url.Action("ApprovalOperation", "Save", new { area = "OPUS" })">
+
+                                    @Html.Partial("Partials/ApprovalOperation/ApprovalOperationPartial", modelCurrent)
+                                    <input hidden id="page-name" data-idb-pagename="Approval-View-Mode" />
+                                </div>
+                                <div id="tabDocuments-@modelCurrent.ActivityPlanId"
+                                     data-activity-plan-id="@(Model.First().ActivityPlanId != null ? Model.First().ActivityPlanId : 0)"
+                                     class="content-expandable tab-pane minh400"
+                                     data-parsley-validate="data-parsley-validate"
+                                     data-tab-control-id="tabDocuments"
+                                     data-parsley-excluded="[disabled]"
+                                     data-loadurl="@Url.Action("ApprovalOperationPartial", "View", new { area = "OPUS" })"
+                                     data-url="@Url.Action("ApprovalOperation", "Save", new { area = "OPUS" })">
+
+                                    @if (Model != null)
+                                    {
+                                        @Html.Partial("Partials/ApprovalOperation/ApprovalDocuments", modelCurrent.Documents)
+                                    }
+                                    <input hidden id="page-name" data-idb-pagename="Documents-View-Mode" />
+                                </div>
+                                <div id="tabRemarks-@modelCurrent.ActivityPlanId"
+                                     data-activity-plan-id="@(Model.First().ActivityPlanId != null ? Model.First().ActivityPlanId : 0)"
+                                     class="content-expandable tab-pane minh400"
+                                     data-parsley-validate="data-parsley-validate"
+                                     data-tab-control-id="tabRemarks"
+                                     data-parsley-excluded="[disabled]"
+                                     data-loadurl="@Url.Action("GetRemarksApproval", "View", new { area = "OPUS" })"
+                                     data-url="@Url.Action("AddRemarks", "Save", new { area = "OPUS" })">
+
+                                    @if (Model != null)
+                                    {
+                                        @Html.Partial("Partials/ApprovalOperation/ApprovalRemarks", modelCurrent)
+                                    }
+                                    <input hidden id="page-name" data-idb-pagename="Remarks-View-Mode" />
+                                </div>
+                            </div>
+                        }
+    </div>
+</div>
+
+<div class="hide" data-id="modalSection">
+    <div id="saveModal" class="hide approvalmodal">
+        @Html.Partial("Partials/ApprovalOperation/SaveWarning")
+    </div>
+    <div id="registerapprovalModal" class="hide approvalmodal">
+        @Html.Partial("Partials/ApprovalOperation/RegisterApprovalWarning")
+    </div>
+    <div id="generateregistryModal" class="hide approvalmodal">
+        @Html.Partial("Partials/ApprovalOperation/GenerateRegistryWarning")
+    </div>
+    <div id="newbloanModal" class="hide approvalmodal">
+        @Html.Partial("Partials/ApprovalOperation/NewBLoanWarning")
+    </div>
+    <div id="deleteCommentModal" class="hide approvalmodal">
+        @Html.Partial("Partials/ApprovalOperation/DeleteCommentWarning")
+    </div>
+</div>
+<div data-pagemode="edit">
+    <input type="hidden" id="hiddenOperationType" name="hiddenOperationType" value="@modelCurrent.OperationType" />
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+
+        var originalApprovalId;
+        var isConOperation = '@modelCurrent.OperationType' === '@OperationType.CON';
+        var hasHeaderAttributes = @(modelCurrent.HasHeaderAttributes.ToString().ToLower());
+
+        registerCallback(function () {
+            $(document).ready(function () {
+                originalApprovalId = parseInt($('[name=ApprovalProcess]').val());
+                initializeGlobalLoader();
+
+                $(".Financing").each(function () {
+                    $(this).linetableChildTable("table-line");
+                });
+
+                $('.documentgenerateregistry')
+                    .attr({ "data-modal": "generateregistryModal" })
+                    .attr({ "data-modal-theme": "warning" })
+                    .attr({ "data-modal-allowclose": "close" })
+                    .attr({ "data-action": "resizeContentLocal" })
+                    .removeAttr("data-custom-action");
+            });
+
+            allowOnlyNumbersOnSuffixField();
+
+            if ($('input[name="documentDate"]').val() == "01 Jan 01") {
+                $('input[name="documentDate"]').val("");
+            }
+
+            showGenerateRegistryButton();
+            documentDatePickerValueFix();
+            removeDeleteRepeaterClass();
+            hideSuffixes("read");
+            SetNumberDocuments();
+            getApprovalAutomaticValue();
+            changeComboboxApproval();
+            changeComboboxAuthority();
+            documentsCallback();
+        });
+
+        function documentsCallback()
+        {
+            $('[name="ddlTransactionTypeDoc"]').on('change', changeDocumentTransaction);
+            $('[name="ddlApprovalNumber"]').on('change', changeDocumentApproval);
+            $('[name="ddlApprovalNumberIncrease"]').on('change', changeDocumentApprovalIncrease);
+            $('[name="ddlIncreaseSequence"]').on('change', changeIncreaseNumber);
+        }
+
+        function controlApprButtonVisibility() {
+            var registerApproval = $('.registerapprovalModal');
+
+            if (!isConOperation) {
+
+                return;
+            }
+
+            $('div .subnivel').each(function (index, item) {
+                var status = $(this).find('.statusCode').text();
+                var button = $(this).find('.generateAPR');
+
+                ApprButtonVisibilityConOperation(status, button);
+                if (status === 'F_O_DRAFT') {
+                    registerApproval.show();
+                }
+            });
+        }
+
+        function fixPositionDropdownWithScrollableContainer() {
+            $(".dropdown-over").css("left", function() {
+                return $(this).parent().position().left + 20;
+            });
+            $(".dropdown-over").css("top", function() {
+                return $(this).parent().offset().top + 40;
+            });
+        }
+
+        function fixScrollable()
+        {
+            $('.approval-tables-container .dropdown-menu').addClass('dropdown-over')
+
+            fixPositionDropdownWithScrollableContainer();
+
+            $(".approval-tables-container").scroll(function() {
+                fixPositionDropdownWithScrollableContainer();
+            });
+        }
+
+        function ApprButtonVisibilityConOperation(status, button) {
+            if (status === '@ApprovalOperationService.F_O_APPROVED') {
+                button.hide();
+
+                return;
+            }
+
+            button.show();
+        }
+
+        function justificationEdit() {
+            if (hasHeaderAttributes) {
+                var container = ReformulationTabs.GetCurrentContainer();
+                var justificationField = container.find('#justificationField');
+                var justification = container.find('#Justification');
+
+                if (justification.text().trim() !== ""
+                    && container.find('#approvalValue').text().trim() !== "") {
+                    if (justification.attr('data-parsley-required') === 'false') {
+                        justification.attr('data-parsley-required', true);
+                    }
+                    justificationField.show();
+
+                    return;
+                }
+                justification.attr('data-parsley-required', false);
+                justificationField.hide();
+            }
+        }
+
+        function hideJustification() {
+            if (hasHeaderAttributes) {
+                var container = ReformulationTabs.GetCurrentContainer();
+                var justificationField = container.find('#justificationField');
+                var justification = container.find('#Justification');
+
+                justification.attr('data-parsley-required', false);
+                justificationField.hide();
+            }
+        }
+
+        function showJustification() {
+            if (hasHeaderAttributes) {
+                var container = ReformulationTabs.GetCurrentContainer();
+                var justificationField = container.find('#justificationField');
+                var justification = container.find('#Justification');
+
+                justification.attr('data-parsley-required', true);
+                justificationField.show();
+            }
+        }
+
+        function evaluateTextJustification() {
+            if (!hasHeaderAttributes) {
+
+                return;
+            }
+
+            var container = ReformulationTabs.GetCurrentContainer();
+            var justificationField = container.find('#justificationField');
+            var justification = container.find('#Justification');
+            var approvalValue = parseInt(container.find('[name=ApprovalProcess]').val());
+            var autoApprovalValue = container.find('#approvalValue').data('id');
+            var isManual = !isAutomaticProcess;
+
+            if (isNaN(approvalValue)) {
+                justification.val('');
+                hideJustification();
+            } else if (isManual) {
+                showJustification();
+            } else if (approvalValue == autoApprovalValue) {
+                hideJustification();
+            } else {
+                showJustification();
+            }
+        }
+
+        function changeComboboxApproval() {
+            if (hasHeaderAttributes) {
+                $(document).on('change', '[name=ApprovalProcess]', function () {
+                    evaluateTextJustification();
+                    SetApprovalProcessLon(this);
+                });
+            }
+        }
+
+        function changeComboboxAuthority() {
+            if (hasHeaderAttributes) {
+                $(document).on('change', '[name=ApprovalAuth]', function () {
+                    evaluateTextJustification();
+                    SetApprovalAuthorityLon(this);
+                });
+            }
+        }
+
+        function getApprovalAutomaticValue() {
+            if (!hasHeaderAttributes) {
+                return;
+            }
+
+            var approvalValue = {};
+            var approvalTitle = "@Localization.GetText("Automatically Calculated Approval Process")";
+            var approvalJustification = "@Localization.GetText("Justification")";
+            var container = ReformulationTabs.GetCurrentContainer();
+
+            container.find('#approvalProcessTitle').text(approvalTitle);
+            container.find('#approvalJusficationTitle').text(approvalJustification);
+
+            if (ReformulationTabs.isCurrent()) {
+                var url = '@Url.Action("GetApprovalProcessValueAutomaticallyCalculated",
+                "View", new { area="OPUS" })' + '?operationNumber=' + '@modelCurrent.OperationNumber';
+
+                container.find('#approvalValue').data('isAutomatic', false);
+                $.get(url, function (data) {
+                    if (data.MasterDataCollection.length > 0) {
+                        container.find('#approvalValue').data('isAutomatic', true);
+                        approvalValue = data.MasterDataCollection[0];
+
+                        switch ('@Localization.CurrentLanguage') {
+                            case 'en':
+                                approvalValue.Name = approvalValue.NameEn;
+                                break;
+                            case 'es':
+                                approvalValue.Name = approvalValue.NameEs;
+                                break;
+                            case 'pt':
+                                approvalValue.Name = approvalValue.NamePt;
+                                break
+                            case 'fr':
+                                approvalValue.Name = approvalValue.NameFr;
+                                break;
+                            default:
+                                approvalValue.Name = approvalValue.NameEn;
+                        }
+
+                        container.find('#approvalProcessValue').text(approvalValue.Name);
+                        container.find('#approvalTitle').text(approvalTitle);
+                        container.find('#approvalValue').data('id', approvalValue.MasterId);
+                        container.find('#approvalValue').text(approvalValue.Name);
+                        container.find('#approvalJusficationText').text($('#Justification').val());
+
+                        return;
+                    }
+                });
+            } else {
+                var automaticProcessId = container.find('.approval-automatic-value').val();
+
+                if (automaticProcessId) {
+                    var approvalValueItem = $('[aria-labelledby="id-ApprovalProcess"] a[dd-value="' + automaticProcessId + '"]').eq(0);
+                    container.find('#approvalValue').text(approvalValueItem.text());
+                    var justificationText = container.find('.justification-text').val();
+                    container.find('#approvalJusficationText').text(justificationText);
+                }
+            }
+        }
+
+        function email(source) {
+            var body = "";
+            var url = '@Url.Action("GetMailTemplate", "View")';
+            var result = postUrl(url).success(function (data) {
+                if (data.IsValid) {
+                    var projectAssistantNamesList = data.MailTemplateViewModel.ProjectAssistantNamesList;
+
+                    if (projectAssistantNamesList == "")
+                        projectAssistantNamesList = " ";
+
+                    var fullTeamLeaderName = data.MailTemplateViewModel.FullTeamLeaderName;
+                    var mailSubject = data.MailTemplateViewModel.MailSubject;
+
+                    body = generateBody(data.MailTemplateViewModel);
+                    var mail = String.format("mailto:{0}?cc={1}&subject={2}&body={3}", fullTeamLeaderName, projectAssistantNamesList, mailSubject, encodeURIComponent(body));
+                    if (mail.length <= 2000) {
+                        window.location.href = mail;
+                    } else {
+                        showMessage("OP.AP.Mailto.ErrorContenido");
+                    }
+                } else {
+                    showMessage(data.ErrorMessage);
+                }
+            }).error(function (response) {
+                showMessage(response.ErrorMessage);
+            });
+        }
+
+        function generateBody(data) {
+            var newLine = '\n';
+            var result = data.MailPartOne + " " + data.FullTeamLeaderName + "," + newLine + newLine;
+
+            result += data.MailPartTwo + newLine + newLine;
+            switch (data.OperationType) {
+                case "SG":
+                    result += formatMailForSG(data.TermsList);
+                    break;
+                case "NSG":
+                    result += formatMailForNSG(data.TermsList);
+                    break;
+                case "TC":
+                    result += formatMailForTC(data.TermsList);
+                    break;
+            }
+
+            result += newLine
+            result += data.MailPartThree + newLine;
+            result += data.MailPartFour + newLine;
+            result += data.FullUserName + newLine;
+            result += "Email: " + data.UserMail
+
+            return result;
+        }
+
+        function formatMailForSG(termsList) {
+            var newLine = '\n';
+            var result = "I." + getTranslation(termsList, "OP.AP.Mail.Operation_data") + newLine; //I.    Operation Data
+
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Basic_Data") + newLine;  //Basic Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Sector") + newLine; //Sector
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Subsector") + newLine; //Subsector
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.OPR") + newLine; // OPR
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Names") + newLine; // Operation Names
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.Spanish") + newLine; // spanish
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.English") + newLine; // English
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Objectives") + newLine; // Operation Objectives
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.Spanish") + newLine;//spanish
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.English") + newLine; //English
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Related_Operations") + newLine; //Related Operations
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Responsibility_Data") + newLine; // Responsability Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Preparation") + newLine; // Preparation
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Prepared") + newLine; // Prepared
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Co-Prepared") + newLine; // Co-Prepared
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Team") + newLine; // Operation Team
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.TeamLeader") + newLine; // Team Leader
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Attorney") + newLine; //Attorney
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Project_Assistant") + newLine; // Project Assistant
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Associated_Institutions") + newLine; // Associated Institutions
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Borrower") + newLine; // Borrower
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Executing_Agency") + newLine; // Executing Agency
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Classification_Data") + newLine; // Classification Data
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Approval_Process") + newLine; // Approval Process
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Approval_Authority") + newLine; // Approval Authority
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Approval_Cycle") + newLine; // Approval Cycle
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Exception_Bank_Policies") + newLine; // Exception Bank Policies
+            result += "II." + getTranslation(termsList, "OP.AP.Mail.Financial_Data") + newLine; // Financial Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Financing_Type") + newLine; //Financing Type
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Fund") + newLine; //Fund
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Amount") + newLine; // Amount
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Original_IDB") + newLine; //Original IDB
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Counterpart_Financing") + newLine;//Counterpart Financing
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Co-Financing") + newLine;//Co-Financing
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Total_Operation_Cost") + newLine;//Total Operation Cost
+            result += "III." + getTranslation(termsList, "OP.AP.Mail.Milestones") + newLine;// Milestones
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.COW") + newLine;// COW
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.APPR") + newLine;// APPR
+
+            return result;
+        }
+
+        function formatMailForNSG(termsList) {
+            var newLine = '\n';
+            var result = "I." + getTranslation(termsList, "OP.AP.Mail.Operation_data") + newLine; //I.    Operation Data
+
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Basic_Data") + newLine;  //Basic Data
+            result += " " + getTranslation(termsList, "OP.AP.Mail.Operation_Year") + newLine; //Operation Year
+            result += " " + getTranslation(termsList, "OP.AP.Mail.Country") + newLine; //Country
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.CountryDepartment") + newLine; //Country Department
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Sector") + newLine; //Sector
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Subsector") + newLine; //Subsector
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.OPR") + newLine; // OPR
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Names") + newLine; // Operation Names
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.Spanish") + newLine; // spanish
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.English") + newLine; // English
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Objectives") + newLine; // Operation Objectives
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.Spanish") + newLine;//spanish
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.English") + newLine; //English
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Related_Operations") + newLine; //Related Operations
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Responsibility_Data") + newLine; // Responsability Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Preparation") + newLine; // Preparation
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Prepared") + newLine; // Prepared
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Co-Prepared") + newLine; // Co-Prepared
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Team") + newLine; // Operation Team
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.TeamLeader") + newLine; // Team Leader
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Attorney") + newLine; //Attorney
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Project_Assistant") + newLine; // Project Assistant
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Associated_Institutions") + newLine; // Associated Institutions
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Borrower") + newLine; // Borrower
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Executing_Agency") + newLine; // Executing Agency
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Classification_Data") + newLine; // Classification Data
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Approval_Process") + newLine; // Approval Process
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Approval_Authority") + newLine; // Approval Authority
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Approval_Cycle") + newLine; // Approval Cycle
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.LendingProgram") + newLine; //Lending Program
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Booking_Execution") + newLine; // Booking Execution
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Booking_Preparation") + newLine; // Booking Preparation
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Category") + newLine; // Category
+            result += "II." + getTranslation(termsList, "OP.AP.Mail.Financial_Data") + newLine; // Financial Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Financing_Type") + newLine; //Financing Type
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Fund") + newLine; //Fund
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Amount") + newLine; // Amount
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Original_IDB") + newLine; //Original IDB
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Counterpart_Financing") + newLine;//Counterpart Financing
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Co-Financing") + newLine;//Co-Financing
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Total_Operation_Cost") + newLine;//Total Operation Cost
+            result += "III." + getTranslation(termsList, "OP.AP.Mail.Milestones") + newLine;// Milestones
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.ERM") + newLine;// ERM
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.PP") + newLine;// PP
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.PSML") + newLine;// PSML
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.ABSP") + newLine;// ABSP
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.QRR") + newLine;// QRR
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.LCD") + newLine;// LCD
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.COW") + newLine;// COW
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.APPR") + newLine;// APPR
+
+            return result;
+        }
+
+        function formatMailForTC(termsList) {
+            var newLine = '\n';
+            var result = "I." + getTranslation(termsList, "OP.AP.Mail.Operation_data") + newLine; //I.    Operation Data
+
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Basic_Data") + newLine;  //Basic Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Type") + newLine; //Operation Type
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Year") + newLine; //Operation Year
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Country") + newLine; //Country
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.CountryDepartment") + newLine; //Country Department
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Sector") + newLine; //Sector
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Subsector") + newLine; //Subsector
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.OPR") + newLine; // OPR
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Names") + newLine; // Operation Names
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.Spanish") + newLine; // spanish
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.English") + newLine; // English
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Objectives") + newLine; // Operation Objectives
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.Spanish") + newLine;//spanish
+            result += "     " + getTranslation(termsList, "OP.AP.Mail.English") + newLine; //English
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Related_Operations") + newLine; //Related Operations
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Responsibility_Data") + newLine; // Responsability Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Preparation") + newLine; // Preparation
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Prepared") + newLine; // Prepared
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Co-Prepared") + newLine; // Co-Prepared
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Operation_Team") + newLine; // Operation Team
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.TeamLeader") + newLine; // Team Leader
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Attorney") + newLine; //Attorney
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Project_Assistant") + newLine; // Project Assistant
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Associated_Countries") + newLine; // Associated Countries
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Associated_Institutions") + newLine; // Associated Institutions
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Borrower") + newLine; // Borrower
+            result += "    " + getTranslation(termsList, "OP.AP.Mail.Executing_Agency") + newLine; // Executing Agency
+            result += "" + getTranslation(termsList, "OP.AP.Mail.Classification_Data") + newLine; // Classification Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Approval_Process") + newLine; // Approval Process
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Approval_Authority") + newLine; // Approval Authority
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Approval_Cycle") + newLine; // Approval Cycle
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.TC_Taxonomy") + newLine; //TC Taxonomy
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Unit_Responsible") + newLine; // Unit Responsible
+            result += "II." + getTranslation(termsList, "OP.AP.Mail.Financial_Data") + newLine; // Financial Data
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Financing_Type") + newLine; //Financing Type
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Fund") + newLine; //Fund
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Amount") + newLine; // Amount
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Original_IDB") + newLine; //Original IDB
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Counterpart_Financing") + newLine;//Counterpart Financing
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Co-Financing") + newLine;//Co-Financing
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.Total_Operation_Cost") + newLine;//Total Operation Cost
+            result += "III." + getTranslation(termsList, "OP.AP.Mail.Milestones") + newLine;// Milestones
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.ABS") + newLine;// ABS
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.FAS") + newLine;// FAS
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.QRR") + newLine;// QRR
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.TECC") + newLine;// TECC
+            result += "  " + getTranslation(termsList, "OP.AP.Mail.APPR") + newLine;// APPR
+
+            return result;
+        }
+
+        function getTranslation(termList, termkey) {
+            var result = $.grep(termList, function (term) { return term.TermKey == termkey });
+
+            return result[0].TermTranslation;
+        }
+
+        function edit(source) {
+            ReformulationTabs.DisableButtons();
+            var divApproval = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+            var success = enterEditMode(false, $(divApproval), false);
+
+            if (success) {
+                var operationType = $('#hiddenOperationType').val();
+
+                enterEditMode(false, $(divApproval.find('[data-id=headerButtons]')), false);
+                $('#page-name').attr('data-idb-pagename', "Approval-Edit-Mode");
+
+                if ($('.page').find('.approvalnumber_hide[value]').length < $('.page').find('.approvalnumber_hide').length)
+                    $('.registerapprovalModal').removeClass('hide');
+                showReuseGenerateApprovalNumberButton();
+
+                $('.registerapprovalModal').removeClass('hide');
+
+                showRegisterApprovalButton();
+                checkSuffixesLengthToDisableThem();
+                cleanErrorsList();
+                reloadIDBApprovedAmountWithProperFormat();
+                hideSuffixes('edit');
+                allowOnlyNumbersOnSuffixField();
+                checkStatusToDisableFundCurrencyDropDown();
+                removeValidationErrorMessageAfterEnteringValues();
+                setFirstOptionForExecutingAgency();
+                showReuseGenerateApprovalNumberButton();
+                controlApprButtonVisibility();
+                disableEnableTabs(true);
+                justificationEdit();
+                evaluateTextJustification();
+                toggleBarsfromApproval(false);
+                fixScrollable();
+            }
+        }
+
+        function cleanDocumentDateAndNumberValues() {
+            var documentNumbers;
+
+            $('input[name="docummentNumbers"]').focusin(function () {
+                documentNumbers = $(this).val();
+                $(this).val("")
+            })
+
+            $('input[name="docummentNumbers"]').focusout(function () {
+                if ($(this).val() == "")
+                { $(this).val(documentNumbers); }
+            })
+        }
+
+        function cancel(source) {
+            var msg = '@Localization.GetText("OP.AP.Cancel.Warning.Message")';
+            var divApproval = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    showLoader();
+                    ReformulationTabs.EnableButtons();
+                    exitEditMode(true, $(divApproval), true, false);
+                    exitEditMode(false, $(divApproval.find('[data-id=headerButtons]')), false, false);
+                    $('#page-name').attr('data-idb-pagename', "Approval-View-Mode");
+                    $('.registerapprovalModal').addClass('hide');
+                    $('.registerapprovalModal').addClass('hide');
+                    enableDisabledSuffixElements();
+                    hideSuffixes('read');
+                    freeApprovalLock();
+                    disableEnableTabs(false);
+                    getApprovalAutomaticValue();
+                    changeComboboxApproval();
+                    changeComboboxAuthority();
+                    toggleBarsfromApproval(true);
+                }
+            });
+        }
+
+        function genericSubmit(container) {
+            var options = { dataType: 'json' };
+            var clientData = [];
+            processContainer(container, clientData);
+            var jsonText = JSON.stringify({ ClientFieldData: clientData });
+
+            return postUrlWithOptions(container.attr('data-url'), options, jsonText);
+        }
+
+        function genericContainer(url) {
+            return $('<div/>', { 'class': 'genericContainer', 'data-url': url });
+        }
+
+        function genericInputHidden(name, value) {
+            var div = $('<div/>', { 'class': 'genericInputHidden', 'data-pagemode': 'edit' });
+            div.append($('<input/>', { 'type': 'hidden', 'name': name, 'value': value }));
+            return div;
+        }
+
+        function saveApproval(source) {
+            $('.approval-data-content.current')
+                .attr('data-url', $('.approval-data-content.current').attr('data-base-url'));
+            var approvalValue = $('#approvalValue');
+            var divApproval = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+            var isValid = false;
+            var response = saveContainer(
+                $(divApproval),
+                '#hidViewModel',
+                true,
+                $(divApproval).find('[data-id=headerButtons]'),
+                null,
+                true,
+                null,
+                null,
+                false);
+
+            ReformulationTabs.EnableButtons();
+
+            if (response) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage !== null && data.ErrorMessage !== '') {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid) {
+                        isValid = true;
+                        closeEditMode($(divApproval));
+                        toggleBarsfromApproval(true);
+                    }
+                });
+            }
+
+            var divDocuments = $('.approval-data-content.current [data-tab-control-id = "tabDocuments"]');
+            exitEditMode(false, $(divDocuments), false, false);
+            exitEditMode(false, $(divDocuments).find('[data-id=headerButtons]'), false, false);
+
+            var divRemarks = $('.approval-data-content.current [data-tab-control-id = "tabRemarks"]');
+            exitEditMode(false, $(divRemarks), false, false);
+            exitEditMode(false, $(divRemarks).find('[data-id=headerButtons]'), false, false);
+
+            return isValid;
+        }
+
+        function closeEditMode(container) {
+            GetDocumentsApproval(false);
+            hideSuffixes("read");
+            getApprovalAutomaticValue();
+            changeComboboxApproval();
+            changeComboboxAuthority();
+            disableEnableTabs(false);
+        }
+
+        function renderizeRow(documentList, sourceType, description) {
+            closeModal();
+
+            var docNumber;
+            var fileName;
+            var isEditable = false;
+
+            if (documentList.length <= 0) {
+                return;
+            }
+
+            if (sourceType === "selected" && documentList.length > 0) {
+                docNumber = documentList[0].DocumentNumber;
+                fileName = documentList[0].DocumentName;
+            } else if (sourceType === "downloadRegistry" || documentList.length === 0) {
+                docNumber = documentList[0];
+                fileName = description;
+            }
+            else {
+                docNumber = documentList[0];
+                fileName = description[0];
+            }
+
+            if (sourceType !== 'downloadRegistry') {
+                isEditable = true;
+            }
+
+            $.ajax({
+                type: "POST",
+                url: "@Url.Action("AddNewDocument", "View")",
+                data: {
+                    documentNumber: docNumber,
+                    documentName: fileName,
+                    isEditableName: isEditable
+                },
+                success: function (data) {
+                    if (data.IsValid != null && !data.IsValid) {
+                        showMessage(data.ErrorMessage);
+                    } else {
+                        if ($('#ApprovalOperationDocumentsTable > tbody > tr').length == 0) {
+                            $('#ApprovalOperationDocumentsTable > tbody').append(data);
+                        }
+                        else {
+                            $('#ApprovalOperationDocumentsTable > tbody > tr').eq(0).before(data);
+                        }
+                        if ($('button[name=saveDocumentsInViewMode]').length > 0) {
+                            $('button[name=saveDocumentsInViewMode]').parent('div').removeClass('hide');
+                        }
+
+                        var divDocuments = $('.approval-data-content.current [data-tab-control-id = "tabDocuments"]');
+
+                        enterEditMode(false, $(divDocuments));
+                        closeModal();
+                        disableDocumentDateAndNumbers();
+                        SetNumberDocuments();
+                        hideLoaderOptional();
+                        bindHandlers();
+                        documentsCallback();
+                    }
+                },
+                error: function (error) {
+                    showMessage(error);
+                }
+            });
+        }
+
+        function downloadDocument(target) {
+            var docNumber = $(target.closest('tr')).find('td:nth-child(3)')[0].outerText;
+            var operation = '@ViewBag.operationNumber';
+            var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+
+            window.open(url, '_blank');
+        }
+
+        function revokeapproval(source) {
+            var financingId = $(source).closest('tr').attr('data-id');
+            var actualStatus = $(source).closest('tr').find('.statusCode').text();
+            var url = '@Url.Action("RevokeApproval", "View", new { area = "OPUS" })' + '?financingId=' + financingId + '&actualStatus=' + actualStatus;
+            var msg = '@Localization.GetText("OP.AP.EditRegister.RegisterApproval.ClickRevokeMessage")';
+
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    var response = postUrl(url);
+
+                    if (response.responseJSON.isValid) {
+                        var container = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+                        enterEditMode(true, container, true);
+                        showRegisterApprovalButton();
+                        controlApprButtonVisibility();
+                        fixScrollable();
+
+                    } else {
+                        showMessage(response.responseJSON.ErrorMessage);
+                    }
+                }
+            });
+        }
+
+        function generateApprovalNumber(source) {
+            var financingId = source.parents("table tr").first().attr('data-id');
+            var suffix;
+            var approvalNumberFromSearchTool = $(source).find('[name=newApprovalNumber_text]').val();
+
+            var colSuffix = $(source).closest('tr').find('td#col-suffix');
+            if (colSuffix.find('div').length > 0) {
+                suffix = colSuffix.find('input[name="Suffix"]').val();
+            } else {
+                suffix = colSuffix.find('span[data-pagemode=edit] span:eq(1)').text();
+            }
+
+            var isIncrease = source.closest('tr')
+                .find('[name="IsIncreaseCol"] span').text().trim().toLowerCase() == 'true';
+
+            if (source.parents('span:first').hasClass('reusegenerateAPR')) {
+                approvalNumberFromSearchTool = $('[name=newApprovalNumber_text]').val();
+                generateApprovalNumberCall(source, financingId, suffix, approvalNumberFromSearchTool, isIncrease);
+            } else {
+                approvalNumberFromSearchTool = "";
+
+                var msg = '@Localization.GetText("OP.AP.GenerateAPPRNumber.Warning")';
+
+                if ($('[name=newApprovalNumber_text]').length > 0 && $('[name=newApprovalNumber_text]').val() === "") {
+                    generateApprovalNumberCall(source, financingId, suffix, approvalNumberFromSearchTool, isIncrease);
+                } else {
+                    confirmAction(msg).done(function (pressOk) {
+                        if (pressOk) {
+                            generateApprovalNumberCall(source, financingId, suffix, approvalNumberFromSearchTool, isIncrease);
+                        }
+                    });
+                }
+            }
+
+            saveApprovalContent();
+        }
+
+        function generateApprovalNumberCall(
+            source, financingId, suffix, approvalNumberFromSearchTool, isIncrease) {
+            var url = '@Url.Action("GenerateApprovalNumber", "View", new { Area = "OPUS" })' +
+                '?financingId=' + financingId +
+                '&suffix=' + suffix +
+                '&approvalNumberFromSearchTool=' + approvalNumberFromSearchTool +
+                '&isIncrease=' + isIncrease;
+
+            var response = postUrl(url);
+
+            if (response.responseJSON.isValid) {
+
+                var container = $('.approval-data-content.current [data-tab-control-id="approvalOperation"]');
+                reloadContainer(container, true);
+
+                var datePickerDate = (response.responseJSON.documentDate === null || !response.responseJSON.documentDate) ? "" : new Date(response.responseJSON.documentDate);
+                $('[name="documentDate"]').val($.datepicker.formatDate("dd M yy", datePickerDate));
+                $('[name="docummentNumbers"]').val(response.responseJSON.documentNumber);
+
+                $('.documentDate_hide').val(response.responseJSON.documentDate);
+                $('.docummentNumbers_hide').val(response.responseJSON.documentNumber);
+                source.parents("table tr").eq(0).find('td.approvalnumber').html(response.responseJSON.approvalNumber);
+
+                var resolutionByDefault = "N/A";
+                if (response.responseJSON.resolutionNumber != null) {
+                    resolutionByDefault = response.responseJSON.resolutionNumber;
+                }
+                var parentId = $(source).closest('tbody').find('tr')
+                    .find('td.resolutionnumber [name = "ResolutionNumber"]')
+                    .attr('data-persist-parent-id');
+
+                var resolutionNumberInput = '<span data-pagemode="edit" class="showDataEdit">' +
+                    '@Confluence.InputText("ResolutionNumberValue",
+                    "ResolutionNumber",
+                    dataAttributes: new Dictionary<string, string> {
+                        { "idb-fieldname", "txtResolutionNumber" }
+                    },
+                    required: true,
+                    width: "100%").ToString().Replace("\r\n", "").Replace("\n", "")' + '</span>';
+
+                $(source).closest("tr").next().find('td.resolutionnumber')
+                        .html(resolutionNumberInput.replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+                        .replace("ResolutionNumberValue", resolutionByDefault));
+
+                $(source).closest("tr").next()
+                        .find('td.resolutionnumber input[name = "ResolutionNumber"]')
+                        .attr('data-persist-parent-id', parentId);
+
+                source.parents("table tr").eq(0).find('td').eq(2).find('.approvalnumber_hide').val(response.responseJSON.approvalNumber);
+                source.parents("table tr").eq(0).find('td').eq(2).find('.resolutionnumber_hide').val((response.responseJSON.resolutionNumber === null) ? "" : response.responseJSON.resolutionNumber);
+
+                if (source.parents('.page').find('.approvalnumber_hide[value]').length == source.parents('.page').find('.approvalnumber_hide').length)
+                    $('.registerapprovalModal').removeClass('hide');
+
+                GetDocumentsApproval(false);
+                SetDocumentNumberOfSecretary(source, response.responseJSON.documentNumber);
+                SetDocumentDateOfSecretary(source, response.responseJSON.documentDate);
+
+                if (source.parents('table:first').find('tr:gt(0)').length > 1) {
+                    source.parents("tr").eq(0).find('span').eq(4).find('span.rowDataHide').append('<span>' + suffix + '</span>');
+                }
+
+                hideSuffixes("edit");
+
+                if (source.parents('span:first').hasClass('reusegenerateAPR')) {
+                    source.hide();
+                    source.parents('span.showDataEdit').find('span.generateAPR').find("button").hide();
+                } else {
+                    source.hide();
+                    source.parents('span.showDataEdit').find('span.reusegenerateAPR').find("button").hide();
+                }
+
+                if (isIncrease) {
+                    var row = source.closest('tr');
+                    $.post("@Url.Action("ButtonsIncreaseApproval", "View", new { area = "OPUS" })",
+                        { fundOperationIncreaseId: financingId }, function (data) {
+                            if (data.IsValid) {
+                                $(row).find('td[name="actionCol"]').empty().append(data.HtmlButtons);
+                            }
+                        });
+                }
+            }
+            else {
+                showMessage(response.responseJSON.errorMessage);
+                setTimeout(function () { source.removeAttr('disabled'); }, 1000);
+            }
+        }
+
+        function validateBeforeSubmitGenerateApproval(source) {
+            var validData = true;
+            cleanErrorsList()
+
+            source.parents("table tr").first().find('input[type="text"]').each(function () {
+                if ($(this).val() == "") {
+                    addErrors($(this));
+                    validData = false;
+                }
+            });
+
+            source.parents("table tr").first().find('select option:selected').each(function () {
+                if ($(this).val() == "") {
+                    addErrors($(this).parent());
+                    validData = false;
+                }
+            });
+
+            if (source.parents("table tr").parent().parent().find('select[name="fundCurrency"]').val() == "") {
+                addErrors(source.parents("table tr").parent().parent().find('select[name="fundCurrency"]'));
+                validData = false;
+            }
+
+            return validData;
+        }
+
+        function addErrors(source) {
+            source.next("ul.parsley-errors-list").addClass('filled').append('<li class="parsley-required">' + '@Localization.GetText("OP.AP.EditRegister.RegisterApproval.RequiredField")' + '</li>')
+        }
+
+        function btnNewBLoan(source) {
+            if (isInEditMode($('#PageContent'))) {
+                var tableId = source.parents("table tr").prev().attr("data-id");
+                $(".newbloan[data-id=" + tableId + "]").removeClass("hide");
+            }
+        }
+
+        function addLoan(source) {
+            var quantity = source.attr("data-quantity");
+            var FinancingRowId = source.parent().attr("data-id");
+            var sactualRow = $("tr[data-id=" + FinancingRowId + "]").parents("table").find("span.numbered-expandible").text();
+            var actualRow = Number(sactualRow.substr(0, sactualRow.length - 1)) + 1;
+            sactualRow = actualRow + ".";
+
+            var url = '@Url.Action("GetNewBLoan", "View", new { operationNumber = ViewBag.operationNumber, quantity = "__quantity__" })';
+
+            $.get(url.replace('__quantity__', quantity), function (data) {
+                $("#BLoan-" + FinancingRowId).html(data).removeClass("hide");
+                $("#BLoan-" + FinancingRowId).find("table").find("span.numbered-expandible").text(actualRow + ".");
+            });
+
+            while (actualRow < $("span.numbered-expandible").length) {
+                var actualSpan = $("span.numbered-expandible:contains(" + sactualRow + ")");
+                if (actualSpan) {
+                    actualRow++;
+                    sactualRow = actualRow + ".";
+                    actualSpan.last().text(sactualRow);
+                } else actualRow = 0;
+            }
+            enterEditMode(false, $("#BLoan-" + FinancingRowId).find("table.Financing"), false);
+            $("#BLoan-" + FinancingRowId).find("table.Financing").linetableChildTable("table-line");
+            $("#BLoan-" + FinancingRowId).find('[data-btn-expandable]').btnExpandable();
+            $(".newbloan").addClass("hide");
+            closeModal();
+        }
+
+        function resizeContentLocal(source) {
+            $('.vex-content').css('top', $('.vex-content').height());
+            var css = '<style id="pseudo">.vex.vex-theme-default .vex-close:before{display: none !important;}</style>';
+            document.head.insertAdjacentHTML('beforeEnd', css);
+            $('.vex-content').find(".buttonsAction").attr("data-id", source.attr("data-id"));
+        }
+
+        function resizeContentLocalApprovalDocuments(source) {
+            var css = '<style id="pseudo">.vex.vex-theme-default .vex-close:before{display: none !important;}</style>';
+            document.head.insertAdjacentHTML('beforeEnd', css);
+            $('.vex-content').find(".buttonsAction").attr("data-id", source.attr("data-id"));
+        }
+
+        function cancelModal() {
+            closeModal();
+        }
+
+        function closeModal() {
+            var vexModal = $('.approvalmodal').parents('.vex');
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+
+        function downloadReport(source) {
+            var formatType = source.attr('name').toString();
+
+            var url = '@Url.Action("DownloadSGOperationProfileSummary", "View", new { area = "OPUS" })' +
+                "?formatType=" + formatType +
+                "&activityPlanId=" + ReformulationTabs.GetActivityPlanId() +
+                "&isCurrent=" + ReformulationTabs.isCurrent();
+
+
+            window.open(url, '_blank');
+        }
+
+        function registerApproval(source) {
+            if (saveApproval() !== true) {
+                closeModal();
+                return;
+            }
+            var container = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+            var url = '@Url.Action("RegisterApproval", "View", new { area = "OPUS" })';
+            var response = postUrl(url);
+            closeModal();
+
+            if (response.responseJSON.data.isValid) {
+                if (response.responseJSON.data.isValidSAP) {
+                    reloadContainer(container);
+                } else {
+                    showMessage(response.responseJSON.data.errorMessage);
+                    reloadContainer(container);
+                }
+            }
+            else {
+                edit();
+                showMessage(response.responseJSON.data.errorMessage);
+            }
+        }
+
+        function calculateTotals() {
+            var currentIDBCost = 0;
+            $('td.USFundAmountColumn').each(function () {
+                currentIDBCost += parseFloat($(this).text().replaceAll(',', ''));
+            })
+            $('#currentIDBCost span label').text(formatDecimal(currentIDBCost.toFixed(2)));
+            var counterpartFinancing = parseFloat($('#counterpartFinancing span label')
+                .text().replaceAll(',', ''));
+            var coFinancing = parseFloat($('#coFinancing span label').text().replaceAll(',', ''));
+
+            $('#totalOperationCost span label').text(
+                formatDecimal((currentIDBCost + counterpartFinancing + coFinancing).toFixed(2)));
+        }
+
+        function allowOnlyNumbersOnSuffixField() {
+            $('input[name="Suffix"]').keypress(function (e) {
+                if (parseInt(e.keyCode) > 47 && parseInt(e.keyCode) < 58) {
+                    if (parseInt($(this).val().length) <= 1) {
+                    }
+                    else {
+                        e.preventDefault();
+                    }
+                }
+                else {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        function downloadRegistry(source) {
+            $('.generateRegistryMessageContainer').hide();
+            var formatType = source.attr('name').toString();
+            var url = '@Url.Action("DownloadApprovalRegistryReport", "View", new { area = "OPUS" })' +
+                "?formatType=" + formatType +
+                "&activityPlanId=" + ReformulationTabs.GetActivityPlanId() +
+                "&isCurrent=" + ReformulationTabs.isCurrent();
+
+            var response = postUrl(url).responseJSON;
+            if (response.IsValid) {
+                renderizeRow([response.DocumentNumber], "downloadRegistry", response.DocumentDescription);
+            } else {
+                if (response.DocumentNumber !== "") {
+                    renderizeRow([response.DocumentNumber], "downloadRegistry", response.DocumentDescription);
+                }
+                else {
+                    showMessage(response.ErrorMessage);
+                }
+            }
+        }
+
+        function showGenerateRegistryButton() {
+            showButton = false;
+            var statusArray = $('.statusCode').map(function () {
+                return ($(this).text() === "F_O_DRAFT" || $(this).text() === "");
+            });
+
+            showButton = $.inArray(false, statusArray) > -1;
+
+            if (!showButton) {
+                $('button[data-id=generateRegistry]').addClass("hide");
+            }
+            else {
+                $('button[data-id=generateRegistry]').removeClass("hide");
+
+            }
+        }
+
+        function fillMissingSuffixValues() {
+            $('.FinancingDetail').each(function () {
+                if ($(this).children().find('input[name="Suffix"]').length > 0) {
+                    var suffixLastValue = 0;
+
+                    if ($(this).find('span.SuffixReadRow').last().length > 1) {
+                        suffixLastValue = ($(this).find('span.SuffixReadRow').last().text() != "" ? parseInt($(this).find('span.SuffixReadRow').last().text()) : 0);
+                    }
+
+                    var emptySuffixInputs = $(this).find('input[name="Suffix"]');
+                    var emptySuffixInputsLength = emptySuffixInputs.length;
+                    var i;
+                    var c;
+
+                    for (i = suffixLastValue, c = 0; c <= emptySuffixInputsLength; i++, c++) {
+                        if (emptySuffixInputs.eq(c).val() == "") {
+                            emptySuffixInputs.eq(c).val(i + 1);
+                        }
+                    }
+                }
+            });
+        }
+
+        function validateSuffixValues() {
+            cleanSuffixInputValuesErrorMessages();
+
+            var areValueslessThanSuffixLastValue = false;
+            var emptySuffixInputsArray = [];
+
+            $('.FinancingDetail').each(function () {
+                if ($(this).children().find('input[name="Suffix"]').length > 0) {
+                    var suffixLastValue = parseInt($(this).find('span.SuffixReadRow').last().text());
+                    var notEmptySuffixInputs = $(this).find('input[name="Suffix"]');
+
+                    var notEmptySuffixInputsValues = notEmptySuffixInputs.map(function () {
+                        var notEmptyValue = 0;
+
+                        if ($(this).val() != "") {
+                            if ($(this).val() == "0") { emptySuffixInputsArray.push($(this)); }
+                            notEmptyValue = parseInt($(this).val());
+                        }
+                        else {
+                            emptySuffixInputsArray.push($(this));
+                        }
+
+                        return notEmptyValue;
+                    });
+
+                    notEmptySuffixInputsValues.each(function () {
+                        if (this < suffixLastValue) {
+                            areValueslessThanSuffixLastValue = true;
+                        }
+                    });
+                }
+            });
+
+            addErrorMessagesToSuffixInputs(emptySuffixInputsArray);
+            return areValueslessThanSuffixLastValue;
+        }
+
+        function addErrorMessagesToSuffixInputs(emptyInputs) {
+            for (var i = 0; i < emptyInputs.length; i++) {
+                emptyInputs[i].next("ul.parsley-errors-list").addClass('filled').append('<li class="parsley-required">@Localization.GetText("OP.AP.EditRegister.RegisterApproval.FullFillField")</li>')
+            }
+        }
+
+        function cleanSuffixInputValuesErrorMessages() {
+            var parsleyFinancing = $('.FinancingDetail').children().find('input[name="Suffix"]')
+                .parent()
+                .find("ul.parsley-errors-list");
+
+            parsleyFinancing.children().remove();
+            parsleyFinancing.removeClass('filled');
+        }
+
+        function documentDatePickerValueFix() {
+            $('input[name="documentDate"]').change(function () {
+                var dateString = $(this).val().split(" ");
+                var newDateString = dateString[0] + " " + dateString[1] + " " + dateString[2]
+                if (newDateString.indexOf("undefined") == -1) {
+                    $(this).val(newDateString);
+                }
+            });
+        }
+
+        function disableDocumentDateAndNumbers() {
+            var parentsDocumentDate = $('input[name="documentDate"]').parents('div.LabelsGroup');
+            parentsDocumentDate.find('div[data-pagemode=edit]').addClass('hide');
+            parentsDocumentDate.find('div[data-pagemode=edit]').removeClass('showDataEdit');
+            parentsDocumentDate.find('div[data-pagemode=read]').removeClass('hide');
+            parentsDocumentDate.find('div[data-pagemode=read] label')
+                .html($('input[name="documentDate"]').val());
+
+            var parentsDocumentNumbers = $('input[name="docummentNumbers"]').parents('div.LabelsGroup');
+            parentsDocumentNumbers.find('div[data-pagemode=edit]').addClass('hide');
+            parentsDocumentNumbers.find('div[data-pagemode=edit]').removeClass('showDataEdit');
+            parentsDocumentNumbers.find('div[data-pagemode=read]').removeClass('hide');
+            parentsDocumentNumbers.find('div[data-pagemode=read] label')
+                .html($('input[name="docummentNumbers"]').val());
+
+            $('.documentNumberParagraph').show();
+        }
+
+        function checkDocumentInputsValues() {
+            return ($('input[name="documentDate"]').val() === "" ||
+                $('input[name="docummentNumbers"]').val() === "");
+        }
+
+        function removeDeleteRepeaterClass() {
+            $('button[data-repeater-button-new-action="newComment"]').click(function () {
+                $('.btnDelete-repeater').parent().removeClass('btnDeleteRepeater');
+            })
+        }
+
+        function loadSuffixesValues() {
+            var IdsAndSuffixes = "";
+            $('td.approvalnumber').parent().each(function () {
+                if ($(this).find('td:eq(1)').find('span[data-pagemode=edit] div').length > 0) {
+                    IdsAndSuffixes += ($(this).attr('data-id') + "," + $(this).find('td:eq(1)').find('span[data-pagemode=edit] div').find('input').val() + "-")
+                } else if ($(this).find('span.SuffixReadRow').length > 0 && $(this).find('span.SuffixReadRow').text() != "") {
+                    IdsAndSuffixes += ($(this).attr('data-id') + "," + $(this).find('span.SuffixReadRow').text() + "-");
+                }
+            })
+            return IdsAndSuffixes;
+        }
+
+        function showRegisterApprovalButton() {
+            if (conditionsToShowRegisterApprovalButton()) {
+                $('.registerapprovalModal').removeClass('hide');
+            } else {
+                $('.registerapprovalModal').addClass('hide');
+            }
+        }
+
+        function CheckFundAvailability() {
+            var url = '@Url.Action("CheckFundAvailability","View")';
+
+            var response = postUrl(url);
+
+            if (response.responseJSON.data.isValid) {
+                var message = response.responseJSON.data.message.replace(/#/g, "<br>");
+                showMessage(message);
+
+            }
+            else {
+                showMessage(response.responseJSON.data.errorMessage);
+            }
+        }
+
+        function checkSuffixesLengthToDisableThem() {
+        }
+
+        function enableDisabledSuffixElements() {
+            $('input[name=Suffix]:disabled').removeClass('hide');
+        }
+
+        function hasStatus(StatusCode) {
+            var Status = false;
+
+            var statusArray = $('.statusCode').map(function () {
+                return ($(this).text() === StatusCode);
+            });
+
+            Status = $.inArray(true, statusArray) > -1;
+
+            return Status;
+        }
+
+        function checkStatusToDisableFundCurrencyDropDown() {
+            var statusArray = [];
+            $('.statusCode').each(function () {
+                if ($(this).text() === 'F_O_DRAFT') {
+                    statusArray.push($(this).text());
+                }
+            });
+
+            if ($('.statusCode').length != statusArray.length) {
+                disableFundCurrency();
+            }
+        }
+
+        function previousValidationForRegisterApproval() {
+            var validData = true;
+            cleanExecutingAgencyErrors();
+
+            $('input[name=fundCurrency]').each(function () {
+                if ($(this).val() === "") {
+                    validateElement($(this));
+                    validData = false;
+                }
+            });
+
+            $('input[name=IDBApprovedAmount]').each(function () {
+                var idbValue = $(this).val();
+
+                if ($(this).val() === "" || parseInt($(this).val()) === 0) {
+                    $(this).val("");
+                    validateElement($(this));
+                    validData = false;
+                    $(this).val(idbValue);
+                }
+            });
+
+            $('input[name=USApprovedAmount].inputText').each(function () {
+                var source = $(this);
+                var amount = source.val();
+                if (source.val() === "" || parseInt(source.val()) === 0) {
+                    source.val("");
+                    validateElement(source);
+                    validData = false;
+                    source.val(amount);
+                }
+            });
+
+            $('input[name=Executor]').each(function () {
+                if ($(this).parents("div.dropdown")
+                    .find('button span.valueText').text().trim() === '(select an option)') {
+
+                    validateElement($(this));
+                    $(this).next("ul.parsley-errors-list").addClass('filled')
+                        .append('<li class="parsley-required">' +
+                            '@Localization.GetText("OP.AP.EditRegister.RegisterApproval.RequiredField")' +
+                            '</li>');
+                    validData = false;
+                }
+            });
+
+            var operationType = $('#hiddenOperationType').val();
+            if (operationType != '@OperationType.EFC') {
+                $('[name=ResolutionNumber]').not(':hidden').each(function () {
+                    if ($(this).val() === "") {
+                        validateElement($(this));
+                        validData = false;
+                    }
+                });
+            }
+
+            return validData;
+        }
+
+        function cleanErrorsList() {
+            $('.approval-data-content.current').find("ul.parsley-errors-list").children().remove();
+            $('.approval-data-content.current').find("ul.parsley-errors-list").removeClass('filled');
+        }
+
+        function validateElement(container) {
+            if (container.attr('data-parsley-validate') != null) {
+                container.data('is-fired-validation', true);
+            }
+
+            container.parsley().validate();
+            $(container).find('ul.filled').each(function () {
+                if ($(this).find('li.parsley-required').length > 1) {
+                    $(this).find('li.parsley-required').first().remove();
+                }
+            });
+        }
+
+        function cleanExecutingAgencyErrors() {
+            $('input[name=Executor]').parents("div.dropdown").find("ul.parsley-errors-list").children().remove();
+            $('input[name=Executor]').parents("div.dropdown").find("ul.parsley-errors-list").removeClass('filled');
+        }
+
+        function renderizeRowForGenerateApproval(documentNumber, numberAndDescriptionList) {
+            var urlf = '@Url.Action("AddNewDocument", "View")';
+
+            var result = postUrl(urlf, { documentNumber: documentNumber });
+
+            for (var item in numberAndDescriptionList) {
+                var newRow = '<tr role="row" data-id="">' +
+                        '<td>' + result.responseJSON.data.User + '</td>' +
+                        '<td>' + result.responseJSON.data.Date + '</td>' +
+                        '<td class="text-right">' + item + '</span> </td>' +
+                        '<td class="documentDescription"><span>' + numberAndDescriptionList[item] + '</span> </td>' +
+                   '<td class="text-center">' +
+                   '@Confluence.ButtonDownload(text: "", action: "downloadDocument", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnDownloadDocument" }, { "docnumber", "docNumberValue" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                   '<span data-pagemode="edit" style="width:20%; float: left;">' +
+                            '@Confluence.ButtonTrash("", action: "deleteDocument", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnDeleteDocument" }, { "docnumber", "docNumberValue" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                   '</span>' +
+                   '</td> ' +
+                   '<td> <span data-pagemode="edit"> <input type="text" name="documentNumber" value="' + item + '" data-id=""></span> </td>' +
+                   '</tr>';
+
+                if ($('#wflowDocument #ApprovalOperationDocumentsTable > tbody > tr').length == 0) {
+                    $('#wflowDocument #ApprovalOperationDocumentsTable').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+                    $('#wflowDocument #ApprovalOperationDocumentsTable tr:last td:last').addClass('hide');
+                }
+                else {
+                    $('#wflowDocument #ApprovalOperationDocumentsTable > tbody > tr').eq(0).before(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+                    $('#wflowDocument #ApprovalOperationDocumentsTable > tbody > tr > td:eq(5)').eq(0).addClass('hide');
+                }
+            }
+
+            enterEditMode(false, $('#wflowDocument #ApprovalOperationDocuments'));
+        }
+
+        function disableFundCurrency() {
+            $('div.dropdown.fundCurrency').each(function () {
+                if ($(this).find('input[name=fundCurrency]').val() != "") {
+                    $(this).parents('td').find('span[data-pagemode=edit]').addClass('hide');
+                    $(this).parents('td').find('span[data-pagemode=edit]').removeClass('showDataEdit');
+                    $(this).parents('td').find('span[data-pagemode=read]').removeClass('hide');
+                    $(this).parents('td').find('span[data-pagemode=read]').html($(this).parents('td').find('span[data-pagemode=edit]').find('div.dropdown').find('li a[dd-selected]').text());
+                }
+            })
+        }
+
+        function conditionsToShowRegisterApprovalButton() {
+            var draftStatus = hasStatus("F_O_DRAFT");
+            var revokedStatus = hasStatus("F_O_REVOKED");
+            var rejectedLmsStatus = hasStatus("F_O_REJECTED_LMS");
+            return (draftStatus || revokedStatus || rejectedLmsStatus);
+        }
+
+        function clickOnRegisterApproval() {
+            showLoader();
+            window.setTimeout(function () {
+                if (checkGeneratedApprovalNumbers() || isConOperation) {
+                    if (previousValidationForRegisterApproval()) {
+                        var url = '@Url.Action("RegisterApprovalPreValidate", "View", new { area = "OPUS" })';
+                        var response = postUrl(url);
+                        if (response.responseJSON.data.isValid) {
+                            modalContent = $("div#registerapprovalModal");
+                            modalContent.removeClass('hide');
+                            openModal(
+                                modalContent,
+                                function () { modalContent.addClass('hide'); },
+                                true,
+                                'warning');
+                            resizeContentLocal(modalContent);
+                            setPositionModal(modalContent.closest('.vex-content'));
+                        } else {
+                            var message = response.responseJSON.data.errorMessage.replace(/#/g, "<br>");
+                            showMessage(message);
+                        }
+                    }
+                } else {
+                    showMessage('@Localization.GetText("OP.AP.EditRegister.RegisterApproval.Warning")');
+                }
+            }, 10);
+        }
+
+        function saveApprovalContent() {
+            var response = saveContainer(
+                $('.approval-data-content.current [data-tab-control-id="approvalOperation"]'),
+                '#hidViewModel',
+                true,
+                null,
+                null,
+                true,
+                null,
+                null,
+                false);
+
+            if (response !== true) {
+                toggleBarsfromApproval(true);
+            }
+
+            return response && response.responseJSON.IsValid;
+        }
+
+        function checkGeneratedApprovalNumbers() {
+            var allApprovalNumbersGenerated = true;
+            $('td.approvalnumber').each(function () {
+                if ($(this).find('span').length > 0 &&
+                    $(this).find('span').first().text().trim() === "" &&
+                    $(this).find('[name=newApprovalNumber_text]').val() === "" &&
+                    $(this).parent().find('[name="IsRequestIncrease"]')
+                    .text().toLowerCase().trim() === 'false') {
+                    allApprovalNumbersGenerated = false;
+                    return false;
+                }
+                else if ($(this).find('td.approvalnumber').html === "" &&
+                    $(this).parent().find('[name="IsRequestIncrease"]')
+                    .text().toLowerCase().trim() === 'false') {
+                    allApprovalNumbersGenerated = false;
+                    return false;
+                }
+            });
+
+            return allApprovalNumbersGenerated;
+        }
+
+        function numberWithCommas(x) {
+            return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function reloadIDBApprovedAmountWithProperFormat() {
+            $('input[name=IDBApprovedAmount]').each(function () {
+                var valueWithoutCommas = $(this).val().slice(0, $(this).val().indexOf("."));
+                $(this).val(numberWithCommas(valueWithoutCommas));
+            });
+
+            if ($('div.IDBApprovedAmount').not('.hide').length > 0) {
+                $('div.IDBApprovedAmount').not('.hide').each(function () {
+                    var valueWithoutCommas = $(this).find('input').val().slice(0, $(this).val().indexOf("."));
+                    $(this).find('input').val(numberWithCommas(valueWithoutCommas));
+                });
+            }
+        }
+
+        function newComment(source) {
+            var newBlock = '<row><div class="col-md-12"><span data-pagemode="edit" class="showDataEdit">' +
+                '@Confluence.InputCommentBox(
+                section1: Confluence.LabelGetDate(DateTime.Now),
+                section2: Confluence.Label(ViewBag.user),
+                section3: Confluence.ButtonTrash(text: "", action: "deleteComment", htmlClass:"mt0"),
+                value: "", name: "newComment", dataAttributes: new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "txtNewComment" }
+                }, required:true).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span></div></row>';
+
+            $("#wflowComments #divWorkflowComments").prepend(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+            $('.inputComment .labels > label:not(:last-child)').css('padding-top', '5px');
+        }
+
+        function deleteComment(source) {
+            if (source.attr("data-commentId")) {
+                $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+            }
+
+            source.parents("div.inputComment").remove();
+        }
+
+        function deleteDocument(source) {
+            var msg = '@Localization.GetText("OP.AP.Cancel.Warning.DeleteDocument")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    var docNumber = getDocNumber(source);
+                    var isIncrease = source.parents('tr')
+                        .find("div.dropdown [name='ddlTransactionTypeDoc']")
+                        .GetValue() === "AIR_TT_INCREASE";
+
+                    var urlDelete = '@Url.Action("DeleteDocument", "Save")'
+                        + '?documentNumber=' + docNumber + '&isIncrease=' + isIncrease;
+                    var result = postUrl(urlDelete)
+                          .success(function (data) {
+                              if (data.IsValid) {
+                                  deleteRow(source);
+                                  SetNumberDocuments();
+                              } else {
+                                  showMessage(data.ErrorMessage);
+                              }
+                          })
+                          .error(function (response) {
+                              showMessage(response.ErrorMessage);
+                          });
+                }
+            });
+        }
+
+        function getDocNumber(source) {
+            var docNumber = source.parents('tr').find("[name='docNumber']").text().trim();
+            return docNumber;
+        }
+
+        function deleteRow(source) {
+            source.parents("tr").remove();
+        }
+
+        function hideSuffixes(modeState) {
+            $('.FinancingDetail').each(function () {
+                if ($(this).find('tr:gt(0)').length == 1) {
+                    $(this).find('tr:gt(0)').first().find('td:eq(2) span[data-pagemode=' + modeState + '] span').addClass('hide');
+                }
+                else {
+                    $(this).find('tr:gt(0)').each(function () {
+                        if ($(this).find('td:eq(1)').text() != "") {
+                            if (!$(this).find('td:eq(2) span[data-pagemode=' + modeState + '] span').hasClass('hide')) {
+                                $(this).find('td:eq(2) span[data-pagemode=' + modeState + '] span').addClass('hide');
+                            }
+                        }
+                    })
+                }
+            })
+        }
+
+        function removeValidationErrorMessageAfterEnteringValues() {
+            $("input[type='text']").keypress(function (e) {
+                if ($(this).val() != "") {
+                    $(this).next("ul.parsley-errors-list").removeClass('filled');
+                    $(this).next("ul.parsley-errors-list").children().remove();
+                }
+            });
+        }
+
+        function softDeleteDocument(source) {
+            var msg = '@Localization.GetText("OP.AP.Cancel.Warning.DeleteDocument")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    source.parents('tr').remove();
+                }
+            });
+        }
+
+        function setFirstOptionForExecutingAgency() {
+            $('[aria-labelledby=id-Executor]').each(function () {
+                if ($(this).find('li').length === 2 && $(this).find('li').find('a[dd-selected]').text().trim() === "(select an option)") {
+                    $(this).firstElement();
+                }
+            });
+        }
+
+        $.fn.firstElement = function () {
+            if ($(this).closest('.dropdown').length > 0) {
+                var contenedor = $(this).closest('.dropdown');
+                contenedor.removeClass('placeholder');
+                var elemento = contenedor.find('ul.dropdown-menu li').eq(1).find('a');
+                contenedor.find('input').attr('value', elemento.attr('dd-value'));
+                contenedor.find('button').find('span.valueText').text(elemento.text());
+                contenedor.find('ul.dropdown-menu li').find('[dd-selected]').removeAttr('dd-selected');
+                elemento.attr('dd-selected', '');
+            }
+            return $(this);
+        }
+
+        function saveDocumentsInViewMode() {
+            saveDocuments();
+        }
+
+        function showReuseGenerateApprovalNumberButton() {
+            $('[name=newApprovalNumber_text]').click(function () {
+                if (!($(this).parents("tr:first").find('.reusegenerateAPR').hasClass("hide"))) {
+                    $(this).parents("tr:first").find('.reusegenerateAPR').addClass("hide");
+                }
+            });
+
+            $('ul[aria-labelledby=id-newApprovalNumber]').click(function () {
+                var selectedList = $(this).find("li a[dd-selected]");
+                if ((selectedList.text().trim().length > 3) && selectedList.text().trim() !== "") {
+                    selectedList.parents("tr:first").find('.reusegenerateAPR').removeClass("hide");
+                    selectedList.parents("tr:first").find('.reusegenerateAPR > button').addClass("mt5");
+                } else {
+                    selectedList.parents("tr:first").find('.reusegenerateAPR').addClass("hide");
+                }
+            });
+        }
+
+        function tryToEditApproval() {
+            urlConcurrence = '@Url.Action("AccessToApprovalResource", "View", new { area = "Opus"})';
+            var result = postUrl(urlConcurrence)
+                  .success(function (data) {
+                      if (!data.IsValid) {
+                          showMessage(data.ErrorMessage);
+                      } else {
+                          edit();
+                      }
+                  });
+        }
+
+        function freeApprovalLock() {
+            urlConcurrence = '@Url.Action("FreeApprovalResource", "View", new { area = "Opus"})';
+            var result = postUrl(urlConcurrence)
+                  .success(function (data) {
+                      if (!data.IsValid) {
+                          showMessage(data.ErrorMessage);
+                      }
+                  });
+        }
+
+        function clickOnApproveWithoutSendToLMS() {
+            showLoader();
+            window.setTimeout(function () {
+                if (previousValidationForApproveWithoutSendToLMS()) {
+                    var url = '@Url.Action("RegisterApprovalPreValidate", "View", new { area = "OPUS" })';
+                    var response = postUrl(url);
+                    if (response.responseJSON.data.isValid) {
+                        modalContent = $("div#registerapprovalModal");
+                        modalContent.removeClass('hide');
+                        openModal(
+                            modalContent,
+                            function () { modalContent.addClass('hide'); },
+                            true,
+                            'warning');
+                        resizeContentLocal(modalContent);
+                        setPositionModal(modalContent.closest('.vex-content'));
+                    } else {
+                        var message = response.responseJSON.data.errorMessage.replace(/#/g, "<br>");
+                        showMessage(message);
+                    }
+                }
+            }, 10);
+        }
+
+        function previousValidationForApproveWithoutSendToLMS() {
+            var validData = true;
+            cleanExecutingAgencyErrors();
+
+            $('input[name=fundCurrency]').each(function () {
+                if ($(this).val() === "") {
+                    validateElement($(this));
+                    validData = false;
+                }
+            });
+
+            $('input[name=IDBApprovedAmount]').each(function () {
+                var idbValue = $(this).val();
+
+                if ($(this).val() === "" || parseInt($(this).val()) === 0) {
+                    $(this).val("");
+                    validateElement($(this));
+                    validData = false;
+                    $(this).val(idbValue);
+                }
+            });
+
+            $('input[name=USApprovedAmount].inputText').each(function () {
+                var source = $(this);
+                var amount = source.val();
+                if (source.val() === "" || parseInt(source.val()) === 0) {
+                    source.val("");
+                    validateElement(source);
+                    validData = false;
+                    source.val(amount);
+                }
+            });
+
+            $('input[name=Executor]').each(function () {
+                if ($(this).parents("div.dropdown").find('button span.valueText').text().trim() === '(select an option)') {
+                    validateElement($(this));
+                    $(this).next("ul.parsley-errors-list").addClass('filled').append('<li class="parsley-required">' +
+                        '@Localization.GetText("OP.AP.EditRegister.RegisterApproval.RequiredField")' + '</li>');
+                    validData = false;
+                }
+            });
+
+            return validData;
+        }
+
+        $(document).on("click", '.btnCollapseAll', function () {
+            if ($(this).find('label').html().trim() == '@OPUSGlobalValues.COLLAPSE_ALL') {
+                $('.btnCollapseOne').each(function () {
+                    $(this).find('label').html().trim() == '@OPUSGlobalValues.EXPAND' ?
+                        colapsableOne(this) :
+                        $(this).click().click();
+                })
+            } else {
+                $('.btnCollapseOne').each(function () {
+                    $(this).find('label').html().trim() !== '@OPUSGlobalValues.EXPAND' ?
+                        colapsableOne(this) :
+                        $(this).click().click();
+                })
+            }
+        });
+
+        $(document).on("click", '[name="txtAmountNewTransaction"]', function () {
+            if ($(this).val().length > 0) {
+                if ($(this).val().replace(/,/g, '') * 1 === 0) {
+                    $(this).val("");
+                }
+            }
+        });
+
+        function showNewTransactionModal(element) {
+            $('[data-id="buttonNewTransaction"]').click();
+            $.ajax({
+                async: false,
+                type: "POST",
+                url: "@Url.Action("NewTransactionModal", "View")",
+                success: function (data) {
+                    $('#addNewTransaction').html(data);
+                    bindHandlers();
+                    reloadParsley($('#addNewTransaction'));
+                    setModalHandlers();
+                    $('input[name="ddlFunds"]').attr('data-parsley-required', false);
+                    $('input[name="ddlFinancingType"]').attr('data-parsley-required', false);
+                },
+                error: function (error) {
+                    $('#addNewTransaction').html(error);
+                }
+            });
+        }
+
+        function cancelRequestTransaction() {
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    $('.vex-close').click();
+                }
+            });
+        }
+
+        function requestTransaction() {
+            $('.vex-close').click();
+        }
+
+        function saveRemarks() {
+            var divRemark = $('.approval-data-content.current [data-tab-control-id = "tabRemarks"]');
+            var validData = validateContainer($(divRemark));
+            if (!validData) {
+                return false;
+            }
+
+            var newComments = [];
+            var deleteComments = [];
+            var updateComments = [];
+
+            RemarksToCreate(newComments, divRemark);
+            RemarksToDelete(deleteComments, divRemark);
+            RemarksToUpdate(updateComments, divRemark);
+
+            var request = JSON.stringify({
+                'comment': newComments,
+                'deleteComment': deleteComments,
+                'updateComment': updateComments
+            });
+
+            $.ajax({
+                async: true,
+                type: "POST",
+                contentType: 'application/json;',
+                dataType: 'json',
+                url: "@Url.Action("AddRemarks", "Save")",
+                data: request,
+                success: function (data) {
+                    if (data.IsValid != null && !data.IsValid) {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid) {
+                        GetRemarksApproval();
+                    }
+                },
+                error: function (error) {
+                    showMessage(error);
+                }
+            });
+        }
+
+        function RemarksToCreate(newComments, divRemark) {
+            $(divRemark).find('[name="newComment"]').each(function (index, value) {
+                var newComment = {
+                    comment: value.value
+                }
+                newComments.push(newComment);
+            });
+        }
+
+        function RemarksToUpdate(updateComments, divRemark) {
+            var updateComment = $(divRemark).find("[name='textComment']:not([readonly])");
+            if (updateComment.length > 0) {
+                updateComment.each(function (index, value) {
+                    var updateComment = {
+                        comment: value.value,
+                        CommentId: parseInt($(value).data("commentid"))
+                    }
+                    updateComments.push(updateComment);
+                });
+            }
+        }
+
+        function RemarksToDelete(deleteComments, divRemark) {
+            var deleteComment = $(divRemark).find("[name=deleteComments]").val();
+            if (deleteComment.length > 0) {
+                deleteArr = deleteComment.split("|");
+                $.each(deleteArr, function (index, value) {
+                    if (value.length > 0) {
+                        deleteComments.push(parseInt(value));
+                    }
+                });
+            }
+        }
+        function cancelTabRemarks() {
+            var msg = '@Localization.GetText("OP.AP.Cancel.Warning.Message")';
+            var divRemarks = $(".approval-data-content.current [data-tab-control-id = 'tabRemarks']");
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    showLoader();
+                    window.setTimeout(function () {
+                        exitEditMode(false, $(divRemarks), false, false);
+                        exitEditMode(false, $(divRemarks.find('[data-id=headerButtons]')), false, false);
+                        $('#page-name').attr('data-idb-pagename', "Remarks-View-Mode");
+                        disableEnableTabs(false);
+                        GetRemarksApproval();
+                        hideLoader();
+                    }, 2000);
+                }
+            });
+
+        }
+
+        function cancelTabDocument() {
+            var msg = '@Localization.GetText("OP.AP.Cancel.Warning.Message")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    showLoader();
+                    window.setTimeout(function () {
+                        var divDocuments =
+                            $('.approval-data-content.current [data-tab-control-id = "tabDocuments"]');
+                        exitEditMode(false, $(divDocuments), false, false);
+                        exitEditMode(false, $(divDocuments.find('[data-id=headerButtons]')), false, false);
+                        $('#page-name').attr('data-idb-pagename', "Document-View-Mode");
+                        disableEnableTabs(false);
+                        $('.documentDateParagraph').show();
+                        $('.documentNumberParagraph').show();
+                        $('input[name="documentDate"]').removeAttr('disabled');
+                        $('input[name="docummentNumbers"]').removeAttr('disabled');
+                        GetDocumentsApproval(false);
+                        hideLoader();
+                    }, 2000);
+                }
+            });
+
+        }
+
+        function saveDocuments() {
+            var newDocuments = [];
+            var updateDocuments = [];
+            var divDocument = $(".approval-data-content.current [data-tab-control-id = 'tabDocuments']");
+            var isValid = validateContainer($(divDocument));
+            if (!isValid) {
+                return;
+            }
+            updateDocumentsFill(updateDocuments, divDocument);
+            newDocumentsFill(newDocuments, divDocument);
+            var documentDate = $(divDocument).find("input[name='documentDate']").val();
+            var documentNumber = $(divDocument).find("input[name='docummentNumbers']").val();
+            var request = JSON.stringify({
+                'newDocumentList': newDocuments,
+                'updateDocumentList': updateDocuments,
+                'documentDate': documentDate,
+                'documentNumber': documentNumber
+            });
+
+            $.ajax({
+                async: true,
+                type: "POST",
+                contentType: 'application/json;',
+                dataType: 'json',
+                url: "@Url.Action("SaveDocuments", "Save")",
+                data: request,
+                success: function (data) {
+                    if (data.IsValid != null && !data.IsValid) {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid) {
+                        exitEditMode(false, $(divDocument), false, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                        GetDocumentsApproval(false);
+                    }
+                },
+                error: function (error) {
+                    showMessage(error);
+                }
+            });
+
+        }
+
+        function updateDocumentsFill(updateDocuments, divDocument) {
+            var rowUpdated = $(divDocument).find("div.dropdown[data-change-value]").closest('tr');
+            rowUpdated.each(function (index, value) {
+                var isIncreaseUpdate = false;
+                var approvalNumberUpdate = "";
+                var fundOperationIncreaseUpdate = 0;
+                var getTransaction = $(value).find('[name="ddlTransactionTypeDoc"]');
+
+                approvalNumberUpdate = $(value).find('[name="ddlApprovalNumber"]').GetValue();
+                approvalDateUpdate = getApprovalDate($(value));
+
+                if (getTransaction.GetValue() == "AIR_TT_INCREASE") {
+                    isIncreaseUpdate = true;
+                    fundOperationIncreaseUpdate = $(value).find('[name="ddlIncreaseSequence"]').GetValue();
+                };
+
+                var documentUpdate = {
+                    DocNumber: $(value).find("[name='docNumber']").text().trim(),
+                    IsIncrease: isIncreaseUpdate,
+                    ApprovalNumber: approvalNumberUpdate,
+                    ApprovalDate : approvalDateUpdate,
+                    FundOperationIncreaseId: parseInt(fundOperationIncreaseUpdate),
+                    DocumentId: parseInt($(value).attr("data-id"))
+
+                }
+                updateDocuments.push(documentUpdate);
+            });
+        }
+
+        function newDocumentsFill(newDocuments, divDocument) {
+            $(divDocument).find("input[name='documentDescription']").each(function(index, value) {
+                var newRow = $(value).closest("tr");
+                var isIncrease = false;
+                var approvalNumber = "";
+                var fundOperationIncrease = 0;
+                var getTransaction = newRow.find('[name="ddlTransactionTypeDoc"]');
+                approvalNumber = newRow.find('[name="ddlApprovalNumber"]').GetValue();
+                approvalDateUpdate = getApprovalDate(newRow);
+
+                if (getTransaction.GetValue() == "AIR_TT_INCREASE") {
+                    isIncrease = true;
+                    fundOperationIncrease = newRow.find('[name="ddlIncreaseSequence"]').GetValue();
+                }
+
+                var newDocument = {
+                    Description: value.value,
+                    DocNumber: newRow.find("[name='docNumber']").text().trim(),
+                    IsIncrease: isIncrease,
+                    ApprovalNumber: approvalNumber,
+                    ApprovalDate: approvalDateUpdate,
+                    FundOperationIncreaseId: parseInt(fundOperationIncrease)
+                }
+                newDocuments.push(newDocument);
+            });
+        }
+
+        function editDocuments() {
+            var divDocuments = $('.approval-data-content.current [data-tab-control-id = "tabDocuments"]');
+
+            enterEditMode(false, $(divDocuments), false);
+            enterEditMode(false, $(divDocuments.find('[data-id=headerButtons]')), false);
+            $('#page-name').attr('data-idb-pagename', "Documents-Edit-Mode");
+            disableEnableTabs(true);
+            disableDocumentDateAndNumbers();
+            showGenerateRegistryButton();
+            bindHandlers();
+            documentsCallback();
+        }
+
+        function editRemarks() {
+            var divRemark = $('.approval-data-content.current [data-tab-control-id = "tabRemarks"]');
+            enterEditMode(false, $(divRemark), false);
+            enterEditMode(false, $(divRemark.find('[data-id=headerButtons]')), false);
+            $('#page-name').attr('data-idb-pagename', "Remarks-Edit-Mode");
+            disableEnableTabs(true);
+            var labels = $(divRemark).find("[name='textComment']:not([readonly])").closest('div');
+            $(labels).find('.labelNormal').parent().addClass("mt15");
+        }
+
+        function GetDocumentsApproval(disableTabs) {
+            $.ajax({
+                async: true,
+                type: "POST",
+                url: "@Url.Action("GetDocumentApproval", "View")",
+                success: function (data) {
+                    if (data.IsValid != null && !data.IsValid) {
+                        showMessage(data.ErrorMessage);
+                        disableEnableTabs(false);
+                        exitEditMode(false, $('.approval-data-content.current [data-tab-control-id = "tabDocuments"]'), false, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    } else {
+                        disableEnableTabs(disableTabs);
+                        $('.approval-data-content.current [data-tab-control-id = "tabDocuments"]').html(data);
+                        SetNumberDocuments();
+                    }
+                },
+                error: function (error) {
+                    showMessage(error);
+                }
+            });
+        }
+
+        function GetRemarksApproval() {
+            $.ajax({
+                async: true,
+                type: "POST",
+                url: "@Url.Action("GetRemarksApproval", "View")",
+                success: function (data) {
+                    if (data.IsValid != null && !data.IsValid) {
+                        showMessage(data.ErrorMessage);
+                        disableEnableTabs(false);
+                        exitEditMode(false, $('.approval-data-content.current [data-tab-control-id = "tabRemarks"]'), false, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    }
+                    else {
+                        disableEnableTabs(false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                        $('.approval-data-content.current [data-tab-control-id = "tabRemarks"] div#wflowComments').html(data);
+                        var commentNumber = $(".approval-data-content.current [data-tab-control-id = 'tabRemarks'] div#wflowComments [data-idb-fieldname='txtTextComment01']")
+                                            .length;
+                        var tabRemarks = $('.approval-data-content.current .tabs li')[2];
+                        var index = $(tabRemarks).text().indexOf("(");
+                        $(tabRemarks).text($(tabRemarks).text().substring(0, index + 1) + commentNumber + ")");
+                    }
+                },
+                error: function (error) {
+                    showMessage(error);
+                }
+            });
+        }
+
+        function disableEnableTabs(enableOne) {
+            if (enableOne) {
+                var idTab = $('.tab-pane.active').attr('id');
+                $("[dd-tab]").not('[dd-tab=#' + idTab + ']').addClass('disabled');
+            } else {
+                $("[dd-tab]").removeClass('disabled');
+            }
+        }
+
+        function setModalHandlers() {
+            $('[name="ddlFundingSource"]').change(function () {
+                var fundingSource = $(this).GetText();
+
+                clearDropdown($('[name="ddlFinancingType"]').next().next());
+                clearCurrency();
+
+                if (fundingSource.indexOf('(select option)') === -1) {
+                    $('#lblFund label').text("Select " + fundingSource);
+                    $('#funds').removeClass("visibilityHidden");
+                    $('#lblFund').removeClass("visibilityHidden");
+                    getNewTransactionFunds(fundingSource === 'New Fund');
+                } else {
+                    $('#lblFund').addClass("visibilityHidden");
+                    $('#funds').addClass("visibilityHidden");
+                    $('input[name="ddlFunds"]').attr('data-parsley-required', false);
+                    clearDropdown($('[name="ddlFunds"]').next().next());
+                }
+
+                $('input[name="ddlFinancingType"]').attr('data-parsley-required', false);
+            });
+
+            $('[name="ddlTransactionType"]').change(function () {
+                var transactionType = $(this).GetText();
+
+                if (transactionType.indexOf('(select option)') < 0) {
+                    $('#lblTransactionType').find('label').text(transactionType);
+                } else {
+                    $('#lblTransactionType').find('label').text('');
+                }
+            });
+
+            $('[name="ddlFunds"]').change(function () {
+                getCurrency();
+            });
+
+            $('[name="txtAmountNewTransaction"]').blur(function () {
+                getUsEquivalentAmount();
+            });
+
+            $('[name="txtAmountNewTransaction"]').change(function () {
+                validateAmount(this);
+            });
+
+            $('[name="ddlFunds"]').change(function () {
+                getFinancingTypes();
+            });
+
+            $('#lblUsAmount label').change(function () {
+                hideLoader();
+            });
+
+            setOnlyOptionAsDefault($('input[name="ddlTransactionType"]'));
+            setOnlyOptionAsDefault($('input[name="ddlExecutingAgency"]'));
+        }
+
+        function cancelRequestIncrease() {
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    $('.vex-close').click();
+                }
+            });
+        }
+
+        function saveNewTransaction() {
+            var isValid = validateContainer($('#addNewTransaction'));
+            var amountValid = validateAmount($('[name="txtAmountNewTransaction"]'));
+
+            if (!isValid || !amountValid) {
+                return;
+            }
+
+            var transactionTypeId = $('[name="ddlTransactionType"]').GetValue();
+            var isNewFund = $('[name="ddlFundingSource"]').GetText() == "New Fund";
+            var fundId = $('[name="ddlFunds"]').GetValue();
+            var financingTypeId = $('[name="ddlFinancingType"]').GetValue();
+            var currencyCode = $('#hidCurrencyCode').val();
+            var amount = $('[name="txtAmountNewTransaction"]').val();
+            var executingAgencyId = $('[name="ddlExecutingAgency"]').GetValue();
+            var usAmount = $('#lblUsAmount label').text();
+
+            $.ajax({
+                url: "@Url.Action("SaveRequestIncrease", "Save", new { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    'transactionTypeId': parseInt(transactionTypeId),
+                    'isNewFund': isNewFund,
+                    'fundId': parseInt(fundId),
+                    'financingTypeId': parseInt(financingTypeId),
+                    'currencyCode': currencyCode,
+                    'amount': parseFloat(amount.replaceAll(',', '')),
+                    'usAmount': parseFloat(usAmount.replaceAll(',', '')),
+                    'executingAgencyId': parseInt(executingAgencyId),
+                    'isRequestIncrease': false
+                },
+                success: function (data) {
+                    if (data.IsValid) {
+                        var fundOperationIncreaseId = data.FundOperationIncreaseId;
+                        getNewFundingLine(fundOperationIncreaseId, fundId, financingTypeId, true, true);
+                        showGenerateRegistryButton();
+                        hideSuffixes("read");
+                        $('.vex-close').click();
+                    } else {
+                        showUSEquivalentError(
+                            "@Localization.GetText("OP.FD.PopUp.AddTransaction")",
+                            data.ErrorMessage);
+                    }
+                }
+            });
+        }
+
+        function getCurrency() {
+            var currentCurrencyCode = $('#hidCurrencyCode').val();
+            var fundId = $('[name="ddlFunds"]').GetValue();
+
+            if (fundId === '') {
+                return;
+            }
+
+            $.ajax({
+                url: "@Url.Action("GetCurrency", "View", new  { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: { 'fundId': parseInt(fundId) },
+                success: function (data) {
+                    if (data.IsValid) {
+                        $('#hidCurrencyCode').val(data.CurrencyCode);
+                        $('#lblFundCurrency label').text(data.CurrencyText);
+                    } else {
+                        clearCurrency();
+                    }
+                }
+            });
+
+            var newCurrencyCode = $('#hidCurrencyCode').val();
+            var amount = $('[name="txtAmountNewTransaction"]').val();
+
+            if (newCurrencyCode !== '' && currentCurrencyCode !== newCurrencyCode && amount != 0) {
+                getUsEquivalentAmount();
+            }
+        }
+
+        function getUsEquivalentAmount() {
+            var amount = $('[name="txtAmountNewTransaction"]').val();
+            var currencyCode = $('#hidCurrencyCode').val();
+
+            $('#error-message-dialog').hide();
+
+            if (amount === '' || currencyCode === '') {
+                return;
+            }
+
+            $.ajax({
+                url: "@Url.Action("GetUsEquivalentAmount", "View", new { Area = "OPUS" })",
+                type: "POST",
+                async: true,
+                dataType: "json",
+                data: {
+                    'amount': parseFloat(amount.replaceAll(',', '')),
+                    'currencyCode': currencyCode
+                },
+                success: function (data) {
+                    if (data.IsValid) {
+                        $('#lblUsAmount label').text(formatDecimal(data.Amount.toFixed(2)));
+                    } else {
+                        showUSEquivalentError(
+                            "@Localization.GetText("OP.FD.PopUp.UsEquivalent")",
+                            data.ErrorMessage);
+                        $('#lblUsAmount label').text("0.00");
+                    }
+                },
+                error: function (data) {
+                    showUSEquivalentError(
+                        "@Localization.GetText("OP.FD.PopUp.UsEquivalent")",
+                        "@Localization.GetText("GLOBAL.SERVICE.GeneralError")");
+                    $('#lblUsAmount label').text("0.00");
+                }
+            });
+        }
+
+        function showUSEquivalentError(title, message) {
+            var $errorDiv = $('#error-message-dialog');
+            $errorDiv.find('.error-message strong.field-error').html(title + ": ");
+            $errorDiv.find('.error-message span.error-details').html(message);
+            $errorDiv.show();
+        }
+
+        function formatDecimal(number) {
+            var n = number.toString(), p = n.indexOf('.');
+            return n.replace(/\d(?=(?:\d{3})+(?:\.|$))/g, function ($0, i) {
+                return p < 0 || i < p ? ($0 + ',') : $0;
+            });
+        }
+
+        function getFinancingTypes() {
+            var fundingSource = $('[name="ddlFundingSource"]').GetText();
+
+            if (fundingSource.indexOf('(select option)') < 0) {
+                var fundId = fundingSource === 'Existing Fund' ?
+                    $('[name="ddlFunds"]').GetValue() :
+                    '0';
+
+                if (fundId === '') {
+                    return;
+                }
+
+                $.ajax({
+                    url: "@Url.Action("GetFinancingTypes", "View", new { Area = "OPUS" })",
+                    type: "POST",
+                    dataType: "json",
+                    data: { 'fundId': parseInt(fundId) },
+                    success: function (data) {
+                        var dropdown = $('[name="ddlFinancingType"]').next().next();
+                        clearDropdown(dropdown);
+
+                        if (data.IsValid) {
+                            $(data.FinancingTypes).each(function (i, val) {
+                                dropdown.append('<li><a dd-value="' + val.Value + '">' +
+                                    val.Text + '</a></li>')
+                            });
+
+                            if (fundId === '0') {
+                                $(data.FinancingTypes).each(function (i, val) {
+                                    if (val.Select) {
+                                        dropdown.prev().SelectIndex(i + 1);
+                                    }
+                                });
+                            }
+
+                            $('input[name="ddlFinancingType"]').attr('data-parsley-required', true);
+                            setOnlyOptionAsDefault($('input[name="ddlFinancingType"]'));
+                        }
+                    }
+                });
+            } else {
+                var dropdown = $('[name="ddlFinancingType"]').next().next();
+                clearDropdown(dropdown);
+            }
+        }
+
+        function clearCurrency() {
+            $('#hidCurrencyCode').val('');
+            $('#lblFundCurrency label').text('');
+        }
+
+        function clearDropdown(dropdown) {
+            dropdown.html('');
+            dropdown.append('<li><a dd-value>(select option)</a></li>');
+            dropdown.prev().prev().FirstorDefault();
+        }
+
+        function validateAmount(element) {
+            if ($(element).val() == "0.00") {
+                $(element).closest("td").find('ul').addClass("filled").find("li").remove();
+                $(element).closest("td").find('ul')
+                    .append("<li class='usRequired'>" +
+                        "@Localization.GetText("This value is required.")</li>");
+                return false;
+            } else {
+                if ($(element).closest("td").find('li.usRequired').length == 1 &&
+                    $(element).closest("td").find('li').length == 1) {
+                    $(element).closest("td").find('ul')
+                        .removeClass("filled").find("li.usRequired").remove();
+                }
+                if (($(element).closest("td").find('li.usRequired').length == 1 &&
+                    $(element).closest("td").find('li').length > 1)) {
+                    $(element).closest("td").find('ul').find("li.usRequired").remove();
+                }
+            }
+
+            return true;
+        }
+
+        function getNewTransactionFunds(newFunds) {
+            $.ajax({
+                url: "@Url.Action("GetFunds", "View", new { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    'newFunds': newFunds,
+                    'isRequestIncrease': false
+                },
+                success: function (data) {
+                    var ddlFunds = $('input[name="ddlFunds"]');
+                    var dropdown = ddlFunds.next().next();
+                    clearDropdown(dropdown);
+
+                    if (data.IsValid) {
+                        $(data.FundsList).each(function (i, val) {
+                            dropdown.append('<li><a dd-value="' + val.Value + '">' +
+                                val.Text + '</a></li>')
+                        });
+
+                        ddlFunds.attr('data-parsley-required', true);
+
+                        setOnlyOptionAsDefault(ddlFunds);
+                    }
+                }
+            });
+        }
+
+        function getNewFundingLine(subFundId, fundId, financingTypeId, isFromNewTransaction, isIncrease, canReplaceFinancing) {
+            var container = '';
+            var rowNumber = 0;
+            var existsFundingLine = false;
+            var lastRow = '';
+            var actualRefDiv = $('div.current');
+            actualRefDiv.find('[id^="Financing-"]').each(function () {
+                var rowFinancingTypeId = $(this)
+                    .find('input[name="hidFinancingTypeId"]').val();
+                var rowFundId = $(this).find('input[name="hidFundId"]').val();
+
+                if (rowFinancingTypeId == financingTypeId && rowFundId == fundId) {
+                    existsFundingLine = true;
+                    rowNumber = $(this).attr('id').replace('Financing-', '');
+                    container = $(this).find('table[id^="FinancingDetail-"] tbody').first();
+                    return false;
+                }
+            });
+
+            if (!existsFundingLine) {
+                rowNumber = actualRefDiv.find('[id^="Financing-"]').length + 1;
+                lastRow = actualRefDiv.find('div.row table[id^="Financing-"]').last().closest('div.row');
+                container = actualRefDiv.find('div[id^="approvalOperation"]');
+            }
+
+            $.ajax({
+                async: true,
+                type: "POST",
+                url: "@Url.Action("GetApprovalFundingLine", "View")",
+                data:
+                    {
+                        'fundOperationIncreaseId': isIncrease ? parseInt(subFundId) : 0,
+                        'fundOperationId': isIncrease ? 0 : parseInt(subFundId),
+                        'rowNumber': parseInt(rowNumber)
+                    },
+                success: function (data) {
+                    if (data.IsValid != null && !data.IsValid) {
+                        showMessage(data.ErrorMessage);
+                    } else {
+                        var dataId = $(data).find('tr[data-id]').not('.notCollapse').attr('data-id');
+                        var isNewRowAppended = $('tr[data-id="' + dataId + '"]').length == 0;
+
+                        if (existsFundingLine) {
+                            var previousElement = $('tr[data-id="' + dataId + '"]').prev();
+                            var increaseRow = $(data)
+                                .find('[id^="FinancingDetail-"].FinancingDetail > tbody > tr')
+                                .first()
+                                .prop('outerHTML');
+
+                            if (isFromNewTransaction) {
+                                $(container).append(increaseRow);
+                            }
+                            else {
+                                $('tr[data-id="' + dataId + '"]').replaceWith(increaseRow);
+                            }
+
+                            overwriteFinancingRow(canReplaceFinancing, data, dataId);
+
+                        } else {
+                            $(data).insertAfter(lastRow);
+                        }
+                        showRegisterApprovalButton();
+                        updateTotals(rowNumber, isNewRowAppended);
+                        enterEditMode(false, $(".approval-data-content.current"), false);
+                        checkStatusToDisableFundCurrencyDropDown();
+                        showReuseGenerateApprovalNumberButton();
+                        bindHandlers();
+
+                        if (isFromNewTransaction) {
+                            var lastInput = $(container).find('input[name="newApprovalNumber_text"]').last();
+                            $('html', parent.document).stop().animate({
+                                scrollTop: lastInput.offset().top
+                            }, 2000, function () {
+                                lastInput
+                                    .animate({ borderColor: "#3737A2" }, 500)
+                                    .animate({ borderColor: "#FFFFFF" }, 500)
+                                    .animate({ borderColor: "#3737A2" }, 500)
+                                    .animate({ borderColor: "#CCCCCC" }, 500);
+                            });
+                        }
+
+                        fixScrollable();
+                    }
+
+                    hideLoaderOptional();
+                },
+                error: function (error) {
+                    hideLoaderOptional();
+                    showMessage(error);
+                }
+            });
+        }
+
+        function overwriteFinancingRow(canReplace, data, id) {
+            if (!canReplace)
+                return;
+
+            var currentParentRow = $('tr[data-id="' + id + '"]')
+                .closest('table[id^="Financing-"')
+                .find('tr.notCollapse');
+
+            var newParentRow = $(data)
+                .find('[id^="Financing-"] tr.notCollapse:first');
+
+            currentParentRow.replaceWith(newParentRow);
+        }
+
+        function updateTotals(rowNumber, isNewRowAppended) {
+            var fundingLineRow = $('div.current').find('table#Financing-' + rowNumber)
+                .find('tr[data-id].notCollapse');
+            var fundingLineUsAmount = fundingLineRow.find('td.USFundAmountColumn');
+            var fundingLineAmount = fundingLineRow.find('td.FundAmountColumn');
+
+            var idbAmount = 0;
+            var idbUsAmount = 0;
+            var usAmount = 0;
+
+            fundingLineRow
+                .next('tr')
+                .find('table[id^="FinancingDetail-"] tbody > tr[data-id]')
+                .each(function () {
+                    idbAmount += parseFloat($(this)
+                        .find('input[name="IDBApprovedAmount"]').val().replaceAll(',', ''));
+                    usAmount = parseFloat($(this)
+                        .find('td[name="IdbUsApprovedAmountCol"] input').val()
+                        .replaceAll(',', ''));
+                    idbUsAmount += usAmount;
+                });
+
+            fundingLineAmount.text(formatDecimal(idbAmount.toFixed(2)));
+            fundingLineUsAmount.text(formatDecimal(idbUsAmount.toFixed(2)));
+
+            if (isNewRowAppended) {
+                var lblTotOperationCost = $('div.current').find('#totalOperationCost')
+                    .find('span label');
+                var currentTotOpCost = parseFloat(lblTotOperationCost.text().replaceAll(',', ''));
+                lblTotOperationCost.text(formatDecimal((currentTotOpCost + usAmount).toFixed(2)));
+
+                var lblCurrentIDBCost = $('div.current').find('#currentIDBCost')
+                    .find('span label');
+                var currentIDBCost = parseFloat(lblCurrentIDBCost.text().replaceAll(',', ''));
+                lblCurrentIDBCost.text(formatDecimal((currentIDBCost + usAmount).toFixed(2)));
+            }
+        }
+
+        function changeDocumentTransaction() {
+            var source = $(this);
+            var row = source.closest('tr');
+            var type = source.GetValue();
+
+            if (type == 'AIR_TT_APPROVAL') {
+                showInputDropDown(row.find('[name="ddlApprovalNumber"]'), false);
+                hideInputDropDown(row.find('[name="ddlApprovalNumberIncrease"]'));
+                hideInputDropDown(row.find('[name="ddlIncreaseSequence"]'));
+                setApprovalDate(row, $('[name="GeneralApprovalDate"]').val());
+            }
+            else if (type == 'AIR_TT_INCREASE') {
+                hideInputDropDown(row.find('[name="ddlApprovalNumber"]'));
+                showInputDropDown(row.find('[name="ddlApprovalNumberIncrease"]'), true);
+                showInputDropDown(row.find('[name="ddlIncreaseSequence"]'), true);
+                setApprovalDate(row, "");
+            }
+
+            reloadParsleyDocumetsTab();
+            setChangeRow(row);
+        }
+
+        function reloadParsleyDocumetsTab()
+        {
+            reloadParsley($(".approval-data-content.current [data-tab-control-id = 'tabDocuments']"));
+        }
+
+        function hideInputDropDown(source)
+        {
+            source.closest('div').addClass("own-hide");
+
+            var ddlIncreaseButton = source.closest('div').find('button');
+
+            ddlIncreaseButton.next().attr("data-force-parsley-validation", false);
+            ddlIncreaseButton.next().attr("data-parsley-required", false);
+        }
+
+        function showInputDropDown(source, isRequired)
+        {
+            source.closest('div').removeClass("own-hide");
+
+            var ddlIncreaseButton = source.closest('div').find('button');
+
+            ddlIncreaseButton.FirstorDefault();
+            ddlIncreaseButton.next().attr("data-force-parsley-validation", isRequired);
+            ddlIncreaseButton.next().attr("data-parsley-required", isRequired);
+        }
+
+        function changeDocumentApproval()
+        {
+            var row = $(this).closest('tr');
+            setChangeRow(row);
+            reloadParsleyDocumetsTab();
+        }
+
+        function changeDocumentApprovalIncrease() {
+            var source = $(this);
+            var row = source.closest('tr');
+
+            var increaseSequence = row.find('[name="ddlIncreaseSequence"]');
+            var buttonSequence = increaseSequence.closest('div').find('button');
+            var dropdownSequece = increaseSequence.siblings('ul.dropdown-menu');
+
+            buttonSequence.removeAttr("disabled");
+            buttonSequence.next().removeAttr("disabled");
+
+            setApprovalDate(row, "");
+
+            var approvalNumber = source.GetValue();
+
+            if (approvalNumber !== "" && approvalNumber !== undefined) {
+                $.ajax({
+                    type: "POST",
+                    url: "@Url.Action("GetIncreaseSequences", "View")",
+                    data: {
+                        hasDynamicApprovalNumber: @Model.First().IsPurchaseOrder.ToString().ToLower(),
+                        approvalNumber: approvalNumber
+                    },
+                    success: function (data) {
+                        clearDropdown(dropdownSequece);
+                        if (data.IsValid) {
+                            $(data.IncreasesSequenceNumbers).each(function (i, val) {
+                                dropdownSequece.append(
+                                    '<li><a dd-value="' + val.Value + '" dd-approvalDate="' +
+                                    val.AdditionalData + '">' + val.Text + '</a></li>');
+                            });
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    }
+                });
+            }
+            else {
+                var buttonApprovalNumber = source.closest('div').find('button');
+
+                if (buttonApprovalNumber.attr('disabled')) {
+                    buttonApprovalNumber.next().attr("data-force-parsley-validation", false);
+                    buttonApprovalNumber.next().attr("data-parsley-required", false);
+                }
+                else {
+                    buttonApprovalNumber.next().attr("data-force-parsley-validation", true);
+                    buttonApprovalNumber.next().attr("data-parsley-required", true);
+                }
+
+                buttonSequence.attr("disabled", "disabled");
+                buttonSequence.next().attr("disabled", "disabled");
+
+                clearDropdown(dropdownSequece);
+            }
+
+            reloadParsleyDocumetsTab();
+            setChangeRow(row);
+        }
+
+        function changeIncreaseNumber() {
+            var source = $(this);
+            var row = source.closest('tr');
+            var selectedValue = source.GetValue();
+
+            setApprovalDate(row, "");
+
+            if (selectedValue === "" || selectedValue === undefined)
+                return;
+
+            var increases = source.closest('div.dropdown').find('ul.dropdown-menu a[dd-approvalDate]');
+            var approvalDateText = "";
+
+            increases.each(function (index, element) {
+                if ($(element).attr("dd-value") === selectedValue) {
+                    approvalDateText = $(element).attr("dd-approvalDate");
+                }
+            });
+
+            if (approvalDateText === "") {
+                $.ajax({
+                    type: "POST",
+                    url: "@Url.Action("GetApprovalDate", "View")",
+                    data: { increaseId: selectedValue },
+                    success: function (data) {
+                        if (data.IsValid) {
+                            approvalDateText = data.ApprovalDate;
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    }
+                });
+            }
+
+            setApprovalDate(row, approvalDateText);
+            setChangeRow(row);
+        }
+
+        function setApprovalDate(row, text)
+        {
+            var dateApprCol = row.find('td[data-id="approvalDate"]');
+            dateApprCol.children('label').text(text);
+        }
+
+        function getApprovalDate(row) {
+            var dateApprCol = row.find('td[data-id="approvalDate"]');
+            dateApprCol.children('label').text();
+        }
+
+        function setChangeRow(source) {
+            var row = $(source).closest('tr');
+
+            if (row.find("input[name='documentDescription']").length > 0)
+                return;
+
+            var dropDownAttribute = row.find('[data-id="approvalTransactionType"] div.dropdown');
+            var originalValueTransaction = row.find('[name="originalTransactionType"]').val();
+            var originalVaueApproval = row.find('[name="originalApprovalNumber"]').val();
+            var newValueTransaction = row.find('[name="ddlTransactionTypeDoc"]').val();
+            var anyChange = false;
+
+            if (newValueTransaction === 'AIR_TT_APPROVAL') {
+                var newValueApproval = row.find('[name="ddlApprovalNumber"]').val();
+                anyChange = originalValueTransaction !== newValueTransaction ||
+                    originalVaueApproval !== newValueApproval;
+            } else if (newValueTransaction === 'AIR_TT_INCREASE') {
+                var newValueApproval = row.find('[name="ddlApprovalNumberIncrease"]').val();
+                var originalIncreaseSequence = row.find('[name="originalIncreaseSequence"]').val();
+                var newIncreaseSequence = row.find('[name="ddlIncreaseSequence"]').val();
+                anyChange = originalValueTransaction !== newValueTransaction ||
+                    originalVaueApproval !== newValueApproval ||
+                    originalIncreaseSequence !== newIncreaseSequence;
+            }
+
+            if (anyChange) {
+                dropDownAttribute.attr("data-change-value", true);
+            }
+            else {
+                dropDownAttribute.removeAttr("data-change-value");
+            }
+        }
+
+        function clearDropdown(dropdown) {
+            dropdown.html('');
+            dropdown.append('<li><a dd-value>(select option)</a></li>');
+            dropdown.prev().prev().FirstorDefault();
+        }
+
+        function revokeIncrease(element) {
+            showLoaderOptional();
+
+            var row = $(element).closest('tr');
+            var appNum;
+            if ($(row).find('.approvalnumber').find('span').length > 0) {
+                appNum = $(row).find('.approvalnumber').find('span').first().text().trim();
+            } else {
+                appNum = $(row).find('.approvalnumber').text().trim();
+            }
+
+            $.ajax({
+                type: "POST",
+                url: "@Url.Action("RevokeIncreases", "Save", new { area = "OPUS" })",
+                async: true,
+                data: {
+                    approvalNumber: appNum,
+                    rowid: $(row).attr("data-id")
+                },
+                success: function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                        hideLoaderOptional();
+                        showMessage(data.ErrorMessage);
+                    } else {
+                        var row = $(element).closest('div.row');
+                        var financingTypeId = row.find('[name="hidFinancingTypeId"]').val();
+                        var fundId = row.find('[name="hidFundId"]').val();
+                        getNewFundingLine(data.rowID, fundId, financingTypeId, false, true, true);
+                        if (!data.IsValidSap) {
+                            showMessage(data.ErrorMessage);
+                        }
+                        showRegisterApprovalButton();
+                    }
+                    bindHandlers();
+                },
+                dataType: 'json',
+                error: function (error) {
+                    hideLoaderOptional();
+                }
+            });
+        }
+
+        function removeRowIncreases(element) {
+            var msg = '@Localization.GetText("OP.FD.TabIncreases.Increases.DeleteIncrease")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    $.ajax({
+                        type: "POST",
+                        url: "@Url.Action("DeleteIncrease", "Save", new { area = "OPUS" })",
+                        async: true,
+                        data: {
+                            operationNumber: "@modelCurrent.OperationNumber",
+                            fundOperationIncreaseId:
+                                parseInt(element.closest('tr').attr('data-id'))
+                        },
+                        success: function (data) {
+                            if (data.IsValid) {
+                                var correctSequenceNumber = 1;
+                                var tbody = element.closest('tbody');
+                                var row = $(element).closest('tr');
+                                var fundingLineRow = $(row).closest('div.row');
+
+                                if ($(row).siblings().length == 0) {
+                                    fundingLineRow.remove();
+                                    row.remove();
+                                } else {
+                                    var table = $(row).closest('tbody');
+
+                                    $(data.Values).each(function() {
+                                        table.find('tr[data-id="' + this + '"]').remove();
+                                    });
+
+                                    if(table.find('tr').length > 0) {
+                                        $(table).find('tr')
+                                            .removeClass('custom-even odd')
+                                            .removeClass('custom-odd even')
+                                            .each(function (i, element) {
+                                                if (i % 2 === 0) {
+                                                    $(element).addClass('custom-even odd');
+                                                } else {
+                                                    $(element).addClass('custom-odd even');
+                                                }
+                                            });
+
+                                        tbody.find('td .numeric-label').each(function () {
+                                            $(this).html(correctSequenceNumber + ".");
+                                            correctSequenceNumber++;
+                                        });
+                                    } else {
+                                        fundingLineRow.remove();
+                                    }
+                                }
+                            } else {
+                                showMessage(data.ErrorMessage);
+                            }
+                        },
+                        error: function (error) {
+                            showMessage(error.status + " " + error.statusText);
+                        }
+                    });
+                }
+            });
+        }
+
+        function autoApproval(source) {
+            if (saveApproval() !== true) {
+                closeModal();
+                return;
+            }
+
+            var container = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+            showLoaderOptional();
+
+            var response = postUrl(
+                "@Url.Action("OperationAutoApproval", "View", new { area = "OPUS" })",
+                {
+                    activityPanId: ReformulationTabs.GetActivityPlanId(),
+                    isCurrent: ReformulationTabs.isCurrent()
+                });
+
+            if (response.responseJSON.isValid) {
+                reloadContainer(container);
+                GetDocumentsApproval(false);
+                if (!response.responseJSON.IsValidSap || !response.responseJSON.isValidRegistry) {
+                    showMessage(response.responseJSON.errorMessage);
+                }
+            }
+            else {
+                reloadContainer(container);
+                GetDocumentsApproval(true);
+                edit();
+                showMessage(response.responseJSON.errorMessage);
+            }
+
+            hideLoaderOptional();
+        }
+
+        function reloadApprovalProcess() {
+            enterEditMode(
+                true,
+                $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]'),
+                 true);
+            checkStatusToDisableFundCurrencyDropDown();
+            fixScrollable();
+        }
+
+        function submitTransaction(source) {
+            if (!ValidateFinancingFields(source))
+                return;
+
+            var isAutomatic = $(source).attr('name') == 'btnIncreaseAutoApproval';
+            var financingLine = $(source).closest('tr');
+            var transactionId = financingLine.attr('data-id');
+            var url = "@Url.Action("SubmitTransaction", "Save", new { area = "OPUS" })";
+            var container = genericContainer(url);
+            container.append(financingLine.clone());
+            container.append(genericInputHidden("IsAutomatic", isAutomatic));
+            container.append(genericInputHidden("IsCurrentReformulation", ReformulationTabs.isCurrent()));
+            showLoaderOptional();
+            var response = genericSubmit(container);
+            response
+                .success(function (data) {
+                    if (data.IsValid) {
+                        var row = financingLine.closest('div.row');
+                        var financingTypeId = row.find('[name="hidFinancingTypeId"]').val();
+                        var fundId = row.find('[name="hidFundId"]').val();
+                        getNewFundingLine(transactionId, fundId, financingTypeId, false, true, true);
+                    }
+                    else {
+                        showMessage(data.ErrorMessage);
+                        hideLoaderOptional();
+                    }
+                })
+                .error(function (error) {
+                    showMessage(error.status + " " + error.statusText);
+                    hideLoaderOptional();
+                })
+                .always(function () { hideLoaderOptional(); });
+        }
+
+        function SetNumberDocuments() {
+            var commentNumber = CountDocumentsApproval();
+            var tabDocuments = $('.approval-data-content.current .tabs li')[1]
+            var index = $(tabDocuments).text().indexOf("(");
+            $(tabDocuments).text($(tabDocuments).text().substring(0, index + 1) + commentNumber + ")");
+        }
+
+        function CountDocumentsApproval() {
+            return $(".approval-data-content.current [data-tab-control-id = 'tabDocuments'] #ApprovalOperationDocumentsTable > tbody > tr").length;
+        }
+
+        function SetDocumentNumberOfSecretary(source, documentNumber) {
+            if (documentNumber != null) {
+                $(source).closest("tr").next()
+                    .find('td[name = "colDocumentNumber"]').text(documentNumber);
+            }
+        }
+
+        function SetDocumentDateOfSecretary(source, documentDate) {
+            if (documentDate != null) {
+                var transformDate = new Date(documentDate);
+                $(source).closest("tr").next()
+                    .find('td[name = "colDocumentDate"] label')
+                    .text($.datepicker.formatDate("dd M yy", transformDate));
+            }
+        }
+
+        function SetApprovalAuthorityLon(source) {
+            var divApproval = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+            $(divApproval).find('td[name="ApprovalAuthorityCol"] label')
+                .text($(source).closest('.dropdown').GetText());
+        }
+
+        function SetApprovalProcessLon(source) {
+            var divApproval = $('.approval-data-content.current [data-tab-control-id = "approvalOperation"]');
+            $(divApproval).find('td[name="ApprovalProcessCol"] label')
+                .text($(source).closest('.dropdown').GetText());
+        }
+
+        function setOnlyOptionAsDefault(node) {
+            var $node = $(node);
+            var $dropDownContainer = $node.closest('.dropdown');
+            var $dropdownItems = $dropDownContainer.find('ul.dropdown-menu li');
+            var selectIndex = $dropdownItems.length == 2 ? 1 : 0;
+
+            $node.SelectIndex(selectIndex);
+        };
+
+        function ValidateAndCleanDropdownElement(source) {
+
+            if (source.length) {
+                source.parsley().validate();
+            }
+
+            source.closest('div.dropdown').find('ul.filled').each(function () {
+                if ($(this).find('li.parsley-required').length > 1) {
+                    $(this).find('li.parsley-required').first().remove();
+                }
+            });
+        }
+
+        function ValidateFinancingFields(source) {
+
+            var isValidData = true;
+            var emptyValue = "";
+            var rowFinancing = source.closest('tr');
+            var USApprovedAmount = rowFinancing.find('[name="USApprovedAmount"]');
+            var approvalDate = rowFinancing.find('[name="ApprovalDate"]');
+            var approvalAuthority = rowFinancing.find('input#ApprovalAuthority');
+            var approvalProcess = rowFinancing.find('input#ApprovalProcessSubTable');
+
+            if (USApprovedAmount.val() === emptyValue) {
+                validateElement(USApprovedAmount);
+                isValidData = false;
+            }
+
+            if (parseInt(USApprovedAmount.val()) === 0) {
+                showMessage('@Localization.GetText("OP.AP.USEquivalent.MinValue")');
+                isValidData = false;
+            }
+
+            if (approvalDate.val() === emptyValue) {
+                validateElement(approvalDate);
+                isValidData = false;
+            }
+
+            if (approvalAuthority.val() === emptyValue) {
+                ValidateAndCleanDropdownElement(approvalAuthority);
+                isValidData = false;
+            }
+
+            if (approvalProcess.val() === emptyValue) {
+                ValidateAndCleanDropdownElement(approvalProcess);
+                isValidData = false;
+            }
+
+            return isValidData;
+        }
+
+        $(document).ready(function () {
+
+            $('.tabs-reformulation .btn').on('mouseclick', function () {
+
+                var container = ReformulationTabs.GetCurrentContainer();
+                container.find('#imgCloseText').click();
+            });
+            $('.tabs-reformulation button').on('click', function () {
+                var selector = $(this).attr('dd-tab');
+                var block = $(selector);
+
+                block.find("ul.tabs li.active").trigger('click');
+                block.find(".btn-group .btn.active").trigger('click');
+            });
+            $('.tabs-reformulation .btn').on('click', function () {
+
+                setTimeout(function () {
+                    if (!ReformulationTabs.isCurrent()) {
+                        getApprovalAutomaticValue();
+                    }
+
+                }, 500);
+            });
+        });
+
+        function toggleBarsfromApproval(exitEditMode) {
+            var sidebar = window.parent.jQuery('#sidebar');
+            if (sidebar.length === 0) {
+                return;
+            }
+
+            if (exitEditMode === true) {
+                sidebar.show();
+            }
+
+            if (exitEditMode === false) {
+                sidebar.hide();
+            }
+        }
+    </script>
+}
+
+<script src="@Url.Content("~/Scripts/Reformulation/reformulation.js")"></script>

@@ -1,0 +1,222 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MVCControls.DataTable.Models
+
+@model SupervisionReportStep2ViewModel
+
+<div class="row row-header">
+    <div class="col-md-12">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("Actions"))
+    </div>
+</div>
+<div class="row mb20">
+    <div class="col-md-12">
+        @{
+            var config = Html.RenderDataTable(Model.SupervisionReportNewActions);
+            config.Name("newActionsTable")
+                .PrimaryKey(c => c.RowId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Bound(c => c.Action.Length > 20 ? c.Action.Substring(0,20) + "..." : c.Action)
+                    .Persistent()
+                    .Header(Localization.GetText("Action")).CssHeaderClass("tamFixedCol150")
+                    .ColumnName("newAction");
+
+                    columns.Template(NewResponsibleParty)
+                    .Persistent()
+                    .Header(Localization.GetText("MrBlue.SupervisionReport.ResponsibleParty"));
+
+                    columns.Template(NewCompleteActionDate)
+                    .Persistent()
+                    .Header(Localization.GetText("MrBlue.SupervisionReport.CompleteActionDate"));
+
+                    columns.Template(NewStatus)
+                    .Persistent()
+                    .Header(Localization.GetText("MrBlue.CustomReport.Status"));
+
+                    columns.Bound(c => c.Comments.Length > 20 ? c.Comments.Substring(0, 20) + "..." : c.Comments)
+                    .Persistent()
+                    .Header(Localization.GetText("Comments")).CssHeaderClass("tamFixedCol150")
+                    .ColumnName("newActionComments");
+
+                    columns.Template(newActionButtons)
+                    .Persistent()
+                    .Header(Localization.GetText("Action")).CssHeaderClass("tamFixedCol100")
+                    .ColumnName("newActionButtons")
+                    .Center();
+
+                    columns.Template(newActionExpandable).Persistent();
+                })
+                .RowTemplates(rows => rows.Create(RowTemplateType.AllRows,
+                    item => ShowNewActionCommentsRow(item)));
+
+            config.TableClass = "tableNormal";
+
+            config.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="" class="hide" style="vertical-align:top;" data-name="templateAction">
+                        <td data-pagemode="edit">
+                            <label name="actionLabel">
+                                <span style="font-weight:bold;">
+                                    @Localization.GetText("MrBlue.ESG.NewText")
+                                </span>
+                            </label>
+                        </td>
+                        <td data-pagemode="edit">
+                            @Confluence.InputText(string.Empty,
+                             name : "esgPersonActions_text",
+                             required : true,
+                             disabled: true,
+                             width : "221px")
+                        </td>
+                        <td data-pagemode="edit">
+                            @Confluence.InputDatePicker(
+                            null,
+                            "newActionCompleteActionDate",
+                            required : true,
+                            disabled : true)
+                        </td>
+                        <td data-pagemode="edit">
+                            @Confluence.InputDropDown(
+                            value : null,
+                            name : "newStatus",
+                            elements : (List<System.Web.Mvc.SelectListItem>) ViewBag.StatusList,
+                            disabled : true,
+                            required : true,
+                            width : "120px")
+                        </td>
+                        <td data-pagemode="edit">
+                            <label name="actionCommentLabel">
+                                <span style="font-weight:bold;">
+                                    @Localization.GetText("MrBlue.ESG.NewText")
+                                </span>
+                            </label>
+                        </td>
+                        <td data-pagemode="edit" class="text-center">
+                            @Confluence.ButtonTrash(
+                            string.Empty,
+                            name : "removeNewAction",
+                            action : "removeRowWithCommentRow")
+                        </td>
+                        <td data-pagemode="edit">
+                            @Display.ExpandableTriangleButton(string.Format("#newActionsTable [data-name='detail-newAction-{0}']",
+                            string.Empty),
+                            markTargetAsExpanded : false)
+                        </td>
+                    </tr>);
+            });
+
+            config.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="" class="skip template dont-hide-at-edit own-hide" data-name="detail-newAction-XXX" row-detail="true" style="vertical-align:top;">
+                        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+                            @Confluence.Label(Localization.GetText("Action"))
+                            @Confluence.LabelAsterisk()
+                            @Confluence.InputTextArea(
+                            string.Empty,
+                            name : "action",
+                            width : "100%",
+                            height : "100px",
+                            isReadOnly : false,
+                            disabled : true,
+                            dataAttributes : new Dictionary<string, string> { { "id", "-1" }, { "type", "expandable" } })
+                        </td>
+                        <td colspan="4" style="padding:5px;" data-pagemode="edit">
+                            @Confluence.Label(Localization.GetText("Comments"))
+                            @Confluence.LabelAsterisk()
+                            @Confluence.InputTextArea(
+                            string.Empty,
+                            name : "actionComment",
+                            width : "100%",
+                            height : "100px",
+                            isReadOnly : false,
+                            disabled : true,
+                            dataAttributes : new Dictionary<string, string> { { "type", "expandable" } })
+                        </td>
+                    </tr>);
+            });
+        }
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="col-md-12 text-center">
+    @Confluence.ButtonAddNewRows(
+        Localization.GetText("New"),
+        "newAction",
+        action : "newRow")
+</div>
+
+@helper NewResponsibleParty(SupervisionReportActionsRowViewModel model)
+{
+        @Confluence.InputText(model.ADFullName,
+        name : "esgPersonActions_text",
+        required : true,
+        width : "221px")
+}
+
+@helper NewCompleteActionDate(SupervisionReportActionsRowViewModel model)
+{
+    @Confluence.InputDatePicker(model.ActionCompletedOn,
+    name : "newActionCompleteActionDate", required : true)
+
+}
+
+@helper newActionButtons(SupervisionReportActionsRowViewModel model)
+{
+    @Confluence.ButtonTrash(
+        string.Empty,
+        name : "removeNewAction" + model.RowId,
+        action : "removeRowWithCommentRow")
+}
+
+@helper newActionExpandable(SupervisionReportActionsRowViewModel model)
+{
+    @Display.ExpandableTriangleButton(string.Format("#newActionsTable [data-name='detail-newAction-{0}']",
+        model.RowId),
+        markTargetAsExpanded : false)
+}
+
+@helper ShowNewActionCommentsRow(SupervisionReportActionsRowViewModel view)
+{
+    <tr class="skip template dont-hide-at-edit own-hide" data-id="@view.RowId" data-name="detail-newAction-@view.RowId" row-detail="true">
+        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+            @Confluence.Label(Localization.GetText("Action"))
+            @Confluence.LabelAsterisk()
+            @Confluence.InputTextArea(
+                view.Action,
+                name : "action",
+                width : "100%",
+                height : "100px")
+        </td>
+        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+            @Confluence.Label(Localization.GetText("Comments"))
+            @Confluence.LabelAsterisk()
+            @Confluence.InputTextArea(view.Comments,
+            name : "actionComment",
+            width : "100%",
+            height : "100px")
+        </td>
+    </tr>
+}
+
+@helper NewStatus(SupervisionReportActionsRowViewModel model)
+{
+    @Confluence.InputDropDown(
+        value : model.Status.ToString(CultureInfo.InvariantCulture),
+        name : "newStatus",
+        elements : (List<System.Web.Mvc.SelectListItem>) ViewBag.StatusList,
+        disabled : false,
+        required : true,
+        htmlClass : "margintop1percent",
+        width : "120px")
+}

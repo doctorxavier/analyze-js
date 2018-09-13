@@ -1,0 +1,168 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.CPDModule.ViewModels.ProductProfile
+@using IDB.MW.Domain.Values
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model  List<OperationTeamRowViewModel>
+
+<div class="row row-header">
+    <div class="col-md-12 subtitleGroup">
+        @Localization.GetText("CS.ProductData.Team")
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        @{
+            var configOperationTeamTable = Html.RenderDataTable(Model);
+            configOperationTeamTable.TableClass = "tableNormal endSpacing";
+            configOperationTeamTable.Name("operationTeamsTable")
+                .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .UsePageMode(false)
+                .Columns(columns =>
+                {
+                    columns.Template(c => ColumnName(c, isTemplate: false))
+                        .CssClass("w300")
+                        .Header(Localization.GetText("CS.ProductData.Name"))
+                        .Attribute("style", c => "width:250px;");
+
+                    columns.Template(c => ColumnRole(c, isTemplate: false))
+                        .CssClass("w300")
+                        .Header(Localization.GetText("CS.ProductData.Role"))
+                        .Attribute("style", c => "max-width:320px;");
+
+                    columns.Template(c => Confluence.Label(c.UserName))
+                        .CssClass("w150")
+                        .Header(Localization.GetText("CS.ProductData.UserID"));
+
+                    columns.Template(c => ColumnOrganizationalUnit( c, isTemplate: false))
+                        .CssClass("w300")
+                        .Header(Localization.GetText("CS.ProductData.OrganizationalUnit"));
+
+                    columns.Template(c => Confluence.Label(c.Delegate))
+                        .CssClass("w300")
+                        .Header(Localization.GetText("CS.ProductData.Delegate"));
+
+                    columns.Template(ColumnActions)
+                        .Attribute("style", c => "width:50px;")
+                        .Center();
+                });
+
+            configOperationTeamTable.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow, Template);
+            });
+        }
+        @Html.Partial("Controls/DataTable", configOperationTeamTable)
+        <div class="col-md-12 mb5">
+            @Confluence.InputText("hide", "inputhide", htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-OnlyOneTeamLeader", ViewBag.TeamLeaderRoleId.Id.ToString() } })
+        </div>
+        <div class="col-md-12 text-center mt5">
+            @Confluence.ButtonAddNewRows(Localization.GetText("CS.ProductData.NewTeamMember"), "operationTeamsTable", name: "addNewTeamMember")
+        </div>
+    </div>
+</div>
+
+@helper Template(OperationTeamRowViewModel row)
+{
+    row = new OperationTeamRowViewModel()
+    {
+        RowId = 0,
+        Name = "",
+        RoleId = null,
+        RoleName = "",
+        UserName = "",
+        OrganizationalUnit = "",
+        OrganizationalUnitId = null,
+        OrganizationalUnitCode = "",
+        Delegate = "",
+        PictureUrl = "",
+        CodeRoleType = "",
+    };
+    <tr data-id="new-" class="hide" data-name="templateTeam">
+        <td class="w300">
+            @ColumnName(row, isTemplate: true)
+        </td>
+        <td class="w300">
+            @ColumnRole(row, isTemplate: true)
+        </td>
+        <td data-name="userName" class="w150">
+            @Confluence.Label(string.Empty)
+        </td>
+
+        <td data-name="organizationalUnit" class="w300">
+            @Confluence.Label(string.Empty)
+            @Confluence.InputHidden(string.Empty, "OrganizationalUnitCode")
+        </td>
+
+        <td data-name="delegate" class="w300">
+            @Confluence.Label(string.Empty)
+
+        </td>
+        <td class="text-center">
+            @ColumnActions(row)
+        </td>
+    </tr>
+}
+
+@helper ColumnName(OperationTeamRowViewModel row, bool isTemplate)
+{
+    if (isTemplate)
+    {
+        @Confluence.InputDropDownAsyncPicture(
+            value: string.Empty,
+            name: "userNameTeam",
+            searchUrl: Url.Action("GetUsersList", "ProductProfile", new { area = "CPD" }),
+            textSelected: string.Empty,
+            pathImage: string.Empty,
+            disabled: true,
+            required: true,
+            width: "80%")
+
+    }
+    else
+    {
+        @Confluence.ListHelpers(new List<HelperResult>
+        {
+            Confluence.PictureElement(row.PictureUrl, Confluence.Label(row.Name)),
+            Confluence.InputHidden(row.UserName, "notMapField"),
+        })
+    }
+}
+
+@helper ColumnRole(OperationTeamRowViewModel row, bool isTemplate)
+{
+
+    var list = ViewBag.OperationTeamsRoleList;
+
+    @Confluence.InputDropDown(
+        value: row.RoleId.ToString(),
+        name: "operationTeamsRole",
+        elements: list,
+        disabled: isTemplate,
+        required: true, 
+        width: "100%")
+
+}
+
+
+@helper ColumnOrganizationalUnit(OperationTeamRowViewModel row, bool isTemplate)
+{
+
+    @Confluence.Label(row.OrganizationalUnit)
+    @Confluence.InputHidden(row.OrganizationalUnitCode, "OrganizationalUnitCode")
+}
+
+
+@helper ColumnActions(OperationTeamRowViewModel row)
+{
+
+    @Confluence.ButtonTrash(null, "removeRowTeamMember")
+}

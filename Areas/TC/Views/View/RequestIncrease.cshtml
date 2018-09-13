@@ -1,0 +1,224 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums;
+@using IDB.Presentation.MVC4.Areas.TC.Enums;
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+
+
+@{
+    ViewBag.Title = @Localization.GetText("TC.Header.Title");
+
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+}
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.RequestIncrease.RequestIncreaseViewModel
+
+@if (devMode)
+{
+    <div class="header">
+	    <div class="row row-header">
+            <div class="col-md-12">
+			    @*<button class="btn btn-primary" data-action="setReadAccess">Read Access</button>*@
+			    @*<button class="btn btn-primary" data-action="removePermission">Remove/Refresh Permissions</button>*@
+		    </div>
+	    </div>
+    </div>
+}
+
+<div class="header">
+    @*<div class="row-body-40">
+        <h1 class="title-arrow"><span>&nbsp;</span>@(((string)ViewBag.Title).HtmlEncode())</h1>
+    </div>*@
+      
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            @Html.Partial("Partials/Controls/RequestIncreaseButtons")
+            @*<h2>@Localization.GetText("TC.RequestIncrease.Title").HtmlEncode()</h2>*@
+        </div>
+    </div>
+
+    @if (ViewBag.ReadRole)
+    {
+        @Html.Partial("Partials/Controls/RequestIncreaseButtonsDownload")
+    }
+</div>
+
+<div class="page">
+    
+    @if ((ViewBag.ReadRole != null) && ViewBag.ReadRole)
+    {
+        <div class="row row-header font-header">
+            <div class="col-md-2">
+                @Localization.GetText("TC.RequestIncrease.TotalApproved").HtmlEncode()
+            </div>
+            <div class="col-md-2">
+                @Localization.GetText("TC.RequestIncrease.ApprovedNumber").HtmlEncode()
+            </div>
+        </div>
+
+        <div class="row row-body-50 font-body">
+            <div class="col-md-2">
+                @FormatHelper.Format(Model.TotalApproved, formatDecimal)
+            </div>
+            <div class="col-md-2">
+                @Model.ApprovedNumber.HtmlEncode()
+            </div>
+        </div>
+    
+        <div id="formData"
+            data-parsley-excluded="[disabled]"
+            data-parsley-validate="data-parsley-validate"
+            data-ignore-nullable-values="true"
+            data-loadurl="@Url.Action("RequestIncreaseEdit", "View", new { area = "TC" })"
+            data-url="@Url.Action("RequestIncrease", "Save", new { area = "TC" })">
+        
+            @Html.Partial("Partials/RequestIncrease", Model)
+
+        </div>
+
+        if (ViewBag.ReadRole)
+        {
+            @Html.Partial("Partials/Controls/RequestIncreaseButtonsDownload")
+        }
+        
+        <span class="text-right">@Html.Partial("Partials/Controls/RequestIncreaseButtons")</span>
+
+	    <div id="saveRequestIncreaseModal" class="hide modalBody">
+            @Localization.GetText("TC.RequestIncrease.SaveMessage").HtmlEncode()
+	    </div>
+
+	    @*<div id="sendRequestIncreaseModal" class="hide modalBody">
+            @Localization.GetText("TC.RequestIncrease.SendMessage").HtmlEncode()
+        </div>*@
+
+        <div id="operationStatusModal" class="hide"></div>
+    }
+</div>
+    
+@section scripts{
+    @ModuleScripts.ValidationMessageForTC()
+
+    <script type="text/javascript">
+        function setReadAccess(source) {
+            var response = postUrlWithOptions("@Url.Action("ChangeRol", "View", new { area = "TC", rol = (int)ActionEnum.ConvergenceReadPermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function removePermission(source) {
+
+            var response = postUrlWithOptions("@Url.Action("RemovePermission", "View", new { area = "TC" })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function AddDocuments(documentList, sourceType) {
+            var documentTable = $("#RequestIncreaseDocuments");
+            AddDocumentsGeneric(sourceType, documentTable, documentList);
+        }
+
+        function edit(source) {
+
+            var sucess = enterEditMode(true, $('#formData'), true);
+            if (sucess) {
+                enterEditMode(false, $('.RIncreaseButtons'), false);
+                
+            }
+        }
+
+        function cancel(source) {
+
+            exitEditMode(true, $('#formData'), true, true);
+            exitEditMode(false, $('.RIncreaseButtons'), false, false);
+        }
+
+        function save(source) {
+
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.Save');
+            var resp = $.Deferred();
+            var response = saveContainer($('#formData'), '#hidViewModel', true, $('.RIncreaseButtons'), $(source.target));
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    resp.resolve();
+                });
+            }
+           
+            return resp;
+        }
+
+        //function setModalRedirectUrl(url) {
+        //    $("#operationStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+        //}
+
+
+        @*function send(source) {
+
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+
+            var resp = $.Deferred();
+            var response = saveContainer($('#formData'), '#hidViewModel', true, $('.RIncreaseButtons'), $(source.target), true, false);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+                        //HTML data
+
+
+                        if (data.ContentHTML != null) {
+                            setOperationStatusModal(data.ContentHTML);
+                        }
+
+                        if (data.UrlRedirect != null) {
+                            setModalRedirectUrl(data.UrlRedirect);
+                        }
+
+                    }
+                    resp.resolve();
+                });
+            }
+
+            return resp;
+        }*@
+
+        function setOperationStatusModal(data) {
+
+    		var modal = $('#operationStatusModal');
+    		modal.html(data);
+    	}
+
+    	//Show status operation modal
+        function showOperationStatusModal(target) {
+    		if (target === "send") {
+
+                $("[name=operationStatusModalButton]").first().click();
+		    }
+        }
+
+        function downloadWord(source) {
+            var url = '@Url.Action("RequestIncreaseExportToWord", "View", new { area = "TC" })';
+
+            window.open(url, '_blank');
+        }
+
+        function downloadPdf(source) {
+            //console.log('Download Pdf');
+            var url = '@Url.Action("RequestIncreaseExportToPDF", "View", new { area = "TC" })';
+
+            window.open(url, '_blank');
+    	}
+
+       @* function crearTCAbstract(source) {
+            var dataToSend = { strOpNumber: $('[name=DropOperationNumber]').val() };
+            var response = postUrlWithOptions("@Url.Action("CreateTCP4RequestIncrease", "View", new { area = "TC" })", { dataType: 'json' }, dataToSend);
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }*@
+
+	</script>
+}

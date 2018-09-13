@@ -1,0 +1,202 @@
+﻿@using System.Configuration
+@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.GeneralInformation
+
+@model IDB.Presentation.MVC4.Areas.MrBlue.Models.DocumentTableViewModel
+
+@{
+    var tableName = string.IsNullOrWhiteSpace(Model.DocumentTableName) ? "documentTable" : Model.DocumentTableName;
+    var addFunctionName = string.IsNullOrWhiteSpace(Model.AddFunctionName) ? "addDocument" : Model.AddFunctionName;
+    var dateFormat = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+<div class="row row-header">
+    <div class="col-md-12">
+        <span class="float-left">
+            @Confluence.LabelSubTitleGroup(text: Localization.GetText("MrBlue.GeneralInformation.Documents"))
+        </span>
+        @if (Model.ShowAddButton)
+        {
+            var modalName = string.Format("{0}-modal-add", "DocumentGeneralInformationTable");
+            <div data-pagemode="edit" class="float-right">
+                @Display.AddModalButton(new ModalViewModel("#" + modalName,
+                   type: CssClass.ModalSearchAddDocument,
+                   typeButton: CssClass.Button01,
+                   text: Localization.GetText("DM.Add.Document")))
+            </div>
+        }
+    </div>
+</div>
+<div class="mb20">
+    @{
+        var config = Html.RenderDataTable(Model.Documents);
+        config.Name(tableName)
+            .PrimaryKey(m => m.DocumentId.ToString())
+            .AddPrimaryKeyToName(false)
+            .UseDataTableNet(false)
+            .Columns(columns =>
+            {
+                columns.Template(
+                    @<div data-pagemode="edit">
+                        <input type="hidden" name="@tableName-docName" value="@item.DocumentName" />
+                        <input type="hidden" name="@tableName-docNumber" value="@item.DocNumber" />
+                    </div>).Hidden(true).Persistent();
+
+                columns.Bound(c => c.DocumentName).Header(@Localization.GetText("TC.Documents.Name")).Persistent();
+
+                columns.Bound(c => c.User).Header(@Localization.GetText("TC.Documents.User")).Persistent();
+
+                columns.Bound(c => c.Date).Header(@Localization.GetText("TC.Documents.Date")).Persistent();
+
+                columns.Bound(c => c.DocNumber).Header(@Localization.GetText("TC.Documents.DocNumber")).Persistent();
+
+                columns.Bound(c => Input.DropDownGetSelectedString(
+                    c.TypeId.ToString(),
+                    ViewBag.DocumentTypeList))
+                .EditableTemplate(c =>
+                    Confluence.InputDropDown(
+                       c.TypeId.ToString(),
+                       "typeDocument",
+                       ViewBag.DocumentTypeList,
+                       required: true))
+                .Header(Localization.GetText("MrBlue.GeneralInformation.DocumentType"));
+
+                columns.Template(columnAction)
+                .Persistent()
+                .Header(Localization.GetText("TC.Documents.Actions"))
+                .CssHeaderClass("width12percent")
+                .Center();
+
+            });
+
+        config.TableClass = "table-default";
+
+        config.RowTemplates(x =>
+        {
+
+            if (Model.CanDelete)
+            {
+                x.Create(RowTemplateType.FirstRow,
+
+                    @<tr data-id="newDocument" role="row" class="hide">
+                        <td class="hide">
+                            <div data-pagemode="edit" class="">
+                                <input type="hidden" name="@tableName-docNumber" value="">
+                                <input type="hidden" name="@tableName-docName" value="" />
+                            </div>
+                        </td>
+                        <td data-name="idb-doc-name"><span></span></td>
+                        <td><span>@(((string)ViewBag.CurrentUser).HtmlEncode())</span></td>
+                        <td data-name="idb-doc-date"><span></span></td>
+                        <td data-name="idb-doc-number"><span></span></td>
+                        <td>
+                            <div data-pagemode="edit" class="">
+                                @Confluence.InputDropDown(
+                                String.Empty,
+                                "typeDocument",
+                                ViewBag.DocumentTypeList,
+                                required: true,
+                                disabled: true,
+                                orderAsc: false)
+                            </div>
+                        </td>
+                        <td style="text-align:center;">
+
+                            @{
+                                var secureUrl = string.Empty;
+                                if (item  != null && item.DocNumber != null)
+                                {
+                                    secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                                }
+
+                            }
+                            <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+
+                            @Display.Button07_4(attributes:
+                                new Dictionary<string, string> {{"data-action","DeleteDocumentGeneric"}
+                                , {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName }})
+
+                        </td>
+                    </tr>
+);
+            }
+            else
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="newDocument" role="row" class="hide">
+                        <td class="hide">
+                            <div data-pagemode="edit" class="">
+                                <input type="hidden" name="@tableName-docNumber" value="">
+                                <input type="hidden" name="@tableName-docName" value="" />
+                            </div>
+                        </td>
+                        <td data-name="idb-doc-name"><span></span></td>
+                        <td><span></span></td>
+                        <td data-name="idb-doc-date"><span></span></td>
+                        <td data-name="idb-doc-number"><span></span></td>
+                        <td>
+                            <div data-pagemode="edit" class="">
+                                @Confluence.InputDropDown(
+                                String.Empty,
+                                "typeDocument",
+                                ViewBag.DocumentTypeList,
+                                required: true,
+                                disabled: true,
+                                orderAsc: false)
+                            </div>
+                        </td>
+                        <td style="text-align:center;">
+                            @{
+                                var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                            }
+                            <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+
+                        </td>
+                    </tr>
+);
+            }
+        });
+    }
+    @Html.Partial("Controls/DataTable", config)
+</div>
+
+@helper columnAction(DocumentViewModel model)
+{
+    var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(model.DocNumber);
+
+        <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+
+
+    <span data-pagemode="edit">
+
+        @Confluence.ButtonTrash(
+          string.Empty,
+          name: "removeReviewers",
+          action: "removeReviewers",
+          disabled: !model.IsEditable)
+    </span>
+}
+
+@helper GroupButtonDocumentEdit(string DocNumber)
+{
+var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(DocNumber);
+<a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+
+    @Display.Button07_4(attributes: new Dictionary<string, string> {{"data-action","DeleteDocumentGeneric"}
+      , {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName }})
+
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        $('#@tableName').data('autogenerate-id', 0);
+    </script>
+        )

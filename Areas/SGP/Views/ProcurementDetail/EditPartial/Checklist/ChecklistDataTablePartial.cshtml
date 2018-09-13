@@ -1,0 +1,138 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Architecture.Language
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Infrastructure.BaseClasses
+
+@model ChecklistTabViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+   
+
+    var config = Html.RenderDataTable(Model.Items)
+        .Name("ChecklistTable")
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .AddPrimaryKeyToName(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => Confluence.Label(c.MilestoneName, dataAttributes: new Dictionary<string, string> { { "toggle", "tooltip" }, { "title", Localization.GetText(c.MilestoneTootlip) } }))
+            .CssClass("colMilestone")
+            .CssHeaderClass("colMilestone")
+            .Header(Localization.GetText("SGP.Label.CheckListMilestone"));
+
+            columns.Template(c => BaselineDate(c))
+            .Orderable(false)
+            .CssClass("colBaseline")
+            .CssHeaderClass("colBaseline")
+            .Header(Localization.GetText("SGP.Label.InitialEstimationDate"))
+            .Hidden(false);
+
+            columns.Template(c => UpdatedPlanningDate(c))
+            .Orderable(false)
+            .CssClass("colPlanning")
+            .CssHeaderClass("colPlanning")
+            .Header(Localization.GetText("SGP.Label.ReEstimationDate"))
+            .Hidden(false);
+
+            columns.Template(c => CompletionMethod(c))
+            .Orderable(false)
+            .CssClass("colCompletionMethod textalign-center")
+            .CssHeaderClass("colCompletionMethod")
+            .Header(Localization.GetText("SGP.Label.CompletionMethod"))
+            .Hidden(false);
+
+            columns.Template(c => CompletionDate(c))
+            .Orderable(false)
+            .CssClass("colCompletionDate")
+            .CssHeaderClass("colCompletionDate")
+            .Header(Localization.GetText("SGP.Label.CompletionDate"))
+            .Hidden(false);
+            
+        });
+        
+    config.TableClass = "tableNormal";
+}
+
+@Html.Partial("Controls/DataTable", config)
+
+@helper BaselineDate(ChecklistRowViewModel item)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    <div class="textalign-center" data-baselinedate="baselineDate">
+        @if(item.BaselineDateReadOnly)
+        {
+            @Confluence.Label(FormatHelper.Format(item.BaselineDate, formatDate))
+            @Confluence.InputDatePicker(item.BaselineDate, name: "baselineDate-checklist", required: false, disabled: true , htmlClass: "hide")    
+        }
+        else
+        {
+           @Confluence.InputDatePicker(item.BaselineDate, "baselineDate-checklist", FormatHelper.Format(item.BaselineDate, formatDate), dataAttributes: new Dictionary<string, string> { { "parsley-greaterThanLastDisbursementDate", "true" }, { "parsley-greaterThanFirstDate", "true" }, { "parsley-greaterThanLastDate", "true" } }, required: false, disabled: item.BaselineDateEditable)
+        }
+    </div>
+}
+
+@helper UpdatedPlanningDate(ChecklistRowViewModel item)
+{
+    if(!item.BaselineDateReadOnly)
+    {
+        @Confluence.InputDatePicker(item.UpdatedPlanningDate, "updatePlanningDate-checklist", dataAttributes: new Dictionary<string, string> { { "parsley-updatePlaningGreaterCompletionDate", item.Id.ToString() } }, required: false, disabled: !item.BaselineDateEditable)
+    }
+}
+
+@helper CompletionDate(ChecklistRowViewModel item)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    <div class="" data-completiondate="CompletionDate">
+        @Confluence.InputDatePicker(item.CompletionDate, "completionDate-checklist", disabled: !item.MilestoneIsComplete, dataAttributes: new Dictionary<string, string> { { "parsley-greaterThanToday", "true" } }, required: false)
+    </div>
+}
+
+@helper CompletionMethod(ChecklistRowViewModel item)
+{
+    var completeManualId = Model.ViewContainer.GetValue<int>("CompleteManual");
+    var check = string.Empty;
+    var disable = string.Empty;
+
+    if (item.MilestoneIsComplete)
+    {
+        check = "checked=\"checked\"";
+    }
+
+    if (!item.ManualCompletionMethod)
+    {
+        disable = "disabled=\"disabled\"";
+    }
+    
+    if (completeManualId == item.CompletionMethodId)
+    {
+        <div class="" name="completionMethod">
+            @Confluence.Label(item.CompletionMethodText.ToString()) &nbsp;
+            <input type="checkbox" name="isComplete-checklist" @check @disable />
+        </div>
+    }
+    else
+    {
+        <div class="" name="completionMethod">
+            @Confluence.Label(item.CompletionMethodText.ToString())
+            <input type="checkbox" class="hide" name="isComplete-checklist" @check @disable />
+        </div>
+    }
+}
+

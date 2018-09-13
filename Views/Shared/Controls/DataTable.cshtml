@@ -1,0 +1,333 @@
+﻿@using IDB.MVCControls.DataTable.Models
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+
+@*@model GridModel<object>*@
+
+<table id="@Model.Id" class="@(string.IsNullOrWhiteSpace(Model.TableClass) ? Model.DefaultTableClass : Model.TableClass)">
+    @if (Model.UseCustomHeader)
+    {
+        @Model.CustomHeader(null)
+    }
+    else if (Model.GetNewHeader() != null)
+    {
+        @Model.GetNewHeader()
+    }
+    else
+    {
+        <thead>
+            <tr class="@Model.RowHeaderClass()">
+                @foreach (var column in Model.ColumnsData)
+                {
+                    var classHidden = column.Hidden ? "hide" : "";
+                    var columnClass = string.Empty;
+
+                    if (!string.IsNullOrWhiteSpace(classHidden) || !string.IsNullOrWhiteSpace(column.CssHeaderClass))
+                    {
+                        columnClass = string.Format("{0} {1}", column.CssHeaderClass, classHidden);
+                    }
+                    <th class="@columnClass" @column.ResolvedHeaderAttributes()>
+                        @if (column.HeaderTemplate == null)
+                        {
+                            @column.Header
+                        }
+                        else
+                        {
+                            @column.HeaderTemplate
+                        }
+                    </th>
+                }
+            </tr>
+        </thead>
+    }
+    <tbody>
+        @if ((Model.ModelData.Count > 0) && string.IsNullOrWhiteSpace(Model.GetAjaxLoadUrl()))
+        {
+            var rowIndex = 0;
+            foreach (var row in Model.ModelData)
+            {
+                rowIndex++;
+                var rowCssClass = Model.RowCssClass(row);
+                if (Model.useCusomRowClass)
+                {
+                    rowCssClass += rowIndex % 2 == 0 ? " custom-odd" : " custom-even";
+                }
+                
+                foreach (var rowTemplate in Model.RowTemplatesDefinition)
+                {
+                    if (rowTemplate.RowTemplateType == RowTemplateType.FirstRow && rowIndex == 1)
+                    {
+                        @rowTemplate.Template(row)
+                    }
+                }
+
+                <tr data-id="@Model.ResolvedPrimaryKey(row)" class="@rowCssClass" @Model.ResolveRowAttributes(row)>
+                    @foreach (var column in Model.ColumnsData)
+                    {
+                        var classTxt = string.Empty;
+                        var resolvedClass = column.ResolvedCssClass(row);
+
+                        if (column.Center)
+                        {
+                            resolvedClass += " text-center";
+                        }
+
+                        if (column.Right)
+                        {
+                            resolvedClass += " text-right";
+                        }
+
+                        if (column.Left)
+                        {
+                            resolvedClass += " text-left";
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(resolvedClass))
+                        {
+                            classTxt = string.Format("class=\"{0}\"", resolvedClass);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(column.CssClass))
+                        {
+                            resolvedClass += " " + column.CssClass;
+                        }
+
+                        classTxt = string.Format("class=\"{0} {1}\"", resolvedClass, column.Hidden ? "hide" : "");
+
+
+                        <td @(new MvcHtmlString(classTxt)) @column.ResolvedAttributes(row)>
+                            @if (column.OrderFormat != null)
+                            {
+                                var exp = column.OrderFormat.Item2;
+                                var orderFormat = column.OrderFormat.Item1;
+                                var orderVariable = exp.Invoke(row);
+                                <span class="hide">
+                                    @Format(orderVariable, orderFormat)
+                                </span>
+                            }
+                            @if (Model.UsePageMode())
+                            {
+                                <span @(column.Persistent ? "" : "data-PageMode=read")>@column.Value(row)</span>
+                                <span data-pagemode="edit">@(column.EditableTemplate != null ? column.EditableTemplate(row) : null)</span>
+                            }
+                            else
+                            {
+                                @column.Value(row)
+                                if (column.EditableTemplate != null)
+                                {
+                                    <span data-pagemode="edit">
+                                        @column.EditableTemplate(row)
+                                    </span>
+                                }
+                            }
+                        </td>
+                    }
+                </tr>
+                foreach (var rowTemplate in Model.RowTemplatesDefinition)
+                {
+                    if (rowTemplate.RowTemplateType == RowTemplateType.AllRows || (rowTemplate.RowTemplateType == RowTemplateType.EvenRows && rowIndex % 2 == 0) || (rowTemplate.RowTemplateType == RowTemplateType.OddRows && rowIndex % 2 != 0))
+                    {
+                        @rowTemplate.Template(row)
+                    }
+                }
+
+                foreach (var rowTemplate in Model.RowTemplatesDefinition)
+                {
+                    if (rowTemplate.RowTemplateType == RowTemplateType.LastRow && rowIndex == Model.ModelData.Count)
+                    {
+                        @rowTemplate.Template(row)
+                    }
+                }
+            }
+        }
+        else
+        {
+            foreach (var rowTemplate in Model.RowTemplatesDefinition)
+            {
+                if (rowTemplate.RowTemplateType == RowTemplateType.FirstRow)
+                {
+                    @rowTemplate.Template(null)
+                }
+            }
+            foreach (var rowTemplate in Model.RowTemplatesDefinition)
+            {
+                if (rowTemplate.RowTemplateType == RowTemplateType.LastRow)
+                {
+                    @rowTemplate.Template(null)
+                }
+            }
+        }
+    </tbody>
+    <tfoot>
+        @foreach (var rowTemplate in Model.FootTemplatesDefinition)
+        {
+            @rowTemplate.Template(null)
+        }
+    </tfoot>
+
+
+</table>
+
+@functions {
+    private static string Format( object obj, string format )
+    {
+        var result = obj.ToString();
+        if (obj is DateTime)
+        {
+            result = ((DateTime)obj).ToString(format);
+        }
+        else if (obj is int)
+        {
+            result = ((int)obj).ToString(format);
+        }
+        return result;
+    }
+}
+@if (Model.UseDataTableNet())
+{
+    @Html.ScriptBlock(
+    @<script type="text/javascript">
+        registerCallback(function()
+        {
+            var myDatatable = $('#@Model.Id');
+            myDatatable.dataTable().fnDestroy();
+            var onRenderFunction = "";
+            @if (!string.IsNullOrWhiteSpace(Model.OnRenderFunction()))
+        {
+            @:onRenderFunction = "@Model.OnRenderFunction()";
+                                                        }
+            if ((onRenderFunction !== "") && (typeof window[onRenderFunction] === "function")){
+                window[onRenderFunction](myDatatable);
+            }
+
+            var options = {
+                "processing": false,
+                "serverSide": false,
+                "info": false,
+                "paging": false,
+                "searching": false,
+                "dom": '@Html.Raw(Model.Dom)',
+                "autoWidth": false,
+                "ordering": false,
+                "language": {
+                    "emptyTable":
+                        "@Localization.GetText("COMMON.Search.Related.Operation.RowsEmpty")"
+                    }
+            };
+
+
+
+
+            @if( Model.GetBodyScrollSize != null )
+            {
+                @:options = $.extend(options, {  "scrollY": "@(Model.GetBodyScrollSize)px", "scrollCollapse": true });
+                        }
+
+            var isPaginable = "@Model.GetPaginable()";
+            if (isPaginable === "True"){
+                var pageSize = parseInt('@Model.GetPageSize()');
+                options = $.extend(options, {  "paging": true, "pageLength": pageSize });
+            }
+
+            //Check columns and set his options. If someone is orderable, datatable too.
+            var isOrderable = false;
+            var columnsSettings = [];
+            var columnSetting = {};
+
+            @{
+                @:var columnName = "";
+                            @:var ordenable = false;
+                            foreach (var column in Model.ColumnsData)
+                {
+                    var columnName = column.ColumnName;
+                    var ordenable = column.Orderable;
+
+                    @:columnName =  "@columnName";
+                                @:ordenable =  "@ordenable" === "True";
+
+                    @:isOrderable = isOrderable || ordenable;
+                                @:columnSetting = { "sortable": ordenable };
+                                @:if (columnName != null)
+                                    @:{
+                                    @:    columnSetting = $.extend(columnSetting, { "name": columnName });
+                                    @:}
+                                @:columnsSettings.push(columnSetting);
+                            }
+            }
+
+
+
+            //If the table is orderable we set his property.
+            options = $.extend(options, { "ordering": isOrderable });
+            if (columnsSettings.length > 0)
+            {
+                options = $.extend(options, { "columns": columnsSettings });
+            }
+
+            var ajaxUrl = "";
+            @if (!string.IsNullOrWhiteSpace(Model.GetAjaxLoadUrl()))
+            {
+                @:ajaxUrl = "@Model.GetAjaxLoadUrl()";
+                        }
+            if (ajaxUrl != ""){
+                //Set properties to load element using ajax
+                options = $.extend(options,
+                {
+                    "processing": true
+                    ,"serverSide": true
+                    ,"ajax": {
+                        "url": ajaxUrl
+                        ,"data": function(d)
+                        {
+                            d = $.extend(d, myDatatable.data("filters"));
+                        }
+                        ,"async" : true
+                    }
+                });
+            }
+
+            if (myDatatable.data("filters") == null){
+                myDatatable.data("filters", { isPageLoad: true });
+            }
+
+            var @Model.Id = myDatatable.dataTable(options);
+            myDatatable.data("fn-search", function()
+            {
+                var customFilter = "";
+                @if (!string.IsNullOrWhiteSpace(Model.GetCustomFilterHandler()))
+                {
+                    @:customFilter = "@Model.GetCustomFilterHandler()";
+                                }
+
+                var filterData = {};
+                if (customFilter !== "")
+                {
+                    var functionFilter = window[customFilter];
+                    if (typeof functionFilter === "function")
+                    {
+                        filterData = functionFilter();
+                    }
+                }
+
+                var filterToUpload = GetFilterForSearchableTable(filterData);
+                myDatatable.data("filters", filterToUpload);
+
+                var tableComponent = myDatatable.DataTable();
+                tableComponent.ajax.reload(CallBackReload, true);
+            });
+            myDatatable.data("fn-clear", function()
+            {
+                myDatatable.data("filters", {});
+
+                var tableComponent = myDatatable.DataTable();
+                tableComponent.ajax.reload(CallBackReload, true);
+            });
+
+            function CallBackReload(result){
+                myDatatable.trigger("data-table-loaded", result);
+            }
+        });
+    </script>
+    )
+
+}

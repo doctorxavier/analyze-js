@@ -1,0 +1,561 @@
+﻿@using Areas.DEM
+@using IDB.MW.Application.DEMModule.ViewModels
+@using IDB.MW.Domain.Values.Dem
+@using IDB.MW.Infrastructure.Configuration
+
+@model SummaryTabViewModel
+
+@{
+    var resumenSummary = Model;
+    var container = new List<string>();
+
+    switch (Model.Language)
+    {
+        case "es":
+            container = new List<string> { "StrategicAlignmentTable-es", "EvaluabilityTable-es", "RiskTable-es", "AdditionalityTable-es" };
+            break;
+        case "en":
+            container = new List<string> { "StrategicAlignmentTable-en", "EvaluabilityTable-en", "RiskTable-en", "AdditionalityTable-en" };
+            break;
+    }
+
+    var urlStrategic = Url.Action("OperationData", "View", new { area = "OPUS" }) + "?OperationNumber=" + Model.OperationNumber;
+    var urlResultMatrix = Url.Action("Index", "Impacts", new { area = "ResultsMatrix" }) + "?OperationNumber=" + Model.OperationNumber;
+
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+
+    var language = string.Empty;
+    var folder = "Pages";
+
+    switch (Localization.CurrentLanguage)
+    {
+        case "en":
+            language = "en-us";
+            break;
+        case "es":
+            language = "es-es";
+            folder = "Paginas";
+            break;
+        case "fr":
+            language = "fr-fr";
+            break;
+        case "pt":
+            language = "pt-br";
+            folder = "Paginas";
+            break;
+    }
+
+    var infoPath = Globals.GetSetting("ParamServerDem") +
+        "/sites/knowledge/" + language + "/" + folder + "/DEM-Checklist-Guidelines-.aspx";
+}
+<input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+
+@if (Model != null)
+{
+    <div class="header">
+        <div class="row grouping-section mb0">
+            <div class="col-md-12 pl15 mb0">
+                <div class="col-md-6" style="padding-left:17px">
+                    @if (Model.Language == "en")
+                    {
+                        if (Model.ShowDEMRequired)
+                        {
+                            <div class="pl15" data-pagemode="read">
+                                @Confluence.InputCheckbox(Model.Required, "txtRequiredDEM",
+                                   label: Localization.GetText("R6.DEM.Summary.DEMRequired"), disabled: true)
+                            </div>
+                            <div class="requiredArea pt10" data-pagemode="read">
+                                @if (!Model.Required)
+                                {
+                                    <div class="pl15 lblRequiredDEM">
+                                        @Confluence.Label(Localization.GetText("R6.DEM.Summary.DEMNotRequired"))
+                                    </div>
+                                    <div class="pl15 col-md-8 pt5 justifiedText">
+                                        @Confluence.LabelBold(Model.Justification)
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="pl15" data-pagemode="edit">
+                                @Confluence.InputCheckbox(Model.Required, "txtRequiredDEM",
+                                    label: Localization.GetText("R6.DEM.Summary.DEMRequired"),
+                                    htmlClass: "requiredDEM")
+                            </div>
+
+                            <div class="requiredArea pt10" data-pagemode="edit">
+                                <div class="pl15 lblRequiredDEM">
+                                    @Confluence.Label(Localization.GetText("R6.DEM.Summary.DEMNotRequired"))
+
+                                    @Confluence.LabelAsterisk()
+                                </div>
+                                <div class="pl15 col-md-8 pt5">
+                                    @Confluence.InputTextArea(Model.Justification,
+                                        name: "textRequired",
+                                        width: "100%",
+                                        height: "100%",
+                                        required: false)
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="pl15 mb10">
+                                @Confluence.InputCheckbox(Model.Required,
+                                   "txtRequiredDEM",
+                                   label: Localization.GetText("R6.DEM.Summary.DEMRequired"),
+                                   disabled: true,
+                                   htmlClass: "requiredDEM")
+                            </div>
+                            <div class="requiredArea pt10">
+                                @if (!Model.Required)
+                                {
+                                    <div class="pl15 lblRequiredDEM">
+                                        @Confluence.Label(@Localization.GetText("R6.DEM.Summary.DEMNotRequired"))
+                                    </div>
+                                    <div class="pl15 col-md-8 pt5 justifiedText">
+                                        @Confluence.LabelBold(Model.Justification)
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+                @if (Model.Required)
+                {
+                    <div class="col-md-6">
+                        <table class="row row-header floatRight">
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="floatRight">
+                                            @Confluence.ButtonColapseAll(container,
+                                                dataAttributes: new Dictionary<string, string> {
+                                                    { "idb-fieldname", "btnCollapse" } })
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @Confluence.ButtonPdf("pdf", "downloadSummaryReport", false,
+                                            dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnPdf" } })
+                                    </td>
+
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    if (Model.Required)
+    {
+        <div id="summary">
+            <div>
+                <div class="dataTables_wrapper no-footer">
+                    <table id="StrategicAlignmentTable-@resumenSummary.Language" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th class="tree icon DemSubtitleAlignment">
+                                    <span class="icon" onclick="CollapseTable(this)">-</span>
+                                    <span class=""></span>
+                                </th>
+                                <td class="DemSubtitleAlignment" colspan="2">
+                                    @Confluence.LabelSubTitleGroup(
+                                        Localization.GetText("R6.DEM.Summary.CorporateAndCountry",
+                                        resumenSummary.Language))
+                                </td>
+
+                                <td></td>
+                            </tr>
+                            <tr data-id="">
+                                <td class="tree"><span></span><span class=""></span></td>
+                                <th class="DemLeft col-md-6" colspan="2">
+                                    @Localization.GetText("R6.DEM.Summary.Criteria", resumenSummary.Language)
+                                </th>
+                                <th class="DemLeft col-md-6">
+                                    @Localization.GetText("R6.DEM.Summary.Alignment", resumenSummary.Language)
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @PrintStrategicAlignmentTableBody(resumenSummary.StrategicAlignment)
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <div class="dataTables_wrapper no-footer">
+                    <table id="EvaluabilityTable-@resumenSummary.Language" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th class="tree icon DemSubtitleAlignment">
+                                    <span class="icon" onclick="CollapseTable(this)">-</span>
+                                    <span class=""></span>
+                                </th>
+                                <td colspan="4" class="DemSubtitleAlignment">
+                                    @Confluence.LabelSubTitleGroup(
+                                        Localization.GetText("R6.DEM.Summary.Evaluability",
+                                        resumenSummary.Language))
+                                </td>
+                            </tr>
+                            <tr data-id="">
+                                <td class="tree"><span></span><span class=""></span></td>
+                                <th class="DemLeft col-md-6">
+                                    @Localization.GetText("R6.DEM.Summary.Criteria", resumenSummary.Language)
+                                </th>
+                                <th class="col-md-6">@resumenSummary.EvaluabilityGrade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @PrintEvaluabilityTableBody(resumenSummary.Evaluability)
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <div class="dataTables_wrapper no-footer">
+                    <table id="RiskTable-@resumenSummary.Language" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th class="tree icon DemSubtitleAlignment">
+                                    <span class="icon" onclick="CollapseTable(this)">-</span>
+                                    <span class=""></span>
+                                </th>
+                                <td colspan="2" class="DemSubtitleAlignment">
+                                    @Confluence.LabelSubTitleGroup(
+                                        Localization.GetText("R6.DEM.Summary.RisksMitigationMonitoringMatrix",
+                                        resumenSummary.Language))
+                                </td>
+
+                            </tr>
+                            <tr data-id="">
+                                <td class="tree"><span></span><span class=""></span></td>
+                                <th class="DemLeft col-md-10">
+                                    @Localization.GetText("R6.DEM.Summary.Criteria", resumenSummary.Language)
+                                </th>
+                                <th class="col-md-2">
+                                    @Localization.GetText("R6.DEM.Summary.RiskAssessment", resumenSummary.Language)
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @PrintRiskTableBody(resumenSummary.Risk)
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <div class="dataTables_wrapper no-footer">
+                    <table id="AdditionalityTable-@resumenSummary.Language" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th class="tree icon DemSubtitleAlignment">
+                                    <span class="icon" onclick="CollapseTable(this)">-</span>
+                                    <span class=""></span>
+                                </th>
+                                <td colspan="3" class="DemSubtitleAlignment">
+                                    @Confluence.LabelSubTitleGroup(
+                                         Localization.GetText("R6.DEM.Summary.RoleAdditionality",
+                                         resumenSummary.Language))
+                                </td>
+
+                            </tr>
+                            <tr data-id="">
+                                <td class="tree"><span></span><span class=""></span></td>
+                                <th class="DemLeft col-md-6">
+                                    @Localization.GetText("R6.DEM.Summary.Criteria", resumenSummary.Language)
+                                </th>
+                                <th class="DemLeft col-md-1">
+                                    @Localization.GetText("R6.DEM.Main.Additionality", resumenSummary.Language)
+                                </th>
+                                <th class="col-md-5">
+                                    @Localization.GetText("R6.DEM.Main.InfoAndRefsTitle", resumenSummary.Language)
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @PrintAdditionalityTableBody(resumenSummary.Additionality)
+                        </tbody>
+                    </table>
+                </div>
+                <br />
+                <div class="col-md-12 pl30">
+                    @Confluence.Label(
+                        Localization.GetText("R6.DEM.Summary.DEMNoteSummary", resumenSummary.Language),
+                        htmlClass: " DemTableFooterNote")
+                </div>
+            </div>
+        </div>
+    }
+
+    <br />
+    <br />
+
+    <div class="row-body">
+        <div class="col-md-12 mb10">
+            <div>
+                <div class="col-md-10 inlineDiv">
+                    @DEMHelpers.LabelSubTitleGroup(
+                            Localization.GetText("R6.DEM.Summary.EvaluabilityAssessmentNote", resumenSummary.Language))@*,
+                            asterisk: Model.IsEvaluabilityAssessmentNoteRequired)*@
+                </div>
+                @if (Model.Role == Role.SPD_SPECIALIST ||
+                    Model.Role == Role.SPD_DEM_COORDINATOR)
+                {
+                    <div class="col-md-2 aRight inlineDivRight">
+                        @Confluence.ButtonPdf("pdf", "downloadReport", false,
+                            dataAttributes: new Dictionary<string, string> {
+                                { "idb-fieldname", "btnPdf" },
+                                { "lang", resumenSummary.Language } })
+
+                        @Confluence.ButtonWord("doc", "downloadReport", false,
+                            dataAttributes: new Dictionary<string, string> {
+                                { "idb-fieldname", "btnDoc" },
+                                { "lang", resumenSummary.Language } })
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="col-md-12">
+            <div data-pagemode="read" class="col-md-12 justifiedText">
+                @if (resumenSummary.EvaluabilityAssessmentNote != null)
+                {
+                    foreach (var item in resumenSummary.EvaluabilityAssessmentNote.Replace("\n", "|").Split('|'))
+                    {
+                        @Confluence.LabelBold(item)
+                        <br />
+                    }
+                }
+            </div>
+            <div data-pagemode="edit" class="col-md-12 justifiedText">
+                @if (Model.Role == Role.TEAM_LEADER && resumenSummary.EvaluabilityAssessmentNote != null)
+                {
+                    foreach (var item in resumenSummary.EvaluabilityAssessmentNote.Replace("\n", "|").Split('|'))
+                    {
+                        @Confluence.LabelBold(item)
+                        <br />
+                    }
+                }
+                else
+                {
+                    @Confluence.InputTextArea(
+                            value: resumenSummary.EvaluabilityAssessmentNote,
+                            maxLength: 3000,
+                            name: "EvaluabilityAssessmentNote-" + resumenSummary.Language,
+                            htmlClass: "DemResizable",
+                            width: "100%",
+                            height: "124px")
+                }
+            </div>
+        </div>
+    </div>
+}
+@helper PrintStrategicAlignmentTableBody(IList<SheetStrategicAlignmentSimple> collection)
+{
+foreach (SheetStrategicAlignmentSimple listItem in collection)
+{
+        @PrintRow(listItem)
+
+    foreach (var child1 in listItem.Childs)
+    {
+            @PrintRow(child1)
+    }
+}
+}
+@helper PrintRow(SheetStrategicAlignmentSimple child)
+{
+var levelClass = !child.IsChild ? "DemTableHeaderLevel" + child.Level : string.Empty;
+var paddingClass = child.IsChild ? "DemChildPadding" : string.Empty;
+
+    <tr data-id="@child.IdSheet" class="custom even odd @levelClass" role="row" style="height: 56px">
+        <td class="tree"><span></span></td>
+        <td class="@paddingClass w300">
+            @if (child.IsLink)
+            {
+                @Confluence.LabelLink(child.Criteria, htmlClass: "DemFontLink")
+            }
+            else
+            {
+                <span>@Confluence.Label(child.Criteria)</span>
+            }
+        </td>
+        <td>
+            @(!child.IsChild ? Confluence.LabelBold(child.CodeNumber) : Confluence.Label(child.CodeNumber))
+        </td>
+        <td>
+            <span>
+                @if (!child.IsChild)
+                {
+                    @Confluence.LabelBold(text: child.Aligned)
+                }
+                else
+                {
+                    if (child.AlignmentList.Any())
+                    {
+                        foreach (var info in child.AlignmentList)
+                        {
+                            @Confluence.Label(info)
+                            <br />
+                        }
+                    }
+                }
+            </span>
+        </td>
+    </tr>
+}
+
+@helper PrintEvaluabilityTableBody(IList<SheetEvaluabilitySimple> collection)
+{
+    foreach (SheetEvaluabilitySimple listItem in collection)
+    {
+        @PrintRow(listItem)
+
+        foreach (var child1 in listItem.Childs)
+        {
+            @PrintRow(child1)
+
+            foreach (var child2 in child1.Childs)
+            {
+                @PrintRow(child2)
+            }
+        }
+    }
+}
+
+@helper PrintRow(SheetEvaluabilitySimple child)
+{
+    var levelClass = !child.IsChild ? "DemTableHeaderLevel" + child.Level : string.Empty;
+    var paddingClass = child.IsChild ? "DemChildPadding" : string.Empty;
+
+    <tr data-id="@child.IdSheet" class="custom even odd @levelClass" role="row" style="height: 56px">
+        <td class="tree"><span></span></td>
+        <td class="@paddingClass">
+            <span>
+                @{
+                    if (child.HexCode == DemGlobalValues.EVALUABILITY_SUB_SECTION_1 ||
+                        child.HexCode == DemGlobalValues.EVALUABILITY_SUB_SECTION_2 ||
+                        child.HexCode == DemGlobalValues.EVALUABILITY_SUB_SECTION_3)
+                    {
+                        @Confluence.LabelBold(child.Criteria)
+                    }
+                    else
+                    {
+                        @Confluence.Label(child.Criteria)
+                    }
+                }
+            </span>
+        </td>
+        <td class="text-center">
+            <span>
+                @(child.Criteria == string.Empty ? 
+                    Confluence.LabelDecimal(child.Score, bold: true) : 
+                    Confluence.LabelDecimal(child.Score))
+            </span>
+        </td>
+    </tr>
+}
+
+@helper PrintRiskTableBody(IList<SheetRiskSimple> collection)
+{
+    foreach (SheetRiskSimple listItem in collection)
+    {
+        @PrintRow(listItem)
+
+        foreach (var child1 in listItem.Childs)
+        {
+            @PrintRow(child1)
+        }
+    }
+}
+
+@helper PrintRow(SheetRiskSimple child)
+{
+    var levelClass = !child.IsChild ? "DemTableHeaderLevel" + child.Level : string.Empty;
+    var paddingClass = child.IsChild ? "DemChildPadding" : string.Empty;
+
+    <tr data-id="@child.IdSheet" class="custom even odd @levelClass" role="row" style="height: 56px">
+        <td class="tree"><span></span></td>
+        <td class="@paddingClass">
+            <span>
+                @{
+                    if (child.HexCode == DemGlobalValues.RISKS_CRITERION_1 ||
+                        child.HexCode == DemGlobalValues.RISKS_CRITERION_5)
+                    {
+                        @Confluence.LabelBold(child.Criteria)
+                    }
+                    else
+                    {
+                        @Confluence.Label(child.Criteria)
+                    }
+                }
+            </span>
+        </td>
+        <td class="text-center">
+            <span>
+                @if (!child.IsChild)
+                {
+                    @Confluence.LabelBold(child.Risk)
+                }
+                else
+                {
+                    if (child.CheckRiskAssessment)
+                    {
+                        @Confluence.InputCheckbox(isChecked: child.CheckRiskAssessment, name: "RiskCheck", disabled: true)
+                    }
+                }
+            </span>
+        </td>
+    </tr>
+}
+
+@helper PrintAdditionalityTableBody(IList<SheetAdditionalitySimple> collection)
+{
+foreach (SheetAdditionalitySimple listItem in collection)
+{
+        @PrintRow(listItem)
+
+    foreach (var child1 in listItem.Childs)
+    {
+            @PrintRow(child1)
+    }
+}
+}
+@helper PrintRow(SheetAdditionalitySimple child)
+{
+    var levelClass = !child.IsChild ? "DemTableHeaderLevel" + child.Level : string.Empty;
+    var paddingClass = child.IsChild ? "DemChildPadding" : string.Empty;
+
+    <tr data-id="@child.IdSheet" class="custom even odd @levelClass" role="row" style="height: 56px">
+        <td class="tree"><span></span></td>
+        <td class="@paddingClass"><span>@Confluence.Label(child.Criteria)</span></td>
+        <td class="text-center">
+            <span>
+                @if (child.CheckAdd)
+                {
+                    @Confluence.InputCheckbox(isChecked: child.CheckAdd, name: "AdditionalityCheck", disabled: true)
+                }
+            </span>
+        </td>
+        <td>
+            <span>
+                @if (child.InfoAndRefList.Any() && child.CheckAdd)
+                {
+                    foreach (var info in child.InfoAndRefList)
+                    {
+                        var infoReplace = info.Replace(Environment.NewLine, "|");
+                        var infoList = infoReplace.Split('|');
+
+                        foreach (var item in infoList)
+                        {
+                            @Confluence.Label(item)
+                            <br />
+                        }
+                    }
+                }
+            </span>
+        </td>
+    </tr>
+}

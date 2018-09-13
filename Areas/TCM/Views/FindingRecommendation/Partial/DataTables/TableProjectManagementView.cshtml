@@ -1,0 +1,121 @@
+﻿@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.TCM.ViewModels.FindingAndRecommendation
+@using IDB.Presentation.MVC4.Helpers
+
+
+@model List<ProjectManagementTableModel>
+
+@if (Model != null)
+{
+    var btnAddNewProjectSwich = Model.Count < 0 ? SecurityHelper.IsVisible(Model.First().FieldAccessList, "btnAddNewProject") : true;
+    var btnRemoveProjectSwich = Model.Count < 0 ? SecurityHelper.IsVisible(Model.First().FieldAccessList, "btnRemoveProject") : true;
+    var ddlDimensionSwich = Model.Count < 0 ? SecurityHelper.IsVisible(Model.First().FieldAccessList, "ddlDimension") : true;
+    var ddlStageSwich = Model.Count < 0 ? SecurityHelper.IsVisible(Model.First().FieldAccessList, "ddlStage") : true;
+    
+
+
+    <div class="row row-body-20">
+        <div class="col-md-12">
+            @{
+                var config = Html.RenderDataTable(Model);
+                config.Name("tableResult")
+                    .PrimaryKey(m => m.FindingRecommendationId.ToString(CultureInfo.InvariantCulture))
+                    .AddPrimaryKeyToName(false)
+                    .Columns(columns =>
+                    {
+                    columns.Bound(c => c.FindingRecommendationId).EditableTemplate(@<input type="hidden" name="findingRecommendationId" value="@item.FindingRecommendationId.ToString()" />).Hidden(true);
+                        if (ddlStageSwich) {
+                            columns.Template(c => Confluence.Label(c.Stage))
+                            .EditableTemplate(row => Confluence.InputDropDown(row.StageId.ToString(), "stage", ViewBag.Stage, width: "100%"
+                                , dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlStage" } }))
+                            .Header(Localization.GetText("TCM.FR.FindingsAndRecommendations.Stage"));
+                        }
+                        if (ddlDimensionSwich) {
+                            columns.Template(c => Confluence.Label(c.Dimension))
+                            .EditableTemplate(row => Confluence.InputDropDown(row.DimensionId.ToString(), "dimension", ViewBag.Dimension, width: "100%"
+                                , dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlDimension" } }))
+                            .Header(Localization.GetText("TCM.FR.FindingsAndRecommendations.Dimension"));
+                        }
+
+                        columns.Template(c => Confluence.LabelGetDate(c.LastUpdate != DateTime.MinValue ? c.LastUpdate : null))
+                            .Header(Localization.GetText("TCM.FR.FindingsAndRecommendations.LastUpdate")).Persistent();
+                        if (btnRemoveProjectSwich) {
+                            columns.Template(c => GetRelatedExpandedButton()).Persistent()
+                            .EditableTemplate(row => Confluence.ButtonTrash(null, null, "removeRow2", dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnRemoveProject" } })).CssHeaderClass("w130");
+                        }
+
+                    })
+                    .RowTemplates(row => row.Create(RowTemplateType.AllRows, ProjectManagementRow));
+
+                config.TableClass = "tableNormal endSpacing";
+    @Html.Partial("Controls/DataTable", config)
+
+
+    if (Model.Count == 0)
+    {
+        <div name="mssg">@Confluence.Label(Localization.GetText("TCM.FR.FindingsAndRecommendations.ProjectManagementEmptyTable"))</div>
+               }
+                if (btnAddNewProjectSwich)
+                { 
+                    <div class="col-md-12">
+                        <div data-pagemode="edit" class="text-center">
+                            @Confluence.ButtonAddNewRows(Localization.GetText("TCM.FR.FindingsAndRecommendations.AddNew"), "tableResult", null, "newFindingRecommendation", dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnAddNewProject" } })
+                        </div>
+                    </div>
+            }
+
+    
+            }
+        </div>
+
+        @helper ProjectManagementRow(IDB.MW.Application.TCM.ViewModels.FindingAndRecommendation.ProjectManagementTableModel row)
+{       var txtSubTableFindingsSwich = Model.Count < 0 ? SecurityHelper.IsVisible(Model.First().FieldAccessList, "txtSubTableFindings") : true;
+        var txtSubTableRecommendationsSwich = Model.Count < 0 ? SecurityHelper.IsVisible(Model.First().FieldAccessList, "txtSubTableRecommendations") : true;
+
+        <tr class="template odd" name="rowIdiom" id="rowIdiom" data-persist="true" data-row-parent-id=@row.FindingRecommendationId>
+            <td class="custom-detail-table-row" colspan="6">
+                <div class="col-md-6">
+                    <div class="col-md-12" title="@Localization.GetText("TCM.FR.FindingsAndRecommendations.FindingsMouse")">
+                        <span>
+                            @Confluence.LabelBold(Localization.GetText("TCM.FR.FindingsAndRecommendations.Findings"))
+                        </span>
+                    </div>
+                    @if (txtSubTableFindingsSwich)
+                    {
+                        <div class="col-md-12">
+                            @Confluence.InputRichText(@row.Findings, "finding", width: "80%", height: "100px"
+                                     , dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "txtSubTableFindings" } }, placeholder: Localization.GetText("TCM.FR.FindingsAndRecommendations.FindingsPlace"))
+
+                        </div>
+                    }
+                   
+
+                </div>
+                <div class="col-md-6">
+                    <div class="col-md-12" title="@Localization.GetText("TCM.FR.FindingsAndRecommendations.Recomendation_Over")">
+                        <span>@Confluence.LabelBold(Localization.GetText("TCM.FR.FindingsAndRecommendations.Recomendations"))</span>
+                    </div>
+                    @if (txtSubTableRecommendationsSwich)
+                    {
+                        <div class="col-md-12">
+
+                            @Confluence.InputRichText(@row.Recommendations, "recommendation", width: "80%", height: "100px"
+                                 , dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "txtSubTableRecommendations" } }, placeholder: Localization.GetText("TCM.FR.FindingsAndRecommendations.RecommendationPlace"))
+
+                        </div>
+                    }
+
+                </div>
+            </td>
+
+        </tr>
+}
+    </div>
+
+    @helper GetRelatedExpandedButton()
+{
+    @Confluence.ButtonShowRow()
+}
+}

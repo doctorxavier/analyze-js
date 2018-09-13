@@ -1,0 +1,156 @@
+﻿@using System.Web.Mvc.Html
+
+@using IDB.Architecture.Extensions;
+@using IDB.Architecture.Language
+@using IDB.MW.Domain.Values.Paci;
+@using IDB.Presentation.MVC4.Areas.PACI.Models
+@using IDB.Presentation.MVC4.Areas.PACI.Helpers
+@using IDB.Presentation.MVC4.MVCExtensions
+
+@model PaciViewModel
+@{
+    var updateTarget = "mainLayoutOperationContent";
+}
+
+@using (Ajax.BeginForm("Save", "Paci",
+    new {operationNumber = Model.OperationNumber},
+    new AjaxOptions() {UpdateTargetId = updateTarget, HttpMethod = "Post", OnComplete = "paciAjaxOnComplete", OnBegin = "paciAjaxOnBegin"},
+    new {id = "frmPaciEditMode", name = "UI-PA-001-EDIT"}))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.Hash)
+
+    @Html.Partial("~/Areas/PACI/Views/Modals/PaciEditModals.cshtml")
+
+    <div class="col-md-12">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnPaciSave", Model.Security.Security))
+        {
+            <button class="buttonOrange pull-right" type="submit" id="btnPaciSave">@Localization.GetText("PACI.SAVE")</button> @*PACI.SAVE*@
+        }
+
+        @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnPaciCancel", Model.Security.Security))
+        {
+            @Ajax.ActionLink(Localization.GetText("PACI.CANCEL"), "Cancel", new {operationNumber = Model.OperationNumber}, new AjaxOptions() {UpdateTargetId = "mainLayoutOperationContent"}, new {@class = "pull-right buttonLink", id = "btnPaciCancel"}) @*PACI.CANCEL*@
+        }
+
+    </div>
+
+    <span class="pb20">
+        <br/>
+    </span>
+
+    <div class="col-md-10 mt20 mb10 text-justify">
+        @HtmlTextHelper.ModalText("PACI.DESCRIPTION")
+    </div>
+
+    <span class="pb20">
+        <br/>
+    </span>
+
+    <div class="col-md-12 pl0">
+        @Confluence.ButtonColapseAll(new List<string>() {})
+    </div>
+    <div class="col-md-12">
+
+        @for (int i = 0; i < Model.InstitutionQuestionnaires.Count; i++)
+        {
+            <div class="col-md-12 pl0 pr0 mt5 padding1215">
+                @Html.HiddenFor(InstitutionQuestionnaires => Model.InstitutionQuestionnaires[i].InstitutionName)
+                @Html.HiddenFor(InstitutionQuestionnaires => Model.InstitutionQuestionnaires[i].InstitutionId)
+                @Confluence.ButtonCollapseContainer("tableAgenci_" + i)
+                @Confluence.LabelBold(Model.InstitutionQuestionnaires[i].InstitutionName)
+            </div>
+            <div id="tableAgenci_@i" class="pacimodulecontainer">
+                <table id="table_@Model.InstitutionQuestionnaires[i].InstitutionId" data-id="@Model.InstitutionQuestionnaires[i].InstitutionId" class="tableNormal paci-table">
+                    <thead>
+                    <tr>
+                        <th class="sort">@Localization.GetText("PACI.OP.NUMBER")</th>
+                        <th class="sort">@Localization.GetText("PACI.FINAL.REPORT")</th>
+                        <th class="sort">@Localization.GetText("PACI.QUESTIONNAIRE")</th>
+                        <th class="sort">@Localization.GetText("PACI.STATUS")</th>
+                        <th class="sort">@Localization.GetText("PACI.REPORT.DATE")</th>
+                        <th>@Localization.GetText("PACI.CLONE")</th>
+                        <th>@Localization.GetText("PACI.ACTIONS")</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @{
+                        var hasDraft = Model.InstitutionQuestionnaires[i].OperationQuestionnaire.Any(s => s.QuestionnaireStageCode == QuestionnaireStageCodeEnum.Draft.GetStringValue());
+                    }
+                    @for (int j = 0; j < Model.InstitutionQuestionnaires[i].OperationQuestionnaire.Count; j++)
+                    {
+                        <tr id="tr_@Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].PaciQuestionnaireId.ToString()" data-id="@Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].PaciQuestionnaireId.ToString()">
+                            <td align="center">
+                                @Html.HiddenFor(model => Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].InstitutionId)
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].OperationId)
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].OperationNumber)
+                                @Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].OperationNumber
+                            </td>
+                            <td align="center">
+                                @if (Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].IsQuestionnaireStageCompleted)
+                                {
+                                    @Ajax.ActionLink(Localization.GetText("PACI.FINAL.REPORT"), "Index", "Report", new {operationNumber = Model.OperationNumber, idQuestionnaire = Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].PaciQuestionnaireId, institutionId = Model.InstitutionQuestionnaires[i].InstitutionId, tabId = "tabReport"}, new AjaxOptions {UpdateTargetId = updateTarget, OnComplete = "paciAjaxOnComplete", OnBegin = "paciAjaxOnBegin" }, new {})
+                                }
+                            </td>
+                            <td align="center">
+                                @Ajax.ActionLink(Localization.GetText("PACI.QUESTIONNAIRE"), "Index", "Questionnaire", new {operationNumber = Model.OperationNumber, idQuestionnaire = Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].PaciQuestionnaireId, institutionId = Model.InstitutionQuestionnaires[i].InstitutionId, tabId = "tabQuestionnaire"}, new AjaxOptions {UpdateTargetId = updateTarget, OnComplete = "paciAjaxOnComplete", OnBegin = "paciAjaxOnBegin" }, new {})
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].PaciQuestionnaireId)
+                            </td>
+                            <td>
+                                @Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].QuestionnaireStage
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].QuestionnaireStage)
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].QuestionnaireStageId)
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].QuestionnaireStageCode)
+                            </td>
+                            <td align="center">
+                                @Confluence.LabelGetDate(Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].ApprovalDate)
+                                @Html.HiddenFor(model => model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].ApprovalDate)
+                            </td>
+                            <td align="center">
+                                @{ var isQuestionnaireIsClonable = Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].QuestionnaireIsClonable; }
+                                @if (isQuestionnaireIsClonable)
+                                {
+                                    @Confluence.InputCheckbox(false, "chkbPaciClone", forceValidation: false, htmlClass: string.Format("{0}", hasDraft ? "displayNone" : string.Empty))
+                                }
+                            </td>
+                            <td id="trash" align="center">
+                                @if (Model.InstitutionQuestionnaires[i].OperationQuestionnaire[j].QuestionnaireStageCode == QuestionnaireStageCodeEnum.Draft.GetStringValue() &&
+                                     SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnDeletePaci", Model.Security.Security))
+                                {
+                                    @Confluence.ButtonTrash(string.Empty, action: "deletePaci", name: "btnDeletePaci", required: false)
+                                }
+
+                            </td>
+
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                <div class="col-md-12 mb25" align="center">
+                    @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnAddNewPaciRow", Model.Security.Security) && Model.AddNewPaciIsVisible)
+                    {
+                        @Confluence.ButtonAddNewRows(Localization.GetText("PACI.NEW"), Model.InstitutionQuestionnaires[i].InstitutionId.ToString(), action: "newPaciRow", name: "btnAddNewPaciRow", htmlClass: string.Format("{0} {1}", "mt15", hasDraft ? "displayNone" : string.Empty))
+                    }
+                </div>
+            </div>
+            <div class="col-md-8 pull-right">
+
+            </div>
+
+            <span class="pb40">
+                <br/>
+            </span>
+        }
+    </div>
+    <div class="col-md-12">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnPaciSave", Model.Security.Security))
+        {
+            <button class="buttonOrange pull-right" type="submit" id="btnPaciSave">@Localization.GetText("PACI.SAVE")</button> @*PACI.SAVE*@
+        }
+
+        @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnPaciCancel", Model.Security.Security))
+        {
+            @Ajax.ActionLink(Localization.GetText("PACI.CANCEL"), "Cancel", new {operationNumber = Model.OperationNumber}, new AjaxOptions() {UpdateTargetId = "mainLayoutOperationContent", OnComplete = "paciAjaxOnComplete", OnBegin = "paciAjaxOnBegin" }, new {@class = "pull-right buttonLink", id = "btnPaciCancel"}) @*PACI.CANCEL*@
+        }
+    </div>
+}

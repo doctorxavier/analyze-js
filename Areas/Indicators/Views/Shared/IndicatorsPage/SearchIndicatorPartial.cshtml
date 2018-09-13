@@ -1,0 +1,220 @@
+﻿@using System.Globalization;
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Architecture.Language
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core
+@using IDB.MVCControls.DataTable.Models
+
+@model IndicatorsPageViewModel
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var expRegDate = appSettings.ValidationDataPickerExpReg;
+}
+
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+
+
+@(Html.FilterBox()
+    .ClassMainRow("filterNormalExtension mb20 row format-edit-template")
+    .Rows(row =>
+    {
+        row.Add().Columns(column =>
+        {
+            column.Add(ColumnType.MD_1).Class("name-data-input")
+                .AddContent(Confluence.Label(Localization.GetText("IM.IndicatorsList.Search.IndicatorName")));
+            column.Add(ColumnType.MD_2)
+                .AddContent(Confluence.InputText(Model.Filter.IndicatorName, "filter-Name",
+                            placeholder: Localization.GetText("IM.IndicatorsList.Placeholder.IndicatorName"),
+                            maxLength: 300, required: false));
+            column.Add(ColumnType.MD_1).Class("name-data-input")
+                .AddContent(Confluence.Label(Localization.GetText("IM.IndicatorsList.Search.EffectiveDate")));
+            column.Add(ColumnType.MD_2)
+                .AddContent(Confluence.InputDatePicker(Model.Filter.EffectiveDate,
+                            name: "filter-IndicatorEffective", expReg: expRegDate,
+                            format: formatDate, required: false));
+        });
+
+        row.Add().Columns(column =>
+        {
+            column.Add(ColumnType.MD_1).Class("name-data-input")
+                .AddContent(Confluence.Label(Localization.GetText("IM.IndicatorsList.Search.TemplateVersion")));
+            column.Add(ColumnType.MD_2)
+                .AddContent(Confluence.InputDropDown(Model.Filter.TemplateVersionId.ToString(),
+                            name: "filter-TemplateVersion",
+                            elements: ViewBag.TemplateVersionList, showEmptyOption: true,
+                            required: false));
+            column.Add(ColumnType.MD_1).Class("name-data-input")
+                .AddContent(Confluence.Label(Localization.GetText("IM.IndicatorsList.Search.ExpirationDate")));
+            column.Add(ColumnType.MD_2)
+                .AddContent(Confluence.InputDatePicker(Model.Filter.ExpirationDate,
+                            name: "filter-IndicatorExpiration", expReg: expRegDate,
+                            format: formatDate, required: false));
+        });
+
+        row.Add().Columns(column =>
+        {
+            column.Add(ColumnType.MD_1).Class("name-data-input")
+                .AddContent(Confluence.Label(Localization.GetText("IM.IndicatorsList.Search.IndicatorStatus")));
+            column.Add(ColumnType.MD_2)
+                .AddContent(Confluence.InputDropDown(Model.Filter.IsActive, "filter-Active", ViewBag.ActiveOptions, showEmptyOption: false, placeholder: null, orderAsc: false));
+        });
+
+        row.Add().Columns(column =>
+        {
+            column.Add(ColumnType.MD_12).Class("text-right")
+                .AddContent(Confluence.ButtonBlue(text: Localization.GetText("IM.IndicatorsList.Search.ClearAll"),
+                                                  name: "clear"))
+                .AddContent(Confluence.ButtonBlue(text: Localization.GetText("IM.IndicatorsList.Search.Search"),
+                                                  name: "search"));
+        });
+    })
+)
+
+<div class="row mb20">
+    <div class="col-md-12 text-right">
+        @Confluence.ButtonExcel(null, action: "downloadXls")
+        @Confluence.ButtonPdf(null, action: "downloadPdf")
+    </div>
+</div>
+
+<div class="row format-edit-template mb20">
+    <div class="col-md-12">
+        @{
+            GridModel<RowIndicatorViewModel> config = null;
+
+            if (Model.Rows == null)
+            {
+                config = Html.RenderDataTable<RowIndicatorViewModel>();
+                config.Name("ISearchTable")
+                .AddPrimaryKeyToName(false)
+                .AjaxLoadUrl(Url.Action("IndicatorsPageSearch", Model.ControllerName, new { area = "Indicators" }))
+                .CustomFilterAjax("getFilters")
+                .PageSize(12)
+                .Paginable()
+                .Columns(columns =>
+                {
+                    columns.Bound(c => c.IndicatorNumber)
+                        .Orderable(true)
+                        .ColumnName("IndicatorNumber")
+                        .Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.IndicatorNumber"))
+                        .HeaderAttribute("style", "width:150px");
+                    columns.Bound(c => c.IndicatorNameEn)
+                        .Orderable(true)
+                        .ColumnName("IndicatorName")
+                        .Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.IndicatorName"));
+                    columns.Bound(c => c.TemplateVersion)
+                        .Orderable(true)
+                        .ColumnName("TemplateVersion")
+                        .Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.TemplateVersion"))
+                        .HeaderAttribute("style", "width:200px");
+                    columns.Bound(c => c.EffectiveDate)
+                        .Orderable(true)
+                        .ColumnName("EffectiveDate")
+                        .Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.EffectiveDate"))
+                        .HeaderAttribute("style", "width:150px");
+                    columns.Bound(c => c.ExpirationDate)
+                        .Orderable(true)
+                        .ColumnName("ExpirationDate")
+                        .Persistent()
+                        .Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.ExpirationDate"))
+                        .HeaderAttribute("style", "width:150px");
+                    columns.Bound(c => c.IsActive)
+                        .Orderable(true)
+                        .ColumnName("IsActive")
+                        .Persistent()
+                        .Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.Active"))
+                        .HeaderAttribute("style", "width:100px");
+
+                });
+
+                config.TableClass = "tableNormal";
+                @Html.Partial("Controls/DataTable", config)
+            }
+            else
+            {
+                config = Html.RenderDataTable<RowIndicatorViewModel>(Model.Rows);
+                config.Name("ISearchTable")
+                .AddPrimaryKeyToName(false)
+                .PrimaryKey(x => x.IndicatorId.ToString())
+                .Columns(columns =>
+                {
+                    columns.Bound(c => c.IndicatorNumber).Persistent().Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.IndicatorNumber"));
+                    columns.Template(LinkIndicatorName).Persistent().Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.IndicatorName"));
+                    columns.Bound(c => c.TemplateVersion).Persistent().Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.TemplateVersion"));
+                    columns.Template(EffectiveDateColumn).Persistent().Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.EffectiveDate"));
+                    columns.Bound(c => c.ExpirationDate).Persistent().Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.ExpirationDate"));
+                    columns.Template(IsActiveColumn).Persistent().Header(@Localization.GetText("IM.IndicatorsList.IndicatorsTable.Active")).CssClass("text-center");
+                });
+
+                config.TableClass = "tableNormal";
+                <div data-parsley-validate="true" name="submitForm" data-ignore-nullable-values="true">
+                    <input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" name="serializeModel" />
+                    <div data-fake-pagemode="edit">
+                        @Html.Partial("Controls/DataTable", config)
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+</div>
+
+@helper LinkIndicatorName(RowIndicatorViewModel row)
+{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var dateCurrent = DateTime.ParseExact(row.EffectiveDate, formatDate, CultureInfo.InvariantCulture);
+
+    var link = new IDB.Presentation.MVC4.Areas.Indicators.Models.LinkViewModel()
+    {
+        Action = "Read",
+        Area = "Indicators",
+        Controller = Model.ControllerName,
+        Text = row.IndicatorNameEn,
+        EffectiveDate = dateCurrent,
+        isActive = row.IsActive
+    };
+    link.Parameters.Add("indicatorId", row.IndicatorId);
+
+    @Html.Partial("Display/Link", link)
+}
+
+@helper IsActiveColumn(RowIndicatorViewModel row)
+{
+    bool isActive = row.IsActive;
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+
+    if (DateTime.ParseExact(row.ExpirationDate, formatDate, CultureInfo.InvariantCulture) < DateTime.Today)
+    {
+        isActive = false;
+    }
+
+
+    var model = new IDB.Presentation.MVC4.Areas.Indicators.Models.ActiveViewModel()
+    {
+        IsEditMode = true,
+        IsActive = isActive,
+        Id = row.IndicatorId
+    };
+
+    @Html.Partial("Display/Active", model)
+}
+
+@helper EffectiveDateColumn(RowIndicatorViewModel row)
+{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var dateCurrent = DateTime.ParseExact(row.EffectiveDate, formatDate, CultureInfo.InvariantCulture);
+    bool isActive = row.IsActive;
+
+    if (isActive && dateCurrent > DateTime.Today)
+    {
+
+        @Html.Partial("Display/EffectiveDate", new EffectiveDateViewModel() { date = dateCurrent });
+    }
+    else
+    {
+        @Confluence.LabelGetDate(dateCurrent)
+    }
+}

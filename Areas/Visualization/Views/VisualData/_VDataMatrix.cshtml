@@ -1,0 +1,532 @@
+﻿@using IDB.Architecture.Extensions;
+@using IDB.MW.Application.DEMModule.ViewModels;
+@using IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+
+@{ 
+    DEMLockReviewProcessDataSerializableViewModel demLockReviewProcessDataViewModel = new DEMLockReviewProcessDataSerializableViewModel
+    {
+        IsLockReviewProcessDEM = false
+
+    };
+
+    if (ViewBag.DEMLockReviewProcessData != null)
+    {
+        demLockReviewProcessDataViewModel = (DEMLockReviewProcessDataSerializableViewModel)ViewBag.DEMLockReviewProcessData;
+    }
+}
+
+<div class="content-block">
+    <div style="float: right; text-align:right;">
+
+        @Html.Partial("_VFilters", Model)
+        @{
+            var categoriesList = new List<SelectListItem>();
+            if (ViewBag.Categories != null)
+            {
+                List<IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OutputCategoryModel> cList = ViewBag.Categories;
+                cList.ForEach(x => categoriesList.Add(new SelectListItem()
+                    {
+                        Value = x.OutputCategoryId.ToString(),
+                        Text = x.NameEn
+                    }));
+            }
+        }
+
+    </div>
+</div>
+
+<div class="content-block">
+    <div class="visualization-components">
+        @{
+            int kComponent = -1;
+        }
+        @foreach (var component in Model.ResultsMatrixContext.Current.Components)
+        {
+            kComponent++;
+            <h4 class="headingh4 statement-header">@component.OrderNumber . @component.Statement</h4>
+            var outputNumber = 1;
+            <div data-filter="component.@component.ComponentId">
+                @foreach (var output in component.Outputs)
+                {
+                    <div class="statement-container" data-filter="output.@output.OutputId">
+                        <table class="level-container">
+                            <tr>
+                                <td class="first-column">
+                                    <span>
+                                        @component.OrderNumber . @outputNumber
+                                        @{ outputNumber++;}
+                                    </span>
+                                    <div class="minMaxButton cursorPointer plus"></div>
+                                    <div class="expansion-line"></div>
+                                </td>
+                                <td>
+                                    <table class="grid visualization-table">
+                                        <thead>
+                                            <tr>
+                                                <th>@Localization.GetText("Output")</th>
+                                                <th>@Localization.GetText("Unit of Measure")</th>
+                                                <th>@Localization.GetText("Category")</th>
+                                                @if (!Model.WorkflowMode)
+                                                {
+                                                    <th rowspan="1"></th>
+                                                    var totalOutputYearsPlan = component.getTotalOutputsYearPlan();
+
+                                                    foreach (var ouputYearPlan in totalOutputYearsPlan)
+                                                    {
+                                                        <th>@ouputYearPlan</th>
+                                                    }
+                                                }
+
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class=" @(output.IsDeactivated ? "vo-deactivated" : "vo-activated")">
+                                                <td>
+                                                    @output.Definition
+                                                    <input type="hidden" value="@output.OutputId" />
+                                                </td>
+                                                <td>@Localization.GetText(output.UnitOfMeasure)</td>
+
+                                                @if (!Model.WorkflowMode)
+                                                {
+                                                    <td>
+                                                        @if (Model.EditMode)
+                                                        {
+                                                            <ul class="optionList">
+                                                                <li class="smallFilter2 dataTitle">
+                                                                    <input type="hidden" value="@output.OutputId" name="Output.OutputId.@output.OutputId">
+                                                                    <select class=" kendo-dropdown" name="Output.OutputCategoryId.@output.OutputId" style="width:12em;">
+                                                                        @foreach (var category in categoriesList)
+                                                                        {
+                                                                            if (Convert.ToInt32(category.Value) == @output.OutputCategory.OutputCategoryId)
+                                                                            {
+                                                                                <option value="@category.Value" selected="selected">@category.Text</option>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <option value="@category.Value">@category.Text</option>
+                                                                            }
+                                                                        }
+                                                                    </select>
+                                                                </li>
+                                                            </ul>
+                                                        }
+                                                        else
+                                                        {
+                                                            @output.OutputCategory.NameEn
+                                                        }
+
+                                                    </td>
+
+                                                    <td>
+                                                        <table>
+                                                            <tbody>
+                                                                <tr>
+                                                                    <td>
+                                                                        <p title="@Localization.GetText("Actual plan")">P(a)</p>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td>
+                                                                        <p title="@Localization.GetText("Actual")">A</p>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td>
+                                                                        <p title="@Localization.GetText("Planned mapping")">P.Mapping</p>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td>
+                                                                        <p title="@Localization.GetText("Actual mapping")">A.Mapping</p>
+                                                                    </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                    @RenderOutputYearPlan(output)
+                                                }
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    @if (!demLockReviewProcessDataViewModel.IsLockReviewProcessDEM)
+                                    { 
+                                        @RenderVisualOutputs(output)
+                                        if (Html.HasPermission(Permission.VISUALIZATION_WRITE))
+                                        {
+                                            var route = Url.Action("VisualOutputCreate", new { outputId = output.OutputId });
+                                            var message = string.Empty;
+                                            var isValid = true;
+                                            if (!output.HasVisualUnits)
+                                            {
+                                                message = Localization.GetText("This visual output has not actual plan neither actual values in any year");
+                                                route = "javascript:void(0)";
+                                                isValid = false;
+                                            }
+                                            if (!output.HasCategory)
+                                            {
+                                                message = Localization.GetText("Please assign a category before adding or modifying a Visual Output");
+                                                route = "javascript:void(0)";
+                                                isValid = false;
+                                            }
+                                            <div style="width: 100%; margin: 15px 0;">
+                                                <div style="margin: 0 auto; width: 70%">
+                                                    <a href="javascript:void(0)"
+                                                       class="button white click-action"
+                                                       data-confirmation="@message"
+                                                       data-route="@route"
+                                                       style="width: 100%; margin: 0 auto"
+                                                       title="@message">
+                                                        <i class="fa fa-plus fa-fw" style="float: left; margin-top: 10px; color: #264A7F"></i>
+                                                        @if (!isValid)
+                                                        {
+                                                            <i class="fa fa-warning fa-fw" style="margin-top: 10px; color: #E19C23"></i>
+                                                        }
+                                                        @Localization.GetText("New visual output")
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                }
+            </div>
+
+        }
+    </div>
+</div>
+
+@helper RenderOutputYearPlan(OutputModel output)
+{
+    foreach (var theYear in output.OutputYearPlans)
+    {
+        var oyv = output.OutputYearVisualizations
+            .Where(x => x.Year == theYear.Year &&
+            x.OutputId == output.OutputId)
+            .FirstOrDefault();
+        var oypKey = output.OutputId + "-" + @theYear.Year;
+        <td>
+
+            <table class="grid">
+                <tbody>
+                    <tr>
+                        <input type="hidden" value="@theYear.OutputYearPlanId" />
+                        <td>@(theYear.AnnualPlan == null ? "-" : theYear.AnnualPlan.ToString())</td>
+                    </tr>
+                    <tr>
+                        <td>@(theYear.ActualValue == null ? "-" : theYear.ActualValue.ToString())</td>
+                    </tr>
+
+                    @{
+
+                        <tr>
+                            <td>
+                                <input type="hidden" name="OutputYearVisualization.Year.@oypKey" value="@theYear.Year" />
+                                <input type="hidden" name="OutputYearVisualization.OutputId.@oypKey" value="@output.OutputId" />
+                                @if (Model.EditMode)
+                                {
+                                    <input type="text"
+                                           class="numeric"
+                                           name="OutputYearVisualization.MappedUnits.@oypKey"
+                                           value="@(oyv == null ? 0 : oyv.MappedUnits)" />
+                                }
+                                else
+                                {
+                                    @(oyv == null ? 0 : oyv.MappedUnits)
+                                }
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                @if (Model.EditMode)
+                                {
+                                    <input type="hidden"
+                                           name="OutputYearVisualization.VisualObjects.@oypKey"
+                                           value="@(oyv == null ? 0 : oyv.VisualObjects)" />
+                                    if (oyv != null && (oyv.VisualObjects > theYear.ActualValue))
+                                    {
+                                        <span class="validation-summary-errors">@oyv.VisualObjects</span>
+                                    }
+                                    else
+                                    {
+                                        @(oyv == null ? 0 : oyv.VisualObjects)
+                                    }
+                                }
+                                else
+                                {
+                                    if (!(oyv == null) && (oyv.VisualObjects > theYear.ActualValue))
+                                    {
+                                        <span class="validation-summary-errors">@oyv.VisualObjects</span>
+                                    }
+                                    else
+                                    {
+                                        @(oyv == null ? 0 : oyv.VisualObjects)
+                                    }
+                                }
+                            </td>
+
+                        </tr>
+
+                    }
+                </tbody>
+            </table>
+        </td>
+    }
+}
+@helper RenderVisualOutputs(OutputModel output)
+{
+    var oyps = output
+        .OutputYearPlans
+        .OrderBy(oyp => oyp.Year)
+        .Select(oyp => oyp.OutputYearPlanId);
+    var vovs = Model.VisualOutputs
+         .Select(vo => vo.VisualOutputVersionsData);
+    vovs = vovs.Where(vov0 =>
+        vov0.OutputYearPlanId != null &&
+        oyps.Contains(
+        (int)vov0.OutputYearPlanId));
+    if (!vovs.Any())
+    {
+        return;
+    }
+    <table class="level-container">
+        <tr>
+            <td class="first-column">
+                <div class="child-expand-icon"></div>
+                <div class="minMaxButton cursorPointer plus"></div>
+                <div class="expansion-line"></div>
+            </td>
+            <td>
+                <table class="grid style2">
+                    <thead>
+                        <tr>
+                            <th>@Localization.GetText("Visual Output")</th>
+                            <th style="width: 80px;">@Localization.GetText("Output year")</th>
+                            <th>@Localization.GetText("Description")</th>
+                            <th style="width: 90px" class="minimal-line-height">@Localization.GetText("Delivery Status")</th>
+                            <th style="width: 50px" class="minimal-line-height">@Localization.GetText("#Output Units")</th>
+                            <th style="width: 90px" class="minimal-line-height">@Localization.GetText("Validation Status")</th>
+                            <th style="width: 80px;">@Localization.GetText("Last Update")</th>
+                            <th style="width: 80px;">@Localization.GetText("Options")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            foreach (var vov in vovs)
+                            {
+                                var vovRoute = string.Empty;
+                                var vovConfirmation = string.Empty;
+                                if (output.HasCategory)
+                                {
+                                    vovRoute = Url.Action("VODetails", "VisualData", new
+                                    {
+                                        area = "Visualization",
+                                        visualOutputId = vov.VisualOutputId
+                                    });
+                                }
+                                else
+                                {
+                                    vovConfirmation = Localization.GetText("Please assign a category before adding od modifying a Visual Output");
+                                    vovRoute = "javascript:void(0)";
+                                }
+                                <tr>
+                                    <td>
+                                        <a href="javascript:void(0)"
+                                           data-route="@vovRoute"
+                                           data-confirmation="@vovConfirmation"
+                                           class="click-action">@vov.NameEn</a>
+                                        @if (vov.IsDeleted.IsTrue())
+                                        {
+                                            <br />
+                                            <span style="color: red">(Deleted)</span>
+                                        }
+
+                                    </td>
+                                    <td>@vov.OutputYearPlan.Year</td>
+
+
+                                    <td>
+                                        @{if (!string.IsNullOrEmpty(vov.DescriptionEn) && vov.DescriptionEn.Length > 100)
+                                        {
+                                            @vov.DescriptionEn.Substring(0, 100)<span style="display: none">@vov.DescriptionEn.Substring(100)</span>
+                                            <a href="javascript:void(0)" class="show-more">@Html.Raw("..more [+]")</a>
+                                        }
+                                        else
+                                        {
+                                            @vov.DescriptionEn
+                                        }
+                                        }
+                                    </td>
+                                    <td>@MasterDefinitions.GetMasterName(vov.DeliveryStatusId)</td>
+                                    <td>@vov.OutputUnits</td>
+                                    <td>@Model.GetVisualDataValidationStageName(vov.ValidationStageId, vov.IsValidated)</td>
+                                    <td>@String.Format("{0:dd MMM yyy}", vov.Modified)</td>
+                                    <td>
+                                        @if (Html.HasPermission("Visualization Write") &&
+                                            vov.ValidationStageId == Model.VIS_DRAFY.MasterId &&
+                                            (!vov.IsDeleted.HasValue || !vov.IsDeleted.Value))
+                                        {
+                                            <a href="javascript:void(0)"
+                                               data-route="javascript:deleteVisualOutput(@vov.VisualOutputVersionId)"
+                                               data-confirmation="@string.Format(Localization.GetText("IDB.VO-MP.Text.Edit.Message.Delete"),
+                                                    Localization.GetText("Visual Output"))"
+                                               data-close-confirm="false"
+                                               class="click-action"
+                                               title="@Localization.GetText("Delete")"><i class="fa fa-trash-o"></i></a>
+                                        }
+                                    </td>
+                                </tr>
+
+                                if (vov.IsForRequest && Model.IsReadyStage(vov.ValidationStageId))
+                                {
+                                    @RenderComments(
+                        IDB.MW.Domain.Models.Architecture.Visualization.VisualEntityTypes.VisualOutputVersion,
+                        vov.VisualOutputVersionId)
+                                }
+                            }
+                        }
+
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+
+}
+
+@helper RenderVPtable()
+{
+    if (!Model.VisualProjects.Any())
+    {
+        return;
+    }
+    <div class="content-block">
+        <table class="grid">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 85px; line-height: 13px; padding: 5px 10px;">@Localization.GetText("Ready for Validation / TL Completed")</th>
+                    <th rowspan="2" style="width: 40px">@Localization.GetText("OV ID")</th>
+                    <th rowspan="2">@Localization.GetText("Validation Status")</th>
+                    <th colspan="3" class="border-botom">@Localization.GetText("Administrative Level")</th>
+                    <th rowspan="2">@Localization.GetText("Location Type")</th>
+                    <th rowspan="2">@Localization.GetText("Media name")</th>
+                    <th rowspan="2" style="min-width: 80px">@Localization.GetText("Last Update")</th>
+                </tr>
+                <tr>
+                    <th>@Localization.GetText("First Country")</th>
+                    <th>@Localization.GetText("Second District / Departament State")</th>
+                    <th>@Localization.GetText("Third Municipally / District")</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                @foreach (var vp in Model.VisualProjects)
+                {
+                    var vpv = vp.VisualProjectVersionsData;
+                    if (vpv != null)
+                    {
+                        <tr>
+                            <td>
+                                @RenderCheckOption("VisualProjectVesion.Validate",
+                            @vpv.VisualProjectVersionId,
+                            vpv.IsForRequest,
+                            vpv.ValidationStageId)
+                            </td>
+                            <td>
+                                @Html.ActionLink(vpv.VisualProjectId.ToString(), "VPDetails", new
+                                {
+                                    VisualProjectId = vpv.VisualProjectId
+                                })
+                            </td>
+                            <td>
+                                @Model.GetVisualDataValidationStageName(
+                                    vpv.ValidationStageId.Value, vpv.IsValidated)
+
+                                @if (vpv.IsDeleted.IsTrue())
+                                {
+                                    <br />
+                                    <span style="color: red">(Deleted)</span>
+                                }
+
+                            </td>
+                            <td>@vpv.Level1</td>
+                            <td>@vpv.Level2</td>
+                            <td>@vpv.Level3</td>
+                            <td>@vpv.LocationTypeName</td>
+                            <td class="OVMedias">
+                                <ul class="leftAlign">
+                                    @foreach (var eachProjectMedia in vpv.VisualProjectMedia)
+                                    {
+                                        <li>
+                                            @eachProjectMedia.Media.Name
+                                        </li>
+                                    }
+                                </ul>
+                            </td>
+                            <td>@String.Format("{0:dd MMM yyy}", vpv.Modified)</td>
+                        </tr>
+                        <tr>
+                            <td colspan="9" style="background-color: #fff">
+                                @RenderComments(
+                    IDB.MW.Domain.Models.Architecture.Visualization.VisualEntityTypes.VisualProjectVersion,
+                    vpv.VisualProjectVersionId)
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@helper RenderCheckOption(string sufix, int? id, bool isForRequest, int? validationStage)
+{
+    bool isTl = validationStage == Model.VIS_TL.MasterId;
+    if (!Model.WorkflowMode)
+    {
+        <input type="checkbox" class="idb-checkbox"
+               name="@sufix.@id"
+               @(isForRequest ? "" : "disabled")
+               @(Model.IsReadyStage(validationStage) ? "checked" : "")>
+    }
+    else if (isForRequest && Model.IsReadyStage(validationStage))
+    {
+        <div class="visualization-wf-entity @(isTl ? "submit-tl" : "submit-tm")">
+            <input type="hidden" name="@sufix.@id" value="@(isTl ? "on" : "")" />
+            <input type="checkbox"
+                   class="idb-checkbox"
+                   @(isTl ? "" : "disabled")
+                   checked />
+            <span class="visualization-wf-entity-status" style="line-height: 20px">@(isTl ? Localization.GetText("Ready") : Localization.GetText("Pending"))</span>
+        </div>
+    }
+    else
+    {
+        <span>
+            <input type="checkbox"
+                   class="idb-checkbox"
+                   @(Model.IsReadyStage(validationStage) ? "checked" : "")
+                   disabled />
+        </span>
+    }
+}
+
+@helper RenderComments(IDB.MW.Domain.Models.Architecture.Visualization.VisualEntityTypes type, int id)
+{
+    var comments = Model.UserComments
+        .Where(cm => cm.EntityType == type &&
+            cm.EntityId == id);
+
+            @Html.Partial("_UserComments", new ViewDataDictionary {
+        { "Comments",comments.ToList() },
+        {"Business",Model},
+        {"EntityType",type},
+        {"EntityId",id}
+    })
+}

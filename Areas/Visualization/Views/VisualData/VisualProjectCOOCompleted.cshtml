@@ -1,0 +1,262 @@
+﻿@using IDB.Architecture.Language
+@using IDB.Architecture.BusinessRules;
+@using IDB.Presentation.MVC4.Areas.Visualization.Enums;
+@using IDB.Presentation.MVC4.MVCCommon;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+
+@{
+    Layout = "~/Views/Shared/_ClearLayout.cshtml";
+    var operation = Model.OperationContext;
+    var vpv = Model.VisualProject.VisualProjectVersionsData;
+}
+
+@section javascript {
+    <script type="text/javascript" src="~/scripts/kendo.web.js"></script>
+    <script type="text/javascript" src="~/scripts/jqplugins/jquery-ui-1.11.3.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/common.js"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/botonActivo/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visualization/validateVPSendToMap.js")"></script>
+}
+
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/common.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modulos.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Visualization/sendRemoveFromMap.css")" />
+}
+
+@section scripts {
+    <script type="text/javascript">
+        var visualOutputsPopupTitlePhotoDetails = '@Localization.GetText("VIS.photo.details")';
+
+        $(document).ready(function () {
+            //Remove standard buttons from Task Details base view
+            $('input.btn-primary.Btn_ValidateSave').remove();
+            $('input.btn-primary.Btn_RejectSave').remove();
+            $('#SaveButtonUp').remove();
+            $('#SaveButtonDown').remove();
+            $('input[name="Save"], .btn-primary.Btn_VisualizationSave').remove();
+
+            var $btnVisSaveValidate = $('input[name="Validate"], .btn-primary.Btn_VisualizationSaveValidate');
+            $btnVisSaveValidate.val('@Localization.GetText("Validate")');
+            $btnVisSaveValidate.click(function (e) {
+                return submitVisualDataK2Validation('@SendToMapOperTypeEnum.SaveAndValidate');
+            });
+
+            $('input[name="Reject"], .btn-primary_2.Btn_VisualizationReject').click(function () {
+                return submitVisualDataK2Validation('@SendToMapOperTypeEnum.Reject');
+            });
+        });
+
+        function prepareVisualDataK2Object(sendToMapTaskId, operationType) {
+            var sendToMapK2FlowValidationModel = new Object();
+            sendToMapK2FlowValidationModel.visualDataVersionId = @Model.VisualProjectVersionId;
+            sendToMapK2FlowValidationModel.voComment
+                = $('.tableGrid > div.listwrapper.ftl.datatext').children('#valSendToMapComment').val();
+
+            var visualDataK2Object = new Object();
+            visualDataK2Object.sendToMapTaskId = sendToMapTaskId;
+            visualDataK2Object.operationType = operationType;
+            visualDataK2Object.sendToMapK2FlowValidationModels = [];
+            visualDataK2Object.sendToMapK2FlowValidationModels.push(sendToMapK2FlowValidationModel);
+
+            return visualDataK2Object;
+        }
+
+        function submitVisualDataK2Validation(operationType) {
+            var sendToMapTaskId = @Model.sendToMapTaskId;
+            var visualDataK2Object = prepareVisualDataK2Object(sendToMapTaskId, operationType);
+            var urlToValidate = '@Url.Action("VisualDataCOOValidateExternal")';
+
+            $.ajax({
+                type: "POST",
+                url: urlToValidate,
+                data: JSON.stringify(visualDataK2Object),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    location.href = getHRefMessage(data.success);
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    location.href = getHRefMessage(false);
+                }
+            });
+        }
+
+        function getHRefMessage(success) {
+            if (success != undefined && success) {
+                return '@Html.Raw(Url.Action("Index", "Tasks", new
+                {
+                    area = "Global",
+                    operationNumber = Model.ResultsMatrixContext.OperationContext.OperationNumber,
+                    state = 600
+                }))';
+            }
+            else {
+                return '@Html.Raw(Url.Action("Index", "Tasks", new
+                {
+                    area = "Global",
+                    operationNumber = Model.ResultsMatrixContext.OperationContext.OperationNumber,
+                    state = 601,
+                    status = "Something went wrong, please verify the log for further details"
+                }))';
+            }
+        }
+    </script>
+}
+
+@section contentheader{
+    <div class="content-block">
+        <div class="left">
+            <h1>@Localization.GetText("Map Operation")</h1>
+        </div>
+    </div>
+}
+
+<div class="content-block">
+    <hr />
+    <div class="tableGrid">
+        <div class=" listwrapper ftl datatext"
+             style="float: left; text-align: left; width: 75%; margin-left: 2em; margin-bottom: 1em; ">
+            @Localization.GetText("Operation objective")
+            <div class="datatext"
+                 style=" text-align: justify; width: 90%; margin-left: 2em; margin-bottom: 1em;">
+                @operation.CurrentOperationData.Objective
+            </div>
+        </div>
+
+        <div class=" listwrapper ftl datatext" style="width: 15%; text-align:left;">
+            @Localization.GetText("Last update")
+            <div class="datatext" style=" text-align: left;">
+                @vpv.Modified.Value.ToString("dd MMM yyyy")
+            </div>
+        </div>
+
+        <div style="width: 10%;float: right; height: 150px; overflow: hidden;margin-right:30px;">
+            <iframe id="map" style="width:200px; height:150px;"
+                src="@Url.Action("MapSelection", new
+                    {
+                        language = IDBContext.Current.CurrentLanguage,
+                        visualObjectId = Model.VisualProject.VisualProjectId,
+                        visualObjectVersionId = Model.VisualProjectVersionId,
+                        objectType = "vp",
+                        height = 150,
+                        width = 150,
+                        showrightblock = 0
+                    })"></iframe>
+        </div>
+
+        <div class="carrousel hide" data-pos="0" style="width:71%;">
+            <div class="paginator" style="min-width:1005px;">
+                <input type="button"
+                       class="button click-action left-paginate"
+                       value="&lt;"
+                       onclick="Images.scrollLeft(this)" />
+                <input type="button"
+                       class="button click-action right-paginate"
+                       value="&gt;"
+                       style="float:right"
+                       onclick="Images.scrollRight(this)" />
+            </div>
+            <div class="images" style="max-width:98%;">
+                <div class="images-container">
+                    @{var anyCarrouselContent = Model.VisualProject.VisualProjectVersionsData.VisualProjectMedia.Any();}
+
+                    @if (anyCarrouselContent)
+                    {
+                        foreach (var vom in Model.VisualProject.VisualProjectVersionsData.VisualProjectMedia)
+                        {
+                            var mediaDocument = vom.Media.DocumentMedias.OrderByDescending(x => x.DocumentId).FirstOrDefault();
+                            var documentDesc = mediaDocument == null ? string.Empty : mediaDocument.Description;
+                            var documentUrl = mediaDocument == null ?
+                                string.Empty :
+                                Url.Action("GetDocument", "Document", new
+                                    {
+                                        area = string.Empty,
+                                        docNum = mediaDocument.DocumentReference
+                                    });
+
+                            <div class="img-block" style="vertical-align:top">
+                                <a href="javascript: void(0)"
+                                   onclick="Images.openModalDialog('@vom.Media.MediaUrl','@vom.Media.Name.Trim()','@vom.Media.Year','@vom.Media.MediaSource.Trim()','@vom.Media.Content','@documentUrl','@documentDesc','@MasterDefinitions.GetMasterName(vom.Media.HistoryStatusId)')">
+                                   <img src='@vom.Media.MediaUrl' />
+                                </a>
+                                <div class="datatext" style="text-align:center;">@Localization.GetText("Photo Source"): @vom.Media.MediaSource</div>
+                                <a href="@documentUrl"><div class="datatext" style="text-align:center;">@documentDesc</div></a>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="img-block" style="vertical-align:top">
+                            <a>
+                                &nbsp;<br />
+                                &nbsp;<br />
+                                &nbsp;<br />
+                            </a>
+                            <div class="datatext" style="text-align:center;">&nbsp;</div>
+                            <a><div class="datatext" style="text-align:center;">&nbsp;</div></a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class=" listwrapper ftl datatext" style="float: left; text-align: left; width: 70%; margin-left: 1.3em; margin-bottom: 1em; margin-top: @(anyCarrouselContent ? "-120px" : "-100px")">
+            @Localization.GetText("Comments")<br />
+            <textarea name="valSendToMapComment" id="valSendToMapComment"
+                      data-parsley-type="alphanum" data-parsley-maxlength="1000"
+                      maxlength="1000" rows="10" value=""
+                      style="width:100%; vertical-align: text-bottom;"></textarea>
+        </div>
+    </div>
+</div>
+
+<div id="confirmWindow" class="hidden">
+    <div class="k-window-content k-content" data-role="window" tabindex="0"
+         style="overflow: visible;" id="SendToMapDialog">
+        <div style="padding: 20px;">
+            <a href="javascript: void(0)" onclick="Images.openModalDialog()">
+                <img id="media-url" src="" />
+            </a>
+            <br /><hr />
+            <span id="media-name"></span>
+            <br />
+            <span id="media-years"></span>
+            <br />
+            @Localization.GetText("Photo Source"): <span id="media-source"></span>
+            <br />
+            @Localization.GetText("Status"): <span id="media-status"></span>
+            <br />
+            @Localization.GetText("Comment"): <span id="media-comments"></span>
+            <br />
+            <a href="" id="media-doc-url"><span id="media-document"></span></a>
+            <br /><br />
+        </div>
+        <div class="pie pieReassign">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;margin-top:10px;">
+                <input type="button" class="button click-action white" value="OK"
+                       onclick="Images.openModalDialog.Dialog.close()" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<style type="text/css">
+    .k-widget.k-window {
+        z-index: 20;
+        background: #FFF !important;
+        border-radius: 12px;
+    }
+
+    .k-overlay {
+        z-index: 10;
+        opacity: 0.7 !important;
+    }
+
+    .k-window-titlebar.k-header.warning {
+        background: #e19c23 !important;
+    }
+</style>

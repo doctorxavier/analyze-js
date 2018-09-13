@@ -1,0 +1,485 @@
+﻿@using IDB.MW.Domain.Values
+@using IDB.Presentation.MVC4.Models.Documents
+
+@model IDB.Presentation.MVC4.Areas.TCM.Models.MatrixChangesViewModel
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+}
+<input hidden data-idb-pagename="UI-MC-001-MatrixChange" />
+<div class="header">
+    <div class="row">
+        <div class="col-md-8">
+            @Confluence.LabelMainTitle(Localization.GetText("TCM.MC.ChangesToTheMatrix"))
+        </div>
+        @if (!Model.IsCndOperation)
+        {
+            Html.Partial("Partial/Buttons", Model);
+        }
+    </div>
+</div>
+
+@if (Model.IsCndOperation)
+{
+    <div class="col-md-12 text-center mt20">
+        @Confluence.LabelMainSubTitle(
+            Localization.GetText("TCM.MC.ChangesToTheMatrix") +
+            Localization.GetText("GLOBAL.PAGE.NOT.AVAILABLE.CND"))
+    </div>
+}
+else
+{
+    @Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/SharedHeader.cshtml", Model.OperationInfo)
+
+    <div id="PageContent">
+        <input hidden name="operationNumber" value="@Model.OperationInfo.OperationNumber" />
+        @Html.Partial("Partial/Filter", Model.Filters)
+
+        <div class="informationplace @(!Model.MatrixChangesList.Any() ? "hide" : "")">
+            <a href="http://manuals/go.cfm?do=Page.View&pid=2507" target="_blank">
+                <div class="icoInformation"></div>
+            </a>
+            <div class="information-text">@Localization.GetText("TCM.MC.GuidelinesLink")</div>
+        </div>
+
+        <div id="GridPageContent" data-parsley-validate="data-parsley-validate"
+                data-parsley-excluded="[disabled]"
+                data-url="@Url.Action("Save", "MatrixChanges", new {area = "TCM"})"
+                data-loadurl="@Url.Action("CancelAndSave", "MatrixChanges", new {area = "TCM"})">
+
+            @if (Model.MatrixChangesList.Any())
+            {
+                @Html.Partial("Partial/Table", Model)
+            }
+        </div>
+   
+        @if (!Model.MatrixChangesList.Any())
+        {
+            <div id ="noChangesMessage" class="col-md-12" align="center">
+                <h4 style="margin-left: 2em">@Localization.GetText("TCM.MC.NoChangesFound")</h4>
+            </div>
+        }
+
+        @Html.Partial("Partial/Buttons", Model)
+    </div>
+
+    <div hidden="hidden">
+        @Confluence.ButtonUpload("", "ButtonUploadDocHidden"
+            , dataAttributes: new Dictionary<string, string>
+            {
+                {"modal-allowclose", "true"},
+                {"custom-modal", "modal-add"},
+                {"custom-modal-validate", "false"},
+                {"custom-modal-title", Localization.GetText("OP.AP.Documents.Search")}
+            })
+    </div>
+    <div id="modal-add" class="hide">
+        @Html.Partial("Controls/IDBDocsNew/AddIDBDoc", new SearchDocumentModalViewModel { SearchModalId = "", MultipleSelection = false, TargetFunction = "addDocument", BusinessAreaCode = "BA_RESULTS_MATRIX", OperationNumber = Model.OperationInfo.OperationNumber })
+    </div>
+
+    <div id="divVerifyContent" hidden="hidden">
+        <button data-id="buttonVerifyContent" class="hide"
+                data-modal-allowclose="true"
+                data-custom-modal="verifyContentModal"
+                data-custom-modal-style=""
+                data-custom-modal-title="@Localization.GetText("TCM.VerifyContent.Header")"
+                data-custom-modal-validate="false"
+                data-custom-modal-closeonoverlayclick="false"></button>
+
+        <div id="verifyContentModal" class="hide modalBody"></div>
+    </div>
+}
+@section scripts{
+    <script type="text/javascript">
+
+        var currentRow;
+
+        $(document).ready(function () {
+            $("button[name=btnShowHideFilter]").click(function () {
+                $(".filterNormal").toggle();
+                if ($(".filterNormal").css('display') === 'none')
+                    $("button[name=btnShowHideFilter]").text("@Localization.GetText("TCM.MC.ShowFilter")");
+                else
+                    $("button[name=btnShowHideFilter]").text("@Localization.GetText("TCM.MC.HideFilter")");
+            });
+            enableEdit();
+            $("#gridMatrixChanges").paginationConfluense(10).sortableConfluense();
+            $("#defaultSortDateField").click();
+            $("#defaultSortDateField").click();
+            bindHandlers();
+        });
+
+        function verifyContent() {
+            var url = '@Url.Action("VerifyContent", "VerifyContent", new {area = "TCM", resultsMatrixId = Model.ResultsMatrixId})';
+
+            postUrlWithOptions(url, { async: false })
+                .done(function (data) {
+                    $('#verifyContentModal').html(data);
+                    $('[data-id="buttonVerifyContent"]').click();
+                    allowMultiPopUp();
+                })
+                .fail(function (jqXhr, textStatus, errorThrown) {
+                    showMessage(errorThrown);
+                });
+        }
+
+        function enableEdit() {
+            var periodId = $('ul.dropdown-menu[aria-labelledby="id-dropdownTCReportingPeriod"]').find('a[dd-selected]').attr('dd-value');
+            var currentPeriod = '@Model.CurrentTCReportingPeriod';
+            var isEditable = '@Model.IsEditable';
+
+            if (isEditable === 'True' && currentPeriod === periodId) {
+                $('[name="EditCM"]').removeClass("hide");
+            } else {
+                $('[name="EditCM"]').addClass("hide");
+            }
+        }
+
+        //$(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-dropdownTCReportingPeriod"] a', function () {
+        //    enableEdit();
+        //});
+
+        function edit() {
+            postUrlWithOptions('@Url.Action("LockRegister", "MatrixChanges", new {area = "TCM"})', { async: false }, { url: '@TCMGlobalValues.TCM_EDIT_CHANGE_TO_MATRIX' })
+                .done(function (data) {
+                    if (data.IsValid === true) {
+                        var success = enterEditMode(false, $("#gridMatrixChanges"), false);
+                        if (success) {
+                            enterEditMode(false, $('[data-id=filters]'), false);
+                            enterEditMode(false, $('[data-id=headerButtons]'), false);
+                            $("#gridMatrixChanges").paginationConfluense(10);
+                            $('.buttonGridUpload').click(function () {
+                                preAddDocument(this);
+                            });
+                            bindHandlers();
+                        }
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+        }
+
+        function cancel() {
+            var msg = '@Localization.GetText("TCM.MC.Message.Cancel")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "MatrixChanges", new {area = "TCM"})', { async: false }, { url: '@TCMGlobalValues.TCM_EDIT_CHANGE_TO_MATRIX' });
+                    exitEditMode(true, $("#GridPageContent"), false, false);
+                    exitEditMode(false, $('[data-id=filters]'), false, true);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    enableEdit();
+                    bindHandlers();
+                    $("#gridMatrixChanges").paginationConfluense(10).sortableConfluense();
+                }
+            });
+        }
+
+        function checkDoc(isFundamental, documentNumber) {
+            if (isFundamental === "True" && (documentNumber === "" || documentNumber === undefined)) {
+                var msg = '@Localization.GetText("TCM.MC.DocumentRequiered")';
+                showMessage(msg);
+                return false;
+            }
+            return true;
+        }
+
+
+        function save() {
+            var canSave = false;
+            var serializedMatrix = {
+                MatrixChanges: []
+            };
+            var matrixChangeId = 0;
+            var documentNumber = null;
+            var documentName = null;
+            var reasons = null;
+            var agreeDate = null;
+            var isFundamental = null;
+            var tbodyMatrix = $("#gridMatrixChanges tbody tr");
+            if (tbodyMatrix.length > 0) {
+                $.each(tbodyMatrix, function (index, value) {
+                    matrixChangeId = $(value).attr("data-id");
+
+                    if (matrixChangeId != null) {
+                        documentNumber = $(value).find("input[name=JustificationDocumentNumber]").attr("value");
+                        documentName = $(value).find("input[name=JustificationDocumentName]").attr("value");
+                        agreeDate = $(value).find('[name=datePickerAgreementDay]').val();
+                        isFundamental = $(value).find('ul.dropdown-menu[aria-labelledby="id-dropdownSubstantialOrFundamental"]').find('a[dd-selected]').attr('dd-value');
+
+                        canSave = checkDoc(isFundamental, documentNumber);
+                        if (!canSave) return false;
+
+                    } else {
+                        matrixChangeId = $(value).attr("data-row-parent-id");
+                        if (matrixChangeId != null) {
+                            reasons = $(value).find('[name=inputTxtReasons]').val();
+
+                            serializedMatrix.MatrixChanges.push(
+                            {
+                                MatrixChangeId: matrixChangeId,
+                                JustificationDocumentNumber: documentNumber,
+                                JustificationDocumentName: documentName,
+                                Reasons: reasons,
+                                IsFundamental: isFundamental,
+                                AgreementDate: agreeDate
+                            });
+                        }
+                    }
+                });
+            } else {
+                canSave = true;
+            }
+            if (canSave) {
+                $("#hiddenGridModel").val(JSON.stringify(serializedMatrix));
+
+                var response = saveContainer($("#GridPageContent"), '#hiddenViewModel', true, $('[data-id=headerButtons]'));
+
+                if (response !== false) {
+                    response.done(function (data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                            showMessage(data.ErrorMessage);
+                        } else {
+                            if (!response.isValid) {
+                                showMessage(data.ErrorMessage);
+                            }
+                            successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+                            exitEditMode(false, $("#GridPageContent"), false, false);
+                            exitEditMode(false, $('[data-id=filters]'), false, true);
+                            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                            enableEdit();
+                            bindHandlers();
+                            $("#gridMatrixChanges").paginationConfluense(10).sortableConfluense();
+                        }
+                    });
+                }
+            }
+        }
+
+        function deleteChange(source) {
+            var msg = '@Localization.GetText("TCM.MC.DeleteMessage")';
+
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    source.closest("tr").prev().remove();
+                    source.closest("tr").remove();
+                    $("#gridMatrixChanges").paginationConfluense(10);
+                }
+            });
+        }
+
+        $(document).on("click", '.buttonUpload.buttonGridUpload', function () {
+            $('.inputFileInput').val("");
+        });
+
+        function preAddDocument(button) {
+            currentRow = $(button).closest("tr");
+            $("[name=ButtonUploadDocHidden]").trigger("click");
+        }
+
+        function addDocument(documentList, sourceType, fileNames) {
+            var docNumber;
+            var docName;
+            if (sourceType === "selected") {
+                docNumber = documentList[0].DocumentNumber;
+                docName = documentList[0].DocumentName;
+            } else {
+                docNumber = documentList[0];
+                docName = fileNames[0];
+            }
+            currentRow.find("input[name=JustificationDocumentNumber]").attr("value", docNumber);
+            currentRow.find("input[name=JustificationDocumentName]").attr("value", docName);
+
+            currentRow.find("a[target=_blank]").attr("href", '@Url.Action("GetDocument", "Document", new {area = ""})' + '?docNum=' + docNumber);
+
+            currentRow.find(".buttonGridUpload").hide();
+            currentRow.find(".divDocumentButtons").children("button").attr('data-docnumber', docNumber);
+            currentRow.find(".divDocumentButtons").show();
+            closeModal();
+            hideLoaderOptional();
+        }
+
+        function closeModal() {
+            var vexModal = $("[data-id=mainContainer]").parents(".vex");
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+            console.log("close modal");
+        }
+
+        function downloadDocument(source) {
+            var docNumber = source.attr('data-docnumber');
+            var url = '@Url.Action("GetDocument", "Document", new {area = ""})' + '?docNum=' + docNumber;
+            window.open(url, '_blank');
+        }
+
+
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-dropdownSubstantialOrFundamental"] a', function (e) {
+            var dropDownItem = $(this);
+            var oldValue = $(this).closest('div').find('input').attr('value');
+            var row = dropDownItem.parents("tr");
+            var documentColumn = row.find(".justificationDocumentColumn");
+            var documentNumber = documentColumn.find("input[name=JustificationDocumentNumber]").attr("value");
+            var selectDropDownItem = dropDownItem.text().trim();
+            if (documentNumber === null || documentNumber == undefined) {
+                if (selectDropDownItem !== "(select option)") {
+                    documentColumn.find(".labelNoDocument").hide();
+                    documentColumn.find(".buttonGridUpload").show();
+                } else {
+                    documentColumn.find(".labelNoDocument").show();
+                    documentColumn.find(".buttonGridUpload").hide();
+                }
+            } else {
+                if (selectDropDownItem === "(select option)") {
+                    $(this).closest('div').find(".dropdown-menu[aria-labelledby='id-dropdownSubstantialOrFundamental'] [dd-value='" + oldValue + "']").click();
+                }
+            }
+        });
+
+        function deleteDocument(source) {
+            var msg = '@Localization.GetText("TCM.MC.DeleteDocumentMessage")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    source.parents("td").find("input[name=JustificationDocumentNumber]").attr("value", null);
+
+                    source.parent(".divDocumentButtons").children("button").attr('data-docnumber', null);
+                    source.parent(".divDocumentButtons").hide();
+
+                    source.parents("td").find(".buttonGridUpload").show();
+                }
+            });
+        }
+
+        function clearFilter() {
+            $("[name='dropdownTCReportingPeriod']").FirstorDefault();
+            $("[name='dropdownSection']").FirstorDefault();
+
+            clearDropdown($('[aria-labelledby="id-dropdownChangeType"]'));
+            clearDropdown($('[aria-labelledby="id-dropdownChangeSubType"]'));
+
+            $("#gridMatrixChanges tbody").empty();
+            $("#gridMatrixChanges").siblings('[dd-table="gridMatrixChanges"]').remove();
+
+            if ($("#ChangesTable").find("[data-name='matrixChangesEmpty']").length == 0) {
+                var label = "<label class='labelNormal' data-name='matrixChangesEmpty'>@Localization.GetText("TCM.MC.ChangesEmptyTable")</label>";
+                $("#ChangesTable").append(label);
+            }
+
+            enableEdit();
+        }
+
+
+        function filterChanges() {
+            var period = $("[name='dropdownTCReportingPeriod']").val();
+            var section = $("[name='dropdownSection']").val();
+            var type = $("[name='dropdownChangeType']").val();
+            var subtype = $("[name='dropdownChangeSubType']").val();
+            var inputOperation = $("#PageContent input[name='operationNumber']")
+            if (inputOperation.length > 0) {
+                var searchSection = section !== "" ? section : null;
+                var searchType = type !== "" ? type : null;
+                var searchSubType = subtype !== "" ? subtype : null;
+                postUrlWithOptions("@Url.Action("FilterMatrixChanges", "MatrixChanges", new {area = "TCM"})", { async: true },
+                { 'operationNumber': inputOperation.val(), 'tcReportingPeriod': period, 'section': searchSection, 'changeType': searchType, 'changeSubType': searchSubType })
+                .done(function (data) {
+                    $('#GridPageContent').html(data);
+                    exitEditMode(false, $('#GridPageContent'), false, false);
+                    $('#gridMatrixChanges').paginationConfluense(10).sortableConfluense();
+                    bindHandlers($('#GridPageContent'));
+                    enableEdit();
+                    $("#noChangesMessage").remove();
+                    $(".informationplace").removeClass("hide");
+                });
+            }
+        }
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-dropdownSection"] a', function () {
+            var section = $(this).attr("dd-value");
+
+            if (section !== "") {
+                var url = "@Url.Action("GetChangesTypes", "MatrixChanges", new {area = "TCM"})";
+                showLoader();
+                $.ajax({
+                    url: url,
+                    async: true,
+                    type: 'POST',
+                    global: false,
+                    data: { sectionId: section },
+                    success: function (result) {
+                        hideLoader();
+                        if (result.IsValid) {
+                            var listdata = $.map(result.Data, function (item) {
+                                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                            });
+
+                            listdata.unshift("<li><a dd-value>(@Localization.GetText("TCM.SelectOption"))</a></li>");
+
+                            $('ul.dropdown-menu[aria-labelledby="id-dropdownChangeType"]').html(listdata.join(""));
+
+                            $('[name="dropdownChangeType"]').attr("data-parsley-required", "true");
+
+                            $('ul.dropdown-menu[aria-labelledby="id-dropdownChangeType"]').FirstorDefault();
+                            $('[aria-labelledby="id-dropdownChangeSubType"]').FirstorDefault();
+                        } else {
+                            if (result.Data.length === 0) {
+                                clearDropdown($('[aria-labelledby="id-dropdownChangeType"]'));
+                                clearDropdown($('[aria-labelledby="id-dropdownChangeSubType"]'));
+                            } else {
+                                showMessage('@Localization.GetText("TCM.MC.ErrorFilter")');
+                            }
+                        }
+                    }
+                });
+            } else {
+                clearDropdown($('[aria-labelledby="id-dropdownChangeType"]'));
+                clearDropdown($('[aria-labelledby="id-dropdownChangeSubType"]'));
+            }
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-dropdownChangeType"] a', function () {
+            var type = $(this).attr("dd-value");
+
+            if (type !== "") {
+                var url = "@Url.Action("GetChangesSubTypes", "MatrixChanges", new {area = "TCM"})";
+                showLoader();
+                $.ajax({
+                    url: url,
+                    async: true,
+                    type: 'POST',
+                    global: false,
+                    data: { typeId: type },
+                    success: function (result) {
+                        hideLoader();
+                        if (result.IsValid) {
+                            var listdata = $.map(result.Data, function (item) {
+                                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                            });
+
+                            listdata.unshift("<li><a dd-value>(@Localization.GetText("TCM.SelectOption"))</a></li>");
+
+                            $('ul.dropdown-menu[aria-labelledby="id-dropdownChangeSubType"]').html(listdata.join(""));
+
+                            $('[name="dropdownChangeSubType"]').attr("data-parsley-required", "true");
+                            $('ul.dropdown-menu[aria-labelledby="id-dropdownChangeSubType"]').FirstorDefault();
+                        } else {
+                            if (result.Data.length === 0) {
+                                clearDropdown($('[aria-labelledby="id-dropdownChangeSubType"]'));
+                            } else {
+                                showMessage('@Localization.GetText("TCM.MC.ErrorFilter")');
+                            }
+                        }
+                    }
+                });
+            } else {
+                clearDropdown($('[aria-labelledby="id-dropdownChangeSubType"]'));
+            }
+        });
+
+        function clearDropdown(source) {
+            if (source.children().length > 1) {
+                source.empty();
+                source.append("<li><a dd-value>(@Localization.GetText("TCM.SelectOption"))</a></li>");
+            }
+            source.FirstorDefault();
+        }
+
+    </script>
+}

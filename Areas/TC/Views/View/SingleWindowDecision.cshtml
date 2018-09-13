@@ -1,0 +1,374 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Architecture.Language
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService.SingleWindowDecisionViewModel
+
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var fromDate = FormatHelper.Format( (DateTime?) ViewBag.SWMDateFrom , formatDate );
+    var toDate = FormatHelper.Format( (DateTime?) ViewBag.SWMDateTo , formatDate );
+}
+
+@if ((ViewBag.ReadRole != null) && ViewBag.ReadRole)
+{
+    <div class="header">
+        <div class="row row-body-50" style="margin-top:20px;">
+            <div class="col-md-12">
+                @Html.Partial("Partials/Controls/SingleWindowDecisionButtons")
+                <h2 class="title-arrow leftmarginh2">
+                    <a href="@Url.Action("SingleWindowMeeting", "View", new { area = "TC", fromDate = fromDate , toDate = toDate })">
+                        <span>&nbsp;</span>
+                    </a>
+                    @Localization.GetText("TC.SingleWDecision.Title").HtmlEncode()
+                    @IDBContext.Current.Operation
+                </h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div name="filterContainer">
+            <div data-pagemode="edit">
+                <input type="hidden" name="SWMDateFrom" value="@FormatHelper.Format( (DateTime?)ViewBag.SWMDateFrom , formatDate )"/>
+                <input type="hidden" name="SWMDateTo" value="@FormatHelper.Format( (DateTime?)ViewBag.SWMDateTo , formatDate )"/>
+            </div>
+        </div>
+
+        <div id="singleWindowDecisionData"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-loadurl="@Url.Action( "SingleWindowDecisionEdit" , "View" , new { area = "TC"  } )"
+             data-url="@Url.Action("SingleWindowDecision", "Save", new { area = "TC" })">
+            @Html.Partial("Partials/SingleWDecision/SingleWindowDecision", Model)
+        </div>
+
+        <div class="row">
+            <div class="col-lg-12">
+                @Html.Partial("Partials/Controls/SingleWindowDecisionButtons")
+            </div>
+        </div>
+
+        <div id="saveModal" class="hide modalBody">
+            <span id="saveExplanationText">
+                @Localization.GetText("TC.FundCoordinator.Save.Message")
+            </span>
+        </div>
+        <div id="saveAndSendNotifyFundCoordinator" class="hide modalBody">
+            @Localization.GetText("TC.SingleWindowDecision.NotifyFundCoordinator")
+        </div>
+        <div id="saveAndSendReturnProjectTeam" class="hide modalBody">
+            @Localization.GetText("TC.SingleWindowDecision.ReturnProjectTeam")
+        </div>
+        <div id="SaveAndSendWithdraw" class="hide modalBody">
+            @Localization.GetText("TC.SingleWindowDecision.ReturnProjectTeam")
+        </div>
+
+        <div id="operationStatusModal" class="hide modalBody">
+            <p>
+                <span data-id="modal-send-result-operation-number"></span>
+            </p>
+            <p>
+                @Localization.GetText("TC.FundingProcess.DateSent") <span data-id="modal-send-result-send-date"></span>
+                <br />
+                @Localization.GetText("TC.FundingProcess.TimeSent") <span data-id="modal-send-result-send-time"></span>
+                <br />
+                @Localization.GetText("TC.FundingProcess.Status") <span data-id="modal-send-result-status"></span>
+            </p>
+        </div>
+
+        <div id="notifyCheckModal" class="hide modalBody">
+            @Localization.GetText("TC.SingleWindowDecision.NotifyFundCoordinator.NotifyCheckMessage")
+        </div>
+    </div>
+
+    <div data-id="ModalRegion" class="hide">
+        <div id="changeStatusModal" class="hide">
+        </div>
+    </div>
+
+    <div data-id="HiddenButtonRegion" class="hide">
+        @Display.AddModalButton(new ModalViewModel(name: "buttonChangeStatusModal",
+                                                        allowClose: true,
+                                                        contentSelector: "#changeStatusModal",
+                                                        type: CssClass.ModalInformation,
+                                                        title: Localization.GetText("TC.ChangeStatus.SingleWindowProcess"),
+                                                        validateForm: false
+                                                        )
+        )
+    </div>
+}
+
+@section scripts {
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AddNoRepeatValueValidator()
+    @ModuleScripts.AddnumElementsRangeValidator()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript">
+
+        showAvaibleDecision(false);
+
+        registerCallback(function () {
+            var leftMenu = $('.izquierda', window.parent.document);
+            leftMenu.hide();
+            window.ParsleyValidator
+                .addValidator('fundWithUser', function (value, requirement) {
+                    return (requirement != null) && (requirement != '');
+                }, 32)
+                .addMessage('en', 'fundWithUser', '@Localization.GetText("TC.FundCoordinator.RetrieveError")');
+
+            $(document).on('click', '[name=typeDecision]', function (e) {
+                showAvaibleDecision(true);
+            });
+
+
+            $(document).on('change', '[name=fundDecision]', function (e) {
+
+                var fundDecision = $(this);
+                var inputDecision = $(this).parents('[data-repeater-item]:first').find('[name=selected]');
+
+                if (fundDecision.val() == "@ViewBag.EnumMapping[DecisionSWFCDecisionEnum.Elegibles]"
+                        || fundDecision.val() == "@ViewBag.EnumMapping[DecisionSWFCDecisionEnum.EegiblesWithChanges]") {
+                    inputDecision.removeAttr('disabled');
+
+                } else {
+                    inputDecision.attr("disabled", "disabled");
+                    inputDecision.removeProp("checked");
+                }
+            });
+
+            $(document).on('change', '[name=applicableFund]', function () {
+                var $this = $(this);
+                var selectedItem = $this.data("kendoDropDownList").dataItem();
+
+                $this.attr('data-parsley-fundWithUser', '');
+
+                if (selectedItem != null && selectedItem.Code != null) {
+                    var promise = postUrl(
+                        '@Url.Action("GetFundFullName", "View", new { area = "TC" })',
+                        { fundCode: selectedItem.Code });
+
+                    promise.done(function (response) {
+                        if (response != null) {
+                            if (response.Model.LoginName != null) {
+                                $this.attr('data-parsley-fundWithUser', response.Model.LoginName);
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        function initialStateForFundCoordinatorUserName()
+        {
+            var funds = $('[name=applicableFund]');
+            funds.each(function ()
+            {
+                fund = $(this);
+                if (fund.parents('[data-repeater-template]').length == 0)
+                {
+                    fund.change();
+                }
+            });
+        }
+
+        function showAvaibleDecision(isEdit) {
+            var notifyFundCoordinator = $("#notifyFundCoordinator");
+            var returnProjectTeam = $("#returnProjectTeam");
+            var withdrawOperation = $("#withdrawOperation");
+            var placeOperationHold = $("#placeOperationHold");
+
+            var allRegion = $('#notifyFundCoordinator, #returnProjectTeam, #withdrawOperation, #placeOperationHold');
+            var validatorNumElements = $("[data-name=validatorForNumElements]");
+
+            allRegion.hide();
+            disableContainer(allRegion,false)
+            validatorNumElements.attr('disabled', 'disabled');
+
+            if (isEdit) {
+                var operationType = $("[name=typeDecision]:checked").val();
+                var saveExplanationText = $('#saveExplanationText');
+                saveExplanationText
+                    .text('@Localization.GetText("TC.FundCoordinator.Save.Message")');
+                var buttonSaveAndSend = $("[name=SaveAndSend]");
+                if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.NotifyFundCoordinator ])") {
+                    notifyFundCoordinator.show();
+                    validatorNumElements.removeAttr('disabled');
+                    enableContainer(notifyFundCoordinator, null, true);
+                    buttonSaveAndSend.show();
+                } else if (operationType === "@(ViewBag.EnumMapping[SingleWindowDecisionTypeEnum.ReturnProjectTeam])") {
+                    saveExplanationText.text('@Localization.GetText("TC.ReturnProjectTeam.Save.Message")');
+                    returnProjectTeam.show();
+                    enableContainer(returnProjectTeam, null, true);
+                    buttonSaveAndSend.show();
+                } else if (operationType === "@(ViewBag.EnumMapping[SingleWindowDecisionTypeEnum.WithdrawOperationFundingProcess ])") {
+                    withdrawOperation.show();
+                    enableContainer(withdrawOperation, null, true);
+                    buttonSaveAndSend.show();
+                } else if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.PlaceOperationHold ])") {
+                    placeOperationHold.show();
+                    enableContainer(placeOperationHold, null, true);
+                    buttonSaveAndSend.hide();
+                }
+            }
+
+            $('[name=selected]').each(function () {
+                var source = $(this);
+                if (source.attr("checked") != null) {
+                    source.removeAttr("checked");
+                    source.prop("checked", true);
+                }
+            });
+
+            $('select[name=fundDecision]').change();
+        }
+
+        function edit(source) {
+            var success = enterEditMode(true, $('#singleWindowDecisionData'), true);
+            if (success) {
+                enterEditMode(false, $('.singleWindowDecisionButtons'), false);
+            }
+            showAvaibleDecision(true);
+            initialStateForFundCoordinatorUserName();
+        }
+
+        function cancel(source) {
+            exitEditMode(true, $('#singleWindowDecisionData'), true, true);
+            exitEditMode(false, $('.singleWindowDecisionButtons'), false, false);
+            showAvaibleDecision(false);
+        }
+
+        function save(source) {
+            var operationType = $("[name=typeDecision]:checked").val();
+            if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.PlaceOperationHold ])") {
+                var deferred = genericSubmit(source, '@SaveControllerTypeEnum.SaveAndSend');
+            } else {
+                var deferred = genericSubmit(source, '@SaveControllerTypeEnum.Save');
+            }
+            return deferred;
+        }
+
+        function send(source) {
+            var deferred = genericSubmit(source, '@SaveControllerTypeEnum.SaveAndSend');
+            return deferred;
+        }
+
+        function genericSubmit(source, submitType) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val(submitType);
+            var resp = $.Deferred();
+            var mostrarStatusWidthraw = "never";
+            var response = saveContainer($('#singleWindowDecisionData'), '#hidViewModel', true, $('.singleWindowDecisionButtons'), $(source.target), true, false, $('[name=filterContainer]'));
+            if (response !== false) {
+                response
+                    .done(function (data) {
+
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        else if (data.IsValid) {
+
+                            if (data.ContentHTML != null) {
+                                addContentToChangeStatusModal(data.ContentHTML);
+                                mostrarStatusWidthraw = "always";
+                            }
+
+                            if (data.UrlRedirect != null) {
+                                setModalRedirectUrl(data.UrlRedirect);
+                            }
+
+                            var operationType = $("[name=typeDecision]:checked").val();
+                            if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.WithdrawOperationFundingProcess ])") {
+                                showOperationStatusModal(mostrarStatusWidthraw);
+                            }
+                            showAvaibleDecision(false);
+                        }
+                        resp.resolve(data);
+                    });
+            }
+            return resp;
+        }
+
+        function setModalRedirectUrl(url) {
+            $("#changeStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+        }
+
+        function email(source) {
+            var body = "";
+            var newLine = '\r\n';
+
+            var withdrawType = $('input[name=withdrawalType]:checked');
+            var aditionalComments = $('[name="additionalCommentWithdraw"]').first().val();
+            var checkedOption = "";
+
+            if (withdrawType.length) {
+                checkedOption = withdrawType.nextAll(".radiobutton-default-text").text();
+            }
+
+            body += "Type of Withdrawal: " + newLine + checkedOption + newLine + newLine;
+            body += "Additional Comments: " + newLine + aditionalComments + newLine + newLine;
+            body += "Operation number:    " + newLine + "@Model.WithdrawOperation.OperationNumber";
+
+            $('#email_hide').attr("href", String.format("mailto:{0}?body={1}", "", encodeURIComponent(body)));
+            var href = $('#email_hide').attr('href');
+
+            window.location.href = href;
+        }
+
+        function saveAndSendSelector(source) {
+            var operationType = $("[name=typeDecision]:checked").val();
+            if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.ReturnProjectTeam ])") {
+                $('[name=SaveAndSendReturnProjectTeam]').first().click();
+            } else if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.NotifyFundCoordinator ])") {
+                if ($('#SWDecisionFundCoordinatorRepeater label.checkbox-default input:checked').length) {
+                    $('[name=SaveAndSendNotifyFundCoordinator]').first().click();
+                } else {
+                    send({ target: source[0] });
+                }
+
+            }
+            else if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.WithdrawOperationFundingProcess ])") {
+                $('[name=SaveAndSendWithdraw]').first().click();
+            }
+            else {
+                send({ target: source[0] });
+            }
+        }
+
+        function saveSelector(source) {
+            var operationType = $("[name=typeDecision]:checked").val();
+            if (operationType === "@(ViewBag.EnumMapping[ SingleWindowDecisionTypeEnum.ReturnProjectTeam ])") {
+                $('[name=SaveModal]').first().click();
+            } else {
+                save({ target: source[0] });
+            }
+        }
+
+        function addContentToChangeStatusModal(content) {
+            $("#changeStatusModal").html(content);
+        }
+
+        function showOperationStatusModal(target) {
+
+            if ((target === "saveAndSendReturnProjectTeam_Send") || (target === "saveAndSendNotifyFundCoordinator_Send") || (target === "save_Send") || (target === "always")) {
+                $("[name=buttonChangeStatusModal]").first().click();
+            }
+        }
+
+        function emailReturnProjectTeam() {
+
+            var url = '@Url.Action("DownloadEmailEligibilityDecision", "View", new { area = "TC" })';
+
+            window.open(url, '_blank');
+
+        }
+
+    </script>
+}

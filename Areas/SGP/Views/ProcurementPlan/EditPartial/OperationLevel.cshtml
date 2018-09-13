@@ -1,0 +1,153 @@
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.Architecture.DataTables.Common
+
+@model OperationLevelViewModel
+
+@{
+    var appSetting = ConfigurationServiceFactory.Current.GetApplicationSettings();
+}
+
+<div name="planSection">
+    <div class="row mb30">
+        <div class="col-xs-12 mb30">
+            @Html.Partial("EditPartial/ProcurementPlanDataTable", Model)
+        </div>
+        <div class="col-xs-12 mb30">
+            @Html.Partial("EditPartial/GeneralNotice", Model)
+        </div>
+        <div class="col-xs-12 mb5">
+            <table class="table-transparent">
+                <tr>
+                    <td class="table-transparent-text">
+                        <div class="mb5 aligment">
+                            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.Filters"))
+                        </div>
+                    </td>
+                    <td class="table-transparent-text">
+                        @Confluence.ButtonBlue(Localization.GetText("SGP.Button.HideFilter"), name: "operationLevelFilterHide", htmlClass: "floatRight", dataAttributes: new Dictionary<string, string> { { "linked-table","" } })
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div name="operationLevelFilterSection" class="col-xs-12">
+            @Html.Partial("ReadPartial/FilterSearchOperLevel", Model.ViewContainer)
+        </div>
+    </div>
+    <div>
+
+        <div class="row mb30">
+            <div name="procurementsActivities" class="col-xs-12">
+                @Html.Partial("ReadPartial/ProcurementActivitiesDataTable", Model)
+            </div>
+        </div>
+        @Html.Partial("ReadPartial/Legend")
+    </div>
+</div>
+
+<script type="text/javascript">
+
+    registerCallback(function () {
+
+        function submitOperationLevelFiltered(keywordEnter, procurementTypeId, componentId, procurementMethodId, supervisionMethod, statusId) {
+
+            showLoader();
+            var containerProcurementByBucket = $('div[name="procurementsActivities"]');
+
+            $.ajax({
+                url: razor.URLs.GetProcurementsOperationLevelByFilter,
+                data: {
+                    isEditMode: true,
+                    Keyword: keywordEnter,
+                    ProcurementTypeIds: procurementTypeId,
+                    ComponentIds: componentId,
+                    ProcurementMethodIds: procurementMethodId,
+                    SupervisionMethodIds: supervisionMethod,
+                    StatusIds: statusId,
+                },
+                cache: false,
+                type: 'POST',
+            }).done(function (data) {
+                containerProcurementByBucket.html(data.ContentHTML);
+                bindHandlers(containerProcurementByBucket);
+                hideLoader();
+                $('div[data-name="collapseAllProcLevelProcurements"]').click();
+            });
+
+        }
+
+        window.ParsleyValidator.addValidator('notDuplicateDocNumber', function (value, requirement) {
+
+            var inputs = $(requirement);
+            if ((inputs != null) && (inputs.length > 0)) {
+                var inputsWithValue = inputs.filter(function (index, item) {
+                    var $item = $(item);
+                    if ($item.attr("disabled") === "disabled")
+                    {
+                        return false;
+                    }
+                    ////if document number exist active parsley.
+                    return $item.val().trim().toLowerCase() == value.trim().toLowerCase();
+                });
+
+                var numElements = inputsWithValue.length;
+                return numElements <= 1;
+            }
+            return true;
+        }, 32).addMessage('en', 'notDuplicateDocNumber', '@Localization.GetText("SGP.Label.ValidationRepeat")');
+
+        $(document).on('click', '[name="operationLevelFilterHide"]', function () {
+            var source = $(this);
+            var nameShowFilter = razor.Texts.ShowFilter;
+            var nameHideFilter = razor.Texts.HideFilter;
+            var sectionHide = $('div[name="operationLevelFilterSection"]');
+
+            if (sectionHide.hasClass('hide')) {
+                sectionHide.removeClass('hide');
+                source.html(nameHideFilter);
+            } else {
+                sectionHide.addClass('hide', 'hide');
+                source.html(nameShowFilter);
+            }
+        });
+        function filterOperLevel() {
+            var keyword = $('[name="operLevelKeywordSearch"]').val();
+            var procurementType = $('[name="operLevelProcurementTypeSearch"]').val();
+            var component = $('[name="operLevelComponentSearch"]').val();
+            var procurementMethod = $('[name="operLevelProcurementMethodSearch"]').val();
+            var supervisionMethod = $('[name="operLevelSupervisionMethodSearch"]').val();
+            var status = $('[name="operLevelStatusSearch"]').val();
+
+            submitOperationLevelFiltered(keyword, procurementType, component, procurementMethod, supervisionMethod, status);
+        }
+
+        $(document).on('click', '[name="operLevelClearFilter"]', function () {
+            $('[name="operLevelKeywordSearch"]').val("");
+            $('[name="operLevelKeywordSearch"]').attr("value", "");
+            $('[name="operLevelProcurementMethodSearch"]').val(0).trigger("chosen:updated");
+            $('[name="operLevelProcurementTypeSearch"]').val(0).trigger("chosen:updated");
+            $('[name="operLevelSupervisionMethodSearch"]').val(0).trigger("chosen:updated");
+            $('[name="operLevelComponentSearch"]').val(0).trigger("chosen:updated");
+            $('[name="operLevelStatusSearch"]').val(0).trigger("chosen:updated");
+
+            filterOperLevel();
+        });
+
+        $(document).on('click', '[name="operLevelFilteredFilter"]', function () {
+
+            filterOperLevel();
+        });
+
+        $(document).on('click', 'td.columnActionOnlyCollapse', function (e) {
+            var source = $(this);
+            if (e.currentTarget == e.target) {
+                var collapse = source.find('[data-role="collapse-single"]');
+                var data = collapse.data('CollapseSingle');
+                data.SlideContent();
+            }
+        });
+
+    });
+
+</script>

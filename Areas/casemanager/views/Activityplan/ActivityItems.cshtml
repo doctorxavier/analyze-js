@@ -1,0 +1,226 @@
+﻿@{ Layout = null;
+    string servicePath = Url.Action("Home");
+    servicePath = servicePath.Substring(0, servicePath.ToLower().IndexOf("casemanager"));
+}
+<!DOCTYPE html>
+<html style="overflow-y: scroll">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Manager</title>
+    @Scripts.Render("~/bundles/casemanager-libraries.js")
+    @Styles.Render("~/content/bootstrap/casemanager-libraries.css")
+    <link id="linkRoot" href="~/" rel="tag" />
+    <base href="/">
+    <link id="serviceRoot" href="@servicePath" />
+    <link id="currentLanguage" href="@IDBContext.Current.CurrentLanguage" />
+    <link id="currentCountry" href="us" />
+    <link id="ConcurrenceControlEnabled" href="@((!Globals.GetSetting("SecurityMode", string.Empty).Equals("Local")).ToString())" />
+    @{Html.RenderPartial("~/Views/Shared/TrackingHeader.cshtml");}
+    <link href="~/Content/Modules/LifeCycle/Styles.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="container body-content">
+        <script id="task-id-template" type="text/kendo-templ">
+            #if(data.dirty || !isDefined(data.TaskId)){#
+            <span class="glyphicon glyphicon-refresh saving-information-mark" title="Sending information"></span>
+            #}#
+            #=data.index#
+        </script>
+        <script id="task-name-template" type="text/kendo-templ">
+            <div class="task-level-#=data.Deep#">
+                <input type="hidden" class="task-row-id" value="#= data.TaskId #" />
+                <input type="hidden" class="task-parent-id" value="#= data.ParentId #" />
+                <input type="hidden" class="task-code" value="#= data.Code #" />
+                # if(data.HasChildren){ #
+                <div class="k-icon k-si-minus task-level-expand task-level-expand-#=data.Deep#"></div>
+                # } #
+
+                <div style="display:table-cell; #=data.HasChildren ? " font-weight:bold; font-size:14px":""#">
+                    #=data.Name#
+                    #if(data.Code && (data.Deep != 2 && data.Deep !=3)){#
+                    <span>(#=data.Code#)</span><br />
+                    #}#
+                </div>
+            </div>
+        </script>
+        <script id="task-status-template" type="text/kendo-templ">
+            # var controller = $('\\#listGrid').scope();
+            var status = controller.getStatus(data.StatusName);
+            #
+            #if(status){#
+            <span class="task-status-icon #=status.StatusId#-status"></span>
+            #}#
+        </script>
+        <script id="task-icons" type="text/kendo-templ">
+            #if(data.TypeName == 'milestone'){#
+            <span class="label label-primary" style="float:left; margin-right:2px; height:10px" title="Milestone">M</span>
+            #}#
+            #if(data.TypeName != 'milestone' && !data.HasChildren){#
+            <span class="label label-info" style="float:left; margin-right:2px; margin-top: 2px; height:10px" title="Activity">A</span>
+            #}#
+            #if(data.Documents.length){#
+            <span onclick="$('\\#listGrid').scope().taskControlApi.showDetailTask(#=data.TaskId#)"
+                  style="cursor:pointer; float:left; margin-right:2px; margin-top: 2px; padding:2px 4px"
+                  class="label label-info document-tooltip"
+                  data-title="First document" data-content="#=data.Documents[0].Name#"
+                  data-taskid="#=data.TaskId#">
+                #=data.Documents.length#
+                <span class="glyphicon glyphicon-file" aria-hidden="true" style="line-height:8px"></span>
+            </span>
+            #}#
+            #if(data.Comments.length){#
+            <span onclick="$('\\#listGrid').scope().taskControlApi.showDetailTask(#=data.TaskId#)"
+                  class="label label-info" style="cursor:pointer; float:left;margin-top: 2px; margin-right:2px;padding:2px 4px"
+                  data-taskid="#=data.TaskId#" title="{{'This activity has comments'|translate}}">
+                #=data.Comments.length#
+                <span class="glyphicon glyphicon-comment" aria-hidden="true" style="line-height:8px"></span>
+            </span>
+            #}#
+            #if(data.RelatedItems && data.RelatedItems.length){#
+                # for (var i = 0; i < data.RelatedItems.length; i++) { #
+                <a href="#=data.RelatedItems[i].ToPath#"  target="_self">
+                    <img src="#=getPath('content/entity-icons/'+data.RelatedItems[i].ToEntityType.toLowerCase()+'.gif')#" />
+                </a>
+                #}#
+            #}#
+        </script>
+        <script id="activity-baseline-difference" type="text/kendo-templ">
+            <div>
+                #if(data.BaseLineDifference > 0){#
+                <span style="color:\\#080; font-weight:bold">+#=data.BaseLineDifference#</span>
+                #}#
+                #if(data.BaseLineDifference < 0 ){#
+                <span style="color:\\#C00; font-weight:bold">-#=Math.abs(data.BaseLineDifference)#</span>
+                #}#
+                #if(data.BaseLineDifference===0){#
+                <span style="color:\\#000; font-weight:bold">#=data.BaseLineDifference#</span>
+                #}#
+            </div>
+        </script>
+        <div ng-app="caseManager" class="case-manager">
+            <div ng-controller="listController" id="listGrid">
+                <div ng-show="!loadCompleted" style="height:300px; overflow:hidden">
+                    <div class="loading-page" style="margin-top:100px"></div>
+                </div>
+                <div ng-cloak ng-show="loadCompleted">
+                    <div intermodule-messages></div>
+                    <div reformulation-activityplans></div>
+                    <div template-selection templates="templates"></div>
+                    <div milestones-view task-service="taskService"></div>
+                    <div style="float:left; width:100%; height:12px; display:block"></div>
+                    <div adittional-information></div>
+                    <div style="float:left; width:100%; height:15px; display:block"></div>
+                    <div operation-state ng-show="globals.hasPermission('enable operation')"></div>
+                    <div class="form">
+                        <div style="float:left; width:100%; height:15px; display:block"></div>
+                        <div id="task-editor-container" style="display:none">
+                            <task-control id="task-editor" current-task="globals.currentTask" task-control-api="taskControlApi"></task-control>
+                        </div>
+                        <div class="grid-toolbar">
+                            <div class="grid-toolbar-content">
+                                <div style="float:left; margin-top:5px">
+                                    <div class="onoffswitch collapseswitch">
+                                        <input type="checkbox" class="onoffswitch-checkbox" id="collapse-activities" ng-model="collapse">
+                                        <label class="onoffswitch-label collapseswitch-label" for="collapse-activities" ng-click="toogleCollapse()">
+                                            <span class="onoffswitch-inner collapseswitch-inner"></span>
+                                            <span class="onoffswitch-switch collapseswitch-switch"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style="float:left; margin:5px 0 0 10px" ng-show="showBaseLine">
+                                    <div class="onoffswitch showbaseline-switch">
+                                        <input type="checkbox" class="onoffswitch-checkbox" id="collapse-baseline" ng-model="collapseBaseline">
+                                        <label class="onoffswitch-label showbaseline-switch-label" for="collapse-baseline" ng-click="toogleED()">
+                                            <span class="onoffswitch-inner showbaseline-switch-inner"></span>
+                                            <span class="onoffswitch-switch showbaseline-switch-switch"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style="float: left;margin-left: 45px;margin-top: 7px;">
+
+
+
+                                    <label class="checkbox-default">
+                                        <input name="showMilestones" type="checkbox" id="showMilestones" ng-click="showMilestones()" class="cknormal">
+                                        <span class="checkbox-default-icon" style="float: left;margin-right: 8px;"></span>
+
+                                        <span class="checkbox-default-text">
+                                            <label class="labelNormal">{{"Show milestones only"|translate}}</label>
+
+                                        </span>
+                                    </label>
+
+                                    <label class="checkbox-default" style="margin-left: 25px;">
+                                        <input name="showPending" type="checkbox" id="showPending" ng-click="showPenging()" class="cknormal">
+                                        <span class="checkbox-default-icon" style="float: left;margin-right: 8px;"></span>
+
+                                        <span class="checkbox-default-text">
+                                            <label class="labelNormal">{{"Show pending only"|translate}}</label>
+
+                                        </span>
+                                    </label>
+                                </div>
+                                <div style="float:right" ng-show="globals.hasPermission('case write')">
+                                    <button type="button" class="btn btn-primary btn-sm" ng-click="createBaseLine()" ng-show="globals.hasPermission('case edit estimation') && showBaseLine" ng-disabled="globals.inEdition || !baseLineCount">
+                                        <span aria-hidden="true"></span> {{'Simulate'|translate}}
+                                    </button>
+                                    <button type="button" class="btn btn-primary btn-sm" ng-class="{loading:sendingBaseline}" ng-click="saveBaseLine()" ng-show="globals.hasPermission('case edit estimation') && showBaseLine" ng-disabled="!operationEnable || !baseLineCount || sendingBaseline">
+                                        <span aria-hidden="true"></span> {{'Apply simulation'|translate}}
+                                    </button>
+                                    <button type="button" class="btn btn-primary btn-sm" ng-click="insertSubTemplate()" ng-disabled="!operationEnable || globals.inEdition">
+                                        <span aria-hidden="true">
+                                        </span> {{"Use a template"|translate}}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <task-grid ng-model="taskService" task-control-api="taskControlApi"></task-grid>
+
+                        <div class="form-group text-right" style="margin-top:15px; float:left; width:100%">
+                            <button type="button" class="btn btn-default ng-binding" ng-click="exportToExcel()">
+                                <span class="k-icon k-i-excel"></span> {{"Export to Excel"|translate}}
+                            </button>
+                        </div>
+                        <template-optional></template-optional>
+                        <create-base-line-dialog></create-base-line-dialog>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer></footer>
+        <script>
+            function toolTips(){
+                $('.milestone').popover({ trigger: 'hover', placement: 'bottom' });
+            };
+        </script>
+    </div>
+    @if (!Globals.GetSetting("SecurityMode", string.Empty).Equals("Local"))
+    {
+      
+    <!-- Walkme -->
+        @*<script type="text/javascript">
+            (
+                function () {
+                    var walkme = document.createElement('script');
+                    walkme.type = 'text/javascript';
+                    walkme.async = true;
+                    walkme.src = '@Globals.GetSetting("WalkMeKey")';
+                    var s = document.getElementsByTagName('script')[0];
+                    s.parentNode.insertBefore(walkme, s);
+                    window._walkmeConfig = { smartLoad: true };
+                })();
+        </script>*@
+    <!-- performance tracking end -->
+    }
+
+    <div id="layoutLoadingDiv" style="display: none; z-index: 999999999; top: 0%; left: 0%; position: fixed; background-color: rgba(254, 254, 254, 0.741176); height: 100%; width: 100%;">
+        <img src="~/Images/General/Loading/convergence-loading-3.gif" style="top: 50%; left: 50%; margin: auto; position: fixed">
+        <div style="top: 57%; left: 49.8%; margin: auto; position: fixed"></div>
+        <div style="top: 57%; left: 49.8%; margin: auto; position: fixed">
+            Loading...
+        </div>
+    </div>
+</body>
+</html>

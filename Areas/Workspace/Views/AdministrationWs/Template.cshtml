@@ -1,0 +1,124 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Business.WorkSpaceModule.ViewModels
+
+@model List<TemplateRowViewModel>
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+<div class="header">
+    <div class="row">
+        <div class="col-md-12">
+            <h3 class="titlePrincipal">@Localization.GetText("Workspace.Template.Title")</h3>
+        </div>
+    </div>
+</div>
+<br />
+@Confluence.Tabs(new Dictionary<string, string>()
+    {
+        {"tabTemplate",Localization.GetText("Workspace.Template.tabTemplate")},
+        {"tabUser",Localization.GetText("Workspace.Template.tabUser")}
+    })
+
+<div class="tab-content">
+    <div class="tab-pane active" id="tabTemplate">
+        @Html.Partial("Partials/TemplateFilter")
+    </div>
+
+    <div class="tab-pane" id="tabUser">
+        @Html.Partial("Partials/UserFilter")
+    </div>
+</div>
+@if (SecurityHelper.GetPermission(ViewBag.Secirity, "btnWsNewTemplateAdministration"))
+{
+    <div class="row" data-idb-fieldname="btnWsNewTemplateAdministration">
+        <div class="col-md-12">
+            <div class="floatRight">
+                @Confluence.ButtonBlue(Localization.GetText("Workspace.Buttons.New"), action: "newTemplate", name: "NewButton", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnWsNewTemplateAdministration" } })
+            </div>
+        </div>
+    </div>
+}
+
+<br />
+<div class="page">
+    <div name="PageContent" id="PageContent" data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]">
+
+        <div id="tableList">
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+    $(document).ready(function() {
+        $('li[dd-tab=#tabTemplate]').click(function () {
+            $('#tableList').html('');
+            $('button[name=NewButton]').css('display', 'block');
+        });
+
+        $('li[dd-tab=#tabUser]').click(function () {
+            $('#tableList').html('');
+            $('button[name=NewButton]').css('display', 'none');
+        });
+    });
+
+    function searchRoleList(source) {
+        var content = $(source).closest('[name="searchContent"]');
+        var templateName = content.find('[name="TemplateName"]').val();
+
+        $('#ChartTableRoles').remove();
+        $('div.Pagination[dd-table=TableRoles]').remove();
+        var typeSearch = $('#tabTemplate').hasClass('active') ? '1' : '2';
+        postUrlWithOptions("@Url.Action("SearchTemplates", "AdministrationWs")", { async: false }, { 'templateName': templateName, 'type': typeSearch })
+            .done(function(data) {
+                var resultSearch = $('#tableList');
+                resultSearch.html(data);
+                bindHandlers(resultSearch);
+                $("#TableRoles").paginationConfluense(5);
+
+                if (document.domain !== 'localhost') {
+                    var $frame = $(window.parent.document).find('iframe[name=someFrame]');
+                    $frame.css("height","996px");
+                }
+            });
+        return false;
+    }
+
+    function clean() {
+        $("[name='TemplateName']").val("");
+        $('#tableList').html('');
+    }
+
+
+    function newTemplate() {
+        window.location.href = '@Url.Action(controllerName: "AdministrationWs", actionName: "TemplateEdit", routeValues: new {templateId = 0})';
+    }
+
+
+    function removeTemplate(element) {
+        var msg = '@Localization.GetText("Workspace.Template.ConfirmRemove")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var row = $(element).closest('tr');
+                    var id = row.find('td').first().find('span').text();
+                    var type = $('#Type').val();
+                    postUrlWithOptions("@Url.Action("TemplateDelete", "AdministrationWs")", { async: false }, { 'templateId': id, 'type': type })
+                    .done(function(data) {
+                        if (data.ErrorMessage === null || data.ErrorMessage === '') {
+                            showMessage("@Localization.GetText("Workspace.Template.SuccessDelete")");
+                            $(row).remove();
+                            $("#ChartTable").paginationConfluense(5);
+                            applyFieldsBehavior('0', '0');
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+
+
+            }
+        });
+    }
+    </script>
+}

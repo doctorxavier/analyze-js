@@ -1,0 +1,331 @@
+@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.Architecture.DataTables.Common
+
+@model IdentificationViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "IdeCommitFundsNormal";
+
+    var config = Html.RenderDataTable(Model.CommitFunds)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => (x.Id < 0 ? "new" : "") + x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => ColumnApprovalNumber(c, false))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.ApprovalNumber"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ColumnOperationNumber(c, false))
+                .Orderable(false)
+                .CssClass("operationNumber textalign-center ideTCFundColOpNumber")
+                .CssHeaderClass("ideTCFundColOpNumber")
+                .Header(Localization.GetText("COMMON.OperationNumber"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ColumnApprovalCurrency(c, false))
+                .Orderable(false)
+                .CssClass("textalign-center colCurrencyRead")
+                .CssHeaderClass("colCurrencyRead")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.ApprovalCurrency"))
+                .HeaderAttribute("style", "min-with:100px")
+                .Attribute("name", c => "approvalCurrency")
+                .Hidden(false);
+            columns.Template(c => ColumnTotalAvailable(c, false))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount ideTCFundColAmount totalFunds")
+                .CssHeaderClass("colAmount ideTCFundColAmount")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TotalFundsCurrentlyAvailable"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ColumnOriginalEstimate(c, false))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount ideTCFundColAmount")
+                .CssHeaderClass("colAmount ideTCFundColAmount")
+                .Header(Localization.GetText("TCP.FirmProcurement.Header.Title.OriginalProcurementEstimate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ColumnActions(c))
+                .Orderable(false)
+                .CssClass("colAction90")
+                .CssHeaderClass("colAction90")
+                .Header(Localization.GetText("COMMON.Action"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(new CommitFundRowViewModel()));
+            x.Create(RowTemplateType.FirstRow, t => Detail(new CommitFundRowViewModel(), true));
+            x.Create(RowTemplateType.AllRows, t => Detail(t, false));
+            x.Create(RowTemplateType.LastRow, y => subtotalLine(Model.CommitFunds));
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+@helper ColumnApprovalNumber(CommitFundRowViewModel c, bool isTemplate)
+{
+    var tableName = "IdeCommitFundsNormal";
+    @Confluence.InputDropDownAsync(
+            value: c.ApprovalNumber,
+            textSelected: c.ApprovalNumber,
+            name: tableName + "-ApprovalNumber",
+            searchUrl: Url.Action("FindApprovalNumbers", "FirmProcurement", new { area = "Procurement" }),
+            disabled: true,
+            width: "100%",
+            dataAttributes: new Dictionary<string, string>() { { "parsley-noRepeatValue", "[name=" + tableName + "-ApprovalNumber" + "]" } })
+}
+
+@helper ColumnOperationNumber(CommitFundRowViewModel c, bool isTemplate)
+{
+    var tableName = "IdeCommitFundsNormal";
+    <span data-section="operationNumber">
+        @c.OperatinNumber
+    </span>
+    @Confluence.InputText(c.OperatinNumber, tableName + "hiddenOperationNumber", disabled: isTemplate, htmlClass: "hide")
+}
+
+@helper ColumnApprovalCurrency(CommitFundRowViewModel c, bool isTemplate)
+{
+    var tableName = "IdeCommitFundsNormal";
+    <span data-section="approvalCurrency">
+        @c.ApprovalCurrency
+    </span>
+    @Confluence.InputText(c.ApprovalCurrency, tableName + "ApprovalCurrency", disabled: isTemplate, htmlClass: "hide")
+}
+
+@helper ColumnTotalAvailable(CommitFundRowViewModel c, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var tableName = "IdeCommitFundsNormal";
+
+    <span data-section="totalFunds">
+        @FormatHelper.Format(c.TotalFundsCurrentlyAvailable, formatDecimal)
+    </span>
+    @Confluence.InputText(c.TotalFundsCurrentlyAvailable.ToString(), tableName + "-hiddenTotalFunds", disabled: isTemplate, htmlClass: "hide")
+}
+
+@helper ColumnOriginalEstimate(CommitFundRowViewModel c, bool isTemplate)
+{
+    var tableName = "IdeCommitFundsNormal";
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var id = c.Id < 0 ? "new" + c.Id : c.Id.ToString();
+    var selector = string.Format("tr[data-id=\"{0}\"] [name=\"{1}-hiddenTotalFunds\"]", id, tableName);
+    if (isTemplate)
+    {
+        selector = "tr[data-id=\"{0}\"] [name=\"IdeCommitFundsNormal-hiddenTotalFunds\"]";
+    }
+
+
+    @Confluence.InputDecimal(
+    value: c.OriginalProcurementEstimate,
+    name: tableName + "-originalFunds",
+    disabled: isTemplate,
+        dataAttributes: new Dictionary<string, string> { { "parsley-lessOrEqualsAmount", selector } },
+        htmlClass: "textalign-right")
+}
+
+@helper ColumnActions(CommitFundRowViewModel row)
+{
+    if (row.ApprovalNumber != "Subtotal")
+    {
+        <div class="textalign-center">
+            @Confluence.ButtonTrash("", "RemoveRow")
+            @(Html.CollapseSingle("collapseTCCommitFundDetail")
+            .AsociatedCollapseAllSelector("[data-name=collapseAllCommitFunds]")
+                .TargetRegionSelector(x => x.Closest("tr").Next())
+                .HtmlClass("arrow")
+            )
+        </div>
+    }
+}
+
+
+<table class="table-transparent">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText(
+                        Model.Modality == Modality.Framework
+                            ? "TCP.FirmProcurement.TableTitle.CommitFundsFramework"
+                            : "TCP.FirmProcurement.TableTitle.CommitFunds"))
+                </div>
+                <div class="mb10">
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommitFundsEstimated"))
+                </div>
+                <div class="font-14">
+                    @Confluence.LabelSubTitleGroup(Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommitFunds"))
+                </div>
+            </td>
+            <td class="table-transparent-buttons">
+                @(Html.CollapseAll("collapseAllCommitFunds")
+                    .CollapseSingleSelector("tr:not(.template) [data-name=\"collapseTCCommitFundDetail\"]"))
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+
+<div class="row">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("EditPartial/DatatableCommitFundsLegend")
+    </div>
+</div>
+
+
+<div class="row mb30">
+    <div class="col-xs-12 text-center">
+        @Confluence.ButtonAddNewRows(Localization.GetText("TCP.FirmProcurement.Button.AddFundingSource"), "", name: "addNewTCFund", dataAttributes: new Dictionary<string, string> { { "linked-table", tableName } })
+    </div>
+</div>
+
+
+@helper DrawRowTemplate(CommitFundRowViewModel c)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    <tr class="template hide">
+        <td class="">
+            @ColumnApprovalNumber(c, true)
+        </td>
+        <td class="operationNumber textalign-center ideTCFundColOpNumber">
+            @ColumnOperationNumber(c, true)
+        </td>
+        <td class="textalign-center colCurrencyRead" name="approvalCurrency">
+            @ColumnApprovalCurrency(c, true)
+        </td>
+        <td class="textalign-right colAmount ideTCFundColAmount totalFunds">
+            @ColumnTotalAvailable(c, true)
+        </td>
+        <td class="colAmount ideTCFundColAmount">
+            @ColumnOriginalEstimate(c, true)
+        </td>
+        <td class="colAction90">
+            @ColumnActions(c)
+        </td>
+    </tr>
+}
+
+@helper Detail(CommitFundRowViewModel c, bool isTemplate)
+{
+    var id = (c.Id < 0 ? "new" : "") + c.Id.ToString(CultureInfo.InvariantCulture);
+    var tableName = "IdeCommitFundsNormal";
+    var htmlClass = isTemplate ? "template hide" : string.Empty;
+
+    var multiActive = Html.MultiDropDown(tableName + "-activeOutputs")
+        .Items(c.ActiveOutputs)
+        .AddAttributes("data-parsley-required-message", Localization
+            .GetText("TCP.FirmProcurement.Identification.RequiredOutputs"))
+        .HtmlClass("w100p")
+        .Disable(isTemplate)
+        .Initialize(!isTemplate);
+
+    if (c.ActiveOutputs.Any())
+    {
+        multiActive.AddAttributes("data-optional-required", "true");
+    }
+
+    <tr data-id="@id" class="@htmlClass extend-custom">
+        <td colspan="6">
+            <div class="row">
+                <div class="col-xs-12">
+                    @Confluence.LabelsGroupExtendAlwayList(
+                        Localization
+                            .GetText("TCP.FirmProcurement.TableHeader.ActivedAssociatedOutputs")
+                            .HtmlEncode(),
+                        multiActive)
+                </div>
+            </div>
+
+            @if (!isTemplate && (c.UnactiveOutputs.Any(x => x.Select) || c.RemovedOutputs.Any()))
+            {
+                var classHtml = "col-xs-12";
+                if (c.UnactiveOutputs.Any(x => x.Select) && c.RemovedOutputs.Any())
+                {
+                    classHtml = "col-xs-6";
+                }
+
+                <div class="row">
+
+                    @if (c.UnactiveOutputs.Any(x => x.Select))
+                    {
+                        <div class="@classHtml">
+                            @Confluence.LabelsGroupExtendAlwayList(
+                                Localization.GetText("TCP.FirmProcurement.TableHeader.NoActivedAssociatedOutputs").HtmlEncode(),
+                                Html.MultiDropDown(tableName + "-unactiveOutputs")
+                                    .Items(c.UnactiveOutputs)
+                                    .HtmlClass("w100p")
+                                    .Disable(true)
+                            )
+                        </div>
+                    }
+                    @if (c.RemovedOutputs.Any())
+                    {
+                        <div class="@classHtml">
+                            @Confluence.LabelsGroupExtendAlwayList(
+                            Localization.GetText("TCP.FirmProcurement.TableHeaderRemovedAssociatedOutputs").HtmlEncode(),
+                            Html.MultiDropDown("unactiveOutputs")
+                                .Items(c.RemovedOutputs)
+                                .HtmlClass("w100p")
+                                .DrawAsULToolTip()
+                            )
+                        </div>
+                    }
+                </div>
+            }
+        </td>
+
+    </tr>
+}
+
+@helper subtotalLine(List<CommitFundRowViewModel> list)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var availableSubtotal = list.Sum(x => x.TotalFundsCurrentlyAvailable);
+    var originalSubtotal = list.Sum(x => x.OriginalProcurementEstimate);
+    var tableName = "IdeCommitFundsNormal";
+
+    <tr class="sumAmountsColor">
+        <td colspan="3">
+            @Confluence.Label(
+                text: Localization.GetText("TCP.FirmProcurement.TableSubtotal.Subtotal"),
+                htmlClass: "bold")
+        </td>
+        <td class="">
+            <div class="bold textalign-right">@Confluence.Label(FormatHelper.Format(availableSubtotal, formatDecimal), htmlClass: "bold TotalFunds-" + tableName)</div>
+        </td>
+        <td class="">
+            <div class="bold textalign-right">@Confluence.Label(FormatHelper.Format(originalSubtotal, formatDecimal), htmlClass: "bold OriginalFunds-" + tableName)</div>
+        </td>
+        <td class=""></td>
+    </tr>
+}

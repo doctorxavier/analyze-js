@@ -1,0 +1,419 @@
+﻿@using IDB.MW.Application.FinancialPlanModule.Helpers;
+@using IDB.Presentation.MVC4.Areas.FinancialPlan.Models;
+@using IDB.MW.Application.FinancialPlanModule.Enums;
+@model IDB.MW.Application.FinancialPlanModule.ViewModels.FinancialPlanViewModel
+
+<thead>
+    <tr>
+        <th class="tree icon">
+            <span class="icon" style="margin-top:10px" onclick="CollapseTable(this)">-</span>
+            <span></span>
+        </th>
+        <td colspan="100" class="tableNameTitleExcluded">@Confluence.LabelSubTitleGroup(Localization.GetText("Financial Plan"))</td>
+    </tr>
+    <tr data-id="">
+        <td class="tree"><span></span><span class=""></span>
+            <input type="hidden" id="financialPlanMonthTotal" value="@Model.MonthTotal" />
+        </td>
+        <th>@Localization.GetText("FP.TASKTABLE.ID")</th>
+        <th>@Localization.GetText("FP.TASKTABLE.OrderNumberWBS")</th>
+        <th class="approvalNumber">@Localization.GetText("FP.TASKTABLE.ApprovalNumber")</th>
+        <th>@Localization.GetText("FP.TASKTABLE.TaskName")</th>
+        <th>@Localization.GetText("FP.TASKTABLE.TaskType")</th>
+        <th>@Localization.GetText("FP.TASKTABLE.TaskStatus")</th>
+        <th>@Localization.GetText("FP.TASKTABLE.ProcurementStatus")</th>
+        <th></th>
+        <th class="financialMonth totalCostEOP financial-relative tooltips totalCostEOPColumn" style="display:none">@Localization.GetText("FP.TASKTABLE.TotalCostEOP") 
+            <span class="financial-tooltip financial-tooltip-table-header hide">@Localization.GetText("FP.Tooltip.TotalCostEOP")</span>
+        </th>
+        <th class="financialMonth totalCostEAC financial-relative tooltips totalCostEACColumn" style="display:none">@Localization.GetText("FP.TASKTABLE.TotalCostEAC")
+            <span class="financial-tooltip financial-tooltip-table-header hide">@Localization.GetText("FP.Tooltip.TotalCostEAC")</span>
+        </th>
+        <th class="financialMonth remainingBalanceColumn" style="display:none">@Localization.GetText("FP.TASKTABLE.RemainingBalance")</th>
+        @{ var contMonths = Model.MonthTotal; }
+        @for (int i = 0; i < contMonths; i++)
+        {
+            var monthIndex = (Model.MonthStart + i) % 12 == 0 ? 12 : (Model.MonthStart + i) % 12;
+            <th class="financialMonth monthsHeader" style="display:none">@FinancialPlanHelper.LoadMonths(monthIndex)</th>
+        }
+        <th class="financialMonth" style="display:none">@Localization.GetText("FP.TASKTABLE.RestOfYear")</th>
+        <th class="financialMonth" style="display:none">@Localization.GetText("FP.TASKTABLE.TotalBySource")</th>
+        <th class="financialMonth" style="display:none">@Localization.GetText("FP.TASKTABLE.RemainingToProyect")</th>
+        <th class="financial-totals totalAmountColumn totalAmountColumn">@Localization.GetText("FP.TASKTABLE.TotalAmount")</th>
+        <th class="financial-totals executedAmountColumn">@Localization.GetText("FP.TASKTABLE.ExecutedAmount")</th>
+        <th class="financial-totals executedAmountPercentColumn">@Localization.GetText("FP.TASKTABLE.PercentExecuted")</th>
+
+        @{List<SelectListItem> financialOperationYear = Model.OperationYears.ConvertToSelectItems();}
+        @if (financialOperationYear.Count > 0)
+        {
+            <th id="yearsCurrent" class="yearCurrent">
+                <div class='totalLabel'>
+                    <label>@Localization.GetText("Total")</label>
+                </div>
+                <div class='yearInput'>
+                    @Confluence.InputDropDown(financialOperationYear.First().Value, "YearCurrent", financialOperationYear, width: "100%", required: false, htmlClass: "filter-yearTable")
+                </div>
+                
+            </th>
+            <th id="yearsNext" class="yearNext">
+                <div class='totalLabel'>
+                    <label>@Localization.GetText("Total")</label>
+                </div>
+                <div class='yearInput'>
+                    @Confluence.InputDropDown(financialOperationYear.Count > 1 ? financialOperationYear.ElementAt(1).Value : (financialOperationYear.First().Value + 1), "YearNext", financialOperationYear, width: "100%", required: false, htmlClass: "filter-yearNextTable")
+                </div>
+            </th>
+        }
+
+
+        <th class="financial-totals remainingYearColumnHeader">@Localization.GetText("FP.TASKTABLE.RemainingYears")</th>
+        <th class="financialTdClearExecutionMode"></th>
+    </tr>
+</thead>
+<tbody>
+    @if (Model.FinancialTaskList.Any())
+    {
+        foreach (var rowItem in Model.FinancialTaskList)
+        {
+            var taskSource0 = rowItem.FinancialTaskSources[0];
+            var taskSource1 = rowItem.FinancialTaskSources[1];
+            var taskSource2 = rowItem.FinancialTaskSources[2];
+            <tr data-task-id="@rowItem.Id" data-id="" styleTableTask class="@FinancialPlanHelper.ComponentSubComponentClasses(rowItem)">
+                <td class="tree"><span></span><span class="selected"></span></td>
+                <td class="taskId"><p>@rowItem.PepTaskId</p></td>
+                <td class="orderNumber"><p>@rowItem.OrderNumber</p></td>
+                <td class="approvalNumber"><p>@rowItem.ApprovalNumber</p></td>
+                <td class="taskNameBox"><p class="financial-taks-name">@rowItem.TaskName</p></td>
+                <td class="taskTypeBox"><p>@rowItem.TaskType</p></td>
+                <td><p>@rowItem.TaskStatus</p></td>
+                <td><p>@rowItem.ProcurementStatus</p></td>
+                <td class="financial-table-results-columns-titles">
+                    <ul class="financial-title-values">
+                        <li class="idb topLabelIdbView">@Localization.GetText("FP.TASKTABLE.IDB")</li>
+                        <li class="localCounterPart midLabelLocalView">@Localization.GetText("FP.TASKTABLE.LocalCounterpart")</li>
+                        <li class="cofinancing bottonLabelCofinancigView">@Localization.GetText("FP.TASKTABLE.CoFinancing")</li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financialMonth" style="display:none">
+                    <ul class="totalCostEOP">
+                        <li class="idb">@Confluence.LabelDecimal(taskSource0.TotalCostEOP,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.TotalCostEOP.ToString() } })
+                        </li>
+                        
+                        <li class="localCounterPart">@Confluence.LabelDecimal(taskSource1.TotalCostEOP,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.TotalCostEOP.ToString() } })
+                        </li>
+
+                        <li class="cofinancing">@Confluence.LabelDecimal(taskSource2.TotalCostEOP,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.TotalCostEOP.ToString() } })
+                        </li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financialMonth" style="display:none">
+                    <ul class="totalCostEAC">
+                        <li class="idb">@Confluence.LabelDecimal(taskSource0.TotalCostEAC,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.TotalCostEAC.ToString() } })
+                        </li>
+
+                        <li class="localCounterPart">@Confluence.LabelDecimal(taskSource1.TotalCostEAC,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.TotalCostEAC.ToString() } })
+                        </li>
+
+                        <li class="cofinancing">@Confluence.LabelDecimal(taskSource2.TotalCostEAC,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.TotalCostEAC.ToString() } })
+                        </li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financialMonth remainingBalance" style="display:none">
+                    <ul class="remainingBalance">
+                        <li class="idb">@Confluence.LabelDecimal(taskSource0.RemainingBalance,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.RemainingBalance.ToString() } })
+                        </li>
+
+                        <li class="localCounterPart">@Confluence.LabelDecimal(taskSource1.RemainingBalance,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.RemainingBalance.ToString() } })
+                        </li>
+
+                        <li class="cofinancing">@Confluence.LabelDecimal(taskSource2.RemainingBalance,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.RemainingBalance.ToString() } })
+                        </li>
+                    </ul>
+                </td>
+                @for (int i = 0; i < contMonths; i++)
+                {
+                    var monthIDB = taskSource0.FinancialMonth[i];
+                    var monthLocal = taskSource1.FinancialMonth[i];
+                    var monthCo = taskSource2.FinancialMonth[i];
+
+                    <td class="financialMonth" style="display:none" data-pagemode="read">
+                        <ul class="@monthIDB.MonthName">
+                            <li class="idb" data-value="">@Confluence.LabelDecimal(monthIDB.MonthTotal)</li>
+                            <li class="localCounterPart" data-value="">@Confluence.LabelDecimal(monthLocal.MonthTotal)</li>
+                            <li class="cofinancing" data-value="">@Confluence.LabelDecimal(monthCo.MonthTotal)</li>
+                        </ul>
+                    </td>
+                    <td class="financialMonth financialMonth-edit" style="display:none" data-pagemode="edit">
+                        <ul class="@taskSource0.FinancialMonth[i].MonthName js_selectMonth" data-Month="@taskSource0.FinancialMonth[i].MonthIndex" data-Year="@taskSource0.FinancialMonth[i].Year">
+                            <li class="idb" data-value="">@Confluence.InputDecimal(taskSource0.FinancialMonth[i].MonthTotal, name: "idbMonthTotal", minValue: "0.00",
+                                                            dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.FinancialMonth[i].MonthTotal.ToString() }, { "month", monthIDB.MonthIndex.ToString() }, { "year", monthIDB.Year.ToString() } })</li>
+                            <li class="localCounterPart" data-value="">@Confluence.InputDecimal(taskSource1.FinancialMonth[i].MonthTotal, name: "localMonthTotal", minValue: "0.00",
+                                                                      dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.FinancialMonth[i].MonthTotal.ToString() }, { "month", monthLocal.MonthIndex.ToString() }, { "year", monthLocal.Year.ToString() } })</li>
+                            <li class="cofinancing" data-value="">@Confluence.InputDecimal(taskSource2.FinancialMonth[i].MonthTotal, name: "cofinancingMonthTotal", minValue: "0.00",
+                                                                 dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.FinancialMonth[i].MonthTotal.ToString() }, { "month", monthCo.MonthIndex.ToString() }, { "year", monthCo.Year.ToString() } })</li>
+                        </ul>
+                    </td>
+                }
+                <td class="financialTdValues financialMonth restOfYear" style="display:none" data-pagemode="read">
+                    <ul class="restOfYear">
+                        <li class="idb">@taskSource0.RestOfYear</li>
+                        <li class="localCounterPart">@taskSource1.RestOfYear</li>
+                        <li class="cofinancing">@taskSource2.RestOfYear</li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financialMonth financialMonth-edit restOfYear" style="display:none" data-pagemode="edit">
+                    <ul class="restOfYear js_restOfYear">
+                        @{
+                            var restOfYearValueIDB = @taskSource0.RestOfYear;
+                            var restOfYearValueLocal = @taskSource1.RestOfYear;
+                            var restOfYearValueCo = @taskSource2.RestOfYear;
+                        }
+                        <li class="idb">@Confluence.InputDecimal(value: restOfYearValueIDB, name: "restOfYearIDB", htmlClass: "top-inputDecimal-style restOfYearInput", dataAttributes: new Dictionary<string, string>() { { "SourceIdb", taskSource0.SourceType }, { "usdValue", (restOfYearValueIDB > 0 ? restOfYearValueIDB.ToString() : "0.00") } })</li>
+                        <li class="localCounterPart">@Confluence.InputDecimal(value: restOfYearValueLocal, name: "restOfYearLOCAL", htmlClass: "mid-inputDecimal-style restOfYearInput", dataAttributes: new Dictionary<string, string>() { { "SourceLocal", taskSource1.SourceType }, { "usdValue", (restOfYearValueLocal > 0 ? restOfYearValueLocal.ToString() : "0.00") } })</li>
+                        <li class="cofinancing">@Confluence.InputDecimal(value: restOfYearValueCo, name: "restOfYearCO", htmlClass: "bottom-inputDecimal-style restOfYearInput", dataAttributes: new Dictionary<string, string>() { { "SourceCo", taskSource2.SourceType }, { "usdValue", (restOfYearValueCo > 0 ? restOfYearValueCo.ToString() : "0.00") } })</li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financialMonth totalBySource" style="display:none">
+                    <ul class="totalBySource">
+                        <li class="idb"></li>
+                        <li class="localCounterPart"></li>
+                        <li class="cofinancing"></li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financialMonth" style="display:none">
+                    <ul class="remainingToProject">
+                        <li class="idb"></li>
+                        <li class="localCounterPart"></li>
+                        <li class="cofinancing"></li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals">
+                    <ul class="totalAmount">
+                        <li class="idb">@Confluence.LabelDecimal(taskSource0.TotalCostEAC, 
+                                                    dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.TotalCostEAC.ToString() } })</li>
+                        <li class="localCounterPart">@Confluence.LabelDecimal(taskSource1.TotalCostEAC,
+                                                    dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.TotalCostEAC.ToString() } })</li>
+                        <li class="cofinancing">@Confluence.LabelDecimal(taskSource2.TotalCostEAC,
+                                                    dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.TotalCostEAC.ToString() } })</li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals td_execute_viewMode" data-pagemode="read">
+                    <ul>
+                        <li class="idb">
+                            @Confluence.LabelDecimal(taskSource0.ExecuteAmount,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.ExecuteAmount.ToString() } }, htmlClass: "labelDecimalExecuteIDB")
+                        </li>
+                        <li class="localCounterPart">
+                            @Confluence.LabelDecimal(taskSource1.ExecuteAmount,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.ExecuteAmount.ToString() } }, htmlClass: "labelDecimalExecuteLocal")
+                        </li>
+                        <li class="cofinancing">
+                            @Confluence.LabelDecimal(taskSource2.ExecuteAmount,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.ExecuteAmount.ToString() } }, htmlClass: "labelDecimalExecuteCO")
+                        </li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals financial-totals-edit js_executedAmount td_execute_editMode" data-pagemode="edit">
+                    <ul class="js_executedAmount">
+                        @{
+                            var executedValueIDB = @taskSource0.ExecuteAmount;
+                            var executedValueLocal = @taskSource1.ExecuteAmount;
+                            var executedValueCo = @taskSource2.ExecuteAmount;
+                        }
+                        <li class="idb">@Confluence.InputDecimal(value: executedValueIDB, name: "inputDecimalExecuteMonthIDB", htmlClass: "top-inputDecimal-style executedAmountInput", dataAttributes: new Dictionary<string, string>() { { "SourceIdb", taskSource0.SourceType }, { "usdValue", (executedValueIDB > 0 ? executedValueIDB.ToString() : "0.00") } })</li>
+                        <li class="localCounterPart">@Confluence.InputDecimal(value: executedValueLocal, name: "inputDecimalExecuteMonthLOCAL", htmlClass: "mid-inputDecimal-style executedAmountInput", dataAttributes: new Dictionary<string, string>() { { "SourceLocal", taskSource1.SourceType }, { "usdValue", (executedValueLocal > 0 ? executedValueLocal.ToString() : "0.00") } })</li>
+                        <li class="cofinancing">@Confluence.InputDecimal(value: executedValueCo, name: "inputDecimalExecuteMonthCO", htmlClass: "bottom-inputDecimal-style executedAmountInput", dataAttributes: new Dictionary<string, string>() { { "SourceCo", taskSource2.SourceType }, { "usdValue", (executedValueCo > 0 ? executedValueCo.ToString() : "0.00") } })</li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals js_Percent_Executed">
+                    <ul style="text-align: left;vertical-align: middle;">
+                        <li class="idb">@rowItem.Executed</li> 
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals yearCurrent">
+                    <ul class="year1">
+                        <li class="idb">@Confluence.LabelDecimal(taskSource0.TotalYear1,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.TotalYear1.ToString() } })
+                        </li>
+                        
+                        <li class="localCounterPart">
+                            @Confluence.LabelDecimal(taskSource1.TotalYear1,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.TotalYear1.ToString() } })
+                        </li>
+                        
+                        <li class="cofinancing">
+                            @Confluence.LabelDecimal(taskSource2.TotalYear1,
+                                        dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.TotalYear1.ToString() } })
+                        </li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals yearNext">
+                    <ul class="year2">
+                        <li class="idb">
+                            @Confluence.LabelDecimal(taskSource0.TotalYear2,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.TotalYear2.ToString() } })
+                        </li>
+                        
+                        <li class="localCounterPart">
+                            @Confluence.LabelDecimal(taskSource1.TotalYear2,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.TotalYear2.ToString() } })
+                        </li>
+
+                        <li class="cofinancing">
+                            @Confluence.LabelDecimal(taskSource2.TotalYear2,
+                                      dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.TotalYear2.ToString() } })
+                        </li>
+                    </ul>
+                </td>
+                <td class="financialTdValues financial-totals remainingYearValues">
+                    <ul class="remainingYears">
+                        <li class="idb">@Confluence.LabelDecimal(taskSource0.RemainingYears,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource0.RemainingYears.ToString() } })</li>
+                        <li class="localCounterPart">@Confluence.LabelDecimal(taskSource1.RemainingYears,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource1.RemainingYears.ToString() } })</li>
+                        <li class="cofinancing">@Confluence.LabelDecimal(taskSource2.RemainingYears,
+                                       dataAttributes: new Dictionary<string, string>() { { "usdValue", taskSource2.RemainingYears.ToString() } })</li>
+                    </ul>
+                </td>
+                @if (rowItem.IsComponent)
+                {
+                    <td data-pagemode="edit" class="financialTdClearExecutionMode financialTdClear remainingYearValues" style="background-color: @rowItem.ColorRow">
+                        <ul>
+                            <li class="financialButtonCancel financial-relative tooltips">@Confluence.ButtonErase(text: "")
+                                <span class="financial-tooltip erase-tooltip hide">@Localization.GetText("FP.Tooltip.Erase")</span>
+                            </li>
+                        </ul>
+                    </td>
+                }
+                else
+                {
+                    <td class="financialTdClearExecutionMode financialTdClear" style="background-color: @rowItem.ColorRow"></td>
+                }
+            </tr>
+                    }
+         <tr data-id="" class="financial-table-results-bottom">
+            <td class="tree"><span></span><span class="selected"></span></td>
+            <td></td>
+            <td></td>
+            <td class="financialTdClearExecutionModeTotals"></td>
+            <td></td>
+            <td></td>
+            <td></td>
+             <td></td>
+            <td class="financial-table-results-bottom-titles" style="height:auto">
+                <ul class="financial-title-values">
+                    <li class="idb topLabelIdbView">@Localization.GetText("FP.TASKTABLE.TotalIDB")</li>
+                    <li class="localCounterPart midLabelLocalView">@Localization.GetText("FP.TASKTABLE.TotalLocalCounterpart")</li>
+                    <li class="cofinancing bottonLabelCofinancigView">@Localization.GetText("FP.TASKTABLE.TotalCoFinancing")</li>
+                </ul>
+            </td>
+             <td class="financialMonth totalCostEOPTotalsColumn" style="display:none">
+                 <ul class="totalCostEOPTotals">
+                     <li class="idbTotalEOP"></li>
+                     <li class="localCounterPartTotalEOP"></li>
+                     <li class="cofinancingTotalEOP"></li>
+                 </ul>
+             </td>
+             <td class="financialMonth" style="display:none">
+                 <ul class="totalCostEACTotals">
+                     <li class="idbTotalEAC"></li>
+                     <li class="localCounterPartTotalEAC"></li>
+                     <li class="cofinancingTotalEAC"></li>
+                 </ul>
+             </td>
+             <td class="financialMonth" style="display:none">
+                 <ul class="remainingBalanceTotal">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+            @{ var countMonths = Model.FinancialTaskList.First().FinancialTaskSources[0].FinancialMonth.Count; }
+            @for (int i = 0; i < countMonths; i++)
+            {
+                <td class="financialMonth" style="display:none">
+                    <ul class="total-@Model.FinancialTaskList.First().FinancialTaskSources[0].FinancialMonth[i].MonthName">
+                        <li class="idb"></li>
+                        <li class="localCounterPart"></li>
+                        <li class="cofinancing"></li>
+                    </ul>
+                </td>
+            }
+             <td class="financialMonth restOfYearTotal" style="display:none">
+                 <ul class="restOfYearTotal">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class="financialMonth" style="display:none">
+                 <ul class="totalBySourceTotal">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class="financialMonth" style="display:none">
+                 <ul class="remainingToProjectTotal">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class="financial-totals totalAmountTotalsColumn">
+                 <ul class="totalAmountTotals">
+                     <li class="idb">total</li>
+                     <li class="localCounterPart">total</li>
+                     <li class="cofinancing">total</li>
+                 </ul>
+             </td>
+             <td class="financial-totals executedAmountTotals">
+                 <ul>
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class="financial-totals executedAmountTotalsPercent">
+                 <ul>
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class="financial-totals yearCurrentTotal">
+                 <ul class="year1Total">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class ="financial-totals yearNextTotal">
+                 <ul class="year2Total">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+             <td class="financial-totals remainingYearsTotalColumn">
+                 <ul class="remainingYearsTotal">
+                     <li class="idb"></li>
+                     <li class="localCounterPart"></li>
+                     <li class="cofinancing"></li>
+                 </ul>
+             </td>
+            <td></td>
+        </tr>
+    }
+
+</tbody>
+   

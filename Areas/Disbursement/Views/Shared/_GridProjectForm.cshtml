@@ -1,0 +1,146 @@
+﻿@using IDB.MW.Domain.Models.Disbursement
+@model IDB.MW.Domain.Models.Disbursement.IProjectionViewModel
+@{
+    Layout = null;
+    var AllLoans = (IDB.MW.Domain.Models.Disbursement.OperationLevelProjectionsViewModel)ViewBag.AllLoans;
+    var evaluate = true;
+    if (AllLoans == null)
+    {
+        evaluate = false;
+    }
+    int countYellowRows = 0;
+    int CurrentExpirationDateRule = int.Parse(Model.CurrentDisbursementExpirationDate.Year.ToString() +
+        Model.CurrentDisbursementExpirationDate.Month.ToString("00"));
+    decimal cellValue = 0;
+    string css = string.Empty;
+    List<ActualsFromEdwViewModel> currentFromEdw = Model.OldProjection;
+    var j = 0;
+
+    var width = "width: 6.6% !important; min-width: 6.6% !important; max-width: 6.6% !important;";
+    var widthinput = "width: 100%";
+
+}
+
+<div class="informationplace" style="width: 300px;">
+    <div class="icoInformation"></div>
+    <div class="information-text">
+        <label>@Localization.GetText("Disbursement.GridProject.AmountsInThousandUSD")</label>
+        <label class="information-text ml0" data-id="expressedCurrency">@Model.CurrCode</label>
+    </div>
+</div>
+
+<table id="currentProjectionTable" class="tableNormal">
+    <thead>
+        <tr>
+            <th style="@width">@Localization.GetText("Year")</th>
+            <th style="@width">@Localization.GetText("Jan")</th>
+            <th style="@width">@Localization.GetText("Feb")</th>
+            <th style="@width">@Localization.GetText("Mar")</th>
+            <th style="@width">@Localization.GetText("Apr")</th>
+            <th style="@width">@Localization.GetText("May")</th>
+            <th style="@width">@Localization.GetText("Jun")</th>
+            <th style="@width">@Localization.GetText("Jul")</th>
+            <th style="@width">@Localization.GetText("Aug")</th>
+            <th style="@width">@Localization.GetText("Sep")</th>
+            <th style="@width">@Localization.GetText("Oct")</th>
+            <th style="@width">@Localization.GetText("Nov")</th>
+            <th style="@width">@Localization.GetText("Dec")</th>
+            <th style="@width">@Localization.GetText("Total")</th>
+            <th style="@width">%</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var projected_year in Model.ProjectedYears)
+        {
+            decimal all_loans_value = 0;
+            decimal total = 0;
+            var month = new IDB.MW.Domain.Models.Disbursement.ProjectedMonthYearModel();
+            <tr>
+                <td class="text-center" style="@width">@Confluence.LabelBold(projected_year.Year.ToString())</td>
+                @foreach (var projected_month in projected_year.ProjectedMonths)
+                {
+                    css = "smallFontDP ";
+                    if (evaluate)
+                    {
+                        if (j < AllLoans.ProjectedMonths.Count())
+                        {
+                            month = AllLoans.ProjectedMonths.ElementAt(j);
+                            all_loans_value = month.ProjectedAmount;
+                            j++;
+                        }
+                    }
+                    var id = projected_month.Month.ToString() + '_' + projected_year.Year;
+                    int currentDateValue = int.Parse(projected_year.Year.ToString() + projected_month.Month.ToString("00"));
+                    var projected_date = new DateTime(projected_year.Year, projected_month.Month, 1);
+                    if (currentDateValue > CurrentExpirationDateRule && countYellowRows < 12 && Model.IsExecution)
+                    {
+                        css += "yellow ";
+                        countYellowRows++;
+                    }
+
+                    if (Model.CurrentDisbursementExpirationDate != DateTime.MaxValue &&
+                        (projected_date > Model.CurrentDisbursementExpirationDate))
+                    {
+                        css += "disbursement-after-expiration ";
+                    }
+
+                    if (currentDateValue < int.Parse(DateTime.Now.Year.ToString() + Model.CurrentProjectionMonth.ToString("00")))
+                    {
+                        cellValue = currentFromEdw != null
+                            ? currentFromEdw.Where(x => x.Year == projected_year.Year && x.Month == projected_month.Month)
+                            .Select(x => x.Value).FirstOrDefault() / 1000
+                            : default(decimal);
+                        css += "disabled ";
+                    }
+                    else if (projected_month.ProjectedAmount == decimal.MinValue)
+                    {
+                        cellValue = 0;
+                        css += "disabled ";
+                    }
+                    else
+                    {
+                        cellValue = projected_month.ProjectedAmount;
+                        css += "centerAlign disbursement-grid-value ";
+                    }
+
+                    total += cellValue;
+
+                    if (currentDateValue == int.Parse(DateTime.Now.Year.ToString() + Model.CurrentProjectionMonth.ToString("00")))
+                    {
+                        var currentMonthActual = currentFromEdw != null
+                            ? currentFromEdw.Where(x => x.Year == projected_year.Year && x.Month == projected_month.Month)
+                            .Select(x => x.Value).FirstOrDefault() / 1000
+                            : default(decimal);
+                        <td data-type="value" class="text-right pt0 pb0" style="width: 6.6% !important; min-width: 6.6% !important; max-width: 6.6% !important; ">
+                            <div style="height:40%;">
+                                <input id="actualDisbursementProjection" value=@currentMonthActual ignore-value type="text" class="inputText smallFontDP disabled" disabled="disabled" style="width: 100%; height:90%;line-height:90%;" data-a-dec="." data-a-sep=",">
+                            </div>
+                            <div style="height:40%">
+                                <input value="@cellValue" type="text" class="inputText @css" style="width: 100%; height:90%;line-height:90%;" data-all-loans="@all_loans_value" id="@id" data-a-dec="." data-a-sep=",">
+                            </div>
+                        </td>
+                    }
+                    else
+                    {
+                        if (projected_month.ProjectedAmount == decimal.MinValue)
+                        {
+
+                            <td data-type="value" class="@css smallFont text-right" style="@width">
+                                @Confluence.LabelDecimal(cellValue)
+                                <input type="hidden" value="@cellValue" id="@id" class="disabledProjectedValue" />
+                            </td>
+                        }
+                        else
+                        {
+                            <td data-type="value" class="text-right" style="@width">
+                                <input value="@cellValue" type="text" class="inputText @css " @(css.IndexOf("disabled") > -1 ? "disabled=\"disabled\"" : null) style="@widthinput" data-all-loans="@all_loans_value" id="@id" data-a-dec="." data-a-sep=",">
+                            </td>
+                        }
+                    }
+                }
+                <td data-type="total" class="text-right total" style="@width">@Confluence.LabelDecimal(total, true)</td>
+                <td data-type="percent" class="text-right" style="@width">@Confluence.LabelDecimalPercent(total / (Model.Total > decimal.Zero ? Model.Total : 1)  * 100, true)</td>
+            </tr>
+        }
+    </tbody>
+</table>

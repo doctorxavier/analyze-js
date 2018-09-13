@@ -1,0 +1,550 @@
+﻿@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.DataTables.Common
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MVCControls.DataTable.Models
+
+@model ContractDetailsViewModel
+
+@{
+    var modificationList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ContractModificationTypeEnum").ConvertToSelectListItems().ConvertToMultiDropDownItem();
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.ContractAmendments)
+        .Name("ContractAmendments")
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => UserTemplate(c, false))
+            .HeaderAttribute("style", "width: 100px;min-width: 100px;max-width: 100px;")
+            .Header(Localization.GetText("COMMON.User"));
+
+            columns.Template(c => DateTemplate(c, false))
+            .CssClass("textalign-center date-template")
+            .HeaderAttribute("style", "width: 100px;min-width: 100px;max-width: 100px;")
+            .Header(Localization.GetText("COMMON.Date"));
+
+            columns.Template(c => DocumentNumberTemplate(c, false))
+            .CssClass("document-number")
+            .HeaderAttribute("style", "width: 70px;min-width: 70px;max-width: 70px;")
+            .Header(Localization.GetText("COMMON.SVQ.DocNumber#"));
+
+            columns.Template(c => ModificationTemplate(c, modificationList, false))
+            .HeaderAttribute("style", "width: 150px;min-width: 150px;max-width: 150px;")
+            .Header(Localization.GetText("SGP.Label.Modification"));
+
+            columns.Template(c => AmendmentTemplate(c, false))
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 145px;min-width: 145px;max-width: 145px;")
+            .Header(Localization.GetText("SGP.Label.AmedmentSignature"));
+
+            columns.Template(c => DescriptionTemplate(c, false))
+            .HeaderAttribute("style", "width: 124px;min-width: 124px;max-width: 124px;")
+            .Header(Localization.GetText("COMMON.Description"));
+
+            columns.Template(c => NonOjectionStatusTemplate(c, false))
+            .HeaderAttribute("style", "width: 107px;min-width: 107px;max-width: 107px;")
+            .Header(Localization.GetText("SGP.Label.NonObjectionStatus"));
+
+            columns.Template(c => ColumnActions(c, false))
+            .CssClass("textalign-center pr0 pl0")
+            .HeaderAttribute("style", "width: 140px;min-width: 140px;max-width: 140px;")
+            .Header(Localization.GetText("COMMON.Action"));
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.FirstRow, t => RowTemplate(new ContractDataDocumentViewModel() { DetailsAmendment = new ContractDetailsDataViewModel() }, modificationList));
+            x.Create(RowTemplateType.FirstRow, t => DetailEditTemplate(new ContractDataDocumentViewModel() { DetailsAmendment = Model.DetailsCurrent }, true));
+            x.Create(RowTemplateType.AllRows, t => DetailsTemplate(t, false));
+        });
+
+    config.TableClass = "tableNormal";
+}
+
+<div class="row mb5">
+    <div class="col-xs-4">
+        @(Html.CollapseSingle("collapseComponent")
+          .HtmlClass("component-collapse alignSubtitle")
+          .TargetRegionSelector("[data-name=\"contract-amedments-section\"]")
+        )
+        <div style="display:inline-block; margin-left:10px;">
+            @Confluence.LabelSubTitleGroup(Localization.GetText("SGP.Label.ContractAmendments"))
+        </div>
+    </div>
+    <div class="col-xs-2 pl0" style="padding-top:8px;">
+        @Confluence.LabelLinkBlank(text: Localization.GetText("SGP.COMMON.ViewTemplates"), url: "", name: "viewTemplatesLink", htmlClass: "bold align-subtitle hide")
+    </div>
+    @if (Model.ShowConfirmContractAmendment)
+    {
+        <div class="col-xs-6" style="text-align:right;">
+            @Confluence.ButtonBlue(Localization.GetText("SGP.Button.ConfirmContractAmendment"), "confirm-amendment")
+        </div>
+    }
+</div>
+<div class="row mb20" data-name="contract-amedments-section">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+<div class="row mb30 mt30">
+    <div class="col-xs-12 text-center">
+        @Confluence.ButtonAddNewRows(Localization.GetText("SGP.Button.AddAmedments"), "", name: "addNewAmendment", htmlClass: Model.CanAddAmendment ? string.Empty : "hide")
+    </div>
+</div>
+
+@helper UserTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var userName = Model.ViewContainer.GetValue<string>("User");
+    if (isTemplate)
+    {
+        var user = userName;
+        @user.HtmlEncode()
+        @Confluence.InputText(user, name: "user-amendment", disabled: true, required: false, htmlClass: "hide")
+
+    }
+    else
+    {
+        @row.User.HtmlEncode()
+        @Confluence.InputText(row.User, name: "user-amendment", disabled: true, required: false, htmlClass: "hide")
+    }
+
+    if (row.CanBeEdited || isTemplate)
+    {
+        @Confluence.InputText(string.Empty, name: "row-excluded-amendment", disabled: true, required: false, htmlClass: "hide")
+    }
+    else
+    {
+        @Confluence.InputText("excluded", name: "row-excluded-amendment", disabled: true, required: false, htmlClass: "hide")
+    }
+}
+
+@helper DateTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    if (isTemplate)
+    {
+        @Confluence.InputDatePicker(DateTime.Today, name: "date-amendment", disabled: true, htmlClass: "hide")
+    }
+    else
+    {
+        @FormatHelper.Format(row.Date, formatDate).HtmlEncode()
+        @Confluence.InputDatePicker(row.Date, name: "date-amendment", disabled: true, htmlClass: "hide")
+    }
+}
+
+@helper DocumentNumberTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    <span data-section="documentNumber" class="textalign-center">
+        @if (!isTemplate)
+        {
+            @Confluence.ButtonLink(row.DocumentNumber, "documentNumberLink", htmlClass: "bold");
+        }
+    </span>
+
+    @Confluence.InputText(row.DocumentNumber, name: "documentNumber-amendment", disabled: true, htmlClass: "hide", required: true)
+}
+
+@helper ModificationTemplate(ContractDataDocumentViewModel row, List<MultiDropDownItem> items, bool isTemplate)
+{
+    if (row.CanBeEdited || isTemplate)
+    {
+        @(Html.MultiDropDown("modifications-amendment")
+          .HtmlClass("multiDropdown130SGP")
+          .Items(items)
+          .SelectedItems(row.ModificationIds)
+          .Disable(isTemplate)
+          .Initialize(!isTemplate)
+          .Required())
+    }
+    else
+    {
+        var text = string.Empty;
+        foreach (var item in row.ModificationTexts)
+        {
+            text = text + item + ", ";
+        }
+
+        @(text.IsEmpty() ? text : text.Substring(0, text.Length - 2))
+    }
+}
+
+@helper AmendmentTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    if (row.CanBeEdited || isTemplate)
+    {
+        @Confluence.InputDatePicker(
+         value: isTemplate ? (DateTime?)null : row.DetailsAmendment.SignatureDate.Item1,
+         name: "signatureDate-amendment",
+         disabled: isTemplate,
+         required: true,
+         width: "125px")
+    }
+    else
+    {
+        @FormatHelper.Format(row.DetailsAmendment.SignatureDate.Item1, formatDate)
+    }
+}
+
+@helper DescriptionTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    if (row.CanBeEdited || isTemplate)
+    {
+        @Confluence.InputText(row.Description, "description-amendment", disabled: isTemplate || string.IsNullOrEmpty(row.DocumentNumber), width: "100%", required: false, maxLength: 200)
+    }
+    else
+    {
+        @row.Description.HtmlEncode()
+    }
+}
+
+@helper NonOjectionStatusTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+
+    if (isTemplate)
+    {
+        var naId = Model.ViewContainer.GetValue<int>("notAplicableStatus");
+        var naText = Model.ViewContainer.GetValue<string>("notAplicableStatusText");
+        @naText.HtmlEncode()
+        @Confluence.InputText(naId.ToString(), "nonObjectionStatus-amendment", htmlClass: "hide")
+    }
+    else
+    {
+        @row.NonObjectionStatusText.HtmlEncode()
+        @Confluence.InputText(row.NonObjectionStatusId.ToString(), "nonObjectionStatus-amendment", htmlClass: "hide")
+    }
+}
+
+@helper ColumnActions(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    <div class="textalign-center">
+        @if (isTemplate || row.CanBeEdited)
+        {
+            @Confluence.ButtonUpload("", "UploadAmedment")
+            @Confluence.ButtonTrash("", "removeRow-amendment")
+        }
+
+        @(Html.CollapseSingle("collapseAmedmentsDetails")
+        .HtmlClass("arrow")
+        .TargetRegionSelector(x => x.Closest("tr").Next())
+        .AsociatedCollapseAllSelector("[data-name=\"collapseAllAmedments\"]"))
+    </div>
+}
+
+@helper RowTemplate(ContractDataDocumentViewModel row, List<MultiDropDownItem> items)
+{
+    <tr class="template hide">
+        <td>
+            @UserTemplate(row, true)
+        </td>
+        <td class="textalign-center date-template">
+            @DateTemplate(row, true)
+        </td>
+        <td class="document-number">
+            @DocumentNumberTemplate(row, true)
+        </td>
+        <td>
+            @ModificationTemplate(row, items, true)
+        </td>
+        <td class="textalign-center">
+            @AmendmentTemplate(row, true)
+        </td>
+        <td>
+            @DescriptionTemplate(row, true)
+        </td>
+        <td class="textalign-center">
+            @NonOjectionStatusTemplate(row, true)
+        </td>
+        <td class="textalign-center pr0 pl0">
+            @ColumnActions(row, true)
+        </td>
+    </tr>
+}
+
+@helper DetailsTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    if (row.CanBeEdited)
+    {
+        @DetailEditTemplate(row, isTemplate)
+    }
+    else
+    {
+        @DetailReadTemplate(row, isTemplate)
+    }
+}
+
+@helper DetailEditTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var currencyAmountList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("CurrencyAmountList").ConvertToSelectListItems(code: true);
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var formatDolar = appSettings.FormatIntegerDolar;
+
+    var modificationStartDateId = Model.ViewContainer.GetValue<int>("ModificationStartDateId");
+    var modificationEndDateId = Model.ViewContainer.GetValue<int>("ModificationEndDateId");
+    var modificationAmountId = Model.ViewContainer.GetValue<int>("ModificationAmountId");
+    var modificationLotsId = Model.ViewContainer.GetValue<int>("ModificationLotsId");
+
+    var modificationIds = row.ModificationIds;
+    var showDetail = modificationIds.Any();
+
+    var startDateModifys = modificationIds.Any(x => x == modificationStartDateId) ? string.Empty : "hide";
+    var endDateModifys = modificationIds.Any(x => x == modificationEndDateId) ? string.Empty : "hide";
+    var amountModifys = modificationIds.Any(x => x == modificationAmountId) ? string.Empty : "hide";
+    var lotsModifys = modificationIds.Any(x => x == modificationLotsId) ? string.Empty : "hide";
+
+    var showQuantity = Model.ViewContainer.GetValue<bool>("showQuantity");
+    var showLots = Model.ViewContainer.GetValue<bool>("showLots");
+
+    <tr class="@(isTemplate ? "template hide": "") extend-custom" @(isTemplate ? "" : "data-id=" + row.Id.ToString() + "") data-section="details-amendment">
+        <td colspan="9">
+            <div class="row mb5">
+                <div class="col-xs-3 @(startDateModifys)" data-section-amedment="@(modificationStartDateId)">
+                    @Confluence.Label(Localization.GetText("SGP.Label.NewContractStartDate"))
+                </div>
+                <div class="col-xs-3 @(endDateModifys)" data-section-amedment="@(modificationEndDateId)">
+                    @Confluence.Label(Localization.GetText("SGP.Label.NewContractEndDate"))
+                </div>
+            </div>
+            <div class="row mb15">
+                <div class="col-xs-3 @(startDateModifys)" data-section-amedment="@(modificationStartDateId)">
+                    @Confluence.InputDatePicker(row.DetailsAmendment.StartDate.Item1, name: "dateStartDate-amendment", required: true, disabled: (startDateModifys == "hide"), dataAttributes: new Dictionary<string, string>() { { "parsley-StartDateLessSignatureDate", "[name=\"dateSignature-contracts\"]" } })
+                </div>
+                <div class="col-xs-3 @(endDateModifys)" data-section-amedment="@(modificationEndDateId)">
+                    @Confluence.InputDatePicker(row.DetailsAmendment.EndDate.Item1, name: "dateEndDate-amendment", required: true, disabled: (endDateModifys == "hide"), dataAttributes: new Dictionary<string, string>() { { "parsley-endDatelessSignatureDate", "[name=\"dateSignature-contracts\"]" }, { "parsley-endDateGreaterStartDate", row.Id.ToString() } })
+                </div>
+            </div>
+            <div class="row mb5 @(amountModifys)" data-section-amedment="@(modificationAmountId)">
+                <div class="col-xs-2">
+                    @Confluence.Label(Localization.GetText("COMMON.Currency"))
+                </div>
+                <div class="col-xs-4">
+                    @Confluence.Label(Localization.GetText("SGP.Button.AddSubAmount"))
+                </div>
+                <div class="col-xs-4">
+                    @Confluence.Label(Localization.GetText("SGP.Label.ConvertedToUSDNoSystem"))
+                    @Confluence.Label(Localization.GetText("SGP.Label.SystemUSDConversion"), htmlClass: "fontSize11px")
+                </div>
+            </div>
+            <div data-name="amount-container-amedment">
+                @foreach (var item in row.DetailsAmendment.CurrencyAmounts)
+                {
+                    <div data-name="amount-item-amedment" class="row mb10  @(amountModifys)" data-section-amedment="@(modificationAmountId)">
+                        <div class="col-xs-2">
+                            @Confluence.LabelBold(item.CurrencyAmountTypeCode.Item1)
+                            @Confluence.InputDropDown(item.CurrencyAmountTypeId.ToString(), name: "currencyType-amendment", elements: currencyAmountList, width: "100%", required: true, htmlClass: "hide", orderAsc: false, dataAttributes: new Dictionary<string, string> { { "persist-amountId", item.Id.ToString() } })
+                            @Confluence.InputDropDown(item.CurrentId.ToString(), name: "currencyTypeId-amendment", elements: currencyAmountList, width: "100%", required: true, htmlClass: "hide", orderAsc: false, dataAttributes: new Dictionary<string, string> { { "persist-amountId", item.Id.ToString() } })
+                            @Confluence.InputText(item.IdAssociatedAmount.ToString(), name: "idAssociatedAmount-amendment", required: false, disabled: true, htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "persist-amountId", item.Id.ToString() } })
+                        </div>
+                        <div class="col-xs-4">
+                            @Confluence.InputDecimal(item.TotalContractAmount.Item1, name: "totalAmount-amendment", width: "100%", disabled: false, required: true, maxValue: "999999999", dataAttributes: new Dictionary<string, string> { { "persist-amountId", item.Id.ToString() } })
+                        </div>
+                        <div class="col-xs-4">
+                            <div data-name="converted-amendment">
+                                @Confluence.LabelBold(FormatHelper.Format(item.ConvertedUSDAmount.Item1, formatDolar))
+                                @Confluence.InputText(item.ConvertedUSDAmount.Item1.ToString(), name: "convertToUSD-amendment", width: "100%", disabled: false, required: false, htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "persist-amountId", item.Id.ToString() } })
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (showLots)
+            {
+                <div data-name="lot-template-amedment" class="hide">
+                    <div data-name="lot-item-amedment" data-section-amedment="@(modificationLotsId)" data-isadded="true" class="row mb10" data-template="true">
+                        <div class="col-xs-3">
+                            @Confluence.InputText(string.Empty, name: "lotName-amendment", width: "100%", disabled: true, required: true, dataAttributes: new Dictionary<string, string>() { { "parsley-notDuplicateLotName", "tr[data-id=\"" + row.Id.ToString() + "\"][data-section=\"details-amendment\"] input[name=\"lotName-amendment\"]:not([disabled])" } })
+                        </div>
+                        @if (showQuantity)
+                        {
+                            <div class="col-xs-1">
+                                @Confluence.InputNumber(null, name: "quantity-amendment", width: "60px", minValue: "1", disabled: true, required: true)
+                            </div>
+                        }
+                        <div class="col-xs-2">
+                            @Confluence.InputDecimal(null, name: "lotAmount-amendment", width: "100%", disabled: true, required: true, maxValue: "999999999")
+                        </div>
+                        <div class="col-xs-1 pl0" style="padding-top:5px;">
+                            @Confluence.ButtonTrash("", "removeLotAmendment")
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb5 mt25 @(lotsModifys)" data-section-amedment="@(modificationLotsId)">
+                    <div class="col-xs-3">
+                        @Confluence.Label(Localization.GetText("SGP.Label.LotName"))
+                    </div>
+                    @if (showQuantity)
+                    {
+                        <div class="col-xs-1">
+                            @Confluence.Label(Localization.GetText("SGP.Label.Quantity"))
+                        </div>
+                    }
+                    <div class="col-xs-4">
+                        @Confluence.Label(Localization.GetText("COMMON.Amount"))
+                    </div>
+                </div>
+                <div data-name="lot-container-amedment">
+                    @foreach (var item in row.DetailsAmendment.Lots)
+                    {
+                        <div data-name="lot-item-amedment" class="row mb10 @(lotsModifys)" data-section-amedment="@(modificationLotsId)">
+                            <div class="col-xs-3">
+                                @Confluence.InputText(item.Name.Item1, name: "lotName-amendment", width: "100%", disabled: false, required: true, dataAttributes: new Dictionary<string, string> { { "persist-lotid", item.Id.ToString() }, { "parsley-notDuplicateLotName", "tr[data-id=\"" + row.Id.ToString() + "\"][data-section=\"details-amendment\"] input[name=\"lotName-amendment\"]:not([disabled])" } })
+                                @Confluence.InputText(item.IdAssociatedLot.ToString(), name: "idAssociatedLot-amendment", required: false, htmlClass: "hide", disabled: true, dataAttributes: new Dictionary<string, string> { { "persist-lotid", item.Id.ToString() } })
+                            </div>
+                            @if (showQuantity)
+                            {
+                                <div class="col-xs-1">
+                                    @Confluence.InputNumber(item.Quantity.Item1, name: "quantity-amendment", width: "60px", minValue: "1", disabled: false, required: true, dataAttributes: new Dictionary<string, string> { { "persist-lotid", item.Id.ToString() } })
+                                </div>
+                            }
+                            <div class="col-xs-2">
+                                @Confluence.InputDecimal(item.Amount.Item1, name: "lotAmount-amendment", width: "100%", disabled: false, required: true, maxValue: "999999999", dataAttributes: new Dictionary<string, string> { { "persist-lotid", item.Id.ToString() } })
+                            </div>
+                            <div class="col-xs-1 pl0" style="padding-top:5px;">
+                                @Confluence.ButtonTrash("", "removeLotAmendment")
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="row mt20 @(lotsModifys)" data-section-amedment="@(modificationLotsId)">
+                    <div class="col-xs-6 textalign-center">
+                        @Confluence.ButtonAddNewRows(Localization.GetText("SGP.Label.NewLot"), tableid: string.Empty, name: "addNewLotAmedment")
+                    </div>
+                </div>
+
+            }
+        </td>
+    </tr>
+}
+
+@helper DetailReadTemplate(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var formatDolar = appSettings.FormatIntegerDolar;
+
+    var modificationStartDateId = Model.ViewContainer.GetValue<int>("ModificationStartDateId");
+    var modificationEndDateId = Model.ViewContainer.GetValue<int>("ModificationEndDateId");
+    var modificationAmountId = Model.ViewContainer.GetValue<int>("ModificationAmountId");
+    var modificationLotsId = Model.ViewContainer.GetValue<int>("ModificationLotsId");
+
+    var modificationIds = row.ModificationIds;
+    var showDetail = modificationIds.Any();
+
+    var startDateModifys = modificationIds.Any(x => x == modificationStartDateId) ? string.Empty : "hide";
+    var endDateModifys = modificationIds.Any(x => x == modificationEndDateId) ? string.Empty : "hide";
+    var datesModifys = (startDateModifys == "hide" && endDateModifys == "hide") ? "hide" : string.Empty;
+    var amountModifys = modificationIds.Any(x => x == modificationAmountId) ? string.Empty : "hide";
+    var lotsModifys = modificationIds.Any(x => x == modificationLotsId) ? string.Empty : "hide";
+
+    var showQuantity = Model.ViewContainer.GetValue<bool>("showQuantity");
+    var showLots = Model.ViewContainer.GetValue<bool>("showLots");
+
+    <tr class="template extend-custom" data-id="@row.Id">
+        <td colspan="9">
+            @if (showDetail)
+            {
+                <div class="row @(startDateModifys == "hide" && endDateModifys == "hide" ? "": "mb5")">
+                    <div class="col-xs-3 @(startDateModifys)">
+                        @Confluence.Label(Localization.GetText("SGP.Label.NewContractStartDate"))
+                    </div>
+                    <div class="col-xs-3 @(endDateModifys)">
+                        @Confluence.Label(Localization.GetText("SGP.Label.NewContractEndDate"))
+                    </div>
+                </div>
+                <div class="row @(startDateModifys == "hide" && endDateModifys == "hide" ? "" : "mb25")">
+                    <div class="col-xs-3 @(startDateModifys)">
+                        @Confluence.LabelBold(FormatHelper.Format(row.DetailsAmendment.StartDate.Item1, formatDate))
+                    </div>
+                    <div class="col-xs-3 @(endDateModifys)">
+                        @Confluence.LabelBold(FormatHelper.Format(row.DetailsAmendment.EndDate.Item1, formatDate))
+                    </div>
+                </div>
+                <div class="row @(amountModifys) @(amountModifys == "hide" ? "" : "mb5")">
+                    <div class="col-xs-1">
+                        @Confluence.Label(Localization.GetText("COMMON.Currency"))
+                    </div>
+                    <div class="col-xs-3">
+                        @Confluence.Label(Localization.GetText("SGP.Button.AddSubAmount"))
+                    </div>
+                    <div class="col-xs-4">
+                        @Confluence.Label(Localization.GetText("SGP.Label.ConvertedToUSDNoSystem"))
+                        @Confluence.Label(Localization.GetText("SGP.Label.SystemUSDConversion"), htmlClass: "fontSize11px")
+                    </div>
+                </div>
+                foreach (var item in row.DetailsAmendment.CurrencyAmounts)
+                {
+                    <div data-name="amount-item" class="row @(amountModifys)">
+                        <div class="col-xs-1">
+                            @Confluence.LabelBold(item.CurrencyAmountTypeCode.Item1)
+                        </div>
+                        <div class="col-xs-3">
+                            @Confluence.LabelBold(FormatHelper.Format(item.TotalContractAmount.Item1, formatDecimal))
+                        </div>
+                        <div class="col-xs-4">
+                            <div data-name="converted-amendment">
+                                @Confluence.LabelBold(FormatHelper.Format(item.ConvertedUSDAmount.Item1, formatDolar))
+                                @Confluence.InputText(item.ConvertedUSDAmount.Item1.ToString(), name: "convertToUSD-amendment", width: "100%", disabled: false, required: false, htmlClass: "hide")
+                            </div>
+                        </div>
+                    </div>
+                }
+                if (showLots)
+                {
+                    <div class="row @(lotsModifys) @(lotsModifys == "hide" ? "" : "mb5")">
+                        <div class="col-xs-3">
+                            @Confluence.Label(Localization.GetText("SGP.Label.LotName"))
+                        </div>
+                        @if (showQuantity)
+                        {
+                            <div class="col-xs-1">
+                                @Confluence.Label(Localization.GetText("SGP.Label.Quantity"))
+                            </div>
+                        }
+                        <div class="col-xs-3">
+                            @Confluence.Label(Localization.GetText("COMMON.Amount"))
+                        </div>
+                    </div>
+                    foreach (var item in row.DetailsAmendment.Lots)
+                    {
+                        <div data-name="lot-item" class="row @(lotsModifys)">
+                            <div class="col-xs-3">
+                                @Confluence.LabelBold(item.Name.Item1)
+                            </div>
+                            @if (showQuantity)
+                            {
+                                <div class="col-xs-1">
+                                    @Confluence.LabelBold(item.Quantity.Item1.ToString())
+                                </div>
+                            }
+                            <div class="col-xs-3">
+                                @Confluence.LabelBold(FormatHelper.Format(item.Amount.Item1, formatDecimal))
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        </td>
+    </tr>
+}
+
+

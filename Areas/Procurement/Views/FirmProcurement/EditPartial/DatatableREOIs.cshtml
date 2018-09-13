@@ -1,0 +1,370 @@
+@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Architecture.DataTables.Common
+@using IDB.MW.Domain.EntityHelpers
+
+@model List<DocumentPublishRowViewModel>
+
+@{ 
+    string hasRuleForREOI = ViewBag.HasRuleForREOI == null ?
+        "null" :
+        ViewBag.HasRuleForREOI.ToString().ToLower();
+}
+
+@{
+    int index = -1;
+    var tableName = "REOIs";
+    var firstItem = Model.FirstOrDefault();
+    int? firstItemId = null;
+    if (firstItem != null)
+    {
+        firstItemId = firstItem.Id;
+    }
+
+    var reoisTable = Model.Select(d => {
+        index++;
+        return new DocumentReoiViewModel
+        {
+            Author = d.User,
+            CreationDate = d.Date,
+            DocumentId = d.Id,
+            DocumentName = d.Description,
+            DocumentNumber = d.DocumentNumber,
+            IsPublished = d.IsPublishIDB,
+            Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+            DiscloseDate = d.PublicationDate,
+            DeadlineDateControl = DeadlineColumn(d, index).ToHtmlString(),
+            IsPublishIDBControl = InputCheckboxREOi(isChecked: d.IsPublishIDB, inputId: tableName + "_" + index + "__IsPublishIDB",
+            inputName: tableName + "[" + index + "].IsPublishIDB",
+            isDisabled: d.IsPublishIDB && (firstItemId.HasValue && firstItemId.Value != d.Id)).ToHtmlString(),
+            IsPublishUNDBControl = InputCheckboxREOi(isChecked: d.IsPublishUNDB, inputId: tableName + "_" + index + "IsPublishUNDB",
+            inputName: tableName + "[" + index + "].IsPublishUNDB", isDisabled: d.IsPublishIDB).ToHtmlString()
+        };
+    })
+.ToList()
+.PopulateDataTable();
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.REOI"))
+                </div>
+                <div class="mb5">
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI"))
+                </div>
+                <div class="pr5">
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.For"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.NonConfidential"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.MustSelect"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.PublishREOI"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.TheTotal"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.OriginalProcurementEstimate"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.GreaterOrEquals"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.USD"), htmlClass: "italicStyle bold")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.RequirePublication"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.FullCompetitiveSelection"), htmlClass: "italicBolderStyle")
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.And"))
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.REOI.SeconSubTitle.Framework"), htmlClass: "italicBolderStyle")
+                </div>
+            </td>
+            <td class="table-transparent-buttons">
+                @Confluence.LabelLinkBlank(
+                    text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+                    url: AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+                    name: "viewTemplatesLink",
+                    htmlClass: "bold")
+            </td>
+            <td class="table-transparent-buttons">
+                <div class="mb5">
+                    <button class="buttonBlue pull-right"
+                            type="button"
+                            onclick="showDocumentModalBEO(event)"
+                            data-linked-table="@tableName"
+                            data-target-add="addDocumentReoiAndContractDocs"
+                            data-calendar-optional="true">
+                        @Localization.GetText("DM.Add.Document")
+                    </button>
+                </div>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb10">
+    <div class="col-xs-12">
+        @DocumentManagement.DynamicTable(tableName, tableName, reoisTable, true, false, deleteTargetFunction: "deleteDocumentBEO")
+    </div>
+</div>
+
+<div class="hide" id="templateInputDatePicker">
+    @DeadlineColumn(new DocumentPublishRowViewModel {  Id = 0 }, 0)
+</div>
+
+@helper InputCheckboxREOi(bool isChecked, string inputId, string inputName, bool isDisabled)
+{
+string checkedValue = (isChecked ? "checked='checked'" : string.Empty);
+string disabledValue = (isDisabled ? "disabled='disabled'" : string.Empty);
+
+    <label class="checkbox-default">
+        <input type="checkbox" @checkedValue @disabledValue id="@inputId" name="@inputName" onclick="statusCalendar(event)" />
+        <span class="checkbox-default-icon"></span>
+    </label>
+}
+
+@helper DeadlineColumn(DocumentPublishRowViewModel row, int index)
+{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var tableName = "REOIs";
+    var firstItem = Model.FirstOrDefault();
+    int? firstItemId = null;
+
+    if (firstItem != null)
+    {
+        firstItemId = firstItem.Id;
+    }
+
+    var attributesDate = new Dictionary<string, string>
+    {
+        { "min-date-message", HttpUtility.HtmlEncode(Localization.GetText("COMMON.MinDate.FutureDate")) }
+    };
+
+    @Confluence.InputDatePicker(
+        value: row.DeadlineDate,
+        name: tableName + "[" + index + "].DeadlineDate",
+        format: formatDate,
+        disabled: true,
+        width: "130px",
+        minDate: DateTime.Now.AddDays(1),
+        dataAttributes: attributesDate)
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        function changePublishIDB(checkIDB) {
+            var checkUNDB = checkIDB.closest('tr').find('input[name="REOIs-IsPublishUNDB"]');
+            var deadlineDate = checkIDB.closest('tr').find('input[name="REOIs-DeadlineDate"]');
+            var publicationDate = checkIDB.closest('tr').find('input[name="REOIs-PublicationDate"]');
+            var publicationDateRead = publicationDate.nextAll('span');
+
+            if (checkIDB.is(':checked')) {
+                deadlineDate.removeAttr('disabled');
+                publicationDateRead.removeClass('hide');
+            }
+            else {
+                checkUNDB.prop('checked', false);
+                publicationDateRead.addClass('hide');
+                deadlineDate.attr('disabled', 'disabled');
+                deadlineDate.val('');
+                checkUNDB.change();
+            }
+        }
+
+        function changePublishUNDB(checkUNDB) {
+            var checkIDB = checkUNDB.closest('tr').find('input[name="REOIs-IsPublishIDB"]');
+            var deadlineDate = checkUNDB.closest('tr').find('input[name="REOIs-DeadlineDate"]');
+
+            if (checkUNDB.is(':checked')) {
+                checkIDB.prop('checked', true);
+                changePublishIDB(checkIDB);
+                deadlineDate.removeAttr('disabled');
+                checkIDB.change();
+            }
+        }
+
+        function activePublishFirstRow(initialFirstTR, newTRs) {
+            if (newTRs.length == 0) {
+                return;
+            }
+
+            var defaulPublishIDB = false;
+            var defaulPublishUNDB = false;
+            var startIndex = 1;
+
+            if (initialFirstTR.length != 0) {
+                var publishIDB = initialFirstTR.find('[name="REOIs-IsPublishIDB"]');
+                var publishUNDB = initialFirstTR.find('[name="REOIs-IsPublishUNDB"]');
+                defaulPublishIDB = publishIDB.is(':checked');
+                defaulPublishUNDB = publishUNDB.is(':checked');
+                startIndex = 0;
+            }
+
+            for (var i = startIndex; i < newTRs.length; i++) {
+                var newTr = newTRs[i];
+                var publishIDB = newTr.find('[name="REOIs-IsPublishIDB"]');
+                var publishUNDB = newTr.find('[name="REOIs-IsPublishUNDB"]');
+
+                publishIDB.attr('disabled', 'disabled');
+                if (defaulPublishIDB) {
+                    publishIDB.attr('checked', 'checked');
+                    publishIDB.prop('checked', true);
+                    changePublishIDB(publishIDB);
+                }
+                publishUNDB.attr('disabled', 'disabled');
+                if (defaulPublishUNDB) {
+                    publishUNDB.attr('checked', 'checked');
+                    publishUNDB.prop('checked', true);
+                    changePublishUNDB(publishUNDB);
+                }
+            }
+        }
+
+        function AddIDBDocREOIAwardProc(items, type, filenames, source) {
+            var hasRuleForREOI = @hasRuleForREOI;
+            var tableName = source.attr('data-linked-table');
+            var tableId = '#' + tableName;
+            var table = $(tableId);
+            var tbody = table.children('tbody');
+            var templateMain = tbody.children(':first');
+            var templateDetail = tbody.children(':nth(1)');
+            var docs = [];
+
+            if (type == 'added') {
+                items.forEach(function (item, index, list) {
+                    docs.push({ DocumentNumber: item, Description: '' });
+                });
+            } else {
+                docs = items;
+            }
+
+            var firstTR = tbody.children(':not(.template):first');
+            var numRegs = table.find('tbody tr:not(.template)').length / 2;
+            var allNewTR = [];
+
+            docs.forEach(function (elem, index, list) {
+
+                numRegs++;
+
+                var newId = table.GenerateNewId();
+
+                var newTrMain = templateMain.clone(false);
+                var newTrDetail = templateDetail.clone(false);
+
+                newTrMain.removeClass('hide');
+                newTrMain.removeClass('template');
+                newTrMain.attr('data-id', 'new-' + newId);
+                if (numRegs % 2 == 0) {
+                    newTrMain.addClass('custom-even');
+                } else {
+                    newTrMain.addClass('custom-odd');
+                }
+
+                newTrDetail.removeClass('hide');
+                newTrDetail.removeClass('template');
+                newTrDetail.attr('data-id', 'new-' + newId);
+                newTrDetail.find('tr').attr('data-id', 'new-' + newId);
+
+                CustomEnable(newTrMain);
+                CustomEnable(newTrDetail);
+                SelectFirstElementOnDropDown(newTrMain);
+                SelectFirstElementOnDropDown(newTrDetail);
+
+                newTrDetail.find('.document-number').text(elem.DocumentNumber);
+                newTrDetail.find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                newTrDetail.find('input[name*="Description"]').val(elem.Description);
+
+                if (hasRuleForREOI != null) {
+                    var publishIDB = newTrMain.find('[name="REOIs-IsPublishIDB"]');
+                    changePublishIDB(publishIDB);
+                }
+
+                var datepickers = newTrMain.find('.hasDatepicker');
+                datepickers.removeAttr('id');
+
+                newTrMain.appendTo(tbody);
+                newTrDetail.appendTo(tbody);
+
+                allNewTR.push(newTrMain);
+                bindHandlers(newTrMain);
+                bindHandlers(newTrDetail);
+            });
+
+            validateChangeTable(table);
+
+            if (hasRuleForREOI == null)
+                activePublishFirstRow(firstTR, allNewTR);
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+
+            
+        }
+
+        registerCallback(function () {
+
+            $(document).on('click', '[name="addNewREOIDoc"]', function () {
+                var source = $(this);
+                var modalButton = $('[name="btn-open-popup-add-doc-reoi-award"]');
+
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+
+                var modalSelector = modalButton.attr('data-new-modal');
+                var modal = $(modalSelector);
+                var tab = modal.find('[data-tab-id="add"]');
+
+                tab.click();
+            });
+
+            var hasRuleForREOI = @hasRuleForREOI;
+
+            if (hasRuleForREOI != null) {
+                $(document).on('change', 'tr:not(.template) [name="REOIs-IsPublishIDB"]', function (e) {
+                    var checkIDB = $(this);
+
+                    checkIDB.prop('checked', checkIDB.prop('checked'));
+                    changePublishIDB(checkIDB);
+                });
+
+                $(document).on('change', 'tr:not(.template) [name="REOIs-IsPublishUNDB"]', function (e) {
+                    var checkUNDB = $(this);
+
+                    checkUNDB.prop('checked', checkUNDB.prop('checked'));
+                    changePublishUNDB(checkUNDB);
+                });
+            }
+
+            if (hasRuleForREOI == null) {
+                $(document).on('change', 'tr:not(.template) [name="REOIs-IsPublishIDB"]:first', function (e) {
+                    var checkIDB = $(this);
+                    var allCheckIDBs = $('tr:not(.template) [name="REOIs-IsPublishIDB"]');
+
+                    allCheckIDBs.prop('checked', checkIDB.prop('checked'));
+                    allCheckIDBs.each(function () {
+                        var currentCheck = $(this);
+
+                        changePublishIDB(currentCheck);
+                    });
+                });
+
+                $(document).on('change', 'tr:not(.template) [name="REOIs-IsPublishUNDB"]:first', function (e) {
+                    var checkUNDB = $(this);
+                    var allCheckUNDBs = $('tr:not(.template) [name="REOIs-IsPublishUNDB"]');
+
+                    allCheckUNDBs.prop('checked', checkUNDB.prop('checked'));
+                    allCheckUNDBs.each(function () {
+                        var currentCheck = $(this);
+
+                        changePublishUNDB(currentCheck);
+                    });
+                });
+            }
+
+        });
+    </script>
+)

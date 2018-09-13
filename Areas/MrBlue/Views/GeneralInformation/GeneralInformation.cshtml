@@ -1,0 +1,605 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.GeneralInformation
+@using IDB.Presentation.MVC4.Models.Documents;
+
+@model GeneralInformationViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@if (devMode)
+{
+    <div class="header">
+        <div class="row mb20">
+            <div class="col-md-12">
+                @Html.Partial("_MrBlueRolesPartial")
+            </div>
+        </div>
+    </div>
+}
+<div class="row mb20">
+    <div class="col-md-12">
+        @Html.Partial("Partials/buttons")
+        @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.GeneralInformationTitle"))
+    </div>
+</div>
+
+<div class="page">
+    @if (ViewBag.ReadRole ?? false)
+    {
+        <div id="Data"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-loadurl="@Url.Action("GeneralInformationEdit", "GeneralInformation", new { area = "MrBlue" })"
+             data-url="@Url.Action("GeneralInformationlSave", "GeneralInformation", new { area = "MrBlue" })">
+
+            @if (Model != null)
+            {
+                @Html.Partial("Partials/GeneralInformationPartial", Model)
+            }
+        </div>
+    }
+    @Html.Partial("Partials/buttons")
+</div>
+
+<div id="@string.Format("{0}-modal-add", "DocumentGeneralInformationTable")" class="hide">
+    @Html.Partial("Controls/IDBDocsSGMrBlue/AddIDBDoc", new SearchDocumentModalViewModel { SearchModalId = "documentTable", MultipleSelection = true, TargetFunction = "AddDocuments", BusinessAreaCode = "BA_ESG", OperationNumber = IDBContext.Current.Operation })
+</div>
+
+@section scripts{
+
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.TableFunctions()
+    @MrBlue.HistoryTablesCommon()
+    @MrBlue.SelectRow()
+    @MrBlue.RadioButtonFix()
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+            //Validator max length user
+            window.ParsleyValidator
+              .addValidator('MaxLength105', function (value, requirement) {
+                  return value.length < 50;
+              }, 32)
+              .addMessage('en', 'MaxLength105', 'The value should have 50 character maximum.');
+
+            //Validator FundAmount
+            window.ParsleyValidator.addValidator('totalAmountValidator', function (value, requirement) {
+
+                var options = requirement.split(";");
+                if (options.length != 5) return false;
+
+                var resul = true;
+                var sum;
+                var tableRows = $(options[0] + ' tbody tr');
+                var selectorFinancingType = options[1];
+                var selectorFund = options[2];
+                var selectorFundAmountCurrent = options[3];
+                var selectorFundAmountTotal = options[4];
+                var arrayFinancingFund = new Array();
+
+                tableRows.each(function (index) {
+                    var row1 = $(this);
+                    if (!row1.hasClass('hide')) {
+                        var fundIdcurrent = row1.find(selectorFund).val();
+                        var financingTypeIdcurrent = row1.find(selectorFinancingType).val();
+                        var fundAmountTotal = parseFloatFormated(row1.find(selectorFundAmountTotal).val());
+                        sum = parseFloatFormated("0.00");
+
+                        var isContent = arrayFinancingFund.filter(function () {
+                            var element = this;
+                            return (element.fundId == fundIdcurrent && element.financingType == financingTypeIdcurrent);
+                        });
+
+                        if (isContent.length == 0) {
+                            tableRows.each(function (index) {
+                                var row2 = $(this);
+                                if (!row2.hasClass('hide')) {
+                                    var fundIdForCompare = row2.find(selectorFund).val();
+                                    var financingTypeForCompare = row2.find(selectorFinancingType).val();
+                                    if (fundIdForCompare == fundIdcurrent && financingTypeForCompare == financingTypeIdcurrent) {
+                                        var fundAmountSum = parseFloatFormated(row2.find(selectorFundAmountCurrent).val());
+                                        sum += parseFloat(fundAmountSum);
+                                        if (sum > fundAmountTotal) {
+                                            resul = false;
+                                        }
+                                    }
+                                }
+                            })
+                            arrayFinancingFund.push({ fundId: fundIdcurrent, financingType: financingTypeIdcurrent });
+                        }
+                    }
+                })
+
+                return resul;
+
+            }, 32).addMessage('en', 'totalAmountValidator', 'Error the aggregated amount designated to Sustainability Type & Component is greater that the fund amount.');
+
+            //Validator Leader Number
+            window.ParsleyValidator
+             .addValidator('numElementsRangeLeader', function (value, requirement) {
+
+                 var options = requirement.split(";");
+                 if (options.length != 2) return false;
+
+                 var cont = 0;
+                 var i = 0;
+                 var elements = $(options[0]);
+                 var value = options[1];
+
+                 while (i < $(elements).length) {
+                     if ($(elements[i]).val() == value) cont++;
+                     i++;
+                 }
+
+                 return cont <= 1;
+
+             }, 32)
+             .addMessage('en', 'numElementsRangeLeader', 'The number of ESG Lead is max of 1.');
+
+
+            //Validator User ESG Team
+            window.ParsleyValidator
+             .addValidator('notRepeatUser', function (value, requirement) {
+
+                 var result = true;
+                 var option = requirement;
+                 var elements = $(option + ':not([disabled])');
+                 var arrayUsers = new Array();
+
+                 elements.each(function (index) {
+                     var source = $(this);
+                     var isContent = false;
+
+                     $.each(arrayUsers, function (i, l) {
+                         if (l.user == source.val()) {
+                             isContent = true;
+                         }
+                     });
+                     if (!isContent) {
+                         arrayUsers.push({ user: source.val() });
+                     } else {
+                         result = false;
+                     }
+                 });
+                 return result;
+
+             }, 32).addMessage('en', 'notRepeatUser', 'The Name is duplicated.');
+
+            //Validator Specialist Without Leader
+            window.ParsleyValidator
+               .addValidator('numElementsRangeLeaderAndSpecialist', function (value, requirement) {
+                   var options = requirement.split(";");
+
+                   if (options.length != 3) return false;
+
+                   var contLeader = 0;
+                   var contSpecialist = 0;
+                   var i = 0;
+                   var elements = $(options[0]);
+                   var valueLeader = options[1];
+                   var valueSpecialist = options[2];
+
+                   while (i < $(elements).length) {
+                       if ($(elements[i]).val() == valueLeader) {
+                           contLeader++;
+                       }
+                       if ($(elements[i]).val() == valueSpecialist) {
+                           contSpecialist++;
+                       }
+                       i++;
+                   }
+
+                   if (contSpecialist > 0 && contLeader < 1) return false;
+                   else return true;
+               }, 32)
+               .addMessage('en', 'numElementsRangeLeaderAndSpecialist', 'If there are one or more Team Members, must have a Primary.');
+
+            $(document).on("click", '[aria-labelledby="id-FinancingTypeId"] li', function () {
+
+                var source = $(this);
+
+                var input = source.closest('div.dropdown').find('input[name="FinancingTypeId"]');
+                var valSource = source.closest('div.dropdown').find('input[name="FinancingTypeId"]').val();
+                var spanFund = source.closest('tr').find('#id-FundId').closest('span');
+                if (spanFund.length == 0) {
+                    spanFund = source.closest('tr').find('#id-FundId').closest('td');
+                }
+
+                var attributeIdName = 'data-persist-old';
+                var attributeIdValue = input.attr(attributeIdName);
+                if (attributeIdValue == null) {
+                    attributeIdName = 'data-persist-new';
+                    attributeIdValue = input.attr(attributeIdName);
+                }
+
+                if (valSource != null && valSource != '') {
+                    var result = postUrl('@Url.Action("LoadFundByFinancingType", "GeneralInformation", new { area = "MrBlue" })', { financingType: valSource });
+                    result.done(function (response, textStatus, jqXHR) {
+
+                        if (response.ErrorMessage != null && response.ErrorMessage != "") {
+                            showMessage(response.ErrorMessage);
+                        }
+
+                        spanFund.html(response.ContentHTML);
+                        spanFund = source.closest('tr').find('#id-FundId').closest('span');
+                        if (spanFund.length == 0) {
+                            spanFund = source.closest('tr').find('#id-FundId').closest('td');
+                        }
+                        if (attributeIdValue != null) {
+                            spanFund.find('input[name="FundId"]').attr(attributeIdName, attributeIdValue);
+                        }
+                        bindHandlers(spanFund);
+                        destroyParsley($('#Data'));
+                        initParsley($('#Data'));
+                        destroyParsley($('#Data'));
+                        initParsley($('#Data'));
+
+                        var inputFundAmount = spanFund.closest('tr').find('input[name="FundAmount"]');
+                        var spanFundAmount = spanFund.closest('tr').find('[data-name="FundAmountbyFundSpan"]');
+                        spanFundAmount.html(convertFloatToStringWithFormat(0));
+                        inputFundAmount.val(0.00);
+
+                    })
+                }
+            });
+
+            $(document).on("click", '[aria-labelledby="id-FundId"] li', function () {
+                var source = $(this);
+                var valSource = source.closest('div.dropdown').find('input[name="FundId"]').val();
+                var spanFund = source.closest('tr').find('[data-name="FundAmountbyFundSpan"]');
+                var inputFund = source.closest('tr').find('input[name="FundAmount"]');
+                if (valSource != null && valSource != '') {
+                    var result = postUrl('@Url.Action("LoadFundAmountByFund", "GeneralInformation", new { area = "MrBlue" })', { fundId: valSource });
+                    result.done(function (response, textStatus, jqXHR) {
+                        if (response.IsValid) {
+                            var valResult = response.Data.response;
+                            spanFund.html(convertFloatToStringWithFormat(valResult));
+                            inputFund.val(valResult);
+                        }
+                    })
+                } else {
+                    spanFund.html(convertFloatToStringWithFormat(0));
+                    inputFund.val(0.00);
+                }
+            });
+
+            $(document).on("blur", 'input[name="OperationTeamDataId_text"]', function () {
+                var source = $(this);
+                var sourceId = source.parent('div').find('input[name="OperationTeamDataId"]');
+                var sourceValidatorLength = source.parent('div').siblings('input[name="validatorLength"]');
+                var newValue = source.val();
+                source.attr('value', newValue);
+                if (newValue.length > 0) {
+                    //sourceId.val('0');
+                    sourceValidatorLength.val(newValue);
+                }
+            });
+
+
+            $(document).on("keydown", 'textarea[name="comment"]', function () {
+                var source = $(this);
+                var trSource = source.closest('tr').prev();
+                var labeltrSource = trSource.find('label[name="contentComment"]');
+                var spantrSource = trSource.find('td.period').find('span:first');
+                spantrSource.html(source.val());
+                labeltrSource.html(source.val());
+            });
+
+
+            $(document).on("blur", 'textarea[name="comment"]', function () {
+                var source = $(this);
+                var trSource = source.closest('tr').prev();
+                var labeltrSource = trSource.find('label[name="contentComment"]');
+                var spantrSource = trSource.find('td.period').find('span:first');
+                spantrSource.html(source.val());
+                labeltrSource.html(source.val());
+            });
+
+            InitialStateCollapsableRows();
+
+        });
+
+        function edit(source) {
+            var isESGSpeacialistGlobal = '@ViewBag.HasCreateNewPermission';
+            $("#Data").parsley().destroy();
+            var success = enterEditMode(true, $('#Data'), true);
+            if (success) {
+                if (!isESGSpeacialistGlobal) {
+                    customDisableContainer($('[data-name="ESGTeamMembers"],[data-name="EsgReviewer"],[data-name="sustainability-section"]'), true);
+                }
+                $('button[data-action=newComponentSustainabilityComponents]').data("autoincrement", getMostRecentRowId('SustainabilityComponents'));
+                $("[data-action=newComponentSpecialist]").data("autoincrement", getMostRecentRowId('ESGTeamMembers'));
+                $("[data-action=newESGOperationComments]").data("autoincrement", getMostRecentRowId('ESGOperationComments'));
+                $("[data-action=newComponentReviewer]").data("autoincrement", getMostRecentRowId('EsgReviewer'));
+                $("#Data").parsley();
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+                disabledNewESGTeamMember();
+                InitialStateCollapsableRows();
+            }
+        }
+
+        function cancel(source) {
+            exitEditMode(true, $('#Data'), true, true);
+            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+            InitialStateCollapsableRows();
+        }
+
+        function disabledNewESGTeamMember() {
+            var havePermissionCreate = "@ViewBag.HasCreateNewPermission";
+            var sourceButton = $('[dd-table="newComponentSpecialist"]');
+
+            if (!havePermissionCreate) {
+                sourceButton.prop('disabled', true);
+            }
+        }
+
+        function save(source) {
+            var resp = $.Deferred();
+            var response = saveContainer($('#Data'), '#hidViewModel', true, $('[data-id="headerButtons"]'), $(source.target), true, false);
+            if ($("#Data").parsley().isValid() == false) {
+                var textAreasError = $('#ESGOperationComments textarea[name="comment"].inputTextarea.parsley-error');
+                textAreasError.each(function (index) {
+                    var textAreaAux = $(this);
+                    var trTexAreaAux = textAreaAux.closest('tr');
+                    var cssTr = trTexAreaAux.attr('style');
+                    if (cssTr != "display: table-row;") {
+                        trTexAreaAux.prev().find('label.expandable-triangle').click();
+                        trTexAreaAux.attr('style', 'display: table-row;');
+                    }
+                });
+            }
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    } else {
+                        InitialStateCollapsableRows();
+                    }
+                    resp.resolve(data);
+                });
+            }
+            return resp;
+        }
+
+        function newComponentSpecialist(source) {
+
+            var container = $("[data-parsley-validate]").first();
+            container.parsley().destroy();
+
+            var templateTr = $('#ESGTeamMembers tbody tr:first');
+            var clonedTr = templateTr.clone(false).appendTo("#ESGTeamMembers tbody");
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            clonedTr.removeClass("hide");
+            clonedTr.find("input, select").attr("data-persist-new", newId);
+            clonedTr.find("select[name='RoleId']").attr("data-validation-role", "true")
+            clonedTr.attr("data-new-id", "new");
+            clonedTr.find("input, select,button").removeAttr('disabled');
+
+            enterEditMode(false, clonedTr, false);
+            bindHandlers(clonedTr);
+            container.parsley();
+        }
+
+        function newComponentReviewer(source) {
+
+            var container = $("[data-parsley-validate]").first();
+            container.parsley().destroy();
+
+            var templateTr = $('#EsgReviewer tbody tr:first');
+            var clonedTr = templateTr.clone(false).appendTo("#EsgReviewer tbody");
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            clonedTr.removeClass("hide");
+            clonedTr.find("input, select").attr("data-persist-new", newId);
+            clonedTr.attr("data-new-id", "new");
+            clonedTr.find("input, select,button").removeAttr('disabled');
+
+            enterEditMode(false, clonedTr, false);
+            bindHandlers(clonedTr);
+            container.parsley();
+        }
+
+
+        function newComponentSustainabilityComponents(source) {
+
+            var container = $("[data-parsley-validate]").first();
+            container.parsley().destroy();
+
+            var templateTr = $('#SustainabilityComponents tbody tr:first');
+            var clonedTr = templateTr.clone(false).appendTo("#SustainabilityComponents tbody");
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            clonedTr.find("input, select").attr('data-persist-new', newId);
+            clonedTr.find("input, select,button").removeAttr('disabled');
+
+            clonedTr.removeClass("hide");
+            enterEditMode(false, clonedTr, false);
+            clonedTr.attr("data-new-id", "new");
+            bindHandlers(clonedTr);
+
+            container.parsley();
+        }
+
+        function newESGOperationComments(source) {
+
+            var container = $("[data-parsley-validate]").first();
+            container.parsley().destroy();
+
+            var templateTr = $('#ESGOperationComments tbody tr').eq(0);
+            var templateTrExpandable = $('#ESGOperationComments tbody tr').eq(1);
+
+            var clonedTr = templateTr.clone(false).appendTo("#ESGOperationComments tbody");
+            var clonedTrExpandable = templateTrExpandable.clone(false).appendTo("#ESGOperationComments tbody");
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            clonedTr.find("input, select").attr('data-persist-new', newId);
+            clonedTr.find("input, select,button").removeAttr('disabled');
+            clonedTr.find("input[type=checkbox]").removeAttr("checked", "checked");
+
+            clonedTrExpandable.find("input, select, textarea").attr('data-persist-new', newId);
+            clonedTrExpandable.find("input, select, button, textarea").removeAttr('disabled');
+            clonedTrExpandable.find("textarea").attr('data-id', "0");
+
+            clonedTr.find('label.expandable-triangle').attr('data-btn-expandable', "#ESGOperationComments [data-name='detail-Comment-" + newId + "']");
+            clonedTrExpandable.attr("data-name", "detail-Comment-" + newId + "");
+            clonedTrExpandable.attr("style", "display: table-row;");
+
+            clonedTr.removeClass("hide");
+            enterEditMode(false, clonedTr, false);
+            clonedTr.attr("data-new-id", "new");
+            bindHandlers(clonedTr);
+
+            container.parsley();
+        }
+
+        function AddDocuments(documentList, sourceType) {
+            var documentTable = $("#DocumentGeneralInformationTable");
+            AddDocumentsGeneralInformation(sourceType, documentTable, documentList);
+        }
+
+        function removeSpecialists(source) {
+            var tr = source.parents("tr:first");
+            tr.remove();
+        }
+
+        function removeReviewers(source) {
+            var tr = source.parents("tr:first");
+            tr.remove();
+        }
+
+        function removeSustainability(source) {
+            var tr = source.parents("tr:first");
+            tr.remove();
+        }
+
+        function removeComments(source) {
+            var tr = source.parents("tr:first");
+            var trComment = $(tr).next();
+            tr.remove();
+            trComment.remove();
+        }
+
+        function setReadPermission(source) {
+            var response = postUrlWithOptions("@Url.Action("ChangeRol", "GeneralInformation", new { area = "MrBlue", rol = (int)ActionEnum.ConvergenceReadPermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function setWriteBasicAccess(source) {
+            var response = postUrlWithOptions("@Url.Action("ChangeRol", "GeneralInformation", new { area = "MrBlue", rol = (int)ActionEnum.EnvironmentalWritePermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function removePermission(source) {
+            var response = postUrlWithOptions("@Url.Action("RemovePermission", "GeneralInformation", new { area = "MrBlue" })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function AddDocumentsGeneralInformation(sourceType, target, documentList) {
+
+            var newId = target.data('autogenerate-id');
+            var tbody = target.children("tbody");
+            var trTemplate = tbody.children().first();
+
+            var documentNumberList = documentList;
+            if (sourceType !== "added") {
+                documentNumberList = [];
+                for (var i = 0; i < documentList.length; i++) {
+                    var document = documentList[i];
+                    documentNumberList.push(document.DocumentNumber);
+                }
+            }
+
+            var files = $('#DocumentGeneralInformationTable-modal-add input[type=file]')[1].files;
+
+            for (var i = 0; i < documentNumberList.length; i++) {
+
+                newId = newId + 1;
+                var docNumber = documentNumberList[i];
+
+                var clonedTr = trTemplate.clone(false);
+                clonedTr.removeClass("hide");
+                clonedTr.attr('data-persist-new', newId);
+
+                var tdHidden = clonedTr.children("td").first();
+                tdHidden.find("input[name=DocumentGeneralInformationTable-docNumber]").val(docNumber);
+
+                var tdAction = clonedTr.children("td").last();
+                tdAction.find("button[data-id]").attr("data-id", docNumber);
+
+                var date = convertDateToStringDDMMMYYYY(new Date());
+                var tdIdbDate = clonedTr.children("td[data-name=idb-doc-date]");
+                tdIdbDate.find("span").html(date);
+
+                var tdIdbDocNumber = clonedTr.children("td[data-name=idb-doc-number]");
+                tdIdbDocNumber.find("span").html(docNumber);
+                clonedTr.find('input').removeAttr('disabled');
+                clonedTr.find('button').removeAttr('disabled');
+                clonedTr.find("input").attr('data-persist-new', newId);
+
+                var fullPath = files[i].name;
+                var tdName = clonedTr.children('td[data-name="idb-doc-name"]');
+                var fileName = File.getFileName(fullPath);
+                tdName.find("span").html(fileName);
+                tdHidden.find("input[name=DocumentGeneralInformationTable-docName]").val(fileName);
+
+                clonedTr.appendTo(tbody);
+                bindHandlers(clonedTr);
+            }
+
+            target.data('autogenerate-id', newId);
+        }
+
+        function customDisableContainer(container, reloadParsley) {
+            if (reloadParsley == null) {
+                reloadParsley = false;
+            }
+            var form = container.parents('[data-parsley-validate]:first');
+
+            var originalSelector = '{0}input, {0}select, {0}textarea, {0}.dropdown button, {0}button';
+            var selector = null;
+
+            container.each(function () {
+                var item = $(this);
+
+                var inputs = null;
+
+
+                if (item.attr('data-PageMode') == null) {
+                    selector = String.format(originalSelector, '[data-PageMode=edit] ');
+                } else {
+                    selector = String.format(originalSelector, '');
+                }
+
+                var inputs = item.find(selector);
+                inputs.attr('disabled', 'disabled');
+            });
+
+            if (reloadParsley) {
+                destroyParsley(form);
+                initParsley(form);
+                destroyParsley(form);
+                initParsley(form);
+            }
+        }
+
+    </script>
+}

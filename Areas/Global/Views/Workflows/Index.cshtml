@@ -1,0 +1,197 @@
+﻿@using IDB.MW.Domain.Models.Global
+@using IDB.MW.Domain.Session
+@using IDB.MVCControls.General.Helpers;
+
+@{
+    ViewBag.Title = "Index";
+    Layout = "~/Areas/Global/Views/Shared/_Layout.cshtml";
+    string operationNumber = ViewBag.operationNumber;
+    string userName = ViewBag.userName;
+    string k2DetailPath = ViewBag.K2ViewDetailURL;
+}
+
+
+@section CSS
+{
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo/kendo.common.min.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo.everis.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modules/searches/ui_se_001-results_matrix.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modules/Workflows/main.css")"/>
+}
+
+@section JavaScript
+    {
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery-1.10.2.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/kendo/kendo.web.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Global/global.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Workflows/main.js")"></script>
+}
+
+@Html.Partial("~/Areas/Global/Views/Workflows/WorkflowTemplates.cshtml")
+
+@Html.Hidden("hdnOperationNumber", operationNumber)
+@Html.Hidden("hdnUserName", userName)
+
+@Html.Hidden("hdnSearchPath", Url.Action("Search", "Workflows", new { area = "Global" }))
+@Html.Hidden("hdnTasksPath", Url.Action("GetTasksByWorkflowId", "Workflows", new { area = "Global" }))
+@Html.Hidden("hdnCommentsPath", Url.Action("GetCommentsByWorkflowId", "Workflows", new { area = "Global" }))
+@Html.Hidden("hdnClauseInformation", Url.Action("GetClauseExtensionAndFinalStatusInfo",
+                                                     "Workflows", new { area = "Global" }))
+@Html.Hidden("hdnK2DetailPath", k2DetailPath)
+
+@Html.Hidden("hdnWorkflowIdTitle", Localization.GetText("Workflow id"))
+@Html.Hidden("hdnOperationTitle", Localization.GetText("Operation"))
+@Html.Hidden("hdnWorkflowTitle", Localization.GetText("Workflow"))
+@Html.Hidden("hdnStatusTitle", Localization.GetText("Status"))
+@Html.Hidden("hdnSubmiterTitle", Localization.GetText("Submiter"))
+@Html.Hidden("hdnAssignedToTitle", Localization.GetText("Assigned to"))
+@Html.Hidden("hdnStartDateTitle", Localization.GetText("Start date"))
+@Html.Hidden("hdnEndDateTitle", Localization.GetText("End date"))
+@Html.Hidden("hdnLoansTitle", Localization.GetText("Loan(s)"))
+
+@Html.Hidden("hdnActionTitle", Localization.GetText("Action"))
+@Html.Hidden("hdnCommentTitle", Localization.GetText("Comment"))
+@Html.Hidden("hdnCreationDateTitle", Localization.GetText("Creation Date"))
+@Html.Hidden("hdnRoleTitle", Localization.GetText("role"))
+@Html.Hidden("hdnTaskTitle", Localization.GetText("Task"))
+@Html.Hidden("hdnUserTitle", Localization.GetText("User"))
+@Html.Hidden("hdnUserIdTitle", Localization.GetText("UserID"))
+@Html.Hidden("hdnModificationDateTitle", Localization.GetText("Modification Date"))
+
+@Html.Hidden("hdnClauseTitle", Localization.GetText("Entity"))
+@Html.Hidden("hdnClauseNumber", Localization.GetText("Clause Number"))
+@Html.Hidden("hdnClauseDescription", Localization.GetText("Description"))
+
+<script type="text/javascript" >
+    console.log("@Url.Action("GetTasksByWorkflowId", "Workflows", new { area = "Global" })");
+    console.log("@Url.Action("GetCommentsByWorkflowId", "Workflows", new { area = "Global" })");
+</script>
+<div class="modal fade" id="modalChangeGroup" tabindex="-1" role="dialog" aria-labelledby="gridSystemModalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content" style="border-radius: 10px;">
+            <div class="modalTitle" style="height:50px;">
+                <h3 class="modalTitle"
+                    style="font-size: 24px; font-family: OpenSans-Light; min-height: 0px; padding: 0px"
+                    id="gridSystemModalLabel">
+                    @Localization.GetText("Global.Workflows.Change.Group.Assign")
+                </h3>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        @Confluence.InputHidden("", "hdWorkflowInstanceTaskId")
+                        @Confluence.InputDropDownAsync(
+                            null, 
+                            "searchRoles", 
+                            Url.Action("GetRoleList", "Workflows", new { area = "Global" }), 
+                            dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlSearchRoles" } })
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn buttonLink" onclick="$('.selected').removeClass('selected')" data-dismiss="modal">@Localization.GetText("Global.Workflows.Change.Group.Cancel")</button>
+                <button type="button" class="btn buttonBlue" onclick="saveChangeGroup()">@Localization.GetText("Global.Workflows.Change.Group.Save")</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="workflows_grid_holder" class="padding20">
+    <div class="mod_contenido_central generic_tasks">
+            <!-- Header Container -->
+            <div class="relative">
+                <div class="inline-block verticalAlignMiddle" id="notificationQty">0</div>
+                @if (ViewBag.operationNumber == "" || ViewBag.operationNumber == null)
+                {
+                    <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("MY WORKFLOWS")</h3>
+                }
+                else
+                {
+                    <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("WORKFLOWS")</h3>
+                }
+            </div>
+            <br />
+            <!-- Filter container -->
+            <div id="searchBoxContainerSearchesResultsMatrix" class="grayBackground font08em" style="width:95%;padding-bottom:10px">
+                @if (string.IsNullOrEmpty(operationNumber))
+                {
+                    <div class="centerContent  leftAlign" style="margin-left:10px">
+                        <input type="text" placeholder="@Localization.GetText("Operation number, operation name")" class="grayBorder w98-7" id="txtkeyWord" value="" style="margin-top: 10px; width: 97.5%;" />
+                    </div>
+                }
+                
+                
+                <div class="centerContent  relative h50px">
+                    <div class="inline-block inputContainer w24 absolute" style="margin-left:10px">
+                        <div class=" verticalAlignMiddle" style="width:42%">
+                            @Html.DropDownList(
+                        "ddlStatus",
+                        new SelectList(ViewBag.lstStatus, "Value", "Text"),
+                        new { @class = "kendoDropDown", @ID = "ddlStatus" })
+                        </div>
+                    </div>
+                    
+                    <div class="inline-block inputContainer w24 absolute left25" style="left: 12.5%; width:40%">
+                        <div class=" verticalAlignMiddle" style="width: 100%;">
+                            @Html.DropDownList(
+                        "ddlWorkflowType",
+                        new SelectList(ViewBag.lstTypes, "Value", "Text"),
+                        new { @class = "kendoDropDown", @ID = "ddlWorkflowType" })
+                        </div>
+                    </div>
+                    <div class="inline-block inputContainer w24 absolute right25" style="left: 54%;">
+                        <div class="verticalAlignMiddle" style="width: 90%;">
+                            <input id="dateCreated" type="text" placeholder="@Localization.GetText("Created Date")" value="" class="kendoDatePicker">
+                        </div>
+                    </div>
+                    <div class="inline-block inputContainer w24 absolute absRight" style="left: 77%;">
+                        <div class="verticalAlignMiddle" style="width: 90%;">
+                            <input id="dateModified" type="text" placeholder="@Localization.GetText("Modify Date")" value="" class="kendoDatePicker">
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- filters -->
+
+                <div id="partialPlaceHolder" style="display: none;">
+                </div>
+
+                <!-- End filters -->
+
+                <div class="rightAlign" style="padding-right: 10px;">
+                    <br />
+                    <input type="button" id="btnSearch" class="button blueButton" value="@Localization.GetText("Search")">
+                    <input type="button" id="btnClear" class="button blueButton" value="@Localization.GetText("Clear")">
+                </div>
+            </div>
+            
+            <!-- Grid container -->
+            <br />
+            <div id="task_grid_holder" class="grid " style="height: auto; padding: 0px; width: 100% !important">
+                <div id="countResultsContainer" class="verticalMargin80-0-20" style="margin-top: 20px; display: none">
+                    <h3 class="font1-5em"><span id="countResults"></span> @Localization.GetText("Results")</h3>
+                </div>
+                <table class="grid" id="main-workflows-grid" style="width:95% !important"></table>
+            </div>
+
+            <div style="margin-top: 20px; display: none" id="notFoundMessage" class="verticalMargin80-0-20">
+                <h3 class="font1-5em">
+                    @Localization.GetText("Records not found")
+                </h3>
+            </div>
+
+            <div class="messages message-warning" style="margin-left: 0px; width: 96%; display: none; padding: 20px; background: url('../../../Images/Modulos/modal/cerrar_warning.png') #E19C23 no-repeat 99% 10px">
+                <span>
+                    @Localization.GetText("Our apologies, it appears the search is taking a bit longer than it should, could you help us narrow the results by entering in additional key words?")
+                </span>
+            </div>
+
+        </div>
+</div>
+<br/><br/><br/>

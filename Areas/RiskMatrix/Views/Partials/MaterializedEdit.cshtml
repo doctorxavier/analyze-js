@@ -1,0 +1,219 @@
+﻿@using System.Web.Mvc.Html
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Areas.RiskMatrix.Models
+@using IDB.Presentation.MVC4.MVCExtensions
+
+@model RiskMaterializedViewModel
+
+@using (Ajax.BeginForm("Save", "Materialized", new { operationNumber = Model.OperationNumber },
+                new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBegin", OnFailure = "riskMaterializedAjaxOnFailure" },
+                new { id = "frmriskMaterializedEditMode", novalidate = ""}))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.OperationNumber)
+
+    @Html.Partial("~/Areas/RiskMatrix/Views/Modals/MaterializedEditModals.cshtml")
+
+    <div class="col-md-9 mt10">
+        <h2 class="titlePrincipal">@Localization.GetText("RISK.TITLE")</h2>
+    </div>
+    <div class="col-md-3 mt10">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnMaterializedSave", Model.ScreenSecurity.Security))
+        {
+            <button class="buttonOrange pull-right" type="submit" id="btnMaterializedSave">@Localization.GetText("RISK.SAVE")</button>
+        }
+
+        @Ajax.ActionLink(Localization.GetText("RISK.CANCEL"), "Cancel", "Materialized",
+            new { operationNumber = Model.OperationNumber }, new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBeginNoValidate", OnFailure = "riskMaterializedAjaxOnFailure" },
+            new { @class = "pull-right buttonLink", id = "btnMaterializedCancel" })
+    </div>
+
+    <div class="col-md-12">
+        @Html.Partial("~/Areas/RiskMatrix/Views/Partials/RiskHeader.cshtml", Model.HeaderInfo)
+    </div>
+    <div class="col-md-12">
+        <div class="col-md-5">
+            <ul class="tabs">
+                <li class="disabled">
+                    <a>@Localization.GetText("RISK.MATRIX.TAB")</a>
+                </li>
+                <li class="active">
+                    @Ajax.ActionLink(Localization.GetText("RISK.MATERIALIZED.TAB"), "Index", "Materialized", 
+                   new { operationNumber = Model.OperationNumber }, new AjaxOptions { UpdateTargetId = "mainLayoutOperationContent", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBegin", OnFailure = "riskMaterializedAjaxOnFailure" }, new { })
+                </li>
+            </ul>
+        </div>
+        <div class="col-md-7">
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnExcel", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonExcel("btnExcel", "ExportFileMaterializedReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "xls" } })
+            }
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnWord", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonWord("btnWord", "ExportFileMaterializedReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "doc" } })
+            }
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnPDF", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonPdf("btnPDF", "ExportFileMaterializedReport", clase: "pull-right", dataAttributes: new Dictionary<string, string> { { "fileType", "pdf" } })
+            }
+        </div>
+    </div>
+    <div class="col-md-12">
+        @Confluence.LabelBold(Localization.GetText("RISK.MATERIALIZED.RISKS"))
+        @Confluence.ButtonColapseAll(new List<string>() { "tblIssues" })
+    </div>
+    <div class="col-md-12">
+        <table class="tableNormal" id="tblIssues">
+            <thead>
+                <tr>
+                    <th width="10%" class="sort" order-type="numeric">@Localization.GetText("RISK.ISSUE")</th>
+                    <th width="80%" class="sort">@Localization.GetText("RISK.ISSUE.DESCRIPTION")</th>
+                    <th width="10%">@Localization.GetText("RISK.DETAILS")</th>
+                    <th width="10%">@Localization.GetText("RISK.ACTIONS.MATERIALIZED")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Model.MaterializedRisks.Count; i++)
+                {
+                    <tr data-id="@Model.MaterializedRisks[i].MaterializedId">
+                        <td align="right">
+                            @Model.MaterializedRisks[i].MaterializedCode
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].MaterializedCode)
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].MaterializedId)
+                        </td>
+                        <td align="left">
+                         
+                            @Confluence.InputTextArea(Model.MaterializedRisks[i].Description, string.Format("MaterializedRisks[{0}].Description", i), string.Format("MaterializedRisks_{0}__Description", i), width:"100%", required:true, maxLength: 2000)
+
+                        </td>
+                        <td align="center">
+                            <button class="buttonShowRow" onclick="CollapseRowTable(this)" type="button">
+                                <span class="caret"></span>
+                            </button>
+                        </td>
+                        <td>
+                            @if (Model.MaterializedRisks[i].RiskDescription == null || Model.MaterializedRisks[i].RiskDescription == default(string))
+                            {
+                                @Confluence.ButtonTrash(string.Empty, action: "deleteMaterialized", name: "btnDeleteMaterialized", required: false)
+                            }
+
+                        </td>
+                    </tr>
+                    @*Hidden Expandable area*@
+                    <tr data-row-parent-id="@Model.MaterializedRisks[i].MaterializedId">
+                        <td colspan="4">
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ASSOCIATED.RISK"))
+                                    <br />
+                                    @Confluence.LabelBold(Model.MaterializedRisks[i].RiskDescription)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].RiskDescription)
+                                </div>
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ACTIONS.MATERIALIZED"))
+                                    <br />
+                                    @Confluence.InputTextArea(Model.MaterializedRisks[i].Actions, string.Format("MaterializedRisks[{0}].Actions", i), string.Format("MaterializedRisks_{0}__Actions", i), width: "100%", required: false, height: "100px", maxLength: 2000)
+                                </div>
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ISSUE.EXPECTED.COMPLETION.DATE"))
+                                    <br />
+                                    @Confluence.InputDatePicker(Model.MaterializedRisks[i].ExpectedCompletationDate, name: string.Format("MaterializedRisks[{0}].ExpectedCompletationDate", i), id: string.Format("MaterializedRisks_{0}__ExpectedCompletationDate", i), required: false)
+                                </div>
+                            </div>
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.OPERATION.IMPACT"))
+                                    <br />
+                                    @Html.TextAreaFor(model => model.MaterializedRisks[i].OperationImpact, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", maxLength = 2000 })
+                                </div>
+                                <div class="col-md-4">
+
+                                </div>
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ISSUE.CURRENT.COMPLETION.DATE"))
+                                    <br />
+                                    @Confluence.InputDatePicker(Model.MaterializedRisks[i].CurrentCompletationDate, name: string.Format("MaterializedRisks[{0}].CurrentCompletationDate", i), id: string.Format("MaterializedRisks_{0}__CurrentCompletationDate", i), required:false)
+                                </div>
+                            </div>
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-12">
+                                    @Confluence.Label(Localization.GetText("RISK.QUESTION"))
+                                    <br />
+                                    @Html.TextAreaFor(model => model.MaterializedRisks[i].Question, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", maxLength = 2000 })
+                                </div>
+                            </div>
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-4">
+                                    @{
+                                        var display = Model.MaterializedRisks[i].FindingsRecommendations == true ? "block" : "none";
+                                    }
+                                    @Confluence.InputCheckbox(Model.MaterializedRisks[i].FindingsRecommendations, value: true,
+                                        name: string.Format("MaterializedRisks[{0}].FindingsRecommendations", i), id: string.Format("MaterializedRisks_{0}__FindingsRecommendations", i),
+                                        label: Localization.GetText("RISK.FINDINGS.RECOMMENDATION"), htmlClass: "riskMaterializedOptionsSectionSelector", dataAttributes: new Dictionary<string, string> { { "issueId", Model.MaterializedRisks[i].MaterializedId.ToString() },
+                                        { "validateFr", Model.MaterializedRisks[i].FindingsRecommendations.ToString()} })
+                                   
+                                </div>
+                                <div class="col-md-4">
+                                    <div id="riskMaterializedDelay_@Model.MaterializedRisks[i].MaterializedId" style="display:@display">
+                                        @Confluence.InputCheckbox(Model.MaterializedRisks[i].Causes, value: true, name: string.Format("MaterializedRisks[{0}].Causes", i), id: string.Format("MaterializedRisks_{0}__Causes", i), label: Localization.GetText("RISK.CAUSED.DELAY"))
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+
+                                </div>
+                            </div>
+                           
+                            <div id="riskMaterializedOptionsSection_@Model.MaterializedRisks[i].MaterializedId" style="display:@display" class="col-md-12 mt10">
+                                <div class="col-md-4">
+                                    <div class="mb10">@Confluence.Label(Localization.GetText("RISK.STAGE"))</div>
+                                    
+                                    
+                                    @Confluence.InputDropDown(Model.MaterializedRisks[i].StageId.ToString(), string.Format("MaterializedRisks[{0}].StageId", i), Html.BuildSelectItemList(Model.Stages, m => m.Text, m => m.Value), required: false, width: "100%", dataAttributes: new Dictionary<string, string>() { { "name", "ddlMaterializedStages" } })
+                                </div>
+                                <div class="col-md-8" id="frCategories">
+                                    <div>@Confluence.Label(Localization.GetText("RISK.CATEGORY"))</div>
+                                    
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.FindingRecommendationId)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationId)
+                                    @{ int count = 0;}
+                                    @for (int j = 0; j < Model.MaterializedCategoryTitles.Count; j++)
+                                    {
+                                        <div class="col-md-6 mt10">
+                                            @Confluence.LabelBold(Model.MaterializedCategoryTitles[j].NameEn)
+                                            @{ var childCategories = Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated.Where(p => p.ParentId == Model.MaterializedCategoryTitles[j].MasterDataId).ToList();}
+                                            @for (int k = 0; k < childCategories.Count(); k++)
+                                            {
+                                                <br />
+                                                @Confluence.InputCheckbox(childCategories[k].Selected, string.Format("MaterializedRisks[{0}].FindingRecommendationVM.CategoriesRelated[{1}].Selected", i, count), string.Format("MaterializedRisks_{0}__FindingRecommendationVM.CategoriesRelated_{1}__Selected", i, count), value: true, forceValidation:true ,label: childCategories[k].CategoryName, dataAttributes: new Dictionary<string, string>() { { "id", Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated[count].CategoryId.ToString() } })
+                                                @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated[count].CategoryId)
+                                                count++;
+                                            }
+                                        </div>
+                                                }
+                                </div>
+                            </div>
+                        </td>
+
+                    </tr>
+                                                }
+
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-12 mt25" align="center">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnMaterializedNewIssue", Model.ScreenSecurity.Security))
+        {
+            @Confluence.ButtonAddNewRows(Localization.GetText("RISK.ADD.ISSUE"), "tblIssues", action: "newIssue", name: "btnMaterializedNewIssue")
+        }
+    </div>
+    <div class="col-md-12 mt20 mb20">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnMaterializedSave", Model.ScreenSecurity.Security))
+        {
+            <button class="buttonOrange pull-right" type="submit" id="btnMaterializedSave">@Localization.GetText("RISK.SAVE")</button>
+        }
+
+        @Ajax.ActionLink(Localization.GetText("RISK.CANCEL"), "Cancel", "Materialized", new { operationNumber = Model.OperationNumber }, new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBeginNoValidate", OnFailure = "riskMaterializedAjaxOnFailure" }, new { @class = "pull-right buttonLink", id = "btnMaterializedCancel" }) @*RISK.CANCEL*@
+    </div>
+                                                }

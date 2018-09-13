@@ -1,0 +1,276 @@
+﻿@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.VERModule.ViewModels
+@using IDB.MW.Domain.Models.Security
+@using IDB.MW.Domain.Values.Ver
+@using IDB.Presentation.MVC4.Helpers
+
+@model TaskTableViewModel
+
+@{
+    var taskParticipant = (List<FieldAccessModel>)ViewBag.SecurityTask;
+
+    var editButton = taskParticipant.FirstOrDefault(o => o.FieldName == "btnEditTaskTab");
+    var btnAddTask = taskParticipant.FirstOrDefault(o => o.FieldName == "btnAddTask");
+    var instructionContainer = taskParticipant.FirstOrDefault(o => o.FieldName == "instructionContainer");
+}
+
+
+@Confluence.InputHidden(ViewBag.SerializedTaskViewModel, id: "taskViewModel")
+
+@if (instructionContainer != null && instructionContainer.IsVisible)
+{
+    <div class="mb15">
+        <div class="col-md-8">
+            <div class="row">
+                <div class="col-md-8">
+                    @Confluence.Label(Localization.GetText("VER.GLOBAL.Instructions"))
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    @Html.Raw(Model.TaskInstruction)
+                </div>
+            </div>
+        </div>
+    </div>
+}
+<div class="col-md-12 mt50">
+    <div class="pull-left">
+        @Confluence.Label(Localization.GetText("GLOBAL.RESUTLS.PER.PAGE"))
+        @Confluence.InputDropDown("999999", "ddlPaginationTask",
+            (List<SelectListItem>)ViewBag.ResultsPerPageList, placeholder: null, showEmptyOption: false,
+            orderAsc: false, required: false)
+    </div>
+    @if (editButton != null && editButton.IsVisible)
+    {
+        <div class="pull-right" data-button-container="Task">
+            @Html.Partial("Partials/DataTables/Buttons/TaskButtonsPartial")
+        </div>
+    }
+</div>
+<div class="col-md-12 mb20 mt10">
+    @{
+        var tasksTable = Html.RenderDataTable(Model.Tasks);
+        tasksTable.Name("tasksTable")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(m => m.TaskId.ToString(CultureInfo.InvariantCulture))
+            .Columns(columns =>
+            {
+                columns.Template(c => Confluence.LabelGetDropDown(c.ActivityType, (List<SelectListItem>)ViewBag.ActivityTypeList))
+                    .Header(Localization.GetText("VER.Homepage.TabTasks.TypeActivity"))
+                    .EditableTemplate(row => Confluence.InputDropDown(row.ActivityType.ToString(), "activityType", (List<SelectListItem>)ViewBag.ActivityTypeList, width: "100%", orderAsc: false, disabled: !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), dataAttributes:
+                    new Dictionary<string, string> { { "idb-fieldname", "ddlActivityType" } }, htmlClassElement: "mb7"))
+                    .HeaderAttribute("order-type", "text")
+                    .CssHeaderClass("w220 sort")
+                    .CssClass("verticalAlignTop");
+
+                columns.Template(c => GetRoleAndOrg(c))
+                    .Header(Localization.GetText("VER.Homepage.TabParticipants.ParticipantsType"))
+                    .EditableTemplate(row => GetRoleAndOrgEditable(row))
+                    .CssHeaderClass("w210 sort")
+                    .HeaderAttribute("order-type", "text")
+                    .CssClass("verticalAlignTop");
+
+                columns.Template(c => Confluence.Label(c.UsernameTask))
+                  .CssHeaderClass("w110 sort")
+                  .EditableTemplate(row => GetListPartipantName(row.ParticipantsNames, !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper())))
+                  .Header(Localization.GetText("VER.Homepage.TabTasks.ParticipantsName"))
+                  .CssClass("CurrentRowParticipant")
+                  .HeaderAttribute("order-type", "text")
+                  .CssClass("verticalAlignTop");
+
+                columns.Template(c => Confluence.LabelGetDate(c.DueDate))
+                    .CssHeaderClass("minw145 w145 sort")
+                    .Header(Localization.GetText("VER.Homepage.TabTasks.DueDate"))
+                    .HeaderAttribute("order-type", "date")
+                    .EditableTemplate(row => Confluence.InputDatePicker(row.DueDate, "dueDate", disabled: !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()) || (row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlDueDate" } }, width: "100%", htmlClass: "mb1"))
+                    .Center()
+                    .CssClass("verticalAlignTop");
+
+                columns.Template(c => Confluence.LabelGetDate(c.SentDate))
+                    .CssHeaderClass("minw90 w90 sort")
+                    .Header(Localization.GetText("Sent Date"))
+                    .HeaderAttribute("order-type", "date")
+                    .EditableTemplate(row => Confluence.LabelGetDate(row.SentDate))
+                    .Center()
+                    .CssClass("verticalAlignTop");
+
+                columns.Template(c => Confluence.Label(c.Status.ToString()))
+                    .Header(Localization.GetText("VER.Homepage.TabTasks.Status"))
+                    .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult>()
+                    {
+                        Confluence.Label(row.Status, new Dictionary<string, string> { {"label-status", row.Status } }),
+                        Confluence.InputHidden(row.Status,"hddStatus")
+                    }))
+                    .HeaderAttribute("order-type", "text")
+                    .CssHeaderClass("minw100 w100 sort")
+                    .CssClass("verticalAlignTop dataStatus");
+
+                columns.Bound(c => string.Empty).Header(Localization.GetText("VER.Homepage.TabTask.Action"))
+                       .CssHeaderClass("minw120 w120")
+                       .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult>()
+                       {
+                           Confluence.ButtonMail(null, "btnSendMail", action: "email", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnEmail" },{"",""} },  clase: row.IsExternal ? "" : "hide"),
+                           Confluence.ButtonMailSend(null, "taskSend", action: "sendTask",disabled:  !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnTaskSend" },{"",""} },  clase: row.IsExternal? "ml10" + " hide":""),
+                           Confluence.ButtonTrash("", "trashTask", "removeRowTask", disabled:  !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnRemoveTask" } })
+                       })
+                       )
+                       .CssClass("verticalAlignTop buttontask"); ; ;
+
+                columns.Template(c => Confluence.ListHelpers(new List<HelperResult>() { Confluence.InputCheckbox(c.Notify, "chkNotify", disabled: true, htmlClass: c.IsExternal ? "hide" : "mt10", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "chkNotify" } }), Confluence.ButtonShowRow() }))
+                    .Header(Localization.GetText("VER.Homepage.TabTasks.Notify"))
+                    .HeaderAttribute("title", Localization.GetText("VER.Homepage.TabTask.Tooltip.Notify"))
+                    .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult>() { Confluence.InputCheckbox(row.Notify, "chkNotify", disabled: !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), htmlClass: row.IsExternal ? "hide" : "mt15", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "chkNotify" } }), Confluence.ButtonShowRow(htmlClass: "btnExpan") })
+                ).CssHeaderClass("w120")
+                 .Center()
+                 .CssClass("verticalAlignTop rowShow");
+
+            }).RowTemplates(rows => rows.Create(RowTemplateType.AllRows, TasksInstructionsRow));
+
+
+        tasksTable.TableClass = "tableNormal endSpacing tableLayoutFixed";
+
+        @Html.Partial("Controls/DataTable", tasksTable)
+
+    }
+</div>
+
+
+@if (btnAddTask != null && btnAddTask.IsVisible)
+{
+    <div class="col-md-12" data-idb-fieldname="btnNewTask">
+        <div data-pagemode="edit" class="text-center">
+            @Confluence.ButtonAddNewRows(Localization.GetText("VER.GLOBAL.Add"), null, "addTasksNewRow", "addTasks", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnNewTask" } })
+        </div>
+    </div>
+}
+
+@if (editButton != null && editButton.IsVisible)
+{
+    <div class="LabelsGroup mt20 col-md-12" data-button-container="Task">
+        @Html.Partial("Partials/DataTables/Buttons/TaskButtonsPartial")
+    </div>
+}
+
+@helper TasksInstructionsRow(TaskTableRowViewModel row)
+{
+    <tr class="template" name="rowIntructions" id="rowIntructions" data-persist="true" data-row-parent-id="@row.TaskId">
+        <td class="custom-detail-table-row" colspan="8">
+            @Confluence.LabelsGroup(Localization.GetText("VER.GLOBAL.Instructions"),
+                        Confluence.Label(row.Instructions),
+                                                            Confluence.InputTextArea(row.Instructions, "txtInstrunctions", "txtInfo", disabled: !(row.Status == VerGlobalValues.UNSENT_STATUS || row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), width: "100%", height: "100px", maxLength: 255, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtInstructions" } })
+                )
+        </td>
+    </tr>
+
+    <tr class="template" name="rowComments" id="rowComments" data-persist="true" data-row-parent-id="@row.TaskId">
+
+        <td class="custom-detail-table-row" colspan="8">
+            @for (int i = 0; i < row.ParticipantsComment.Count; i++)
+            {
+                @Confluence.LabelsGroup(Localization.GetText("VER.Homepage.TabTask.Comments"),
+                                          Confluence.InputCommentBox(Confluence.Label(row.ParticipantsComment[i].Autor), Confluence.LabelGetDate(Convert.ToDateTime(row.ParticipantsComment[i].Date)), null, row.ParticipantsComment[i].Comment, "commentComment", disabled: true, isReadOnly: true, required: false, dataAttributes: new Dictionary<string, string> { { "id", row.TaskId.ToString() }, { "idb-fieldname", "inputCommentBox" } }),
+                                                                                   Confluence.InputCommentBox(Confluence.Label(row.ParticipantsComment[i].Autor), Confluence.LabelGetDate(Convert.ToDateTime(row.ParticipantsComment[i].Date)), null, row.ParticipantsComment[i].Comment, "commentComment", disabled: !(IDBContext.Current.UserName == row.ParticipantsComment[i].Autor && row.Status == VerGlobalValues.UNSENT_STATUS || IDBContext.Current.UserName == row.ParticipantsComment[i].Autor && row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()), maxLength: 450, required: false, dataAttributes: new Dictionary<string, string> { { "id", row.TaskId.ToString() }, { "idb-fieldname", "inputCommentBox" } }))
+            }
+        </td>
+    </tr>
+}
+
+@helper GetRelatedExpandedButton()
+{
+    @Confluence.ButtonShowRow()
+}
+
+@helper GetRoleAndOrg(TaskTableRowViewModel row)
+{
+if (string.IsNullOrEmpty(row.RoleAndOrgUnitId))
+{
+    var roleAndOrg = string.Empty;
+    if (row.Role != null && row.OrgUnit != null)
+    {
+        roleAndOrg = row.Role + "$" + row.OrgUnit;
+    }
+    else if (row.Role == null && row.OrgUnit != null)
+    {
+        roleAndOrg = "0$" + row.OrgUnit;
+    }
+    else if (row.Role != null && row.OrgUnit == null)
+    {
+        roleAndOrg = row.Role + "$0";
+
+    }
+
+    @Confluence.LabelGetDropDown(roleAndOrg, (List<SelectListItem>)ViewBag.RoleListTaskClosed)
+}
+else
+{
+        @Confluence.LabelGetDropDown(row.RoleAndOrgUnitId, (List<SelectListItem>)ViewBag.RoleListTask)
+}
+}
+
+@helper GetRoleAndOrgEditable(TaskTableRowViewModel row)
+{
+
+    @Confluence.InputHidden(row.TaskId.ToString(), "IdRowTask", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtRowTask" } })
+    @Confluence.InputHidden("0", "NewTaskParticipantId")
+    @Confluence.InputHidden(row.IsExternal.ToString(), "IsExternal")
+
+if (!string.IsNullOrEmpty(row.RoleAndOrgUnitId))
+{
+        @Confluence.InputDropDown(row.RoleAndOrgUnitId,
+                          "roleTasks",
+                          (List<SelectListItem>)ViewBag.RoleListTask,
+                          disabled: !(row.Status ==
+                                    VerGlobalValues.UNSENT_STATUS ||
+                                    row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()),
+                          dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlRoleTask" } },
+                          width: "200px", htmlClassElement: "h40")
+
+        <ul class="parsley-errors-list filled hide" id="roleTaskIdVerUl">
+            <li class="parsley-required ">
+                @Localization.GetText("VER.Homepage.TabTasks.Msg.NoUserAssignedRole")
+            </li>
+        </ul>
+}
+else
+{
+    var roleAndOrg = string.Empty;
+    if (row.Role != null && row.OrgUnit != null)
+    {
+        roleAndOrg = row.Role + "$" + row.OrgUnit;
+    }
+    else if (row.Role == null && row.OrgUnit != null)
+    {
+        roleAndOrg = "0$" + row.OrgUnit;
+    }
+    else if (row.Role != null && row.OrgUnit == null)
+    {
+        roleAndOrg = row.Role + "$0";
+
+    }
+    @Confluence.InputDropDown(roleAndOrg,
+                              "roleTasks",
+                              (List<SelectListItem>)ViewBag.RoleListTaskClosed,
+                              disabled: !(row.Status ==
+                                        VerGlobalValues.UNSENT_STATUS ||
+                                        row.Status.ToUpper() == Localization.GetText("GLOBAL.NA").ToUpper()),
+                              dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlRoleTask" } },
+                              width: "200px", htmlClassElement: "mb19 h40")
+}
+}
+
+@helper GetListPartipantName(List<VerUserViewModel> userList, bool isRead)
+{
+var userListItems = userList.Select(o => new MultiSelectListItem
+{
+    Value = o.IdUserName != null ? o.IdUserName.ToString() : null,
+    Text = o.Username,
+    Selected = o.IsSelected
+}).ToList();
+
+    <div class="CurrentRowParticipant">
+        @Confluence.InputDropDownMulti("CurrentRowParticipant", userListItems, width: "100px", disabled: isRead, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "0" } }, htmlClass: "mb1")
+    </div>
+}

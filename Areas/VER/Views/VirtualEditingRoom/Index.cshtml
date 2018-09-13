@@ -1,0 +1,2565 @@
+﻿@model IDB.MW.Application.VERModule.ViewModels.VerViewModel
+@using IDB.MW.Domain.Values.Ver
+@using IDB.MW.Domain.Values
+<div data-id="VerContent"
+     data-loadurl="@Url.Action("VerContentReload", "VirtualEditingRoom", new { area = "VER", instanceId = Model.InstanceId })">
+    @if (Model != null)
+    {
+        @Html.Partial("Partials/VerContent", Model)
+    }
+</div>
+@Html.Partial("Partials/Tabs/Modals/ModalVerWarningMessage")
+@section Scripts{
+    <script src="~/Scripts/Modules/VMR/modalDocument.js"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Task/ForClientTasks.js")"></script>
+    <script>
+        var verError;
+        var connection;
+        var tableObject;
+        var dataTab;
+        var commentReturnText;
+
+        $(document)
+            .ready(function() {
+                operationNumber = '@IDBContext.Current.Operation';
+
+                verError = $.connection.verError;
+                connection = $.connection.hub.start();
+
+                verError.client.showErrorMessage = function(msg, operationNumberParam) {
+                    if (operationNumberParam === operationNumber) {
+                        errorBar(msg, 20, false);
+                    }
+                };
+
+                $.connection.hub.disconnected(function() {
+                    setTimeout(function() {
+                            connection = $.connection.hub.start();
+                        },
+                        2000);
+                });
+                paginationTab(true);
+                hideCheckAnnex();
+                OrderTask();
+                addTitleChkNotify();
+                policyWaivedTooltip();
+                window.moveScrollTop();
+                commentEngine();
+
+                @{
+                    if (Model.ListBanner.Count == 1)
+                    {
+                        var banner = Model.ListBanner.FirstOrDefault();
+
+                        if (banner != null)
+                        {
+                            if (banner.BannerType == BannerType.WARNING_BANNER)
+                            {
+                                <text>warningBar("@banner.BannerMessage", 1000, false);</text>
+                            }
+                        }
+                    }
+                }
+            });
+
+        $(document).on('click',
+            '[name="lockUnlockInstance"]',
+            function() {
+                showLoaderOptional();
+                var isLock = $('[name="lockUnlockInstance"]').prop('checked');
+
+                showLoaderOptional();
+                postUrlWithOptions(
+                        '@Url.Action("VerLockUnlock", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})',
+                        { async: true },
+                        { lockInstance: isLock })
+                    .done(function(data) {
+                        if (data.IsValid === false) {
+
+                            if (data.IsEqualLock === true) {
+                                executeLockUnlockInstance(isLock, true, data.ErrorMessage);
+                            } else {
+                                hideLoaderOptional();
+                                showMessage(data.ErrorMessage);
+                            }
+                        } else {
+                            $('.btn.btn-warning.vex-dialog-button.vex-first').off('click');
+                            executeLockUnlockInstance(isLock, false);
+                        }
+                    });
+            });
+
+        function executeLockUnlockInstance(isLock, equalLock, message) {
+            if (isLock) {
+                $('#sectionSubmit').addClass("hide");
+                $("#sectionReviewSubmit").addClass("hide");
+                $('[data-button-container="Submit"]').empty();
+                $('[data-button-container="Participant"]').empty();
+                $('[data-button-container="Task"]').empty();
+                $('[data-button-container="DocumentTop"]').empty();
+                $('[data-button-container="DocumentBottom"]').empty();
+                $('[data-button-container="PolicyWaived"]').empty();
+                hideLoaderOptional();
+
+                if (equalLock === false) {
+                    showMessage('@Localization.GetText("VER.GLOBAL.LOCK.MESSAGE")');
+                } else {
+                    showMessage(message);
+                }
+            } else {
+                postUrlWithOptions(
+                        '@Url.Action("VerGetButtons", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})',
+                        { async: true })
+                    .done(function(partial) {
+                        $('#sectionSubmit').removeClass("hide");
+                        $("#sectionReviewSubmit").removeClass("hide");
+                        $('#sectionSubmit').html($(partial).find('#buttonSubmitPartial').html());
+                        $('[data-button-container="Participant"]')
+                            .html($(partial).find('#buttonParticipantPartial').html());
+                        $('[data-button-container="Task"]')
+                            .html($(partial).find('#buttonTaskPartial').html());
+                        $('[data-button-container="DocumentTop"]')
+                            .html($(partial).find('#buttonDocumentPartialTop').html());
+                        $('[data-button-container="DocumentBottom"]')
+                            .html($(partial).find('#buttonDocumentPartialBottom').html());
+                        $('[data-button-container="PolicyWaived"]')
+                            .html($(partial).find('#buttonPolicyWaivedPartial').html());
+
+                        var opcRequiredCheck = $('[name=chkOpcRequired]');
+
+                        if (opcRequiredCheck != null && opcRequiredCheck.prop('checked')) {
+                            InvertVisibilitySubmitButtons();
+                        }
+
+                        hideLoaderOptional();
+
+                        if (equalLock === false) {
+                            showMessage('@Localization.GetText("VER.GLOBAL.UNLOCK.MESSAGE")');
+                        } else {
+                            showMessage(message);
+                        }
+                    });
+            }
+        }
+
+        function disableEnableLockUnlockInstance(disabled) {
+            $('[name="lockUnlockInstance"]').attr("disabled", disabled);
+        }
+
+        function modalOnClose() {
+            $("[name='@VerSecurityValues.COMMENT_RETURN']").val("");
+            $("[name='@VerSecurityValues.COMMENT_RETURN']").prop('data-parsley-required', false);
+            $("[name='@VerSecurityValues.COMMENT_RETURN']").removeClass("parsley-error");
+            $("[name='@VerSecurityValues.COMMENT_RETURN']").closest('div').find('ul').removeClass("filled");
+        }
+
+        function validateSubmit(button) {
+            var modal = $("[data-id=mainContainer]").not('.hide').find('[data-submit-popup]');
+            var isVisibleModal = modal.length > 0;
+            commentReturnText = null;
+
+            if (isVisibleModal) {
+                var commentReturnField = $(modal).find('[name=@VerSecurityValues.COMMENT_RETURN]');
+                commentReturnField.prop('data-parsley-required', true);
+                commentReturnField.prop('required', 'required');
+
+                if (validateContainer($(modal))) {
+                    var action = $(modal).find('[name=master-data-id]').val();
+                    var code = $(modal).find('[name=submit-code]').val();
+
+                    $(button).prop('data-master-data-id', action);
+                    $(button).prop('data-submit-code', code);
+
+                    commentReturnText = commentReturnField.val();
+
+                    $('div.vex-close').click();
+
+                    submitInstance(button);
+                }
+
+                commentReturnField.prop('data-parsley-required', false);
+                commentReturnField.removeAttr('required');
+            }
+        }
+
+        function SubmitForTranslation() {
+            if (!isInEditMode($(".tab-pane.active"))) {
+                var msg = '@Localization.GetText("VER.MessageConfirmSubmit")';
+                confirmAction(msg).done(function(pressOk) {
+                    if (pressOk) {
+                        showLoaderOptional();
+                        var linkD2S = '@Html.Raw(Model.BasicData.D2SLink)';
+                        if (linkD2S.length > 0) {
+                            window.open(linkD2S, '_blank');
+                        }
+                        exitEditMode(true, $('[data-id=VerContent]'), true, false);
+                        $('[dd-tab="#tabDocuments"]').click();
+                        commentEngine();
+                        commentHandlers();
+                        hideLoaderOptional();
+                    };
+                });
+            } else {
+                Alert.ShowWarning("@Localization.GetText("VER.GLOBAL.MSG.SAVE.CHANGES")");
+            }
+        }
+
+        function processBasicData() {
+            var form = [];
+            if ($('[name="transmittalMemoOpc"]').val() != null && $('[name="transmittalMemoOpc"]').val() != undefined) {
+                form.push({ Id: '@VerSecurityValues.TRANSMITTAL_MEMO_OPC',
+                    Name: '@VerSecurityValues.TRANSMITTAL_MEMO_OPC',
+                    Value: $('[name="transmittalMemoOpc"]').val()
+                });
+            }
+
+            if ($('[name="@VerSecurityValues.COMMENT_RETURN"]').val() != null &&
+                $('[name="@VerSecurityValues.COMMENT_RETURN"]').val() != undefined) {
+                form.push({ Id: '@VerSecurityValues.COMMENT_RETURN', Name: '@VerSecurityValues.COMMENT_RETURN',
+                    Value: commentReturnText
+                });
+            }
+
+            return form;
+        }
+
+        function submitInstanceSubmit(actionType, selecteActionCode) {
+
+            generateAnnexRefreshSubmit();
+            postUrlWithOptions(
+                    '@Url.Action("ValidateSubmit", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})',
+                    { async: true },
+                    { actionCode: selecteActionCode })
+                .done(function(dataCheck) {
+                    if (dataCheck.IsValid === true) {
+                        instanceSubmit(actionType);
+                    } else {
+                        $('#verWarningMessage div.modal-body').html(dataCheck.ErrorMessage);
+                        hideLoaderOptional();
+                        if (dataCheck.ReloadTab === true) {
+                            reloadTab('@VerGlobalValues.TAB_DOCUMENT_NAME', true);
+                            requiredDocument();
+                            commentHandlers();
+                        }
+                        hideLoaderOptional();
+                        paginationTab(false, dataTab);
+                        $('#verWarningMessage').modal();
+                    }
+                });
+        }
+
+        function submitInstance(button) {
+            dataTab = GetDataBytab();
+            tableObject = $(dataTab.table).objectSortableConfluence();
+            var actionType = $(button).attr('data-master-data-id');
+            if (!isInEditMode($(".tab-pane.active"))) {
+                if (actionType !== "" &&
+                    actionType !== undefined) {
+                    var msg = '@Localization.GetText("VER.MessageConfirmSubmit")';
+                    var statePublish = '@VerActionTypeCode.PUBLISH_SUBMIT';
+                    var stateButtonSubmit = $(button).attr('data-submit-code');
+                    var isStateQrr = statePublish === stateButtonSubmit;
+
+                    if (isStateQrr) {
+                        msg = '@Localization.GetText("VER.MessageConfirmSubmit.Publish")';
+                    }
+
+                    if (validateContainer($("#basicDataSection"))) {
+
+                        if (stateButtonSubmit === '@VerActionTypeCode.SUBMIT_LP_BOARD_CLEARANCE') {
+                            var url = '@Url.Action("AllowSubmitForClearence", "VirtualEditingRoom", new {area = "VER"})';
+                            var result = postUrl(url, { submitCode: stateButtonSubmit }).success(function(isValid) {
+                                if (!isValid) {
+                                    Alert.ShowWarning(
+                                        '@Localization.GetText("VER.MessageConfirm.AllowSubmitForClearence")');
+                                    $('.modal-footer').html('');
+                                    return false;
+                                } else {
+                                    confirmAction(msg)
+                                        .done(function(pressOk) {
+                                            if (pressOk) {
+                                                showLoaderOptional();
+                                                setTimeout(function(actionType, stateButtonSubmit) {
+                                                        submitInstanceSubmit(actionType, stateButtonSubmit);
+                                                    },
+                                                    500,
+                                                    actionType,
+                                                    stateButtonSubmit);
+                                            }
+                                        });
+                                }
+                            });
+                        } else if (stateButtonSubmit === '@VerActionTypeCode.LP_RETURN_TASK_LEGAL') {
+                            showLoaderOptional();
+                            setTimeout(function(actionType, stateButtonSubmit) {
+                                    submitInstanceSubmit(actionType, stateButtonSubmit);
+                                },
+                                500,
+                                actionType,
+                                stateButtonSubmit);
+                        } else {
+                            confirmAction(msg)
+                                .done(function(pressOk) {
+                                    if (pressOk) {
+                                        showLoaderOptional();
+                                        setTimeout(function(actionType, stateButtonSubmit) {
+                                                submitInstanceSubmit(actionType, stateButtonSubmit);
+                                            },
+                                            500,
+                                            actionType,
+                                            stateButtonSubmit);
+                                    }
+                                });
+                        }
+
+                    }
+                } else {
+                    Alert.ShowWarning("@Localization.GetText("VER.MessageSelectActionType")");
+                }
+            } else {
+                Alert.ShowWarning("@Localization.GetText("VER.GLOBAL.MSG.SAVE.CHANGES")");
+            }
+        }
+
+        function reloadTab(tab, focus) {
+            exitEditMode(true, $('#' + tab), true, false);
+
+            if ($(".tab-pane.active").attr("id") !== tab && focus) {
+                $('[dd-tab="#' + tab + '"]').click();
+            }
+
+            paginationTab(true);
+        }
+
+        function getDataDocumentsInView() {
+            var dataDocuments = [];
+
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var rowId = $(this).find('[name="verDocumentId"]').val();
+                    if (rowId != undefined && rowId !== '' && rowId != 0) {
+                        var docNumber = $(this).find('[name="documentNumber"]').val();
+                        var isGenerated = $(this).find('[name="isGenerated"]').prop('checked');
+                        var isRequired = $(this).find('[name="isRequired"]').prop('checked');
+                        var incInPackage = $(this).find('[name="packageDoc"]').prop('checked');
+                        dataDocuments.push({
+                            VerDocumentId: rowId,
+                            DocumentNumber: docNumber,
+                            IsGenerated: isGenerated,
+                            IsRequired: isRequired,
+                            IncInPackage: incInPackage
+                        });
+                    }
+
+                });
+
+            return dataDocuments;
+        }
+
+        function requiredDocument() {
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var required = $(this).find('#isRequired').is(':checked');
+                    var docNumber = $(this).find('[name="documentNumber"]').val();
+                    if (required && docNumber === '') {
+                        $(this).find('.buttonLink').addClass('requiredDocument');
+                        $(this).find('.buttonLink').removeClass('unlinkedDocument');
+                    }
+                });
+        }
+
+        function noUrlShpVersionHistory() {
+            $('#versionHistoryTable tbody tr')
+                .each(function() {
+                    var urlDocument = $(this).find('[name="vhUrlDocument"]').val();
+                    $(this).find('.packageName').css({ "cursor": "default" });
+                    if (urlDocument === '') {
+                        $(this).find('.documentName').css({ "color": "black", "cursor": "default" });
+                    } else {
+                        $(this)
+                            .find('.documentName')
+                            .css({
+                                "color": "#3b73c3",
+                                "cursor": "hand",
+                                "cursor":
+                                    "pointer"
+                            });
+                    }
+                });
+        }
+
+        function sendTask(source) {
+            var msg = '@Localization.GetText("VER.Homepage.TabTasks.Msg.Send.ConfirmMessage")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+
+                        var row = $(source).closest('tr');
+                        var saveTask = saveOneRowParticipant(row);
+                        if (saveTask != null && saveTask.IsValid) {
+                            var url =
+                                '@Url.Action("SendTask", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+                            postUrlWithOptions(url, { async: false }, { tasksId: saveTask.IdTaskList })
+                                .done(function(data) {
+                                    if (data.IsValid) {
+                                        showMessage("@Localization.GetText("VER.GLOBAL.MSG.SEND_TASK")");
+                                        lockRowTask(row);
+                                        setTimeout(lock, 1000, source);
+                                        var statusField = $(row).find('[data-label-status]');
+                                        if (statusField !== null) {
+                                            $(statusField).text('@VerGlobalValues.IN_PROGRESS_STATUS');
+                                            $(statusField)
+                                                .attr('data-label-status', '@VerGlobalValues.IN_PROGRESS_STATUS');
+                                        }
+                                        validateStatus(source);
+                                    } else {
+                                        showMessage(data.ErrorMessage);
+                                    }
+                                });
+                        } else if (saveTask != null) {
+                            showMessage(saveTask.ErrorMessage);
+                        }
+                    }
+                });
+        }
+
+        function lock(source) {
+            $(source).attr("disabled", "disabled");
+        }
+
+        function lockRowTask(row) {
+            $(row).find('#id-activityType').attr('disabled', 'disabled');
+            $(row).find('[name=description]').attr('disabled', 'disabled');
+            $(row).find('#id-roleTasks').attr('disabled', 'disabled');
+            $(row).find('[name=dueDate]').attr('disabled', 'disabled');
+            $(row).find('[name=trashTask]').attr('disabled', 'disabled');
+            $(row).find('[name=taskSend]').attr('disabled', 'disabled');
+            $(row).find('[name=chkNotify]').attr('disabled', 'disabled');
+            $(row).next().find('[name=txtInstrunctions]').attr('disabled', 'disabled');
+            $(row).next().next().find('[name=commentComment]').attr('disabled', 'disabled');
+            $(row).find('[name="CurrentRowParticipant"]').attr('disabled', 'disabled').trigger("chosen:updated");
+        }
+
+        function hideCheckAnnex() {
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var isGenerated = $(this).find('[name="isGeneratedAnnex"]').val();
+                    var primaryUrl = $(this).find('[name="shpUrlDocument"]').val();
+
+                    if (isGenerated != undefined && primaryUrl !== '') {
+                        $(this).find('[name="isGeneratedAnnex"]').attr('disabled');
+                        $(this).find('[name="isGeneratedAnnex"]').closest('label').addClass('hide');
+                    }
+                });
+        }
+
+        function saveOneRowParticipant(row) {
+            var save = null;
+            if (validateTaskRow(row)) {
+                var taskDataRow = getRowDataTask(row);
+                taskDataRow = getParticipantRow($(row), taskDataRow);
+                var urlSaveRow =
+                    '@Url.Action("CreateParticipantTask", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+                postUrlWithOptions(urlSaveRow, { async: false }, { taskViewModel: taskDataRow })
+                    .done(function(dataSave) {
+                        save = dataSave;
+                        if (dataSave.IdTaskList !== null && dataSave.IdTaskList.length > 0) {
+                            $(row).find('[name="NewTaskParticipantId"]').val(dataSave.IdTaskList.join(','));
+                        }
+                    });
+            }
+            return save;
+        }
+
+        function getRowDataTask(row) {
+            var model = {
+                TaskId: $(row).find('[name="IdRowTask"]').val(),
+                ActivityType: $(row).find('[name="activityType"]').val(),
+                Description: $(row).find('[name="description"]').val(),
+                RoleAndOrgUnitId: $(row).find('[name="roleTasks"]').val(),
+                Instructions: $(row).next().find('[name="txtInstrunctions"]').val(),
+                DueDate: $(row).find('[name="dueDate"]').val(),
+                Notify: $(row).find('[name="chkNotify"]').prop('checked'),
+                Status: $(row).find('[name="hddStatus"]').val(),
+                ParticipantsNames: null
+            };
+
+            return model;
+        }
+
+        function getParticipantRow(row, taskDataRow) {
+
+            var tableArray = new Array();
+            var participant = $(row).find('span[data-pagemode="edit"] [name="CurrentRowParticipant"]').val();
+            $.map(participant,
+                function(data) {
+                    tableArray.push({ IdUserName: parseInt(data) ? parseInt(data) : null, Username: data });
+                });
+
+            taskDataRow.ParticipantsNames = tableArray;
+
+            return taskDataRow;
+        }
+
+        function validateTaskRow(row) {
+
+            $(row).attr('data-parsley-validate', 'data-parsley-validate');
+            $(row).next().attr('data-parsley-validate', 'data-parsley-validate');
+
+            var isValidFieldsFirstRow = validateContainer($(row));
+            var iValidFieldsSecondRow = validateContainer($(row).next());
+            var isValid = isValidFieldsFirstRow && iValidFieldsSecondRow;
+
+            $(row).removeAttr('data-parsley-validate');
+            $(row).next().removeAttr('data-parsley-validate');
+
+
+            return isValid;
+        }
+
+        function addComments() {
+            var dataid = $('#CommentsZone div[id="CommentUser"]').length;
+            $('#CommentsZone').append($('#newCommentHidden div[id="CommentUser"]').clone());
+            $('#CommentsZone div[id="CommentUser"] :last').closest("div").parent().attr("data-id", dataid);
+        }
+
+        function showParticipantModal() {
+            var url = '@Url.Action("GetParticipantSearch", "VirtualEditingRoom", new {area = "VER"})';
+            postUrlWithOptions(url, { async: false })
+                .done(function(data) {
+                    $('#newParticipantContentModal').html(data);
+                    $('[data-id="newParticipant"]').click();
+                    allowMultiPopUp();
+                });
+
+
+        }
+
+        function getTableParticipant() {
+
+            var tableArray = new Array();
+
+            $("#participantsTable tbody tr")
+                .each(function() {
+                    var accessLevelCode = $(this).find('[name=accessLevelCode]').val();
+                    var role = parseInt($(this).find('[name=role]').val())
+                        ? parseInt($(this).find('[name=role]').val())
+                        : -1;
+                    var organizationalUnitId = parseInt($(this).find('[name=organizationalUnitId]').val())
+                        ? parseInt($(this).find('[name=organizationalUnitId]').val())
+                        : -1;
+                    var userName = $(this).find('[name=username]').val();
+                    var participantType = parseInt($(this).find('[name=participantType]').val())
+                        ? parseInt($(this).find('[name=participantType]').val())
+                        : -1;
+
+                    var participants =
+                    {
+                        AccessLevelCode: accessLevelCode,
+                        Role: role,
+                        OrganizationalUnitId: organizationalUnitId,
+                        Username: userName,
+                        ParticipantTypeId: participantType
+                    };
+
+                    tableArray.push(participants);
+
+                });
+
+            return tableArray;
+        }
+
+        function getOrgUnitByCode(orgUnit) {
+            var url = '@Url.Action("GetOrgUnitByCode", "VirtualEditingRoom", new {area = "VER"})';
+            var organizationalUnitId = -1;
+            postUrlWithOptions(url, { async: false }, { orgUnit: orgUnit })
+                .done(function(response) {
+                    if (response.IsValid) {
+                        organizationalUnitId = response.Id;
+                    }
+                });
+            return organizationalUnitId;
+        }
+
+        function addParticipantRow() {
+            if (validateContainer($("#filterParticipant"))) {
+
+                var searchBy = $('#accessType:checked').val();
+                var roleId;
+                var organizationalUnitId;
+                if ('@ModuleAccessLevelCode.USER' === searchBy) {
+                    organizationalUnitId = parseInt($('input[name="orgUnitId"]').val())
+                        ? parseInt($('input[name="orgUnitId"]').val())
+                        : -1;
+                    roleId = -1;
+                    if (organizationalUnitId === -1) {
+                        showMessage('@Localization.GetText("VER.Homepage.TabParticipant.NoOrgUnitUser")');
+                        return false;
+                    }
+                } else {
+                    roleId = parseInt($('input[name="rolePartial"]').val())
+                        ? parseInt($('input[name="rolePartial"]').val())
+                        : -1;
+                    organizationalUnitId = parseInt($('[name = "organizationUnitPartial"]').val())
+                        ? parseInt($('[name = "organizationUnitPartial"]').val())
+                        : -1;
+                }
+                var participantTypeId = parseInt($('input[name="participantTypePartial"]').val())
+                    ? parseInt($('input[name="participantTypePartial"]').val())
+                    : -1;
+                var userName = $('[name = userName]').val() === ""
+                    ? $('[name = userNameExternal]').val()
+                    : $('[name = userName]').val();
+                var email = $('[name = emailExternal]').val();
+                $('#participantsTable_wrapper').find('.Pagination_Number').last().click();
+
+                var tableArray = getTableParticipant();
+
+                if (tableArray != null) {
+
+                    var url =
+                        '@Url.Action("ValidationParticipant", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+                    postUrlWithOptions(url,
+                            { async: true },
+                            {
+                                accessLevelCode: searchBy,
+                                roleId: roleId,
+                                orgUnitId: organizationalUnitId,
+                                participantTypeId: participantTypeId,
+                                userName: userName,
+                                participants: tableArray
+                            })
+                        .done(function(response) {
+                            if (response.IsValid) {
+
+                                var url =
+                                    '@Url.Action("GetParticipantsNewRow", "VirtualEditingRoom", new {area = "VER"})';
+                                postUrlWithOptions(url,
+                                        { async: false },
+                                        {
+                                            searchBy: searchBy,
+                                            participantTypeId: participantTypeId,
+                                            roleId: roleId,
+                                            userName: userName,
+                                            organizationalUnitId: organizationalUnitId,
+                                            email: email
+                                        })
+                                    .done(function(responseText) {
+                                        if ($("#participantsTable").find('td.dataTables_empty').length > 0) {
+                                            $("#participantsTable").find('tbody tr').remove();
+                                        }
+                                        $("#participantsTable").find('tbody').append(responseText);
+                                        bindHandlers();
+                                        $('div.vex-close').click();
+                                        hideLoaderOptional();
+                                        $(dataTab.table).paginationConfluense(dataTab.pageSize, dataTab.pageNumber);
+                                        $("#participantsTable_wrapper").find('.Pagination_Number').last().click();
+                                    });
+
+                            } else {
+                                showMessage(response.ErrorMessage);
+                            }
+                        });
+                }
+            }
+        }
+
+        function removeRow(source) {
+
+            dataTab = GetDataBytab();
+
+            var msg = dataTab.deleteRegisterMsg;
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var row = source;
+                        row.closest("tr").remove();
+                    }
+                });
+        }
+
+        function removeRowTask(source) {
+            var msg = '@Localization.GetText("VER.Homepage.TabTasks.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var row = source.closest("tr");
+                        row.next().find('#rowNewInstruction').remove();
+                        row.next().remove();
+                        row.remove();
+                    }
+                });
+        }
+
+        $(document)
+            .on("change",
+                '[name="roleTasks"]',
+                function() {
+                    var row = $(this).closest('tr');
+                    var roleIdAndOrgUnitId = $(this).val();
+                    var roleText = $(this).GetText();
+                    var roleExternal = '@MemberRoleCode.EXTERNAL_CONTRACTOR';
+                    if (row.find('#roleTaskIdVer .valueText').GetValue() === '') {
+                        row.find('#roleTaskIdVerUl').removeClass('show');
+                        row.find('#roleTaskIdVerUl').addClass('hide');
+                    }
+                    if (roleText === roleExternal) {
+                        row.find('[name="btnSendMail"]').removeClass('hide');
+                        row.find('[name="dueDate"]').attr('disabled', 'disabled');
+                        row.find('[name="dueDate"]').attr('data-parsley-required', 'false');
+                        row.find('[name="taskSend"]').addClass('hide');
+                        row.find('[name="chkNotify"]').addClass('hide');
+                        row.find('[name="chkNotify"]').closest('label').find('span').addClass('hide');
+                        row.find('[name="chkNotify"]').prop("checked", false);
+                        row.find('[name="IsExternal"]').val('true');
+                        row.find('[name="hddStatus"]').val('N/A');
+                        row.find('[data-label-status]').attr('data-label-status', 'N/A');
+                        row.find('[data-label-status]').text('N/A');
+                    } else {
+                        row.find('[name="btnSendMail"]').addClass('hide');
+                        row.find('[name="dueDate"]').removeAttr('disabled', 'disabled');
+                        row.find('[name="dueDate"]').attr('data-parsley-required', 'true');
+                        row.find('[name="taskSend"]').removeClass('hide');
+                        row.find('[name="chkNotify"]').removeClass('hide');
+                        row.find('[name="chkNotify"]').closest('label').removeClass('hide');
+                        row.find('[name="chkNotify"]').closest('label').find('span').removeClass('hide');
+                        row.find('[name="IsExternal"]').val('false');
+                        row.find('[name="hddStatus"]').val('UNSENT');
+                        row.find('[data-label-status]').attr('data-label-status', 'UNSENT');
+                        row.find('[data-label-status]').text('UNSENT');
+                    }
+
+                    var url =
+                        '@Url.Action("GetParticipantsTaks", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+                    postUrlWithOptions(url, { async: false }, { roleAndOrgUnitId: roleIdAndOrgUnitId })
+                        .done(function(responseText) {
+                            row.find('.CurrentRowParticipant').text('');
+                            row.find('.CurrentRowParticipant').append(responseText);
+
+                            enterEditMode(false, $(row), false);
+                            bindHandlers($(row));
+
+                            if (row.find('[name="VerRoleTaskCount"]').val() == '0' &&
+                                !(row.find('#roleTaskIdVer .valueText').GetValue() === '')) {
+                                row.find('#roleTaskIdVerUl').removeClass('hide');
+                                row.find('#roleTaskIdVerUl').addClass('show');
+                                row.find('.CurrentRowParticipant').find('.default').val("");
+                                row.find('[name="CurrentRowParticipant"]').removeAttr('disabled');
+                            } else {
+
+                                row.find('#roleTaskIdVerUl').removeClass('show');
+                                row.find('#roleTaskIdVerUl').addClass('hide');
+                            }
+                        });
+                });
+
+        function addTasks() {
+            var url =
+                '@Url.Action("GetTasksNewRow", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+            $('#tasksTable_wrapper').find('.Pagination_Number').last().click();
+            postUrlWithOptions(url, { async: false }, { instanceId: @Model.InstanceId })
+                .done(function(responseText) {
+                    if ($('#tasksTable').find('td.dataTables_empty').length > 0) {
+                        $('#tasksTable').find('tbody tr').remove();
+                    }
+                    $('#tasksTable').find('tbody').append(responseText);
+                    enterEditMode(false, $('#tasksTable').find('tbody'), false);
+                    var dataId = $('#tasksTable').find('tbody').find('tr[data-id]').last().attr('data-id');
+
+                    bindHandlers($('#tasksTable')
+                        .find('tr[data-id="' + dataId + '"], tr[data-row-parent-id="' + dataId + '"]'));
+
+                    hideLoaderOptional();
+                    $(dataTab.table).paginationConfluense(dataTab.pageSize, dataTab.pageNumber);
+                    showRowComment();
+                    $("#tasksTable_wrapper").find('.Pagination_Number').last().click();
+
+                    addTitleChkNotify();
+                });
+        }
+
+        function showMoreLess() {
+            $('.commentMainSection')
+                .each(function() {
+                    if ($(this).find('[data-comment="More"] .textComment').height() != null) {
+                        if ($(this).find('[data-comment="More"] .textComment').height() <= 59) {
+                            $(this).find('[data-comment="Less"]').hide();
+                            $(this).find('[data-comment="More"]').show();
+                            $('.showlinkTree[showless]').css('display', 'block');
+                        } else {
+                            $(this).find('[data-comment="More"]').find('.showlinkTree').show();
+                        }
+                    } else {
+                        $(this).find('[data-comment="More"]').hide();
+                        $(this).find('[data-comment="Less"]').show();
+                        if ($(this).find('[data-comment="Less"] .textComment').height() <= 59) {
+                            $(this).find('[data-comment="Less"]').find('.showlinkTree').hide();
+                        }
+                        $('.showlinkTree[showless]').css('display', 'block');
+                    }
+                });
+
+            $(".showlinkTree")
+                .click(function() {
+                    var container = $(this).closest('[data-comment]');
+                    var mainContainer = $(this).closest('.commentMainSection');
+                    if (container.attr("data-comment") === "More") {
+                        container.hide();
+                        mainContainer.find('[data-comment="Less"]')
+                            .fadeIn('slow')
+                            .find('.showlinkTree')
+                            .show();
+                    } else {
+                        container.hide();
+                        mainContainer.find('[data-comment="More"]')
+                            .fadeIn('slow')
+                            .find('.showlinkTree')
+                            .show();
+                    }
+                });
+        }
+
+        function GetDataBytab() {
+            var data = {
+                modelSerialized: '',
+                pageSize: '',
+                table: '',
+                nameDdlPagination: '',
+                urlConcurrence: '',
+                deleteRegisterMsg: '',
+                reloadTab: '',
+                pageNumber: '',
+                order: '',
+                col: ''
+            };
+
+            switch ($(".tab-pane.active").attr("id")) {
+            case "@VerGlobalValues.TAB_PARTICIPANT_NAME":
+                data.modelSerialized = '#participantsViewModel';
+                data.pageSize = $('[name="ddlPaginationParticipant"]').val();
+                data.table = "#participantsTable";
+                data.nameDdlPagination = "ddlPaginationParticipant";
+                data.deleteRegisterMsg = '@Localization.GetText("VER.Homepage.TabParticipants.DeleteMsg")';
+                data.urlConcurrence = '@VerGlobalValues.URL_PARTICIPANT';
+                data.reloadTab = "#tabTasks";
+                break;
+            case "@VerGlobalValues.TAB_DOCUMENT_NAME":
+                data.modelSerialized = '#documentsViewModel';
+                data.pageSize = $('[name="ddlResultsDocuments"]').val();
+                data.table = "#documentsTable";
+                data.nameDdlPagination = "ddlResultsDocuments";
+                data.urlConcurrence = '@VerGlobalValues.URL_DOCUMENT';
+                break;
+            case "@VerGlobalValues.TAB_TASK_NAME":
+                data.modelSerialized = '#taskViewModel';
+                data.pageSize = $('[name="ddlPaginationTask"]').val();
+                data.table = "#tasksTable";
+                data.nameDdlPagination = "ddlPaginationTask";
+                data.urlConcurrence = '@VerGlobalValues.URL_TASK';
+                break;
+            case "@VerGlobalValues.TAB_POLICY_WAIVER":
+                data.modelSerialized = '#policyWaiverViewModel';
+                data.pageSize = $('[name="ddlPaginationPolicyWaived"]').val();
+                data.table = "#policyWaiverTable";
+                data.nameDdlPagination = "ddlPaginationPolicyWaived";
+                data.deleteRegisterMsg = '@Localization.GetText("VER.Homepage.TabPolicyWaiver.DeleteMsg")';
+                data.urlConcurrence = '@VerGlobalValues.URL_POLICY_WAIVER';
+                break;
+            }
+
+            var pageNumber =
+                $("#" + $(".tab-pane.active").attr("id") + " .Pagination div.Pagination_Number.Pagination_Active")
+                    .attr("dd-num");
+            if (pageNumber != undefined && pageNumber != "") {
+                data.pageNumber = pageNumber;
+
+                tableObject = $(data.table).objectSortableConfluence();
+            }
+
+            if (tableObject == undefined) {
+                var tableObject = $(data.table).objectSortableConfluence();
+            }
+
+
+            if (tableObject != undefined) {
+                data.order = tableObject.order;
+                data.col = tableObject.column;
+            }
+
+            return data;
+        }
+
+        function save() {
+            var isValid = false;
+            dataTab = GetDataBytab();
+            var msg = messageUnsentTask();
+            if (msg !== '' && dataTab.table === '#tasksTable') {
+                tableObject = $(dataTab.table).objectSortableConfluence();
+                confirmAction(msg)
+                    .done(function(pressOk) {
+                        if (pressOk) {
+                            vex.close();
+                            showLoaderOptional();
+                            isValid = saveDataTab(dataTab);
+                        }
+                    });
+            } else {
+                isValid = saveDataTab(dataTab);
+            }
+            return isValid;
+        }
+
+        function cancel() {
+            var msg = "@Localization.GetText("VER.Homepage.TabParticipant.CancelMsg")";
+            dataTab = GetDataBytab();
+            tableObject = $(dataTab.table).objectSortableConfluence();
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        showLoaderOptional();
+                        postUrlWithOptions('@Url.Action("UnlockRegister", "VirtualEditingRoom", new {area = "VER"})',
+                            { async: true },
+                            { url: dataTab.urlConcurrence, operationNumber: @Model.InstanceId });
+
+                        searchDocumentForDeleteShp();
+
+                        exitEditMode(true, $('.tab-pane.active'), true, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                        disableEnableTabs(false);
+                        disableEnableLockUnlockInstance(false);
+                        paginationTab(false, dataTab);
+                        $('.btn.btn-warning.vex-dialog-button.vex-first').off('click');
+                        removeButtonsDocuments();
+                        hideCheckAnnex();
+                        hideLoaderOptional();
+                        enableOpcRequired(false);
+                    }
+                });
+
+        }
+
+        function searchDocumentForDeleteShp() {
+            $('[name=IsNewDocumentForSave]')
+                .each(function() {
+                    if ($(this).is(':checked')) {
+                        var docNumber = $(this).attr("data-DocumentReference");
+                        var docName = $(this).attr("data-DocumentName");
+                        var docNameTemp = $(this).attr("data-DocumentNameTemp");
+                        $.ajax({
+                            type: "POST",
+                            async: false,
+                            url: '@Url.Action("RemoveDocumentSharepointTemp", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                                 '&operationNumber=' + operationNumber + '&documentNumber=' + docNumber + '&documentName=' + docName + '&documentNameTemp=' + docNameTemp
+                        }).done(function(data) {
+                            if (data.IsValid === false) {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                var row = $(this).closest('tr');
+                                row.remove();
+                            }
+                        });
+                    }
+                });
+        }
+
+        var orderHeaderTask;
+        var nameHeaderTask;
+        var justificationSubType;
+
+        function edit() {
+            showLoaderOptional();
+            $('[data-id="mainContainer"]')
+                .each(function() {
+                    if ($(this).closest('.vex').length === 0) {
+                        $(this).remove();
+                    }
+                });
+
+            dataTab = GetDataBytab();
+
+            tableObject = $(dataTab.table).objectSortableConfluence();
+            postUrlWithOptions('@Url.Action("LockRegister", "VirtualEditingRoom", new {area = "VER"})',
+                    { async: true },
+                    { url: dataTab.urlConcurrence, operationNumber: @Model.InstanceId })
+                .done(function(data) {
+                    if (data.IsValid === true) {
+                        var success = enterEditMode(true, $('.tab-pane.active'), false, { isEdit: true });
+                        if (success) {
+                            disableEnableTabs(true);
+                            disableEnableLockUnlockInstance(true);
+                            $('.btn.btn-warning.vex-dialog-button.vex-first').off('click');
+                            removeButtonsDocuments();
+                            hideCheckAnnex();
+                            hideButtonTrash();
+                            hideButtonsTrashForTranslate();
+                            addTitleChkNotify();
+                            addHideClassGenerateAnnex();
+                            if ($(".tab-pane.active").attr("id") === '@VerGlobalValues.TAB_POLICY_WAIVER') {
+                                var listNoOpc = $("#listForNoOpc").val() !== ""
+                                    ? $("#listForNoOpc").val().split(",").map(Number)
+                                    : [];
+                                var listNoOpcLen = listNoOpc.length;
+                                var isOneSelect = listNoOpcLen === 0;
+                                hideOptionsPolicyStatus(null, (listNoOpcLen > 0 ? listNoOpc : null), isOneSelect);
+                                setResponse(false);
+                            }
+                            bindHandlers();
+                            paginationTab(false, dataTab);
+                            enableOpcRequired(true);
+                        }
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                    hideLoaderOptional();
+                });
+        }
+
+        function disableEnableTabs(enableOne) {
+            if (enableOne) {
+                var idTab = $('.tab-pane.active').attr('data-tab-control-id');
+                $('[dd-tab]').not('[dd-tab=' + idTab + ']').addClass('disabled');
+            } else {
+                $('[dd-tab]').removeClass('disabled');
+            }
+        }
+
+        function removeAction(source) {
+            $(source).attr('data-isclick-remove', true);
+        }
+
+
+        function downloadDocumentVer(button) {
+            var url = '@Url.Action("VerDownloadDocument", "VirtualEditingRoom", new {area = "VER"})' +
+                '?documentId=' +
+                $(button).attr("data-documentid");
+            window.open(url, '_blank');
+        }
+
+        function downloadDocumentZipVer() {
+            var documents = "";
+
+            $('[name=documentNumber]')
+                .each(function() {
+                    if ($(this).val() !== "") {
+                        if (documents === "") {
+                            documents = $(this).val();
+                        } else {
+                            documents = documents + "|" + $(this).val();
+                        }
+                    }
+                });
+
+            var url = '@Url.Action("VerDownloadZipDocument", "VirtualEditingRoom", new {area = "VER"})' +
+                '?instanceId=' +
+                @Model.InstanceId +
+                '&documents=' +
+                documents;
+            window.open(url, '_blank');
+        }
+
+        function removeRowDocument(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VMR.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var row = source.closest("tr");
+
+                        if (row.find('[name=IsNewDocumentForSave]').prop('checked') == false) {
+                            var documentForDelete = row.find('[name=verDocumentId]').val();
+                            var documentsListForDelete = $('#documentsListForDelete').val();
+
+                            if (documentsListForDelete === '') {
+                                documentsListForDelete = documentForDelete;
+                            } else {
+                                documentsListForDelete = documentsListForDelete + '|' + documentForDelete;
+                            }
+
+                            $('#documentsListForDelete').val(documentsListForDelete);
+                        }
+                        
+                        row.remove();
+                        orderDocumentTable();
+                    }
+                });
+        }
+
+        function removeRowDocumentTemp(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VMR.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var docNumber = $(source).attr("data-DocumentReference");
+                        var docName = $(source).attr("data-DocumentName");
+                        var docNameTemp = $(source).attr("data-DocumentNameTemp");
+                        $.ajax({
+                            type: "POST",
+                            async: false,
+                            url: '@Url.Action("RemoveDocumentSharepointTemp", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                                 '&operationNumber=' + operationNumber + '&documentNumber=' + docNumber + '&documentName=' + docName + '&documentNameTemp=' + docNameTemp
+                        }).done(function(data) {
+                            if (data.IsValid === false) {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                var row = source.closest('tr');
+                                row.remove();
+                                orderDocumentTable();
+                            }
+                        });
+                    }
+                });
+        }
+
+        function officeOnline(source) {
+            var url = $(source).attr("data-url");
+            if (url != '' && url != undefined) {
+                window.open(url, '_blank');
+            }
+        }
+
+        function verifyContent() {
+            showLoaderOptional();
+            $('#verifyContent div.modal-body').html("");
+            var url = '@Url.Action("VerVerifyContent", "VirtualEditingRoom",
+                           new {area = "VER", instanceId = Model.InstanceId})';
+            $.ajax({
+                type: "POST",
+                async: true,
+                url: url
+            }).done(function(data) {
+                $('#verifyContent div.modal-body').html(data);
+                hideLoaderOptional();
+            });
+            $('#verifyContent').modal();
+        }
+
+        function uploadAction(source) {
+            $(source).attr('data-isclick-upload', true);
+        }
+
+        function officeOnlineMainDocument(source) {
+            var url = $(source).attr('data-url');
+            window.open(url, '_blank');
+
+        }
+
+        function UploadDocumentRow(documentInfo, source) {
+            var rowDocumentName = $(source).closest("tr").find('[name="documentName"]').val();
+            var docNumber = documentInfo.DocumentId;
+            var docName = rowDocumentName !== undefined && rowDocumentName !== null
+                ? rowDocumentName
+                : documentInfo.DocumentName;
+            var docUrl = documentInfo.WebUrl;
+            var docNameTemp = documentInfo.DocumentNameTemp;
+
+            $.ajax({
+                type: "POST",
+                async: false,
+                url:
+                    '@Url.Action("UploadNewDocument", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})',
+                data: { documentNumber: docNumber, documentName: docName, docWebUrl: docUrl, documentNameTemp: docNameTemp }
+            }).done(function(data) {
+                var container = $(source).closest("tr");
+                container.find('[data-DocumentNumberUpload]').text(data.DocumentNumber);
+                container.find('input[name="shpUrlDocument"]').attr('value', data.ShpUrlDocument);
+                container.find('[data-DocumentNumberHidden]').attr('value', data.DocumentNumber);
+                container.find('[name="isVer"]').attr('checked', data.IsVer);
+                container.find('.LastUpdated .labelNormal').html(data.LastUpdateFormat);
+                container.find('[data-documentusername]').html(data.UserName);
+                container.find('.buttonLink').attr("data-action", "officeOnline");
+                container.find('.buttonLink').attr("data-url", data.ShpUrlDocument);
+                container.find('.buttonLink').removeClass('unlinkedDocument');
+                container.find('.buttonUpload').addClass('hide');
+                container.find('.buttonDownload').removeClass('hide');
+                container.find('.buttonDownload').attr("data-documentid", data.DocumentNumber);
+                container.find('.buttonTrash').removeClass('hide');
+                container.find('.buttonTrash').attr("data-action", "cleanMandatoryDocumentTemp");
+                container.find('.buttonTrash').attr("data-documentName", data.DocumentName);
+                container.find('.buttonTrash').attr("data-DocumentNameTemp", data.DocumentNameTemp);
+                container.find('.buttonTrash').attr("data-DocumentReference", data.DocumentNumber);
+                container.find('[name="DocumentNameTemp"]').attr('value', data.DocumentNameTemp);
+                container.find('[name="IsNewDocumentForSave"]')
+                    .attr('checked', true)
+                    .attr('data-DocumentReference', data.DocumentNumber)
+                    .attr('data-DocumentNameTemp', data.DocumentNameTemp);
+                container.find('[name="IsNewDocument"]').prop('checked', true);
+
+                var isLpppBeforeNeg = $('#isLpppBeforeNeg').val() == 'True';
+                var isNegRow = container.find('[name="documentTypeName"]').val() ==
+                    '@VerDocumentTypeCode.NEG_MINS';
+
+                if (isLpppBeforeNeg && isNegRow) {
+                    $('[name="negInformation"]')
+                        .text('@Localization.GetText("VER.MSG.NEG_HAS_DOCUMENT_MESSAGE")');
+                }
+            }).error(function(xhr, ajaxOptions, thrownError) {
+                Alert.ShowWarning(xhr.responseText);
+            });
+        }
+
+        function AddDocumentRow(documentList) {
+            var docNumber = documentList.DocumentId;
+            var docName = documentList.DocumentName;
+            var docNameTemp = documentList.DocumentNameTemp;
+            var docUrl = documentList.WebUrl;
+            var isGeneratedAnnex = $('#isGeneratedAnnex').val();
+
+            $.ajax({
+                type: "POST",
+                async: false,
+                url:
+                    '@Url.Action("AddNewDocument", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})',
+                data: {
+                    documentNumber: docNumber,
+                    documentName: docName,
+                    docWebUrl: docUrl,
+                    docNameTemp: docNameTemp,
+                    isGeneratedAnnex: isGeneratedAnnex
+                }
+            }).done(function(data) {
+                var container = $('#documentsTable').find('tbody');
+                if ($(container).find('td.dataTables_empty').length > 0) {
+                    $(container).find('tr').remove();
+                }
+                $(container).append(data);
+                enterEditMode(false, $(container), false);
+                orderDocumentTable();
+                $("#documentsTable_wrapper").find('.Pagination_Number').last().click();
+            }).error(function(xhr, ajaxOptions, thrownError) {
+                Alert.ShowWarning(xhr.responseText);
+            });
+        }
+
+        function showDataVersionHistoryModal(button) {
+            var url =
+                '@Url.Action("GetDataVersionHistory", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+            postUrlWithOptions(url, { async: false }, { packageVersion: $(button).attr("data-packageId") })
+                .done(function(responseText) {
+                    $('#newVersionHistoryModal').html(responseText);
+                    $('[data-id="buttonVersionHistory"]').click();
+                    noUrlShpVersionHistory();
+                    $('#newVersionHistoryModal > div')
+                        .css('overflow-y', 'scroll')
+                        .css('width', '100%')
+                        .css('height', '350px');
+                });
+        }
+
+
+        $(document)
+            .on('change',
+                '[name="ddlPaginationParticipant"],[name="ddlResultsDocuments"],[name="ddlPaginationTask"],[name="ddlPaginationPolicyWaived"],[name="ddlResultsVH"]',
+                function() {
+                    currentdataTab = GetDataBytab();
+                    if (currentdataTab.pageNumber != undefined && currentdataTab.pageNumber != "") {
+                        dataTab = currentdataTab;
+                    }
+                    paginationTab(false, dataTab);
+                });
+
+        function paginationTab(firstChange, dataTab) {
+            if (firstChange) {
+                $('#participantsTable').paginationConfluense($('[name="ddlPaginationParticipant"]').val())
+                    .sortableConfluence();
+                $('#documentsTable').paginationConfluense($('[name="ddlResultsDocuments"]').val()).sortableConfluence();
+                $('#tasksTable').paginationConfluense($('[name="ddlPaginationTask"]').val()).sortableConfluence();
+                $('#policyWaiverTable').paginationConfluense($('[name="ddlPaginationPolicyWaived"]').val())
+                    .sortableConfluence();
+                $('#versionHistoryTable').paginationConfluense($('[name="ddlResultsVHis"]').val()).sortableConfluence();
+                resetPaginationSection("#participantsTable");
+                resetPaginationSection("#documentsTable");
+                resetPaginationSection("#tasksTable");
+                resetPaginationSection("#versionHistoryTable");
+                resetPaginationSection("#policyWaiverTable");
+            } else {
+
+                if ($("input[name='" + dataTab.nameDdlPagination + "']").val() != dataTab.pageSize) {
+                    if (dataTab.pageSize == "999999") {
+                        $('#id-' + dataTab.nameDdlPagination)
+                            .SetValue(dataTab.pageSize, '@Localization.GetText("VER.GLOBAL.AllResults")');
+                    } else {
+                        $('#id-' + dataTab.nameDdlPagination)
+                            .SetValue(dataTab.pageSize,
+                                dataTab.pageSize + " " + '@Localization.GetText("GLOBAL.RESUTLS.PER.PAGE")');
+                    }
+                }
+
+                if (dataTab.pageNumber !== undefined &&
+                    dataTab.pageNumber != null &&
+                    dataTab.pageNumber != '' &&
+                    dataTab.pageNumber != '0') {
+                    $("#" + $(".tab-pane.active").attr("id") + " .Pagination div[dd-num='" + dataTab.pageNumber + "']")
+                        .click()
+                }
+
+                if (dataTab.pageSize !== undefined &&
+                    dataTab.pageSize != null &&
+                    dataTab.pageSize !== '' &&
+                    dataTab.pageSize !== '0') {
+
+                    var tableId = dataTab.table.replace('#', '');
+                    var wrapperContent = document.getElementById(tableId + "_wrapper");
+                    var paginatorWidth;
+                    if (wrapperContent != null) {
+                        paginatorWidth = wrapperContent.offsetWidth;
+                    }
+
+                    $(dataTab.table).paginationConfluense(dataTab.pageSize, dataTab.pageNumber, paginatorWidth);
+                }
+
+                $(dataTab.table).sortableConfluence();
+                var currentCelSort = $(dataTab.table + " th")[dataTab.col];
+
+                if (currentCelSort != undefined &&
+                    !$(currentCelSort).hasClass("sortDes") &&
+                    !$(currentCelSort).hasClass("sortAsc")) {
+                    $(currentCelSort).click();
+                    if (dataTab.order == false) {
+                        $(currentCelSort).click()
+                    }
+                } else {
+                    var sortAsc = $(currentCelSort).hasClass("sortAsc");
+                    if (sortAsc && dataTab.order == false) {
+                        $(currentCelSort).click()
+                    }
+                }
+            }
+        }
+
+        function resetPaginationSection(element) {
+            $(element + '_wrapper').find('.Pagination').css("width", "100%");
+            $(element + '_wrapper').find('.Pagination').css("max-width", "100%");
+        }
+
+        function email(source) {
+            var row = $(source).closest('tr');
+            row.find('[name="dueDate"]').attr("data-parsley-required", false);
+            var externalUserId = row.find('[name="CurrentRowParticipant"]').val();
+            var body = "";
+            var saveTask = saveOneRowParticipant(row);
+            if (saveTask != null && saveTask.IsValid) {
+                var url =
+                    '@Url.Action("GetMailTemplate", "VirtualEditingRoom", new {Area = "VER", instanceId = Model.InstanceId})';
+                postUrlWithOptions(url,
+                        { async: false },
+                        { 'externalUserId': externalUserId, 'taskId': saveTask.IdTaskList[0] })
+                    .success(function(data) {
+                        if (data.IsValid) {
+                            var mailTo = data.MailTemplateViewModel.UserMail;
+                            body = data.MailTemplateViewModel.MailPartOne;
+
+                            var mail = String.format("mailto:{0}?body={1}", mailTo, body);
+                            if (mail.length <= 2000) {
+                                window.location.href = mail;
+                            } else {
+                                showMessage("VER.HomePage.TabTasks.ContentError");
+                            }
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+
+                    })
+                    .error(function(response) {
+                        showMessage(response.ErrorMessage);
+                    });
+            } else if (saveTask != null) {
+                showMessage(saveTask.ErrorMessage);
+            }
+        }
+
+        $(document)
+            .on('change',
+                '[name="dueDate"]',
+                function() {
+                    var dateSelected = Date.parse($(this).val());
+                    var todayDate = Date.parse('@DateTime.Today.ToShortDateString()');
+                    var diffWithToday = dateSelected - todayDate;
+                    if (0 > diffWithToday) {
+                        showMessage("@Localization.GetText("VER.Homepage.TabTasks.Msg.DueDate.Error")");
+                        $(this).val("");
+                    }
+                });
+
+        function cleanMandatoryDocumentTemp(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VER.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var docNumber = $(source).attr("data-DocumentReference");
+                        var docName = $(source).attr("data-DocumentName");
+                        var docNameTemp = $(source).attr("data-DocumentNameTemp") == undefined ? "" : $(source).attr("data-DocumentNameTemp");
+                        $.ajax({
+                            type: "POST",
+                            async: false,
+                            url: '@Url.Action("RemoveDocumentSharepointTemp", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                                 '&operationNumber=' + operationNumber + '&documentNumber=' + docNumber + '&documentName=' + docName + '&documentNameTemp=' + docNameTemp
+                        }).done(function(data) {
+                                if (data.IsValid === true) {
+                                    var row = source.closest('tr');
+                                    row.find('[data-DocumentNumberUpload]').text('');
+                                    row.find('.LastUpdated').text('');
+                                    row.find('[data-DocumentUserName]').text('');
+                                    row.find('[data-DocumentIdHidden]').attr('value', '');
+                                    row.find('[data-DocumentNumberHidden]').attr('value', '');
+                                    row.find('[data-DocumentLastUpdatedHidden]').attr('value', '');
+                                    row.find('[data-DocumentUserNameHidden]').attr('value', '');
+                                    row.find('.buttonDownload').addClass('hide');
+                                    row.find('.buttonLink').removeAttr('data-url');
+                                    row.find('.buttonLink').removeAttr('data-action');
+                                    row.find('.buttonLink').addClass('unlinkedDocument');
+                                    row.find('input[name="shpUrlDocument"]').attr('value', '');
+                                    row.find('[name="urlGeneratedDocument"]').attr('data-url', '');
+                                    row.find('[name= "office365ButtonUpload"]').removeClass('hide');
+                                    source.addClass('hide');
+                                } else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+                    }
+                });
+        }
+
+        function cleanMandatoryDocuments(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VER.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var row = source.closest('tr');
+                        row.find('[data-DocumentNumberUpload]').text('');
+                        row.find('.LastUpdated .labelNormal').html('');
+                        row.find('[data-DocumentUserName]').text('');
+                        row.find('[data-DocumentIdHidden]').attr('value', '');
+                        row.find('[data-DocumentNumberHidden]').attr('value', '');
+                        row.find('[data-DocumentLastUpdatedHidden]').attr('value', '');
+                        row.find('[data-DocumentUserNameHidden]').attr('value', '');
+                        row.find('.buttonDownload').addClass('hide');
+                        row.find('.buttonLink').removeAttr('data-url');
+                        row.find('.buttonLink').removeAttr('data-action');
+                        row.find('.buttonLink').addClass('unlinkedDocument');
+                        row.find('input[name="shpUrlDocument"]').attr('value', '');
+                        row.find('[name="urlGeneratedDocument"]').attr('data-url', '');
+                        row.find('[name= "office365ButtonUpload"]').removeClass('hide');
+                        source.addClass('hide');
+
+                        var documentForDelete = row.find('[name=verDocumentId]').val();
+                        var documentsListForDelete = $('#documentsListForDelete').val();
+
+                        if (documentsListForDelete === '') {
+                            documentsListForDelete = documentForDelete;
+                        } else {
+                            documentsListForDelete = documentsListForDelete + '|' + documentForDelete;
+                        }
+
+                        $('#documentsListForDelete').val(documentsListForDelete);
+                    }
+                });
+        }
+
+        $(document)
+            .on('change',
+                '[name="isGeneratedAnnex"]',
+                function() {
+                    var listChecked = $('[name="isGeneratedAnnex"]:checked').length;
+                    if (listChecked === 0) {
+                        $('[name="generateAnnex"]').attr('disabled', 'disabled');
+                        $('[name="generateAnnex"]').addClass('hide');
+                    } else {
+                        $('[name="generateAnnex"]').removeAttr('disabled');
+                        $('[name="generateAnnex"]').removeClass('hide');
+                    }
+                });
+
+        function getGenerateAnnexList() {
+            var rowGenerateAnnexList = [];
+
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var isGenerated = $(this).find('[name="isGeneratedAnnex"]').is(':checked');
+                    var isPrimary = $(this).find('[name="isPrimary"]').is(':checked');
+                    var rowId = $(this).find('[name="verDocumentId"]').val();
+                    var primaryUrl = $(this).find('[name="shpUrlDocument"]').val();
+
+                    if (isGenerated && !isPrimary && primaryUrl === '') {
+                        rowGenerateAnnexList.push(rowId);
+                    }
+                });
+
+            return rowGenerateAnnexList;
+        }
+
+        function getCheckedAnnexList() {
+            var rowCheckedAnnex = [];
+
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var isGenerated = $(this).find('[name="isGeneratedAnnex"]').is(':checked');
+                    if (isGenerated) {
+                        rowCheckedAnnex.push(isGenerated);
+                    }
+                });
+
+            return rowCheckedAnnex;
+        }
+
+        function generateAnnex() {
+            showLoader();
+            var rowGenerateAnnexList = getGenerateAnnexList();
+            var rowCheckedAnnex = getCheckedAnnexList();
+
+            if (save()) {
+                if (rowCheckedAnnex.length === 0) {
+                    showMessage("@Localization.GetText("VER.Homepage.TabDocuments.GenerateAnnexCheckbox")");
+                } else {
+                    var urlf =
+                        '@Url.Action("GenerateAnnex", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+                    var dataTab = GetDataBytab();
+                    postUrlWithOptions(urlf, { async: false }, { rowIdList: rowGenerateAnnexList })
+                        .done(function(data) {
+                            exitEditMode(true, $('.tab-pane.active'), true, false);
+                            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                            disableEnableTabs(false);
+                            paginationTab(false, dataTab);
+                            disableEnableLockUnlockInstance(false);
+                            hideCheckAnnex();
+                            addHideClassGenerateAnnex();
+                            if (data.IsValid) {
+                                successBar("@Localization.GetText("VER.Homepage.TabDocuments.GenerateAnnexSuccess")",
+                                    10,
+                                    true);
+                            } else {
+                                errorBar("@Localization.GetText("VER.Homepage.TabDocuments.GenerateAnnexError")",
+                                    10,
+                                    true);
+                            }
+                        });
+                }
+            }
+            hideLoader();
+        }
+
+        function generateAnnexRefresh() {
+
+            if (save()) {
+                var url =
+                    '@Url.Action("GenerateAnnexRefresh", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})';
+                var dataTab = GetDataBytab();
+                $.ajax({
+                    type: "POST",
+                    async: false,
+                    url: url
+                }).done(function(data) {
+                    exitEditMode(true, $('.tab-pane.active'), true, false);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    disableEnableTabs(false);
+                    paginationTab(false, dataTab);
+                    disableEnableLockUnlockInstance(false);
+                    if (data.IsValid) {
+                        successBar("@Localization.GetText("VER.Homepage.TabDocuments.GenerateAnnexRefreshSuccess")",
+                            10,
+                            true);
+                    } else {
+                        errorBar("@Localization.GetText("VER.Homepage.TabDocuments.GenerateAnnexRefreshError")",
+                            10,
+                            true);
+                    }
+                });
+            }
+        }
+
+
+        function resetFilter() {
+            $('[name="accessType"]').removeClass("parsley-error");
+            $('[name="participantTypePartial"]').removeClass("parsley-error");
+            $('[name="participantTypePartial"]').siblings('ul').removeClass("filled");
+            $('#id-participantTypePartial').FirstorDefault();
+            var searchBy = $('#accessType:checked').val();
+
+            if ('@ModuleAccessLevelCode.USER' === searchBy) {
+                resetUSER(true);
+                resetROLE(false);
+
+            } else if ('@ModuleAccessLevelCode.ROLE' === searchBy) {
+                resetROLE(true);
+                resetUSER(false);
+                resetExternalContractor(false);
+                externalDiv(false);
+            }
+
+            return false;
+        }
+
+        function resetROLE(required) {
+
+            $('[name="rolePartial"]').attr("data-parsley-required", required);
+            $('[name="rolePartial"]').removeClass("parsley-error");
+            $('[name="rolePartial"]').siblings('ul').removeClass("filled");
+            $('#id-rolePartial').FirstorDefault();
+
+            $('[name="organizationUnitPartial"]').attr("data-parsley-required", required);
+            $('[name="organizationUnitPartial"]').removeClass("parsley-error");
+            $('[name="organizationUnitPartial"]').siblings('ul').removeClass("filled");
+            $('#id-organizationUnitPartial').FirstorDefault();
+
+
+        }
+
+        function resetExternalContractor(required) {
+
+            $('[name="userNameExternal"]').attr("data-parsley-required", required);
+            $('[name="userNameExternal"]').removeClass("parsley-error");
+            $('[name="userNameExternal"]').siblings('ul').removeClass("filled");
+            $('[name="userNameExternal"]').val('');
+
+            $('[name="emailExternal"]').attr("data-parsley-required", required);
+            $('[name="emailExternal"]').removeClass("parsley-error");
+            $('[name="emailExternal"]').siblings('ul').removeClass("filled");
+            $('[name="emailExternal"]').val('');
+
+        }
+
+        function removeButtonsDocuments() {
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var isPrimary = $(this).find('[name="isPrimary"]').is(':checked');
+                    var docNumber = $(this).find('[name="documentNumber"]').val();
+                    if (docNumber.length === 0 && !isPrimary) {
+                        $(this).find('.buttonTrash').addClass('hide');
+                        $(this).find('.buttonDownload').addClass('hide');
+                    }
+                });
+        }
+
+        function resetUSER(required) {
+
+            $('[name="userName"]').val("");
+            $('[name="userName_text"]').val("");
+            $('[name="userName"]').attr("data-parsley-required", required);
+            $('[name="userName"]').removeClass("parsley-error");
+            $('[name="userName"]').siblings('ul').removeClass("filled");
+            $('#orgUnit').text('');
+
+        }
+
+        function externalDiv(condition) {
+            if (condition) {
+                $('#divOrganizationUnit').addClass('hide');
+                $('#divOrganizationUnitInput').addClass('hide');
+                $('#divUsernameExternal').removeClass('hide');
+                $('#divUsernameExternalInput').removeClass('hide');
+                $('#divEmail').removeClass('hide');
+                $('#divEmailInput').removeClass('hide');
+                $('[name="organizationUnitPartial"]').attr("data-parsley-required", false);
+                $('#id-organizationUnitPartial').FirstorDefault();
+            } else {
+                $('#divUsernameExternal').addClass('hide');
+                $('#divUsernameExternalInput').addClass('hide');
+                $('#divEmail').addClass('hide');
+                $('#divEmailInput').addClass('hide');
+                $('#divOrganizationUnit').removeClass('hide');
+                $('#divOrganizationUnitInput').removeClass('hide');
+            }
+        }
+
+        $(document)
+            .on("change",
+                "[name='rolePartial']",
+                function(source) {
+                    var roleId = $(this).val();
+                    if (roleId !== "") {
+                        var roleText = $(this).GetText();
+                        var roleExternal = '@MemberRoleCode.EXTERNAL_CONTRACTOR';
+                        var condition = roleText === roleExternal;
+                        var selected = false;
+                        var response;
+                        var listdata;
+                        var userName;
+                        var url;
+                        var selectId;
+
+                        if ($(this).attr('name') == 'rolePartial') {
+
+                            if (condition) {
+                                externalDiv(condition);
+                                resetExternalContractor(condition);
+                            } else {
+                                externalDiv(condition);
+                                resetExternalContractor(condition);
+                                url = "@Url.Action("GetOrganizationUnitListByRol", "MeetingRoom", new {area = "VMR"})";
+                                userName = "";
+                                response = postUrl(url, { roleId: roleId, userName: userName }).responseJSON;
+                                listdata = $.map(response.Data,
+                                    function(item) {
+                                        return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                                    });
+
+                                listdata.unshift("<li><a dd-value>(select an option)</a></li>");
+                                $('ul.dropdown-menu[aria-labelledby="id-organizationUnitPartial"]')
+                                    .html(listdata.join(""))
+                                    .FirstorDefault();
+                                selectId = response.selectedId;
+                                if (response.Data.length === 1) {
+                                    selectId = response.Data[0].Value;
+                                    selected = true;
+                                } else if (selectId !== "" && selectId !== -1 && response.Data.length > 1) {
+
+                                    for (var i = 0; i < response.Data.length; i++) {
+                                        if (response.Data[i].Value == response.selectedId) {
+                                            selected = true;
+                                        }
+                                    }
+                                }
+                                if (selected) {
+                                    $('[name="organizationUnitPartial"]').removeClass("parsley-error");
+                                    $('[name="organizationUnitPartial"]')
+                                        .closest('.dropdown')
+                                        .find('ul.filled')
+                                        .removeClass('filled');
+                                    $('[aria-labelledby="id-organizationUnitPartial"] li a').removeAttr("dd-selected");
+                                    $('[aria-labelledby=id-organizationUnitPartial] li a[dd-value="' + selectId + '"]')
+                                        .attr("dd-selected", "");
+                                    $("#id-organizationUnitPartial")
+                                        .SetValue(selectId,
+                                            $('[aria-labelledby=id-organizationUnitPartial] li a[dd-value="' +
+                                                selectId +
+                                                '"]')
+                                            .text());
+                                    $('[aria-labelledby="id-organizationUnitPartial"] li a')
+                                        .closest('.dropdown')
+                                        .removeClass('placeholder');
+                                }
+
+
+                            }
+                        }
+
+                    } else {
+                        $('ul.dropdown-menu[aria-labelledby="id-organizationUnitUserPartial"]')
+                            .html("<li><a dd-value>(select an option)</a></li>");
+                        $('#id-organizationUnitUserPartial').FirstorDefault();
+                        $('ul.dropdown-menu[aria-labelledby="id-organizationUnitPartial"]')
+                            .html("<li><a dd-value>(select an option)</a></li>");
+                        $('#id-organizationUnitPartial').FirstorDefault();
+                    }
+
+                });
+
+        $(document)
+            .on('click',
+                '[name="accessType"]',
+                function() {
+                    var activeForm = $('[data-type="formAccess"]').not('.hide');
+                    if (activeForm == null || activeForm.attr("data-parent") !== $(this).val()) {
+                        $('[data-type="formAccess"]')
+                            .each(function() {
+                                $(this).addClass('hide');
+                                eval("reset" + $(this).attr('data-parent'))(false);
+                            });
+                        $('[data-parent="' + $(this).val() + '"]').removeClass("hide");
+                        externalDiv(false);
+                        resetExternalContractor(false);
+                        eval("reset" + $(this).val())(true);
+                    }
+                });
+
+
+        $(document)
+            .on('click',
+                'ul.dropdown-menu[aria-labelledby="id-userName"] a',
+                function() {
+                    $('#orgUnit').html($(this).attr('additional-data'));
+
+                    if ($(this).attr('additional-data').trim() !== "") {
+                        $('[name="orgUnitId"]').val(getOrgUnitByCode($(this).attr('additional-data').trim()));
+                    } else {
+                        $('[name="orgUnitId"]').val("");
+                    }
+                });
+
+        function hideButtonTrash() {
+            $('#tasksTable td.dataStatus')
+                .each(function() {
+                    var taskStatus = $(this).find('span.showDataEdit').text().trim();
+                    if (taskStatus !== "UNSENT" && taskStatus !== "N/A") {
+
+                        $(this).closest('tr').find('button[name="trashTask"]').addClass('hide');
+                        $(this).closest('tr').find('td.buttontask').removeClass('verticalAlignTop');
+                        $(this).closest('tr').find('td.buttontask').addClass('verticalAlignMiddle');
+
+                    }
+                });
+        }
+
+        function validateStatus(source) {
+            var taskStatus = $(source).closest('tr').find('td.dataStatus').text().trim();
+            if (taskStatus !== "UNSENT") {
+                $(source).closest('tr').find('button[name="trashTask"]').addClass('hide');
+                $(source).closest('td').removeClass('verticalAlignTop');
+                $(source).closest('td').addClass('verticalAlignMiddle');
+            }
+        }
+
+        function OrderTask() {
+            $('#tasksTable tr th[order-type="date"]')[0].click();
+            if ($('#tasksTable tbody').find('.dataTables_empty').length > 0) {
+                $('#tasksTable tbody')
+                    .find('.dataTables_empty')
+                    .attr('colspan', $('#tasksTable thead th').not('.hide').length);
+            }
+        }
+
+        function addTitleChkNotify() {
+            $('#tasksTable tbody tr')
+                .each(function() {
+                    $('input[name=chkNotify]')
+                        .parent()
+                        .attr("title", '@Localization.GetText("VER.Homepage.TabTask.Tooltip.Notify")');
+                });
+        }
+
+        function addHideClassGenerateAnnex() {
+            var listChecked = $('[name="isGeneratedAnnex"]:checked').length;
+            if (listChecked == 0) {
+                $('[name="generateAnnex"]').addClass('hide');
+            } else {
+                $('[name="generateAnnex"]').removeClass('hide');
+            }
+        }
+
+        function generateAnnexRefreshSubmit() {
+
+            var url = '@Url.Action("GenerateAnnexRefresh",
+                           "VirtualEditingRoom",
+                           new {area = "VER", instanceId = Model.InstanceId})';
+
+            $.ajax({
+                type: "POST",
+                async: true,
+                url: url
+            }).done(function() {
+            });
+        }
+
+        function paginationComment(totalComments, ddlPaginationInput, paginationNumbers, commentDiv) {
+            var total = totalComments.val() * 1;
+            var shows = ddlPaginationInput.val() * 1;
+            var pages = Math.floor(total / shows);
+            if (total % shows > 0) {
+                pages = pages + 1;
+            }
+
+            var paginationContent = paginationNumbers;
+            paginationContent.html("")
+                .attr("show-elements", shows)
+                .append('<div class="Pagination_Text Pagination_Prev NoActive">Prev</div>')
+                .append('<div dd-num="1" class="Pagination_Text Pagination_Points hide">...</div>')
+                .append('<div dd-num="1" class="Pagination_Number Pagination_Active">1</div>');
+
+            var showPoints = false;
+            for (var i = 1; i < pages; i++) {
+                var num = i + 1;
+                if (i > 4) {
+                    showPoints = true;
+                    paginationContent.append('<div dd-num="' +
+                        num +
+                        '" class="Pagination_Number hide">' +
+                        num +
+                        '</div>');
+                } else {
+                    paginationContent.append('<div dd-num="' + num + '" class="Pagination_Number">' + num + '</div>');
+                }
+
+            }
+
+            if (showPoints) {
+                paginationContent.append('<div dd-num="' +
+                    pages +
+                    '" class="Pagination_Text Pagination_Points">...</div>');
+            } else {
+                paginationContent.append('<div dd-num="' +
+                    pages +
+                    '" class="Pagination_Text Pagination_Points hide">...</div>');
+            }
+
+            paginationContent.append('<div dd-num="' + pages + '" class="Pagination_Text Pagination_Next">Next</div>');
+
+            paginationContent.find('.Pagination_Prev').off('click');
+            paginationContent.find('.Pagination_Prev').click(function() {
+                if (!$(this).is('.NoActive')) {
+                    var container = $(this).closest('.Pagination');
+                    var page = container.find('.Pagination_Number.Pagination_Active').attr('dd-num') * 1 - 1;
+                    if (page > 0) {
+                        container.find('.Pagination_Number[dd-num="' + page + '"]').click();
+                    }
+                }
+            });
+
+            paginationContent.find('.Pagination_Next').off('click');
+            paginationContent.find('.Pagination_Next').click(function() {
+                if (!$(this).is('.NoActive')) {
+                    var container = $(this).closest('.Pagination');
+                    var page = container.find('.Pagination_Number.Pagination_Active').attr('dd-num') * 1 + 1;
+                    if (page < $(this).attr('dd-num') * 1 + 1) {
+                        container.find('.Pagination_Number[dd-num="' + page + '"]').click();
+                    }
+                }
+            });
+
+            paginationContent.find('.Pagination_Points').off('click');
+            paginationContent.find('.Pagination_Points').click(function() {
+                var page = $(this).attr('dd-num');
+                $(this).closest('.Pagination').find('.Pagination_Number[dd-num="' + page + '"]').click();
+            });
+
+            paginationContent.find('.Pagination_Number').off('click');
+            paginationContent.find('.Pagination_Number').click(function() {
+                $(this).closest('.Pagination').find('.Pagination_Active').removeClass('Pagination_Active');
+                $(this).addClass('Pagination_Active');
+                hidePagination($(this).closest('.Pagination'));
+
+                if ($(this).attr('dd-num') * 1 === 1) {
+                    paginationContent.find('.Pagination_Prev').addClass('NoActive');
+                    paginationContent.find('.Pagination_Next').removeClass('NoActive');
+                } else if ($(this).attr('dd-num') * 1 ===
+                    paginationContent.find('.Pagination_Next').attr('dd-num') * 1) {
+                    paginationContent.find('.Pagination_Prev').removeClass('NoActive');
+                    paginationContent.find('.Pagination_Next').addClass('NoActive');
+                } else {
+                    paginationContent.find('.Pagination_Prev').removeClass('NoActive');
+                    paginationContent.find('.Pagination_Next').removeClass('NoActive');
+                }
+
+                var totalIndexes = paginationContent.find('.Pagination_Number').length * 1;
+
+                if (totalIndexes > 5) {
+                    paginationContent.find('.Pagination_Number[dd-num]').addClass('hide');
+                    paginationContent.find('.Pagination_Points').removeClass('hide');
+                    var indexInterno = paginationContent.find('.Pagination_Active').attr('dd-num') * 1;
+                    if (indexInterno * 1 < 3) {
+                        paginationContent.find('.Pagination_Points').first().addClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="1"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="2"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="3"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="4"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="5"]').removeClass('hide');
+                    } else if (indexInterno * 1 > (totalIndexes - 4)) {
+                        paginationContent.find('.Pagination_Points').last().addClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 1) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 2) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 3) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 4) + '"]')
+                            .removeClass('hide');
+                    } else {
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno - 2) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno - 1) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno + 1) + '"]')
+                            .removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno + 2) + '"]')
+                            .removeClass('hide');
+                    }
+                }
+
+                if (commentDiv.length > 0) {
+                    var scrollPos = commentDiv.offset().top;
+                    $(window.parent).scrollTop(scrollPos);
+                }
+            });
+
+            function hidePagination(paginationContent) {
+                var showElements = paginationContent.attr('show-elements') * 1;
+                var pageActive = paginationContent.find('.Pagination_Active').attr('dd-num') * 1;
+
+                var elements = $('.tab-pane.active').find('.sectionCommentGroup');
+
+                if (elements.length > showElements) {
+                    var index = (showElements * (pageActive - 1));
+
+                    elements
+                        .addClass('hide')
+                        .slice(index, index + showElements)
+                        .removeClass("hide");
+                } else {
+                    $('.tab-pane.active')
+                        .find('.sectionCommentGroup').removeClass('hide');
+                }
+            }
+
+            hidePagination(paginationContent);
+        }
+
+        function policyWaivedTooltip() {
+            var tooltipExplication = '@Model.BasicData.JustificationPolicyWaived';
+            if (tooltipExplication != "") {
+                $('[name="PolicyWaived"]').attr('title', tooltipExplication);
+            }
+        }
+
+        function linktoOperationData() {
+            var url = '@Url.Action("OperationData", "View", new {area = "OPUS"})';
+            window.open(url, '_self');
+        }
+
+        $(document)
+            .on('change',
+                '[name="radio-reviewedLoan"]',
+                function() {
+                    var container = $(this).closest('#modalReviewedLoanContent');
+                    $('#id-reviewedOperation').FirstorDefault();
+                    if ($(this).prop('checked') && $(this).val() == "yes") {
+                        $(container).find('#hideContentReviewedLoan').removeClass('hide');
+                    } else {
+                        $(container).find('#hideContentReviewedLoan').addClass('hide');
+                    }
+                });
+
+        function showReviewedLoanModal() {
+            showLoaderOptional();
+
+            $.ajax({
+                    type: "POST",
+                    async: true,
+                    url: '@Url.Action("GetReviewedLoanModal", "VirtualEditingRoom", new {area = "VER"})',
+                    data: { instanceId: @Model.InstanceId }
+                })
+                .done(function(data) {
+                    $('#modalReviewedLoanContent').html(data);
+                    $('[data-id="reviewedLoan"]').click();
+                    allowMultiPopUp();
+                    hideLoaderOptional();
+                });
+        }
+
+        function saveReviewedLoan() {
+            var operationValue = $('[data-id=mainContainer]').not('.hide').find('[name=reviewedOperation]').val();
+            var isYes = $('[data-id=mainContainer]').not('.hide').find('[name="radio-reviewedLoan"]:checked').val() ===
+                "yes";
+            if ((isYes && operationValue !== "") || isYes === false) {
+                showLoaderOptional();
+                $.ajax({
+                        type: "POST",
+                        async: true,
+                        url: '@Url.Action("SaveIsReviewedInLoan", "VirtualEditingRoom", new {area = "VER"})',
+                        data: {
+                            instanceId: @Model.InstanceId,
+                            isReviewedInLoan: $('[data-id=mainContainer]')
+                                .not('.hide')
+                                .find('[name="radio-reviewedLoan"]')
+                                .prop('checked'),
+                            loanOperation: operationValue
+                        }
+                    })
+                    .done(function(response) {
+                        if (response.IsValid) {
+                            exitEditMode(true, $('#basicDataSection'), true, false);
+                            $('.vex-close').click();
+                        } else {
+                            showMessage(response.ErrorMessage);
+                        }
+                        hideLoaderOptional();
+                    });
+            } else {
+                showMessage("@Localization.GetText("VER.REVIEWED.LOAN.SELECT.OPERATION.MSG")");
+            }
+
+        }
+
+        function clearErrorMessage() {
+            $('[data-name="file-empty"]').closest('ul').addClass('hide');
+            $('[data-name="file-error"]').closest('ul').addClass('hide');
+        }
+
+        function hideButtonsTrashForTranslate() {
+            $('#documentsTable tbody td.mr0')
+                .each(function() {
+                    var buttonTrash = $(this).find('.buttonTrash');
+                    var buttonTranslate = $('button[data-action="SubmitForTranslation"]').length > 0;
+                    if (buttonTranslate && !buttonTrash.hasClass('hide')) {
+                        $(buttonTrash).addClass('hide');
+                        $(buttonTrash).closest('td.mr0').addClass('pr0');
+                    }
+                });
+        }
+
+        function messageUnsentTask() {
+            var counter = 0;
+            var msg = '@Localization.GetText("VER.HomePage.Tasks.UnsendMessage")';
+            $('#tasksTable td.dataStatus')
+                .each(function() {
+                    var status = $(this).find('span.showDataEdit').text().trim();
+                    var statusLabel = $(this).find('label').attr('data-label-status');
+                    if (status === 'UNSENT' || statusLabel === 'UNSENT') {
+                        counter++;
+                    }
+                });
+            if (counter !== 0) {
+                return msg;
+            }
+            return '';
+        }
+
+        function saveDataTab(dataTab) {
+            var isValid = false;
+            if (dataTab.modelSerialized !== "") {
+                var response = saveContainer($('#' + $('.tab-pane.active').attr('id') + ''),
+                    dataTab.modelSerialized,
+                    true);
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                            hideLoaderOptional();
+                            showMessage(data.ErrorMessage);
+                        } else {
+                            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                            disableEnableTabs(false);
+                            disableEnableLockUnlockInstance(false);
+                            paginationTab(false, dataTab);
+                            isValid = true;
+                            if (dataTab.reloadTab !== '') {
+                                exitEditMode(true, $(dataTab.reloadTab), true, false);
+                            }
+                            removeButtonsDocuments();
+                            hideCheckAnnex();
+                            addTitleChkNotify();
+                            hideLoaderOptional();
+                            enableOpcRequired(false);
+
+                            if (data.ErrorMessage != null && data.ErrorMessage !== '') {
+                                showMessage(data.ErrorMessage);
+                            }
+                        }
+                    });
+                } else {
+                    hideLoaderOptional();
+                    ShowRowIfApplicable();
+
+                }
+
+            }
+            return isValid;
+        }
+
+        function instanceSubmit(actionType) {
+            postUrlWithOptions(
+                    '@Url.Action("SubmitInstance", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})',
+                    { async: false },
+                    { actionType: actionType, additionalData: processBasicData() })
+                .done(function(data) {
+                    if (data.IsValid === true) {
+                        var linkD2S = $("[name='d2sLink']").val();
+                        if (linkD2S != undefined) {
+                            window.open(linkD2S, '_blank');
+                        }
+
+                        exitEditMode(true, $('[data-id=VerContent]'), true, false);
+                        $('[dd-tab="#tabDocuments"]').click();
+                        commentEngine();
+                        commentHandlers();
+                    } else {
+                        requiredDocument();
+                        $('[dd-tab="#tabDocuments"]').click();
+                        hideLoaderOptional();
+                        Alert.ShowWarning(data.ErrorMessage);
+                        commentHandlers();
+                    }
+                    hideLoaderOptional();
+                });
+        }
+
+        function generatePdfDoc() {
+            var docsForClearancePdf = getCheckedClearancePdfList();
+            if (docsForClearancePdf.length === 0) {
+                showMessage("debe seleccionar al menos un documento");
+            } else {
+                if (save()) {
+                    dataTab = GetDataBytab();
+                    var isOpcCheck = false;
+                    var opcRequiredCheck = $('[name=chkOpcRequired]');
+                    if (opcRequiredCheck != null && opcRequiredCheck.prop('checked')) {
+                        isOpcCheck = true;
+                    }
+                    $.ajax({
+                        type: "POST",
+                        url:
+                            '@Url.Action("GeneratePdf", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                                '&isOpcCheked=' +
+                                isOpcCheck,
+                        async: false,
+                        contentType: "application/json; charset=utf-8",
+                        dataType: "json",
+                    }).done(function(data) {
+                        exitEditMode(true, $('.tab-pane.active'), true, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                        disableEnableTabs(false);
+                        paginationTab(false, dataTab);
+                        disableEnableLockUnlockInstance(false);
+
+                        if (data.IsValid) {
+                            successBar("@Localization.GetText("VER.Homepage.TabDocuments.GenerateClearanceSuccess")",
+                                10,
+                                true);
+                        } else {
+                            errorBar("@Localization.GetText("VER.Homepage.TabDocuments.GenerateClearanceError")",
+                                10,
+                                true);
+                        }
+                    }).error(function(request, status, error) {
+                        showMessage(request.responseText);
+                    });
+                }
+            }
+        }
+
+        function getCheckedClearancePdfList() {
+            var rowCheckedClearancePdf = [];
+
+            $('#documentsTable tbody tr')
+                .each(function() {
+                    var isClearancePdf = $(this).find('[name="documentToClearancePdf"]').is(':checked');
+                    if (isClearancePdf) {
+                        rowCheckedClearancePdf.push(isClearancePdf);
+                    }
+                });
+
+            return rowCheckedClearancePdf;
+        }
+
+        function InvertVisibilitySubmitButtons() {
+            var hideButtons = $('#sectionSubmit button.hide');
+            var visbileButtons = $('#sectionSubmit button').not('.hide');
+
+            hideButtons.removeClass('hide');
+            visbileButtons.addClass('hide');
+        }
+
+        $(document).on('change',
+            '[name=chkOpcRequired]',
+            function() {
+                InvertVisibilitySubmitButtons();
+            });
+
+        function addPolicyWavier() {
+            showLoaderOptional();
+            $.ajax({
+                type: "POST",
+                async: true,
+                url:
+                    "@Url.Action("GetPolicyWaiverRow", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})"
+            }).done(function(partial) {
+                if ($(dataTab.table).find('td.dataTables_empty').length > 0) {
+                    $(dataTab.table).find('tbody tr').remove();
+                }
+
+                $(dataTab.table).find('tbody').append(partial);
+                hideLoaderOptional();
+                bindHandlers();
+                var policyWaiverContent = document.getElementById("policyWaiverTable_wrapper");
+                var paginatorWidth;
+                if (policyWaiverContent != null) {
+                    paginatorWidth = policyWaiverContent.offsetWidth;
+                }
+                $(dataTab.table).paginationConfluense(dataTab.pageSize, dataTab.pageNumber, paginatorWidth);
+                $("#policyWaiverTable_wrapper").find('.Pagination_Number').last().click();
+            });
+        }
+
+        function requestPolicyWaiver() {
+            var unsentId = @(Model.PolicyWaiver != null ? Model.PolicyWaiver.UnsentStatusId : 0);
+            if (unsentId !== 0 && $('[name=PolicyWaiverStatus][value=' + unsentId + ']').length > 0) {
+                $('[name=@VerSecurityValues.POLICY_WAIVER_REQUEST_POLICY]').val('true');
+                if (save()) {
+                    exitEditMode(true, $('#basicDataSection'), true, false);
+                }
+            } else {
+                showMessage('@Localization.GetText("VER.Homepage.TabPolicyWaiver.add_waiver")');
+            }
+        }
+
+        function sendPolicyWaiver() {
+
+            var pendEvp = @(Model.PolicyWaiver != null ? Model.PolicyWaiver.PendingEvpConcurrenceId : 0);
+            if (pendEvp !== 0 && $('[name=PolicyWaiverStatus][value=' + pendEvp + ']').length == 0) {
+                $('[name=@VerSecurityValues.POLICY_WAIVER_SEND_RESPONSE_POLICY]').val('true');
+
+                if (save()) {
+                    exitEditMode(true, $('#basicDataSection'), true, false);
+                }
+            } else {
+                showMessage('@Localization.GetText("VER.Homepage.TabPolicyWaiver.Select.Type.OPC")');
+            }
+
+        }
+
+        $(document).on('change',
+            '[name=@VerSecurityValues.POLICY_WAIVER_OPC_TYPE]',
+            function() {
+                var option = $(this).attr('data-code');
+                showLoaderOptional();
+                $.ajax({
+                    type: "POST",
+                    async: true,
+                    url:
+                        "@Url.Action("FilterPolicyStatus", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})",
+                    data: { option: option }
+                }).done(function(data) {
+                    if (data.IsValid) {
+                        hideOptionsPolicyStatus(
+                            data.StatusId,
+                            data.StatusAvailable,
+                            data.StatusAvailable == null || data.StatusAvailable.length === 0);
+                        setResponse(true);
+                    }
+
+                    hideLoaderOptional();
+                });
+            });
+
+        function orderTableIfApplicable() {
+            $('#participantsTable').paginationConfluense($('[name="ddlPaginationParticipant"]').val())
+                .sortableConfluence();
+            $('#documentsTable').paginationConfluense($('[name="ddlResultsDocuments"]').val()).sortableConfluence();
+            $('#tasksTable').paginationConfluense($('[name="ddlPaginationTask"]').val()).sortableConfluence();
+            $('#policyWaiverTable').paginationConfluense($('[name="ddlPaginationPolicyWaived"]').val())
+                .sortableConfluence();
+            $('#versionHistoryTable').paginationConfluense($('[name="ddlResultsVHis"]').val()).sortableConfluence();
+        }
+
+        function removeRowPolicy(source) {
+
+            var dataTab = GetDataBytab();
+
+            var msg = dataTab.deleteRegisterMsg;
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var row = source.closest('tr');
+                        var policyForDelete = row.attr('data-id');
+                        var deletedPolicy = $('[name=@VerSecurityValues.POLICY_WAIVER_FOR_DELETE]').val();
+
+                        if (deletedPolicy === '') {
+                            deletedPolicy = policyForDelete;
+                        } else {
+                            deletedPolicy = deletedPolicy + '|' + policyForDelete;
+                        }
+
+                        $('[name=@VerSecurityValues.POLICY_WAIVER_FOR_DELETE]').val(deletedPolicy);
+                        row.remove();
+                    }
+                });
+        }
+
+        function hideOptionsPolicyStatus(value, list, onlySelect) {
+            var partialValue = false;
+            $('[id=id-@VerSecurityValues.POLICY_WAIVER_STATUS]').each(function() {
+                var dropDown = $(this).closest('.dropdown');
+                if (value != null) {
+                    $(this).SetValue(value,
+                        $(dropDown).find('[aria-labelledby=id-@VerSecurityValues.POLICY_WAIVER_STATUS] li a[dd-value="' +
+                            value +
+                            '"]').text());
+                } else {
+                    partialValue = true;
+                    value = $(dropDown).find('[name=PolicyWaiverStatus]').val();
+                }
+
+                $(dropDown.find('[aria-labelledby=id-@VerSecurityValues.POLICY_WAIVER_STATUS] li a')).each(function() {
+                    var ddValue = $(this).attr('dd-value');
+                    var isValidDdValue = ddValue !== undefined && ddValue !== '';
+                    var hideItem = isValidDdValue && parseInt(ddValue) !== parseInt(value) && onlySelect;
+
+                    if (isValidDdValue && hideItem === false && list != null && list.length > 0) {
+                        var existItem = list.indexOf(parseInt(ddValue)) >= 0;
+                        if (existItem === false) {
+                            hideItem = true;
+                        }
+                    }
+
+                    if (hideItem && isValidDdValue) {
+                        $(this).addClass('hide');
+                    } else {
+                        $(this).removeClass('hide');
+                    }
+                });
+
+                if (onlySelect) {
+                    $(this).prop("disabled", "disabled");
+                } else {
+                    $(this).removeAttr("disabled");
+                }
+
+                if (partialValue) {
+                    value = null;
+                }
+            });
+        }
+
+        function setResponse(isNewOpcType) {
+            var opcType = $('[name=@VerSecurityValues.POLICY_WAIVER_OPC_TYPE]:checked');
+
+            if (opcType !== undefined && opcType !== null) {
+                var opcTypeDefaultMessage = opcType.attr('data-default-message');
+                $('[name=@VerSecurityValues.POLICY_WAIVER_RESPONSE]').each(function() {
+                    var value = opcTypeDefaultMessage !== '' ? opcTypeDefaultMessage : '';
+                    if (isNewOpcType) {
+                        $(this).val(value);
+                    }
+
+                    if (opcTypeDefaultMessage != undefined &&
+                        opcTypeDefaultMessage !== '' &&
+                        $(this).val() != undefined &&
+                        $(this).val() !== '') {
+                        $(this).removeClass("parsley-error");
+                        $(this).closest('div').find('ul').removeClass("filled");
+                        $(this).prop("disabled", "disabled");
+                    } else {
+                        $(this).removeAttr("disabled");
+                    }
+                });
+            }
+        }
+
+        function ShowRowIfApplicable() {
+            var row = $('#tasksTable tbody div.showDataEdit').find('textArea.parsley-error');
+
+            if ($(row).length > 0) {
+                $(row).each(function() {
+                    var stateRow = $(this).closest('tr').hasClass('showChildRow');
+                    if (stateRow === false) {
+                        var rowShowArea = $(this).closest('tr').prev();
+                        var buttonShow = $(rowShowArea).find('td.rowShow').find('button.buttonShowRow');
+                        if ($(buttonShow).length > 0) {
+                            $(buttonShow).click();
+                        }
+                    }
+
+                });
+            }
+        }
+
+        function showRowComment() {
+            var row = $('#tasksTable tbody div.showDataEdit').find('textArea');
+            if ($(row).length > 0) {
+                $(row)
+                    .each(function() {
+                        if ($(this).closest('tr').hasClass('showChildRow') === false && $(this).text() === "") {
+                            $(this).closest('tr').addClass('showChildRow');
+                        }
+                    });
+            }
+        }
+
+        $(document).on("change",
+            '[name="chkOpcRequired"]',
+            function() {
+                var isOpcRequired = $(this).is(':checked');
+                if ($('#documentsTable thead th.clearance').hasClass('hide') == false) {
+                    saveDocumentsForClearance(isOpcRequired);
+                }
+            });
+
+        function removeRowDocumentTempsForClearance(opcRequired) {
+            showLoaderOptional();
+            $.ajax({
+                type: "POST",
+                async: true,
+                url:
+                    "@Url.Action("SaveClearanceDocument", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})",
+                data: { isOpcRequired: opcRequired }
+            }).done(function(data) {
+                if (data.IsValid) {
+                    reloadTab('@VerGlobalValues.TAB_DOCUMENT_NAME', true);
+                    hideLoaderOptional();
+                }
+            });
+        }
+
+        function commentHandlers(loadPagination, loadShowMoreLess) {
+
+            if (loadPagination == undefined) {
+                loadPagination = true;
+            }
+
+            if (loadShowMoreLess == undefined) {
+                loadShowMoreLess = true;
+            }
+
+            resizeComment();
+
+            if (loadPagination) {
+                paginationComment(
+                    $('.tab-pane.active [name="totalComments"]'),
+                    $('.tab-pane.active [name=ddlPaginationComment]'),
+                    $('.tab-pane.active .Pagination'),
+                    $(".tab-pane.active #commentsDiv"));
+            }
+
+            if (loadShowMoreLess) {
+                showMoreLess();
+            }
+
+            $('.thirdLevelBox').each(function() {
+                var answerdButtons = $(this).closest('.sectionCommentGroup')
+                    .find('.secondLevelBox')
+                    .find('.buttons');
+
+                answerdButtons.find('.lineEditButtons').remove();
+                answerdButtons.prepend('<div class="lineEditButtons hide">&nbsp;</div>');
+            });
+        }
+
+        function resizeComment() {
+            $('.tab-pane.active').find('textarea')
+                .off('keyup')
+                .on('keyup',
+                    function() {
+                        var offset = this.offsetHeight - this.clientHeight;
+                        $(this).css('height', 'auto').css('height', this.scrollHeight + offset);
+                        $(this).css('overflow-y', 'hidden');
+                    })
+                .each(function() {
+                    var offset = this.offsetHeight - this.clientHeight;
+                    $(this).css('height', 'auto').css('height', this.scrollHeight + offset);
+                });
+        }
+
+        function commentEngine() {
+            $('[name="ddlPaginationComment"]').off('change');
+            $('[name="ddlPaginationComment"]').change(function() {
+                commentHandlers(true, false);
+            });
+
+            $('[dd-tab="#tabRemarks"]').off('click');
+            $('[dd-tab="#tabRemarks"]').click(function() {
+                commentHandlers();
+            });
+        }
+
+        function enableOpcRequired(enable) {
+            var opcRequiredCheck = $('[name=chkOpcRequired]');
+            if (opcRequiredCheck != null) {
+                opcRequiredCheck.prop('disabled', enable);
+            }
+        }
+
+        function orderDocumentTable() {
+            $('#documentsTable tbody tr')
+                .each(function(counter) {
+                    var tableRowCount = $('#documentsTable tbody tr').size();
+                    if (counter < tableRowCount) {
+                        $(this).find('td:first').html(counter + 1);
+                    }
+                });
+        }
+
+    </script>
+}

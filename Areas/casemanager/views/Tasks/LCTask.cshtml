@@ -1,0 +1,129 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.CaseManager.ViewModels.TasksViewModel
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+}
+
+    <input hidden data-idb-pagename="" />
+        <div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-loadurl="@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })"
+             data-url="@Url.Action("LCUpdateTask", "Tasks", new { area = "casemanager" })">
+
+            <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+            <span data-pagemode="edit"><input type="hidden" name="changeStatus" value="none" /></span>
+
+            <span class=" text-right">
+                @Html.Partial("Partials/LCTaskButtons")
+            </span>
+            <div class="row row-body-40">
+                @Confluence.LabelSubTitleGroup(text: Localization.GetText("TC.Header.Instructions"), htmlClass: "bold")
+                <p class="mt10 mb20">@Localization.GetText(@Model.Instructions)</p>
+            </div>
+            <div>
+                <div class="row" id="footer-section">
+                    <span class="text-right">@Html.Partial("Partials/LCTaskButtons")</span>
+                </div>
+            </div>
+        </div>
+
+    @section scripts
+{
+        @if (k2Mode)
+        {
+
+            @ModuleScripts.K2UIIntegration()
+
+        }
+        <script type="text/javascript">
+
+            $(document).ready(function () {
+                @if (k2Mode)
+        {
+            @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+                                                                                                @:$(".operationData").css("padding-left", "0")
+                                                                                                @:$("#headerButtons").css("margin-right", "-12%")
+                                                                                                @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                                                                                            }
+                enterEditMode(false, $('#headerButtons'), true);
+                enterEditMode(false, $('#footer-section'), true);
+                $(".headingh2.title_tag").text("@Html.Raw(Localization.GetText(Model.TaskName))");
+                $('[name=newCommentFloatTask]').hide();
+                $('[name=minMaxFloatTask]').click(function () {
+                    setTimeout(function () {
+                        $('[name=newCommentFloatTask]').hide();
+                    }, 50);
+                });
+            });
+
+
+            function cancelLCTask(source) {
+                window.location.href = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+            }
+
+            function confirmModal(source) {
+                confirmAction(source.attr("data-modal-message")).done(function (selectionOk) {
+                    if (selectionOk)
+                        if (source.attr("data-action-ok") != null) eval(source.attr("data-action-ok") + "()");
+                        else
+                            if (source.attr("data-action-Nok") != null) eval(source.attr("data-action-Nok") + "()");
+                });
+            }
+
+            function saveCompleteLC() {
+                $("[name=changeStatus]").val("CompleteTask");
+                var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+                saveLCTask(url);
+                closeModal();
+            }
+
+            function saveRejectLC() {
+                $("[name=changeStatus]").val("RejectTask");
+                var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+                saveLCTask(url);
+                closeModal();
+            }
+
+
+            function saveOnly() {
+                $("[name=changeStatus]").val("none");
+                var url = '@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })';
+                saveLCTask(url);
+            }
+
+            function saveLCTask(url) {
+
+                var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+                if (response !== false) {
+                    response.done(function (data) {
+
+                        if (!data.IsValid) {
+                            if (data.ErrorMessage != null || data.ErrorMessage != '')
+                                showMessage("Error when saving the LifeCycle Task!");
+                            else
+                                showMessage(data.ErrorMessage);
+                        }
+                        else {
+                            window.open(url, "_self");
+                        }
+                    });
+
+                }
+
+            }
+
+
+
+            function closeModal() {
+                var vexModal = $('.LCModal').parents('.vex');
+                vex.closeByID(vexModal.data().vex.id);
+            }
+
+        </script>
+    }

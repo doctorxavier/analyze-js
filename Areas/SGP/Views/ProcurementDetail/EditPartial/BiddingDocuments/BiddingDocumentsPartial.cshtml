@@ -1,0 +1,358 @@
+﻿@using System.Web.Mvc
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.Architecture.ApplicationParameter
+@using IDB.MW.Business.DocumentManagement.Enums
+
+@model BiddingDocTabViewModel
+@{
+    var otherTypeId = Model.ViewContainer.GetValue<int>("otherType");
+    var banckResponseTypeId = Model.ViewContainer.GetValue<int>("bankResponseType");
+    var amedmentPrequalificationTypeId = Model.ViewContainer.GetValue<int>("amedmentPrequalification");
+    var amedmentsDocTypeId = Model.ViewContainer.GetValue<int>("amedmentsDoc");
+    var amendmentsProposalTypeId = Model.ViewContainer.GetValue<int>("amendmentsProposal");
+    var nonCompleteId = Model.ViewContainer.GetValue<int>("nonComplete");
+}
+
+@if (Model != null)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    <div class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"bidding-document\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-popup-add-doc-bidding",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "bidding-document",
+            CanMultiSelect = false,
+            TargetFunction = "AddIDBDocBiddingDocProc",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"remove-bidding-modal\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-row-bidding-remove",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-cancel-cancel",
+                            text: Localization.GetText("Common.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+                .AddButton(name: "btn-cancel-ok",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                            callback: "deleteRowBiddingDocument",
+                            closeAtEnd: true))
+        <div data-name="remove-bidding-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.ActionUndone")
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-modal-bidding\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                 name: "btn-open-popup-cancel-bidding",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-cancel-cancel",
+                            text: Localization.GetText("Common.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+                .AddButton(name: "btn-cancel-ok",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                            callback: "okCancelBidding",
+                            closeAtEnd: true))
+        <div data-name="cancel-modal-bidding" class="hide modalBody">
+            @Localization.GetText("SGP.Message.CommonCancel")
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/BiddingDocuments/Buttons")
+            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.BidPackages"), htmlClass: "subTitleSG mb10")
+            @if (Model.PackageSelected != null)
+            {
+                @Confluence.InputHidden(Model.PackageSelected.PackageId.ToString(), "BiddingIdHidden")
+            }
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="col-xs-4">
+            @Confluence.Label(Localization.GetText("SGP.Label.ClickAnyBidPackage"))
+        </div>
+        <div class="col-xs-8">
+            @Confluence.LabelLinkBlank(Localization.GetText("SGP.Label.AccesSanctionList"), url: AppParameter.GetText("Template.Site.Url.SGP.Templates.Sanction.List"))
+        </div>
+    </div>
+    <div class="row mb40">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/BiddingDocuments/BiddingPackageTable", Model)
+        </div>
+    </div>
+    <div class="row mb30 tabs"></div>
+    <div class="mb40" data-section="packageDetail">
+        @if (Model.PackageSelected != null)
+        {
+            if (Model.PackageSelected.CanModifyPackage)
+            {
+                @Html.Partial("EditPartial/BiddingDocuments/BiddingDocTablePartial", Model.PackageSelected)
+            }
+            else
+            {
+                @Html.Partial("ReadPartial/BiddingDocuments/BiddingDocReadPartial", Model.PackageSelected)
+            }
+        }
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/BiddingDocuments/Buttons")
+        </div>
+    </div>
+
+    @Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        var razorEditBidding = {
+            ProcurementId: '@Model.ProcurementId',
+            PackageId: '@(Model.PackageSelected != null ? Model.PackageSelected.PackageId : 0)',
+            DocumentTypeIds: {
+                OtherId: '@otherTypeId',
+                BankResponse: '@banckResponseTypeId',
+                AmendmentDocs: {
+                    Prequalification: '@amedmentPrequalificationTypeId',
+                    DocType:'@amedmentsDocTypeId',
+                    Proposal:'@amendmentsProposalTypeId',
+                },
+            },
+            StatusCompleteId: '@nonCompleteId',
+            Url: {
+                DownloadDocument: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })'
+            },
+
+            MessageAmendment: '@Localization.GetText("SGP.Message.AddOnlyAmendment")',
+
+        };
+
+        /*------- BUTTONS SAVE------- */
+        function Save(formSelector, hiddenViewModelSelector) {
+            var response = saveContainer($(formSelector), hiddenViewModelSelector, false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid == false) {
+                        showMessage(razorEditBidding.MessageAmendment);
+                    }
+                });
+            }
+        }
+
+        function okCancelBidding() {
+            var promise = $.Deferred();
+            var procurementId = $('input[name="bidding-procurementId"]').val();
+            var url = '@Url.Action("Read", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS })';
+            url = url + "&procurementId=" + razorEditBidding.ProcurementId;
+
+            if (razorEditBidding.PackageId != '0') {
+                url = url + "&packageId=" + razorEditBidding.PackageId;
+            }
+
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+
+        function deleteRowBiddingDocument(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            tr.remove();
+            promise.resolve();
+            return promise;
+        }
+
+        function AddIDBDocBiddingDocProc(items, type, filenames, source) {
+            if (items.length > 0) {
+                var tr = source.closest('tr');
+
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+
+                var documentNumber = docs[0].DocumentNumber;
+                var documentDescription = docs[0].Description;
+
+                var textDocNumber = tr.find('.document-number');
+                var inputDocumentNumber = tr.find('input[name="DocumentIDBDoc-bidding"]');
+                var inputDocumentDescription = tr.find('input[name="description-bidding"]');
+                var sectionResult = tr.find('span[data-section="result-bidding"]');
+
+                textDocNumber.text(documentNumber);
+                inputDocumentNumber.val(documentNumber);
+                inputDocumentDescription.val(documentDescription);
+                inputDocumentDescription.removeAttr('disabled');
+
+                if (!sectionResult.hasClass("hide")) {
+                    sectionResult.find('input,button').removeAttr('disabled', 'disabled');
+                }
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+        }
+
+        /* ---- Table Documents Function -----*/
+        /* Add Row */
+        registerCallback(function () {
+
+            /* ---------------------- Validations ---------------------- */
+            window.ParsleyValidator.addValidator('notDuplicateProcurementType', function (value, requirement) {
+                var doumentTypeId = value.substring(value.indexOf('-') + 1, value.length);
+
+                if (doumentTypeId == razorEditBidding.DocumentTypeIds.OtherId
+                    || doumentTypeId == razorEditBidding.DocumentTypeIds.BankResponse
+                    || doumentTypeId == razorEditBidding.DocumentTypeIds.AmendmentDocs.Prequalification
+                    || doumentTypeId == razorEditBidding.DocumentTypeIds.AmendmentDocs.Proposal
+                    || doumentTypeId == razorEditBidding.DocumentTypeIds.AmendmentDocs.DocType) {
+                    return true;
+                }
+
+                var combos = $(requirement);
+                if ((combos != null) && (combos.length > 0)) {
+                    var combosWithValue = combos.filter(function (index, item) {
+                        var $item = $(item);
+                        if ($item.attr("disabled") === "disabled") {
+                            return false;
+                        }
+                        return $item.val().trim().toLowerCase() == value.trim().toLowerCase();
+                    });
+
+                    var numElements = combosWithValue.length;
+                    return numElements <= 1;
+                }
+                return true;
+            }, 32).addMessage('en', 'notDuplicateProcurementType', '@Localization.GetText("SGP.Label.ValidationRepeat")');
+
+
+            $(document).on('click', '[name="save-bidding"]', function () {
+                var formSelector = '[name="formBidding"]';
+                var hiddenViewModelSelector = '[name="serializedModel"]';
+                Save(formSelector, hiddenViewModelSelector);
+            });
+
+            $(document).on('click', '[name="cancel-bidding"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel-bidding"]');
+                modalBtn.click();
+            });
+
+            $(document).on('change', '[name="documentType-bidding"]', function () {
+                var source = $(this);
+                var tr = source.closest('tr');
+                var sectionResult = tr.find('span[data-section="result-bidding"]');
+                var documentNumber = tr.find('input[name="DocumentIDBDoc-bidding"]').val();
+                var value = source.val();
+
+                if (~value.indexOf("show")) {
+                    if (sectionResult.length > 0 && sectionResult[0] !== undefined) {
+                        sectionResult.removeClass('hide');
+                        if (documentNumber.length > 0 && documentNumber != "") {
+                            sectionResult.find('input,button').removeAttr('disabled', 'disabled');
+                        }
+                    }
+                }
+                else {
+                    if (sectionResult.length > 0 && sectionResult[0] !== undefined) {
+                        sectionResult.addClass('hide');
+                        sectionResult.find('input,button').attr('disabled', 'disabled');
+                    }
+                }
+
+                var amendmentId = source.val().split('-')[1]
+                var amendmentValueInput = tr.find('[name="isAmendment-bidding"]');
+                if (amendmentId == razorEditBidding.DocumentTypeIds.BankResponse
+                    || amendmentId == razorEditBidding.DocumentTypeIds.AmendmentDocs.Prequalification
+                    || amendmentId == razorEditBidding.DocumentTypeIds.AmendmentDocs.Proposal
+                    || amendmentId == razorEditBidding.DocumentTypeIds.AmendmentDocs.DocType) {
+
+                    amendmentValueInput.prop('checked', true)
+                }
+            });
+
+            $(document).on('click', '[name="removeRow-bidding"]', function () {
+                var source = $(this);
+                var modalButton = $('[name="btn-open-popup-row-bidding-remove"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+            });
+
+            $(document).on('click', '[name="UploadDoc"]', function () {
+                var source = $(this);
+                var modalButton = $('[name="btn-open-popup-add-doc-bidding"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+
+                var modalSelector = modalButton.attr('data-new-modal');
+                var modal = $(modalSelector);
+                var tab = modal.find('[data-tab-id="add"]');
+                tab.click();
+            });
+
+            $(document).on('click', '[name="addNewRowDoc-bidding"]', function () {
+                var source = $(this);
+                var tableBody = $('#BiddingDocumentPackage tbody');
+                var newId = source.GenerateNewId();
+                var trNotTemplate = tableBody.find('tr:not(.template)');
+                var trTemplate = tableBody.find('tr:first');
+                var clonedTr = trTemplate.clone(false).appendTo(tableBody);
+                clonedTr.removeClass('hide');
+                clonedTr.removeClass('template');
+                clonedTr.attr('data-id', String.format('new-{0}', newId));
+                clonedTr.find('input,select,button').attr('data-id', String.format('new-{0}', newId));
+                clonedTr.find('input,select,button').removeAttr('disabled');
+                clonedTr.find('span[data-section="result-bidding"]').find('input,button').attr('disabled', 'disabled');
+                clonedTr.find('input[name="description-bidding"]').attr('disabled', 'disabled');
+            });
+
+            $(document).on('click', '[name="DownLoadDoc"]', function () {
+                var source = $(this);
+                var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                var url = razorEditBidding.Url.DownloadDocument;
+                url = url + '?documentNumber=' + documentNumber;
+                window.open(url, '_blank');
+            });
+        });
+    </script>
+                )
+}
+

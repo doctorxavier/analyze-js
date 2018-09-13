@@ -1,0 +1,311 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core.EditIndicators
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Framework
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model EditIndicatorPageViewModel<FWBasicDataViewModel>
+
+@{
+    var hasTemplatePermission = MvcHelpers.CheckRole(ViewBag.Permissions, ActionEnum.FWIndicatorTemplateWritePermission);
+    bool hasExpired = (Model.Indicator.Common.ExpirationDate.HasValue && (Model.Indicator.Common.ExpirationDate.Value < DateTime.Today));
+
+}
+
+@Html.Partial("PermissionButtons", new Dictionary<string, ActionEnum[]>()
+{
+    {
+        "Set FW Indicator Admin Write",
+        new ActionEnum[]
+        {
+            ActionEnum.FWIndicatorWritePermission
+        }
+    }
+    ,{
+        "Set FW Indicator Template Admin Write",
+        new ActionEnum[]
+        {
+            ActionEnum.FWIndicatorTemplateWritePermission
+        }
+    }
+    ,{
+        "Set Both",
+        new ActionEnum[]
+        {
+            ActionEnum.FWIndicatorWritePermission,
+            ActionEnum.FWIndicatorTemplateWritePermission
+        }
+    }
+    ,{
+        "Set Empty",
+        new ActionEnum[]{}
+    }
+})
+
+@if (MvcHelpers.CheckSomeRoles(ViewBag.Permissions, ActionEnum.FWIndicatorWritePermission, ActionEnum.FWIndicatorTemplateWritePermission))
+{
+    <div class="row mb20">
+        <div class="col-md-12">
+            @if (Model.Indicator.Common.IndicatorId == 0)
+            {
+                @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("IM.EditReadIndicator.Title.CreateIndicator")), Url.Action("RedirectToIndicatorsPage", Model.ControllerName, new { area = "Indicators" }))
+            }
+            else
+            {
+                @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("IM.EditReadIndicator.Title.EditIndicator")), Url.Action("RedirectToIndicatorsPage", Model.ControllerName, new { area = "Indicators" }))
+            }
+
+            @Html.Partial("EditIndicators/Buttons")
+        </div>
+    </div>
+
+    <div class="row mb20">
+        <div class="col-md-12">
+            @Confluence.Label(Localization.GetText("IM.EditReadIndicator.BasicData.AcitiveInstructionsChanges"))
+        </div>
+    </div>
+
+
+    <div class="page" data-parsley-validate="true" name="submitForm" data-ignore-nullable-values="true">
+        <input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" name="serializeModel" />
+        <div data-fake-pagemode="edit">
+
+            @Html.Partial("EditIndBasicData", Model)
+
+            @* Start SubIndicators *@
+            @Html.Partial("Display/EditSubindicator",
+                          new MVCSubindicatorViewModel(Model.Indicator.Specific.Subindicators)
+                              .SetName("CRFSubindicator")
+                           .SetTitleKey("IM.EditReadIndicator.IndicatorProfile.SubIndicatorTable.Title")
+                           .SetNewButtonKey("IM.EditReadIndicator.IndicatorProfile.SubIndicatorTable.NewSubIndicatorButton")
+                           .SetSubTitle(true)
+                           .SetLanguageEnRequired(true)
+                           .SetLanguageEsRequired(true)
+                           .SetLanguageFrRequired(true)
+                           .SetLanguagePtRequired(true))
+            @* End SubIndicators *@
+
+
+            @* Start Technical Field *@
+            <div class="row mb20">
+                <div class="col-md-12">
+                    @Confluence.LabelTitleGroup(Localization.GetText("IM.EditReadIndicator.TechnicalFields.Title"))
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12" data-section="technicalFields">
+                    @Html.Partial("EditIndicators/EditIndTechnicalFields", Model.Indicator.Common.TechnicalFields)
+                </div>
+            </div>
+            @* End Technical Field *@
+
+            @* Start Disaggregations *@
+            <div class="row mb20">
+                <div class="col-md-12">
+                    @Confluence.LabelTitleGroup(Localization.GetText("IM.EditReadIndicator.Disaggregation.Title"))
+                </div>
+            </div>
+
+            <div class="row mb20">
+                <div class="col-md-3" data-section="disaggregation">
+                    @(Html.MultiDropDown("disaggregationId")
+                            .Items(ViewBag.DisaggregationList)
+                            .CanSelectGroup()
+                            .SelectedItems(Model.Indicator.Specific.DisaggregationIds))
+                </div>
+            </div>
+            @* End Disaggregations *@
+
+
+
+            <div class="row">
+                <div class="col-md-12">
+
+
+                    <div id="warning-duplicate" class="hide modalBody">
+                        @Localization.GetText("IM.TemplatesList.WarningRemove")
+                    </div>
+                    @Display.AddModalButton(new ModalViewModel(contentSelector: "#warning-duplicate",
+                            title: Localization.GetText("COMMON.Warning"),
+                            type: CssClass.ModalWarning,
+                            moveOriginalContent: true,
+                            name: "open-warning-btn",
+                            closeOnOverlay: false,
+                            allowClose: true,
+                            validateForm: true,
+                            actionOnClose: "")
+            .AddButton(name: "cancel-delete",
+                            text: Localization.GetText("COMMON.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+            .AddButton(name: "confirm-delete",
+                            text: Localization.GetText("COMMON.Confirm"),
+                            type: CssClass.Button01,
+                            callback: "confirmSave",
+                            closeAtEnd: true))
+
+                </div>
+            </div>
+
+
+
+
+            <div class="row mb20">
+                <div class="col-md-12">
+                    @Html.Partial("EditIndicators/Buttons")
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @section scripts{
+        @IndicatorCommon.SetEditModeAndChangeFakePageMode()
+
+        @IndicatorCommon.IndicatorNavigationActionsEdit(Url, Model.ControllerName, Model.Indicator.Common.IndicatorId)
+
+        @IndicatorCommon.IndicatorActionsEdit(Url, Model.ControllerName)
+
+        @IndicatorCommon.AddDatesPasteEvent()
+
+        @ModuleScripts.AddCompareDatesValidator()
+
+        @ModuleScripts.AddAfterDate()
+
+        @IndicatorCommon.CheckboxLikeRadio()
+
+        @IndicatorCommon.AtLeastOneChecked(Localization.GetText("IM.EditReadIndicator.Message.AtLeastOneChecked"))
+
+        @IndicatorCommon.AddExpirationDateValidation(hasExpired, Localization.GetText("IM.EditReadIndicator.IndicatorProfile.ExpirationDate.ExpiredCreation"))
+
+
+        <script type="text/javascript">
+            registerCallback(function () {
+
+                var isActive = $('[name="isActive"]').is(':checked');
+                var isContribution = $('[name="isContribution"]').is(':checked');
+                var isAlignment = $('[name="isAlignment"]').is(':checked');
+                var isStrategicAlignment = $('[name="isStrategicAlignment"]').is(':checked');
+                var isRegionalContext = $('[name="isRegionalContext"]').is(':checked');
+
+                if (!isActive) {
+                    disabledStrAlingImages();
+                } else {
+                    if (isContribution || isAlignment) {
+                        disabledStrAlingImages();
+                    } else if (isStrategicAlignment) {
+                        enabledStrAlingImages();
+                    } else if (isRegionalContext) {
+                        $('input[name="isLinkToCS"]').prop('disabled', true);
+                    }
+                }
+
+                $(document).on('change', '[name="isActive"]', function (e) {
+                    var source = $(this);
+                    if (!(source.is(':checked'))) {
+                        disabledStrAlingImages();
+                    } else {
+                        if ($('[name="isStrategicAlignment"]').is(':checked')) {
+                            enabledStrAlingImages();
+                        }
+                    }
+                });
+
+                $(document).on('change', '[name="isContribution"],[name="isAlignment"]', function (e) {
+                    var source = $(this);
+                    if (source.is(':checked')) {
+                        disabledStrAlingImages();
+                        disabledIsRMIndicatorRequirement();
+                        uncheckedAndEnabledIsLinkToCS();
+                    }
+                });
+
+                $(document).on('change', '[name="isStrategicAlignment"]', function (e) {
+                    var source = $(this);
+                    if (source.is(':checked')) {
+                        enabledStrAlingImages();
+                        enabledIsRMIndicatorRequirement();
+                        uncheckedAndEnabledIsLinkToCS();
+                    }
+                });
+
+                $(document).on('change', '[name="isRegionalContext"]', function (e) {
+                    var source = $(this);
+                    if (source.is(':checked')) {
+                        disabledStrAlingImages();
+                        disabledIsRMIndicatorRequirement();
+                        $('input[name="isLinkToCS"]').prop('checked', true).prop('disabled', true);
+                    }
+                });
+
+            });
+
+            function disabledStrAlingImages() {
+                var div = $('div[data-content="StrAlingImages"]');
+                div.find('input[type="radio"]').attr('disabled', 'disabled');
+                div.find('input[type="radio"]').prop('checked', false);
+                div.addClass('hide');
+            }
+
+            function enabledStrAlingImages() {
+                var div = $('div[data-content="StrAlingImages"]');
+                div.find('input[type="radio"]').removeAttr('disabled');
+                div.removeClass('hide');
+            }
+
+            function enabledIsRMIndicatorRequirement() {
+                $('input[name="isRMIndicatorRequirement"]').removeAttr('disabled').prop('checked', true);
+            }
+
+            function disabledIsRMIndicatorRequirement() {
+                $('input[name="isRMIndicatorRequirement"]').attr('disabled', 'disabled').prop('checked', false);
+            }
+
+            function uncheckedAndEnabledIsLinkToCS() {
+                $('input[name="isLinkToCS"]').prop('checked', false).prop('disabled', false);
+            }
+
+            function InitializeActive() {
+                var hasTemplatePermission = '@hasTemplatePermission' == 'True';
+
+                var activeCheck = $('[name="isActive"]');
+                var contributionCheck = $('[name="isContribution"]');
+                var alignmentCheck = $('[name="isAlignment"]');
+                var strategicAlignmetCheck = $('[name="isStrategicAlignment"]');
+                var regionalContextCheck = $('[name="isRegionalContext"]');
+
+                if (activeCheck.is(':checked')) {
+                    contributionCheck.removeAttr('disabled');
+                    alignmentCheck.removeAttr('disabled');
+                    regionalContextCheck.removeAttr('disabled');
+                    if (hasTemplatePermission) {
+                        strategicAlignmetCheck.removeAttr('disabled');
+                    }
+
+                } else {
+                    contributionCheck.attr('disabled', 'disabled');
+                    alignmentCheck.attr('disabled', 'disabled');
+                    regionalContextCheck.prop('disabled', 'disabled');
+                    if (hasTemplatePermission) {
+                        strategicAlignmetCheck.attr('disabled', 'disabled');
+                    }
+                }
+            }
+
+            registerCallback(function () {
+
+                InitializeActive();
+
+                $(document).on('click', '[name="isActive"]', function () {
+                    InitializeActive();
+                    InitializeExpirationDateParsley();
+                });
+
+            });
+        </script>
+    }
+}

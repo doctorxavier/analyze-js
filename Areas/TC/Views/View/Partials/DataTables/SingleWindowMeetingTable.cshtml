@@ -1,0 +1,337 @@
+﻿@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService
+@using IDB.MW.Application.TCAbstractModule.ViewModels.SingleWindowMeeting
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Architecture.Language
+
+@model SingleWindowMeetingViewModel
+
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+
+    var config = Html.RenderDataTable(Model.Meetings);
+    config.Name("meetingTable")
+        .PrimaryKey(m => m.TCAbstractId.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .UsePageMode(false)
+        .UseDataTableNet(true)
+        .Columns(columns =>
+        {
+            columns.Template(GetTCAbstractLinked)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.OperationNumber"))
+                .Orderable(true);
+
+            columns.Template(GetOperationNumberLinked)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.Name"))
+                .Orderable(true);
+
+            columns.Bound(c => c.Taxonomy)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.Taxonomy"))
+                .Orderable(true);
+
+            columns.Bound(c => c.AmountRequested)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.AmountRequested"))
+                .Orderable(true);
+
+            columns.Bound(c => c.PreparedByUnit)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.PreparedByUnit"))
+                .Orderable(true);
+
+            columns.Bound(c => c.TeamLeader)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.TeamLeader"))
+                .Orderable(true);
+
+            columns.Bound(c => c.ParticipantCountries)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.ParticipantCountries"))
+                .Orderable(true);
+
+            columns.Bound(c => FormatHelper.Format(c.DateReceived, formatDate))
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.DateReceived"))
+                .Orderable(true)
+                .CssHeaderClass("CustomOrderDate")
+                .CssClass("w100");
+
+            columns.Bound(c => c.IscludedInCPD ?
+                @Localization.GetText("TC.SingleWindowMeeting.IncludedInCPDYes") :
+                @Localization.GetText("TC.SingleWindowMeeting.IncludedInCPDNo"))
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.IncludedInCPD"))
+                .Orderable(true);
+
+            columns.Bound(c => c.Status)
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.Status"))
+                .Orderable(true);
+
+            columns.Bound(c => GetPriorityLevel(c.PriorityStatus))
+                .Persistent()
+                .Header(@Localization.GetText("TC.SingleWindowMeeting.PriorityLevel"))
+                .Orderable(true);
+
+            columns.Template(@<div>
+                <span name="generalComments" class="commentIcon"></span>
+                <div data-name="generalCommentsContainer" class="hide"></div>
+            </div>)
+
+               .Persistent().CssClass("center-align")
+               .Header(@Localization.GetText("TC.SingleWindowMeeting.GeneralComments"))
+               .Orderable(true);
+
+            columns.Bound(c => Input.DropDownGetSelectedString(c.StandardizedComment,
+                ViewBag.StandardizedCommentsList))
+                .CssClass("StandarizedCommentsNoClassProperties")
+                .HeaderAttribute("id", "StandarizedCommentsHeaderMeetingTable")
+                .EditableTemplate(modelRow => Input.DropDown(modelRow.StandardizedComment,
+                    "standardizedComments",
+                    ViewBag.StandardizedCommentsList,
+                    "StandarizedCommentsRowMeetingTable",
+                    showEmptyOption: true,
+                    classStyle: "font-10 min-width-120", placeholder: " ", required: false))
+                .Header(Localization.GetText("TC.SingleWindowMeeting.StandardizedComments")).
+                Orderable(true);
+
+            columns.Template(c => GeButtonRowExpandable(c)).Persistent();
+
+        })
+            .RowTemplates(rows => rows.Create(RowTemplateType.AllRows, item => SWMeetingSubtableRowInfo(item.MeetingSubTable, item.TCAbstractId)));
+
+    config.TableClass = "table-default table-row-expandible table-row-expandible-bordered font-11";
+    config.RowAttributes("data-showing-detail", "false");
+}
+
+
+
+
+@helper GetPriorityLevel(StatusPriorityLevelViewModel viewModel)
+{
+    switch (viewModel.Status)
+    {
+        case StatusPriorityTypeEnum.Defined:
+            @viewModel.PriorityLevel;
+                                    break;
+        case StatusPriorityTypeEnum.Undefined:
+        @(string.Empty);
+        break;
+        case StatusPriorityTypeEnum.Pending:
+        @Localization.GetText("TC.SingleWindowMeeting.PriorityLevelPending");
+                                                                                  break;
+        default:
+                                                                                  break;
+    }
+}
+
+@helper GetOperationNumberLinked(MeetingViewModel viewModel)
+{
+    if (viewModel.IsPreviousDisplay)
+    {
+        <a href="@Url.Action("SingleWindowDecision", "View", new {area = "TC", OperationNumber = viewModel.OperationNumber, SWMDateFrom = Model.SWMDateFrom, SWMDateTo = Model.SWMDateTo})">@viewModel.Name</a>
+    }
+    else
+    {
+        <span>@viewModel.Name.HtmlEncode()</span>
+    }
+
+}
+
+
+@helper GeButtonRowExpandable(MeetingViewModel viewModel)
+{
+    if (viewModel.IsPreviousDisplay)
+    {
+        @Display.ExpandableTriangleButton(string.Format("#meetingTable [data-name='detail-tcAbstract-{0}']", viewModel.TCAbstractId))
+    }
+    else
+    {
+        <span>&nbsp;</span>
+    }
+
+}
+
+@helper GetTCAbstractLinked(MeetingViewModel viewModel)
+{
+    <a href="@Url.Action("TCAbstract", "View", new
+        {
+            area = "TC", OperationNumber = viewModel.OperationNumber
+        })">
+        @viewModel.OperationNumber
+    </a>
+}
+
+@helper SWMeetingSubtableRowInfo(MeetingSubTableViewModel subTable, int tcAbstractId)
+{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+
+    <tr class="skip template dont-hide-at-edit own-hide" data-name="detail-tcAbstract-@tcAbstractId">
+        <td colspan="14">
+            @if ((subTable != null) && (subTable.MeetingSubTableRows != null) && subTable.MeetingSubTableRows.Any())
+            {
+                <table class="table-fundDetail">
+                    <thead>
+                        <tr class="childTable">
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.Fund")</th>
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.FundCoord")</th>
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.FundCoordDecision")</th>
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.Date")</th>
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.DonorESCDecision")</th>
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.Date")</th>
+                            <th class="childTh">@Localization.GetText("TC.SingleWindowMeeting.SubInfo.Comments")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fundInfo in subTable.MeetingSubTableRows)
+                        {
+
+                            <tr class="@((fundInfo.FundCoordinatorDecision == SingleWindowFundDecisionEnum.Eligible || fundInfo.FundCoordinatorDecision == SingleWindowFundDecisionEnum.EligibleWithChanges) ? "elegible" :"not-elegible")">
+                                <td class="break-words fundName">
+                                    @fundInfo.FundCodeFundName.HtmlEncode()
+                                </td>
+                                <td>
+                                    @fundInfo.FullName.HtmlEncode()
+                                </td>
+                                <td>
+                                    <span data-name="fundDecision" class="@(fundInfo.MeetingFundDecision != null ? "clickable-text" : String.Empty)">@ModuleFunctions.GetFundDecision(fundInfo).HtmlEncode()</span>
+                                    @if (fundInfo.IsNotifyFund.GetValueOrDefault(false) == true)
+                                    {
+                                        <span style="color:#193a6e;"> (Selected)</span>
+                                    }
+                                    @if (fundInfo.MeetingFundDecision != null)
+                                    {
+                                        <div data-name="overlay-fund-DecisionReason" class="hide">
+                                            <div class="row row-header font-header">
+                                                <div class="col-md-12">
+                                                    @ModuleFunctions.GetLabelDecisionFundDecision(fundInfo).HtmlEncode()
+                                                </div>
+                                            </div>
+                                            <div class="row row-body-40 font-body">
+                                                <div class="col-md-12">
+                                                    @fundInfo.MeetingFundDecision.CauseOrType.HtmlEncode()
+                                                </div>
+                                            </div>
+                                            <div class="row row-header font-header">
+                                                <div class="col-md-12">
+                                                    @ModuleFunctions.GetLabelDescriptionFundDecision(fundInfo).HtmlEncode()
+                                                </div>
+                                            </div>
+                                            <div class="row row-body-40 font-body">
+                                                <div class="col-md-12">
+                                                    @fundInfo.MeetingFundDecision.Description.HtmlEncode()
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    @FormatHelper.Format(fundInfo.CoordinatorDecisionDate, formatDate)
+                                </td>
+                                <td>
+
+                                    @if (fundInfo.DonorEscDecision != null)
+                                    {
+                                        <span data-name="donorEscDecision" class="clickable-text">
+                                            @{
+                                        int? intValue = null;
+                                        if (fundInfo.DonorEscDecisionType.HasValue)
+                                        {
+                                            intValue = ViewBag.EnumMapping[fundInfo.DonorEscDecisionType.Value];
+                                        }
+                                            }
+                                            @ControlTemplatesTC.DropDownGetSelectedText(intValue, (List<SelectListItem>)ViewBag.ESCDecisionList)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>
+                                            @{
+                                        int? intValue = null;
+                                        if (fundInfo.DonorEscDecisionType.HasValue)
+                                        {
+                                            intValue = ViewBag.EnumMapping[fundInfo.DonorEscDecisionType.Value];
+                                        }
+                                            }
+                                            @ControlTemplatesTC.DropDownGetSelectedText(intValue, (List<SelectListItem>)ViewBag.ESCDecisionList)
+                                        </span>
+                                    }
+
+                                    @if (fundInfo.DonorEscDecision != null)
+                                    {
+                                        <div data-name="overlay-fund-DecisionReason" class="hide">
+                                            @if (fundInfo.DonorEscDecision.CauseOrType != null)
+                                            {
+                                                <div class="row row-header font-header">
+                                                    <div class="col-md-12">
+                                                        @ModuleFunctions.GetLabelDecisionDonorEscDecision(fundInfo).HtmlEncode()
+                                                    </div>
+                                                </div>
+
+                                                <div class="row row-body-40 font-body">
+                                                    <div class="col-md-12">
+                                                        @fundInfo.DonorEscDecision.CauseOrType.HtmlEncode()
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            @if (fundInfo.DonorEscDecision.Description != null)
+                                            {
+                                                <div class="row row-header font-header">
+                                                    <div class="col-md-12">
+                                                        @ModuleFunctions.GetLabelDescriptionDonorEscDecision(fundInfo).HtmlEncode()
+                                                    </div>
+                                                </div>
+                                                <div class="row row-body-40 font-body">
+                                                    <div class="col-md-12">
+                                                        @fundInfo.DonorEscDecision.Description.HtmlEncode()
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+
+                                <td>
+                                    @FormatHelper.Format(fundInfo.DonorEscDecisionDate, formatDate)
+                                </td>
+                                <td class="center-align">
+                                    <span name="subtableComments" class="commentIcon"></span>
+                                    <div data-name="overlay-fund-comments" class="hide">
+                                        @if ((fundInfo.Comments != null) && (fundInfo.Comments.Any()))
+                                        {
+                                            @Html.Partial("Partials/TCCommentsReadOnly", fundInfo.Comments)
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        @if (subTable.IsHistoricalTableVisible)
+                        {
+                            <tr>
+                                <td style="padding-top:30px;padding-left:10px;cursor:pointer">
+                                    @Display.Link(text: Localization.GetText("TC.SingleWindowMeeting.Historical"), name: "historical")
+                                    <div data-name="modal-historical" class="hide"></div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </td>
+    </tr>
+}
+
+<input type="hidden" name="SWMeetingViewModel" value="@ViewBag.SerializedViewModel" />
+
+@Html.Partial("Controls/DataTable", config)
+

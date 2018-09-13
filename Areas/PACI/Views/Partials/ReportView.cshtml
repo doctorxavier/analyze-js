@@ -1,0 +1,244 @@
+﻿@using System.Web.Mvc.Html
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Areas.PACI.Models
+@using IDB.Presentation.MVC4.MVCExtensions
+@using IDB.MW.Domain.Values.Paci
+
+@model ReportViewModel
+
+@using (Ajax.BeginForm("Edit", "Report", new { operationNumber = Model.OperationNumber, moduleTabId = Model.ModuleTabId },
+                            new AjaxOptions() { UpdateTargetId = "main_section_paci_report", HttpMethod = "Post", OnComplete = "paciAjaxOnComplete", OnBegin = "paciAjaxOnBegin", OnFailure = "reportAjaxOnFailure" },
+                            new { id = "frmPaciViewMode", name = "UI-PA-008-READ" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.Hash)
+    @Html.HiddenFor(model => model.OperationNumber)
+    @Html.HiddenFor(model => model.TabId)
+    @Html.HiddenFor(model => model.QuestionnaireId)
+    @Html.HiddenFor(model => model.OperationIsComplete)
+    @Html.HiddenFor(model => model.IsAllEvaluated)
+    @Html.HiddenFor(model => model.CanEvaluate)
+    @Html.HiddenFor(model => model.PaciIsComplete)
+    <div class="col-md-12 pl0">
+        <div class="col-md-5">
+            @Html.HiddenFor(model => model.InstitutionName)
+            @Html.HiddenFor(model => model.InstitutionId)
+            @Html.HiddenFor(model => model.PaciStage)
+            <div class="col-md-12 pl0 pr0">
+                @Localization.GetText("PACI.STATUS")
+            </div>
+            <div class="col-md-12 pl0 pr0">
+                @Confluence.LabelBold(Model.PaciStage)
+            </div>
+        </div>
+        <div class="col-md-6 pr0 pull-right">
+
+            @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnPaciReportEdit", Model.Security.Security))
+            {
+                <button class="buttonBlue pull-right mr0" type="submit" id="btnPaciReportEdit">@Localization.GetText("PACI.EDIT")</button>
+            }
+        </div>
+    </div>
+
+    <div class="col-md-12 pl0">
+        @Html.HiddenFor(model => model.ModuleTabId)
+        @{
+            Html.RenderPartial("~/Areas/PACI/Views/Controls/ReportModulesTab.cshtml", Model);
+        }
+    </div>
+    <div class="col-md-12 pl0">
+        @Confluence.ButtonColapseAll(new List<string>() { })
+        @Confluence.ButtonExcel("btnExcel", "ExportFilePaciReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "xls" }, { "id", Model.QuestionnaireId.ToString() } })
+        @Confluence.ButtonWord("btnWord", "ExportFilePaciReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "doc" }, { "id", Model.QuestionnaireId.ToString() } })
+        @Confluence.ButtonPdf("btnPDF", "ExportFilePaciReport", clase: "pull-right", dataAttributes: new Dictionary<string, string> { { "fileType", "pdf" }, { "id", Model.QuestionnaireId.ToString() } })
+    </div>
+
+    <div class="col-md-12">
+        @for (int i = 0; i < Model.Modules.Count; i++)
+        {
+            @Html.HiddenFor(model => model.Modules[i].IsInactivate)
+            @Html.HiddenFor(model => model.Modules[i].ItIsInactivated)
+            if (Model.Modules[i].IsInactivate)
+            {
+                continue;
+            }
+
+            <div class="col-md-12 pl0 pr0">
+                <div class="col-md-10 mt5 pl0 padding1215">
+                    @Confluence.ButtonCollapseContainer("ReportModuleContainer_" + i)
+                    @Confluence.LabelBold(Model.Modules[i].ModuleName)
+                    @Html.HiddenFor(model => Model.Modules[i].ModuleName)
+                    @Html.HiddenFor(model => Model.Modules[i].ModuleId)
+                    @Html.HiddenFor(model => model.Modules[i].PageNumber)
+                </div>
+                <div class="col-md-2 pr0 mt5">
+
+                </div>
+            </div>
+            <div id="ReportModuleContainer_@i" class="reportmodulecontainer">
+                <div class="col-md-12 mb15 mt15">
+                    @Confluence.Label(Localization.GetText("PACI.REPORT.MODULE.ASSESSMENT"), htmlClass: "textdecorationunderline")
+                </div>
+                <div class="col-md-12 pr0" id="paci_section_assessment">
+                    <table id="tableAssessment" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th width="30%">@Confluence.CircleRed() @Localization.GetText("PACI.ANALYSIS.WEAKNESSES") </th> @*PACI.ANALYSIS.STRENGTHS*@
+                                <th width="30%">@Confluence.CircleYellow() @Localization.GetText("PACI.ANALYSIS.OPPORTUNITY")</th>  @*PACI.ANALYSIS.OPPORTUNITY*@
+                                <th width="30%">@Confluence.CircleGreen() @Localization.GetText("PACI.ANALYSIS.STRENGTHS")</th> @*PACI.ANALYSIS.STRENGTHS*@
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int j = 0; j < Model.Modules[i].Assessments.Count; j++)
+                            {
+                                <tr data-id="" data-module-id="@Model.Modules[i].ModuleId" data-institution-id="@Model.InstitutionId" data-assessment-id="@Model.Modules[i].Assessments[j].AssessmentId">
+                                    <td align="center" valign="middle" class="movableCellContent" id="isWeaknesses">
+                                        @if (Model.Modules[i].Assessments[j].EvaluationCode == Literals.TYPE_EVALUATION_WEAKNESS_CODE)
+                                        {
+                                            @Model.Modules[i].Assessments[j].ConditionName
+                                            @Html.HiddenFor(model => Model.Modules[i].Assessments[j].ConditionName)
+                                        }
+                                    </td>
+                                    <td align="center" valign="middle" class="movableCellContent" id="isOportunity">
+                                        @if (Model.Modules[i].Assessments[j].EvaluationCode == Literals.TYPE_EVALUATION_OPPORTUNITY_CODE)
+                                        {
+                                            @Model.Modules[i].Assessments[j].ConditionName
+                                            @Html.HiddenFor(model => Model.Modules[i].Assessments[j].ConditionName)
+                                        }
+                                    </td>
+                                    <td align="center" valign="middle" class="movableCellContent" id="isStrengths">
+                                        @if (Model.Modules[i].Assessments[j].EvaluationCode == Literals.TYPE_EVALUATION_STRENGTH_CODE)
+                                        {
+                                            @Model.Modules[i].Assessments[j].ConditionName
+                                            @Html.HiddenFor(model => Model.Modules[i].Assessments[j].ConditionName)
+                                        }
+                                    </td>
+
+                                    @Html.HiddenFor(model => Model.Modules[i].Assessments[j].ConditionId)
+                                    @Html.HiddenFor(model => Model.Modules[i].Assessments[j].ConditionName)
+                                    @Html.HiddenFor(model => Model.Modules[i].Assessments[j].AssessmentId)
+                                    @Html.HiddenFor(model => Model.Modules[i].Assessments[j].EvaluationType)
+                                    @Html.HiddenFor(model => Model.Modules[i].Assessments[j].EvaluationCode)
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-12 mb15 mt25">
+                    @Confluence.Label(Localization.GetText("PACI.REPORT.TITLE.ANALYSIS"), htmlClass: "textdecorationunderline")
+
+                </div>
+                <div class="col-md-12">
+                    <p>
+                        @Localization.GetText("PACI.REPORT.TITLE.DESCRIPTION")
+                    </p>
+                </div>
+                <div class="col-md-12 pr0">
+                    @Html.HiddenFor(model => Model.Modules[i].Analysis.ModuleId)
+                    @Html.HiddenFor(model => Model.Modules[i].Analysis.AnalysisId)
+
+                    <table id="TabAnalysis" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th width="30%">@Confluence.CircleRed() @Localization.GetText("PACI.ANALYSIS.WEAKNESSES")</th> @*PACI.ANALYSIS.STRENGTHS*@
+                                <th width="30%">@Confluence.CircleYellow() @Localization.GetText("PACI.ANALYSIS.OPPORTUNITY")</th>  @*PACI.ANALYSIS.OPPORTUNITY*@
+                                <th width="30%">@Confluence.CircleGreen() @Localization.GetText("PACI.ANALYSIS.STRENGTHS")</th> @*PACI.ANALYSIS.STRENGTHS*@
+                            </tr>
+                        </thead>
+                        <tbody class="w100p">
+                            <tr data-id="">
+                                <td width="30%">
+                                    @Html.TextAreaFor(model => Model.Modules[i].Analysis.Weaknesses, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", @readonly = "true" })
+                                </td>
+                                <td width="30%">
+                                    @Html.TextAreaFor(model => Model.Modules[i].Analysis.Oportunity, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", @readonly = "true" })
+                                </td>
+                                <td width="30%">
+                                    @Html.TextAreaFor(model => Model.Modules[i].Analysis.Strengths, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", @readonly = "true" })
+                                </td>
+                            </tr>
+                        </tbody>
+
+                    </table>
+                </div>
+                <div class="col-md-12 mb15 mt25">
+                    @Confluence.Label(Localization.GetText("PACI.REPORT.TITLE.RECOMMENDATION"), htmlClass: "textdecorationunderline")
+                </div>
+                <div class="col-md-12">
+                    <p>
+                        @Localization.GetText("PACI.REPORT.TABLE.RECOMMENDATION")
+                    </p>
+                </div>
+                <div class="col-md-12 pr0">
+                    <table id="tableRecommendation" class="tableNormal">
+                        <thead>
+                            <tr>
+                                <th width="30%">@Confluence.CircleRed() @Localization.GetText("PACI.RECOMMENDATION.WEAKNESSES")</th> @*PACI.RECOMMENDATION.WEAKNESSES*@
+                                <th width="30%">@Confluence.CircleYellow() @Localization.GetText("PACI.RECOMMENDATION.OPPORTUNITY")</th> @*PACI.RECOMMENDATION.OPPORTUNITY*@
+                                <th width="30%">@Confluence.CircleGreen() @Localization.GetText("PACI.RECOMMENDATION.STRENGTHS")</th> @*PACI.RECOMMENDATION.STRENGTHS*@
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-id="">
+                                <td>
+                                    @Html.TextAreaFor(model => Model.Modules[i].Analysis.RecommendationWeaknesses, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", @readonly = "true" })
+                                </td>
+                                <td>
+                                    @Html.TextAreaFor(model => Model.Modules[i].Analysis.RecommendationOportunity, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", @readonly = "true" })
+                                </td>
+                                <td>
+                                    @Html.TextAreaFor(model => Model.Modules[i].Analysis.RecommendationStrengths, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", @readonly = "true" })
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-12 mt30">
+        <div class="col-md-10">
+            @Confluence.LabelBold(Localization.GetText("PACI.REPORT.PARTICIPANTS"))
+            <table id="tableWorkshop" class="tableNormal">
+                <thead>
+                    <tr>
+                        <th width="60%">@Localization.GetText("PACI.REPORT.AREA")</th> @*PACI.REPORT.AREA*@
+                        <th width="20%">@Localization.GetText("PACI.REPORT.CONTACT")</th> @*PACI.REPORT.CONTACT*@
+                        <th width="20%">@Localization.GetText("PACI.REPORT.DEPARTAMENT")</th> @*PACI.REPORT.DEPARTAMENT*@
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int m = 0; m < Model.Modules.Count; m++)
+                    {
+                        <tr data-id="">
+                            <td>
+                                @Html.HiddenFor(model => model.Modules[m].ModuleName)
+                                @Model.Modules[m].ModuleName
+                            </td>
+                            <td>
+                                @Html.HiddenFor(model => model.Modules[m].ContactName)
+                                @Model.Modules[m].ContactName
+                            </td>
+                            <td>
+                                @Html.HiddenFor(model => model.Modules[m].DepartamentName)
+                                @Model.Modules[m].DepartamentName
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-2">
+            @Confluence.ButtonExcel("btnExcel", "ExportFilePaciReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "xls" }, { "id", Model.QuestionnaireId.ToString() } })
+            @Confluence.ButtonWord("btnWord", "ExportFilePaciReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "doc" }, { "id", Model.QuestionnaireId.ToString() } })
+            @Confluence.ButtonPdf("btnPDF", "ExportFilePaciReport", clase: "pull-right", dataAttributes: new Dictionary<string, string> { { "fileType", "pdf" }, { "id", Model.QuestionnaireId.ToString() } })
+        </div>
+    </div>
+    <div class="col-md-12 mt10 mb10">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.Security.PageName, "btnPaciReportEdit", Model.Security.Security))
+                {
+            <button class="buttonBlue pull-right mr0" type="submit" id="btnPaciReportEdit">@Localization.GetText("PACI.EDIT")</button>
+        }
+    </div>
+            }

@@ -1,0 +1,372 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.CountryStrategyModule.ViewModels.ProductProfile
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using System.Configuration
+
+@model ProductDataViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+}
+
+<input type="hidden" data-idb-pagename="UI-CS-002-ProductProfileBasicData" />
+<input type="hidden" data-idb-pagename="UI-CS-003-ProductProfileResponsibilityData" />
+
+<div data-section="modals" class="hide">
+    @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-modal\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+    .AddButton(name: "btn-cancel-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+    .AddButton(name: "btn-cancel-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okCancel",
+                    closeAtEnd: true))
+    <div data-name="cancel-modal" class="hide modalBody">
+        @Localization.GetText("CS.ProductProfile.Cancel.Warning")
+    </div>
+</div>
+
+
+<div class="row mb30">
+    <div class="col-md-12">
+        @Html.Partial("EditPartial/Buttons", Model)
+        @Confluence.LabelMainTitle(Localization.GetText("CS.ProductProfile.Title"))
+    </div>
+</div>
+<div>
+    @Confluence.Tabs(new Dictionary<string, string>()
+        {{"linktabBasicData", Localization.GetText("CS.ProductProfile.Navigation.BasicData") },
+        {"linktabResponsibilityData", Localization.GetText("CS.ProductProfile.Navigation.ResponsibilityData") }
+     })
+    <div class="tab-content">
+        @if (ViewBag.ActiveTab == "#linktabBasicData" && SecurityHelper.IsVisible(Model.FieldAccessList, "cs-basic-data-edit-control"))
+        {
+            <div class="tab-pane"
+                 data-idb-fieldname="cs-basic-data-edit-control"
+                 id="linktabBasicData"
+                 name="submitFormBasicData"
+                 data-parsley-validate="data-parsley-validate"
+                 data-parsley-excluded="[disabled]"
+                 data-ignore-nullable-values="true"
+                 data-url="@Url.Action("SaveBasicData", "ProductProfile", new { area = "CountryStrategy" })">
+                @if (Model.BasicData != null)
+                {
+                    <div data-fake-pagemode="edit">
+                        @Html.Partial("EditPartial/GeneralBasicData", Model.BasicData)
+                    </div>
+                }
+            </div>
+        }
+        else if (ViewBag.ActiveTab == "#linktabResponsibilityData" && SecurityHelper.IsVisible(Model.FieldAccessList, "cs-resp-data-edit-control"))
+        {
+            <div class="tab-pane"
+                 data-idb-fieldname="cs-resp-data-edit-control"
+                 id="linktabResponsibilityData"
+                 data-parsley-validate="data-parsley-validate"
+                 data-parsley-excluded="[disabled]"
+                 name="submitFormResponsibilityData"
+                 data-ignore-nullable-values="true"
+                 data-url="@Url.Action("SaveResponsibilityData", "ProductProfile", new { area = "CountryStrategy" })">
+                @if (Model.ResponsibilityData != null)
+                {
+                    <div data-fake-pagemode="edit">
+                        @Html.Partial("EditPartial/GeneralResponsabilityData", Model.ResponsibilityData)
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+<div class="row mb30">
+    <div class="col-md-12">
+        @Html.Partial("EditPartial/Buttons")
+    </div>
+</div>
+
+@section scripts{
+    @CountryStrategyCommon.ChangeFakePageModeToReal()
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+            var nameTab = '@ViewBag.ActiveTab';
+            switch (nameTab) {
+                case "#linktabBasicData":
+                    $('[dd-tab="#linktabResponsibilityData"]').addClass('disabled');
+                    $('[dd-tab="#linktabBasicData"]').click();
+                    break;
+                case "#linktabResponsibilityData":
+                    $('[dd-tab="#linktabBasicData"]').addClass('disabled');
+                    $('[dd-tab="#linktabResponsibilityData"]').click();
+                    break;
+            }
+
+        });
+
+        function okCancel() {
+            var promise = $.Deferred();
+            var url = '@Url.Action("Cancel", "ProductProfile", new { area = "CountryStrategy", tabName = "#" })';
+            var tabName = $('.tabs li.active').attr('dd-tab').substr(1);
+            url = url + tabName;
+            window.location.assign(url);
+            promise.resolve();
+            return promise;
+        }
+
+
+        registerCallback(function () {
+
+            $(document).on('click', 'button[name="link-CPDOperationNumber"]', function (e) {
+                var source = $(this);
+                var operationNumber = source.attr('data-operationNumber');
+                var url = '/Operation/' + source.attr('data-operationnumber');
+                url = url.replace("_oper_", operationNumber);
+                window.open(url, '_blank');
+            });
+
+            $(document).on('click', 'ul.tabs li:not(.disabled)', function () {
+                var source = $(this);
+                var contentButtons = $('div[data-type="contentButtons"]');
+                var nameTab = source.attr('dd-tab');
+                contentButtons.addClass('hide');
+                switch (nameTab) {
+                    case "#linktabBasicData":
+                        $('div[data-id="edit-BasicData"]').removeClass('hide');
+                        break;
+                    case "#linktabResponsibilityData":
+                        $('div[data-id="edit-RespData"]').removeClass('hide');
+                        break;
+                }
+            });
+
+            $(document).on('click', '[name="cancel-BD"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+
+            $(document).on('click', '[name="cancel-RD"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+            $(document).on('click', '[name="save-BD"]', function () {
+                var promise = $.Deferred();
+                var response = saveContainer($('#linktabBasicData'), '[name="hideBasicDataViewModel"]', false, null, null, false, true, null);
+                if (response !== false) {
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+                promise.resolve();
+                return promise;
+            });
+
+            $(document).on('click', '[name="save-RD"]', function () {
+                var promise = $.Deferred();
+                var response = saveContainer($('#linktabResponsibilityData'), '[name="hideResponsibilityDataViewModel"]', false, null, null, false, true, null);
+                if (response !== false) {
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+                promise.resolve();
+                return promise;
+            });
+
+            $(document).on('click', '[name="addNewTeamMember"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var lastTr = $('#operationTeamsTable tbody tr:last');
+                var templateTr = $('#operationTeamsTable tbody tr:first');
+                var clonedTr = templateTr.clone(false).appendTo('#operationTeamsTable tbody');
+                var lastSecuence = lastTr.attr('class');
+                if (lastSecuence.indexOf('odd') > -1) {
+                    clonedTr.removeAttr('class', 'odd');
+                    clonedTr.attr('class', 'custom-even even');
+                } else {
+                    clonedTr.removeAttr('class', 'even');
+                    clonedTr.attr('class', 'custom-odd odd');
+                }
+                clonedTr.removeClass('hide');
+                clonedTr.attr('data-id', String.format('new-{0}', newId));
+                clonedTr.removeAttr('data-name')
+                clonedTr.find('input, select,button').removeAttr('disabled');
+                bindHandlers(clonedTr);
+            });
+
+            $(document).on('click', '[name="removeUnit"]', function (e) {
+                var source = $(this);
+                deleteRowTable(e, source, "responsibleUnitsTable", true);
+            });
+
+            $(document).on('click', '[name="addNewUnit"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var lastTr = $('#responsibleUnitsTable tbody tr:last');
+                var templateTr = $('#responsibleUnitsTable tbody tr:first');
+                var clonedTr = templateTr.clone(false).appendTo('#responsibleUnitsTable tbody');
+                var lastSecuence = lastTr.attr('class');
+                if (lastSecuence.indexOf('odd') > -1) {
+                    clonedTr.removeAttr('class', 'odd');
+                    clonedTr.attr('class', 'custom-even even');
+                } else {
+                    clonedTr.removeAttr('class', 'even');
+                    clonedTr.attr('class', 'custom-odd odd');
+                }
+                clonedTr.removeClass('hide');
+                clonedTr.attr('data-id', String.format('new-{0}', newId));
+                clonedTr.removeAttr('data-name')
+                clonedTr.find('input, select,button').removeAttr('disabled');
+                bindHandlers(clonedTr);
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+
+            });
+
+            $(document).on('click', '[name="removeRowTeamMember"]', function (e) {
+                var source = $(this);
+                deleteRowTable(e, source, "operationTeamsTable", true);
+            });
+
+            $(document).on('change', '[name="userNameTeam"]', function (e, aditionalData) {
+                var source = $(this);
+                var jsonAditional = JSON.parse(aditionalData);
+
+                var tdUsername = source.closest('td').siblings('[data-name="username"]');
+                var tdOrganizationalUnit = source.closest('td').siblings('[data-name="organizationalUnit"]');
+                var tdDelegate = source.closest('td').siblings('[data-name="delegate"]');
+
+
+                tdUsername.find('label').html(source.val());
+                tdOrganizationalUnit.find('label').html(jsonAditional.OrganizationalUnit);
+                tdOrganizationalUnit.find('input').val(jsonAditional.OrganizationalUnit);
+                tdDelegate.find('label').html(jsonAditional.Delegation);
+            });
+
+            window.ParsleyValidator
+            .addValidator('OnlyOneRole', function (value, requirement) {
+                
+                var countRole = 0;
+                var inputsRole = $('input[name="responsibleUnitsRole"]');
+                inputsRole.each(function (ix, item) {
+                    if (parseInt($(item).val()) == requirement) {
+                        countRole++;
+                        }
+                    });
+                
+                return countRole == 1;
+
+            }, 32)
+            .addMessage('en', 'OnlyOneRole', '@Localization.GetText("CS.ProductData.Message.ResponsibleOU")');
+
+
+            window.ParsleyValidator
+                .addValidator('OnlyOneTeamLeader', function (value, requirement) {
+
+                var countRole = 0;
+                var inputsRole = $('input[name="operationTeamsRole"]');
+                inputsRole.each(function (ix, item) {
+                    if (parseInt($(item).val()) == requirement) {
+                        countRole++;
+                    }
+                });
+
+                return countRole == 1;
+
+            }, 32)
+            .addMessage('en', 'OnlyOneTeamLeader', '@Localization.GetText("CS.ProductData.Message.TeamLeaderRoleTeam")');
+
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-operationTeamsRole"] a', function () {
+            var countTeamLeader = 0;
+            if ($(this).text() == 'Team Leader') {
+                $('#operationTeamsTable .dropdown .valueText').each(function () {
+                    if ($(this).text() == 'Team Leader') {
+                        countTeamLeader++;
+                    }
+                });
+
+                if (countTeamLeader == 2) {
+                    $(this).closest('ul').FirstorDefault();
+                    showMessage('@Localization.GetText("OP.CR.CreationForm.Message.AnyTeamLeader")');
+                } 
+            }
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-userNameTeam"] a', function () {
+            var nameUserForInsert = $(this).text();
+            var countUser = 0;
+            $('#operationTeamsTable tr td:first-child').each(function () {
+                var source = $(this);
+                var name = source.find('label').text();
+                if(name == '' || name == null){
+                    name = source.find('input').val();
+                }
+                if (nameUserForInsert == name) {
+                    countUser++;
+                }
+            });
+
+            if (countUser > 1) {
+                var tr = $(this).closest('tr');
+
+                var inputName = tr.find('input[name="userNameTeam_text"]');
+                var inputNameId = tr.find('input[name="userNameTeam"]');
+                var labeltd3 = tr.find('td:eq(2)').find('label');
+                var ultd2 = tr.find('td:eq(1)').find('ul');
+
+                inputName.val('');
+                inputNameId.val('');
+                labeltd3.html('');
+                ultd2.FirstorDefault();
+                showMessage('@Localization.GetText("CS.ResponsabilityData.Message.SelectOtherUser")');
+            }
+        });
+
+        function deleteRowTable(e, source, idTable, showNotificationDelete) {
+            if (showNotificationDelete) {
+                var modalButton = $('[name="' + idTable + '-open-warning-btn"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+            } else {
+                ConfirmRemove(e, source);
+            }
+        }
+
+        function ConfirmRemove(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            tr.remove();
+            promise.resolve();
+            return promise;
+        }
+
+        function exportTeamData(source) {
+            var url = '@Url.Action("ExportTeamDataToExcel", "ProductProfile", new { area = "CountryStrategy" })';
+            window.open(url, '_blank');
+        }
+
+    </script>
+}

@@ -1,0 +1,367 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+
+@model IDB.MW.Application.OPUSModule.ViewModels.EnvironmentalSocialDataService.EnvironmentalSocialDataViewModel
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@if (devMode)
+{
+    <div class="header">
+        <div class="row row-header">
+            <div class="col-md-12">
+                <button class="button01" data-action="setReadPermission">Read Permission</button>
+                <button class="button05" data-action="setWriteBasicAccess">Write Permission</button>
+                <button class="button01" data-action="removePermission">Remove/Refresh Permissions</button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="header">
+    <div class="row">
+        @Html.Partial("Partials/EnvironmentalSocialData/buttons")
+        <h2 class="title-arrow"><span>&nbsp;</span>@Localization.GetText("OPUS.ESG.EnvironmentalSocialData").HtmlEncode()</h2>
+    </div>
+</div>
+
+<div class="page">
+    @if (ViewBag.ReadRole ?? false)
+    {
+        <div id="Data"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-loadurl="@Url.Action("EnvironmentalSocialDataEdit", "View", new { area = "OPUS" })"
+             data-url="@Url.Action("EnvironmentalSocialDataSave", "Save", new { area = "OPUS" })">
+
+            @if (Model != null)
+            {
+                @Html.Partial("Partials/EnvironmentalSocialData/EnvironmentalSocialDataPartial", Model)
+            }
+
+        </div>
+
+    }
+    @Html.Partial("Partials/EnvironmentalSocialData/buttons")
+</div>
+
+@section scripts{
+
+    @ModuleScripts.AddnumElementsRangeValidator()
+    @ModuleScripts.AddArithmeticSumValidator()
+    <script type="text/javascript">
+
+        //Seccion Validacion
+        //Validacion IS CORRECT
+        window.ParsleyValidator.addValidator('iscorrect', function (value, requirement) {
+
+            var valueResultValidate = requirement;
+            return valueResultValidate == "yes";
+
+        }, 32).addMessage('en', 'iscorrect', 'The field is not correct');
+        
+        //Validacion IS VALIDATED
+        window.ParsleyValidator
+        .addValidator('isvalidated', function (value, requirement) {
+
+            var valueValidated = requirement;
+            return valueValidated == "yes";
+
+        }, 32).addMessage('en', 'isvalidated', 'The field must be validated before save.');
+        
+
+        registerCallback(function () {
+
+            window.ParsleyValidator.addValidator('componentAmount', function (value, requirement) {
+                var source = $(this);
+                return parseFloat(requirement) <= parseFloat(value);
+            }, 32)
+            .addMessage('en', 'componentAmount', 'Component Amount may not exceed Fund Amount for the same Fund');
+
+
+            $(document).on("change", "[name=FundId]", function () {
+                var source = $(this);
+                var drop = source.data('kendoDropDownList');
+                var amount = drop.dataItem(drop.selectedIndex).FundAmount;
+                var targetAmount = source.parents("tr:first").find("td input[name=FundAmount]")
+                
+                targetAmount.val("");
+                if (amount != null) {
+                    var formatedValue = convertFloatToStringWithFormat(amount);
+                    targetAmount.val(formatedValue);
+                }
+
+                $('#SustainabilityComponents tbody tr').each(function () {
+                    if (!$(this).hasClass('hide')) {
+                        ComponentAmount($(this).find("[name=ComponentAmount]"), true);
+                    }
+                })
+            });
+
+            $(document).on("change", "[name=RoleId]", function () {
+                $('[name=validatorForNumElements]').parsley().validate();
+            });
+
+            $(document).on("change", "[name=ComponentAmount]", function () {
+                $('#SustainabilityComponents tbody tr').each(function () {
+                    if (!$(this).hasClass('hide')) {
+                        ComponentAmount($(this).find("[name=ComponentAmount]"), true);
+                    }
+                })
+            });
+
+            $(document).on('click', '[data-identity-validate]:not([disabled]) ~ [data-identity-validate-button]',
+              function () {
+                  //Tomamos el Input y su Valor del Input
+                  var container = $(this).closest('div.text-searchable');
+                  var inputForValidate = container.find('[name="OperationTeamDataId"]');
+                  var valueForValidate = inputForValidate.val();
+
+                  //Tomamos el Input Oculto
+                  var inputValidator = container.parent().find('[name="ValidateIdentityService"]:enabled');
+
+                  var result = postUrl('@Url.Action("ValidateAction", "View", new { area = "OPUS" })', { valueForValidate: valueForValidate});
+
+                  result.done(function (response) {
+
+                      if (response.IsValid == false) {
+                          inputValidator.attr('data-parsley-iscorrect', 'no');
+                      } else {
+                          inputValidator.attr('data-parsley-iscorrect', 'yes');
+                      }
+                      inputValidator.attr('data-parsley-isvalidated', 'yes');
+                  });
+
+                  inputValidator.parsley().validate();
+              });
+        });
+
+        function ComponentAmount(source, exec)
+        {
+            var totalComponentAmount = 0;
+            var imput = source.nextAll("[name=validatorComponentsAmount]");
+            var fundAmount = source.parents("tr:first").find("[name=FundAmount]").val();
+            var fundAmountFloat = parseFloatFormatedWithNaN(fundAmount);
+
+            fundAmount = "";
+            if (!isNaN(fundAmountFloat)) {
+                fundAmount = fundAmountFloat;
+            }
+            imput.val(fundAmount);
+
+
+            var fundId = source.parents("tr:first").find("[name=FundId]").val();
+            var arrayImputs = [];
+            $('[name=FundId] option[value=' + fundId + ']:checked').parents("tr").each(function () {
+                var component = $(this).find('[name=validatorComponentsAmount]');
+                arrayImputs.push(component);
+                var comp = $(this).find('[name=ComponentAmount]').val();
+                var compFloat = parseFloatFormatedWithNaN(comp);
+                if (!isNaN(compFloat)) {
+                    totalComponentAmount = totalComponentAmount + compFloat;
+                }
+            })
+
+            if (exec) {
+                imput.attr('data-parsley-componentamount', totalComponentAmount);
+                for (var i = 0; i < arrayImputs.length; i++) {
+                    arrayImputs[i].val(fundAmount);
+                    arrayImputs[i].attr('data-parsley-componentamount', totalComponentAmount);
+                    arrayImputs[i].parsley().validate();
+                }
+            }
+        }
+
+        function edit(source) {
+            $("#Data").parsley().destroy();
+            var success = enterEditMode(true, $('#Data'), true);
+            if (success) {
+                $('button[data-action=newComponentSustainabilityComponents]').data("autoincrement", 0);
+                $("#Data").parsley();
+                $("[data-action=newComponentSpecialist]").data("autoincrement", 0);
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+
+                var componentIdList = @(MvcHtmlString.Create(new JavaScriptSerializer().Serialize(Model != null ? Model.SustainabilityComponents.Select(x => new { idSust = x.SustainabilityComponentsId, component= x.ComponentId}) : null)));
+
+                $("[name*=SustainabilityTypeId]").each(function () {
+                    if (!$(this).attr('disabled')) {
+                        $(this).change();
+                    }
+                });
+
+                componentIdList.forEach(function (item) {
+                    $("[name=ComponentId][data-dropdown-cascade='[name=SustainabilityTypeId"+ item.idSust +"]']").val(item.component).attr('selected','selected')
+                });
+            }
+        }
+
+        function cancel(source) {
+            exitEditMode(true, $('#Data'), true, true);
+            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+        }
+
+        function save(source) {
+            $('#SustainabilityComponents tbody tr').each(function () {
+                if (!$(this).hasClass('hide')) {
+                    ComponentAmount($(this).find("[name=ComponentAmount]"), true);
+                }
+            })
+            var resp = $.Deferred();
+
+            var response = saveContainer($('#Data'), '#hidViewModel', true, $('[data-id="headerButtons"]'), $(source.target), true, false);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    resp.resolve(data);
+                });
+            }
+
+            return resp;
+        }
+
+        function tableClass(last, clonedTr)
+        {
+            if (last.hasClass('custom-odd')) {
+                clonedTr.attr('class', 'custom-even');
+            }
+            else {
+                clonedTr.attr('class', 'custom-odd');
+            }
+        }
+
+        function newComponentSpecialist(source) {
+            var container = $("[data-parsley-validate]").first();
+            container.parsley().destroy();
+            var templateTr = $('#ESGTeamMembers tbody tr:first');
+
+            var last = $('#ESGTeamMembers tbody tr:last');
+            var clonedTr = templateTr.clone(false).appendTo("#ESGTeamMembers tbody");
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            if (!last.hasClass('hide'))
+            {
+                tableClass(last, clonedTr);
+            } else
+            {
+                clonedTr.attr('class', 'custom-even');
+            }
+
+            clonedTr.removeClass("hide");
+            clonedTr.find("input, select").attr("data-persist-new", newId);
+            clonedTr.attr("data-new-id", "new");
+            clonedTr.find("input, select").removeAttr('disabled');
+            //Modificamos la Validacion
+            var inputValidator = clonedTr.find('[name=ValidateIdentityService]:enabled');
+            inputValidator.attr('data-parsley-isvalidated','no')
+            enterEditMode(false, clonedTr, false);
+            bindHandlers(clonedTr);
+            container.parsley();
+        }
+
+        function newComponentSustainabilityComponents(source) {
+            var container = $("[data-parsley-validate]").first();
+            container.parsley().destroy();
+            var templateTr = $('#SustainabilityComponents tbody tr:first');
+
+            var last = $('#SustainabilityComponents tbody tr:last');
+            var clonedTr = templateTr.clone(false).appendTo("#SustainabilityComponents tbody");
+
+            if (!last.hasClass('hide')) {
+                tableClass(last, clonedTr);
+            } else {
+                clonedTr.attr('class', 'custom-even');
+            }
+
+            var newId = source.data("autoincrement") + 1;
+            var relationshipDropdownId = 'SustainabilityTypeId-' + newId;
+            source.data("autoincrement", newId);
+
+            clonedTr.find("input, select").attr('data-persist-new',newId);
+            clonedTr.find('[name=validatorComponentsAmount]').removeAttr('disabled');
+            clonedTr.find("input, select").removeAttr('disabled');
+            clonedTr.find("[name = FundAmount]").attr("disabled", "disabled");
+
+            clonedTr.find('[name=SustainabilityTypeId]').attr('id', relationshipDropdownId);
+            clonedTr.find('[name=ComponentId]').attr({
+                'parentDropdownId': relationshipDropdownId,
+                'data-kdropdown-cascadeFrom': relationshipDropdownId,
+            });
+            clonedTr.find('[name=ComponentId]').attr('data-kdropdown-cascadefrom', relationshipDropdownId);
+
+            clonedTr.removeClass("hide");
+            enterEditMode(false, clonedTr, false);
+            clonedTr.attr("data-new-id", "new");
+            bindHandlers(clonedTr);
+            container.parsley();
+        }
+
+        function removeSpecialists(source) {
+            var tr = source.parents("tr:first");
+            tr.remove();
+            $('[name=validatorForNumElements]').parsley().validate();
+            resetStyleTable($('#ESGTeamMembers'));
+        }
+
+        function removeSustainability(source) {
+            var tr = source.parents("tr:first");
+            tr.remove();
+            ComponentAmount(source.parents("tr:first").find("[name=ComponentAmount]"));
+            resetStyleTable($('#SustainabilityComponents'));
+
+        }
+
+        function searchUserAD(source, filter) {
+            var promise = $.Deferred();
+
+            var result = postUrl('@Url.Action("FindUserAD", "View", new { area = "OPUS" })', { filter: filter });
+            result.done(function (response, textStatus, jqXHR) {
+                if (response.IsValid) {
+                    var fields = [{ Field: "ComposeName", Rename: "label" }, { Field: "LoginName", Rename: "value" }];
+                    var items = extractFieldsFromComplexArray(response.Data, fields);
+                    promise.resolve(items);
+                }
+            });
+
+            return promise;
+        }
+
+        function setReadPermission(source) {
+            var response = postUrlWithOptions("@Url.Action("ChangeRol", "View", new { area = "OPUS", rol = (int)ActionEnum.ConvergenceReadPermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function setWriteBasicAccess(source) {
+            var response = postUrlWithOptions("@Url.Action("ChangeRol", "View", new { area = "OPUS", rol = (int)ActionEnum.EnvironmentalWritePermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function removePermission(source) {
+            var response = postUrlWithOptions("@Url.Action("RemovePermission", "View", new { area = "OPUS" })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function resetStyleTable(table) {
+            var groupRow = table.find('tbody tr:not(.hide)');
+            groupRow.removeClass("custom-odd");
+            groupRow.removeClass("custom-even");
+            $(groupRow).each(function (index) {
+                var row = $(this);
+                if ((index % 2) == 0) {
+                    row.addClass("custom-even");
+                } else {
+                    row.addClass("custom-odd");
+                }
+            });
+        }
+</script>
+}

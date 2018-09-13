@@ -1,0 +1,230 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+﻿@using System.Collections.Generic
+@using System.Globalization
+@using IDB.MW.Domain.Values
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@model IDB.MW.Application.OPUSModule.ViewModels.OperationDataService.ResponsabilityDataViewModel
+
+@{
+    var dropdownOpTeamRole = Model.OperationTeamsRoleList != null ?
+        Html.BuildSelectItemList(Model.OperationTeamsRoleList,
+            o => o.Text,
+            o => o.Value) :
+        new List<SelectListItem>();
+
+    var dropdownOpTeamRoleEsg = Model.OperationTeamsRoleEsgList != null ?
+        Html.BuildSelectItemList(Model.OperationTeamsRoleEsgList,
+            o => o.Text,
+            o => o.Value) :
+        new List<SelectListItem>();
+
+    var dropdownOpTeamRoleSpdPcr = Model.OperationTeamsRoleSpdPcrList != null ?
+        Html.BuildSelectItemList(Model.OperationTeamsRoleSpdPcrList,
+            o => o.Text,
+            o => o.Value) :
+        new List<SelectListItem>();
+}
+@if (Model.OperationTeams != null)
+{
+
+    <div class="row row-header">
+        <div class="col-md-10 subtitleGroup">
+            @Localization.GetText("OP.OD.TabResponsibilityData.OperationTeam.Title")
+        </div>
+        @if (ViewBag.IsApproved)
+        {
+            <div class="col-md-2 text-right ">
+                @Confluence.ButtonExcel("TeamDataReport", "exportTeamData")
+            </div>
+        }
+    </div>
+    <div class="row row-body-20">
+        <div class="col-md-12">
+            @{
+                var configOperationTeamTable = Html.RenderDataTable(Model.OperationTeams);
+                configOperationTeamTable.Name("operationTeamsTable")
+                    .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                    .AddPrimaryKeyToName(false)
+                    .Columns(columns =>
+                    {
+                        columns.Bound(c => c.RowId)
+                            .EditableTemplate(row => row.UserRolWritePermission ?
+                                Confluence.InputHidden(row.RowId.ToString(), "operationTeamDataId") :
+                                Confluence.InputHidden(row.RowId.ToString(), "operationTeamDataId", false))
+                            .Hidden(true);
+                        columns.Template(c => Confluence.PictureElement(c.PictureUrl, Confluence.Label(c.Name)))
+                            .EditableTemplate(row => 
+                                row.UserRolWritePermission ?
+                                Confluence.InputDropDownAsyncPicture(
+                                    row.UserName,
+                                    "userNameTeam",
+                                    Url.Action("GetUsersList", "View", new { area = "Opus" }),
+                                    textSelected: row.Name,
+                                    pathImage: row.PictureUrl,
+                                    dataAttributes:
+                                        new Dictionary<string, string>()
+                                        {
+                                            { "idb-fieldname", "txtUserNameTeam" }
+                                        }) :
+                                Confluence.ListHelpers(
+                                    new List<HelperResult>
+                                    {
+                                        Confluence.PictureElement(
+                                            row.PictureUrl,
+                                            Confluence.Label(row.Name)),
+                                            Confluence.InputHidden(
+                                                row.UserName,
+                                                "userNameTeam")
+                                    }))
+                            .Header(Localization.GetText("OP.OD.TabResponsibilityData.OperationTeam.Name"));
+
+                        columns
+                            .Template(c => Confluence.Label(
+                                c.RoleName,
+                                dataAttributes: new Dictionary<string, string>()
+                                {
+                                    { "role-id", c.Role.ToString() }
+                                }))
+                            .EditableTemplate(row => 
+                                row.UserRolWritePermission ?
+                                Confluence.InputDropDown(
+                                    row.Role.ToString(),
+                                    "operationTeamsRole",
+                                    row.Role == ViewBag.SPDSpecialistConvergenceMasterDataId ?
+                                        ViewBag.OperationTeamsRoleDemSpdSpecialistLists :
+                                        ((ViewBag.EsgSpecialistAssignmentWritePermission &&
+                                            row.CodeRoleType == OPUSGlobalValues.ESG_ROLE) ||
+                                        (ViewBag.SPDPCRWritePermission &&
+                                        row.CodeRoleType == OPUSGlobalValues.PCR_ROLE) ?
+                                            (row.Role.HasValue ?
+                                                (Html.SelectItemListContainsValue(
+                                                    dropdownOpTeamRoleEsg, row.Role.Value.ToString()) ?
+                                                        dropdownOpTeamRoleEsg :
+                                                        Html.SelectItemListAddItemWithReturnValue(
+                                                            dropdownOpTeamRoleEsg,
+                                                            row.RoleName,
+                                                            row.Role.Value.ToString())) :
+                                                dropdownOpTeamRoleEsg) :
+                                            (ViewBag.SPDPCRWritePermission &&
+                                                row.CodeRoleType == OPUSGlobalValues.PCR_ROLE) ?
+                                                    (row.Role.HasValue ?
+                                                        (Html.SelectItemListContainsValue(
+                                                            dropdownOpTeamRoleSpdPcr, row.Role.Value.ToString()) ?
+                                                                dropdownOpTeamRoleSpdPcr :
+                                                                Html.SelectItemListAddItemWithReturnValue(
+                                                                    dropdownOpTeamRoleSpdPcr,
+                                                                    row.RoleName,
+                                                                    row.Role.Value.ToString())) :
+                                                        dropdownOpTeamRoleSpdPcr) :
+                                                    (row.Role.HasValue ?
+                                                        (Html.SelectItemListContainsValue(
+                                                            dropdownOpTeamRole, row.Role.Value.ToString()) ?
+                                                                dropdownOpTeamRole :
+                                                                Html.SelectItemListAddItemWithReturnValue(
+                                                                    dropdownOpTeamRole,
+                                                                    row.RoleName,
+                                                                    row.Role.Value.ToString())) :
+                                                        dropdownOpTeamRole)),
+                                dataAttributes:
+                                    new Dictionary<string, string>()
+                                    {
+                                        {
+                                            "idb-fieldname", "ddlOpTeamsRole"
+                                        }
+                                    }) :
+                            Confluence.ListHelpers(
+                                new List<HelperResult>
+                                {
+                                    Confluence.Label(row.RoleName),
+                                    Confluence.InputHidden(row.Role.ToString(), "operationTeamsRole")
+                                }))
+                        .Header(Localization.GetText("OP.OD.TabResponsibilityData.OperationTeam.Role")).CssClass("role");
+                    columns.Template(c => Confluence.Label(c.UserName))
+                        .EditableTemplate(row =>
+                            Confluence.ListHelpers(
+                                new List<HelperResult>()
+                                {
+                                    Confluence.Label(row.UserName),
+                                    (row.UserRolWritePermission) ?
+                                        Confluence.InputHidden(row.Name,"operationTeamsName"):
+                                        Confluence.InputHidden(row.Name.ToString(), "operationTeamsName", false)
+                                }))
+                        .Header(
+                            Localization.GetText("OP.OD.TabResponsibilityData.OperationTeam.UserId"));
+                    columns.Template(c => Confluence.Label(c.Departament))
+                        .EditableTemplate(row => Confluence.Label(
+                            row.Departament,
+                            new Dictionary<string, string>() { { "idb-fieldname", "otDepartment" } }))
+                        .Header(Localization.GetText("OP.DE.SE.RE.Table.Dept"))
+                        .Hidden(true);
+                    columns.Template(c => Confluence.Label(c.Division))
+                        .EditableTemplate(row => Confluence.Label(
+                            row.Division,
+                            new Dictionary<string, string>() { { "idb-fieldname", "otDivision" } }))
+                        .Header(Localization.GetText("OP.DE.SE.RE.Table.Division"))
+                        .Hidden(true);
+                    columns.Template(c => Confluence.Label(c.Location))
+                        .EditableTemplate(row => Confluence.Label(
+                            row.Location,
+                            new Dictionary<string, string>() { { "idb-fieldname", "otLocation" } }))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.RD.OT.Location"))
+                        .Hidden(true);
+
+                    columns.Template(c => Confluence.Label(c.OrganizationalUnit))
+                        .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult>()
+                            {
+                                Confluence.Label(row.OrganizationalUnit),
+                                Confluence.InputHidden(row.OrganizationalUnitId.ToString(), "organizationalUnitTeam")
+                            }))
+                        .Header(Localization.GetText(
+                            "OP.OD.TabResponsibilityData.OperationTeam.OrganizationalUnit"));
+
+                    columns.Template(c => Confluence.Label(c.Delegate))
+            .Header(Localization.GetText("OP.OD.TabResponsibilityData.OperationTeam.Delegate"))
+            .Persistent();
+                    columns.Bound(c => String.Empty)
+                        .EditableTemplate(row => row.UserRolWritePermission ?
+                            Confluence.ButtonTrash(
+                                null,
+                                null,
+                                "removeRow",
+                                dataAttributes:
+                                    new Dictionary<string, string>()
+                                    {
+                                            { "idb-fieldname", "btnRemoveOrgTeamRow" }
+                                    }) :
+                            null)
+                        .Center();
+                    columns.Bound(c => c.CodeRoleType)
+                        .EditableTemplate(
+                        @<input type="hidden" name="operationTeamCodeType" value="@item.CodeRoleType" />)
+                            .Hidden(true);
+                    });
+
+                configOperationTeamTable.TableClass = "tableNormal endSpacing";
+            }
+            @Html.Partial("Controls/DataTable", configOperationTeamTable)
+
+            @if (SecurityHelper.IsVisibleByDefault(ViewBag.FieldAccessList, "btnNewOrgTeam"))
+            {
+            <div class="col-md-12" data-idb-fieldname="btnNewOrgTeam">
+                <div data-pagemode="edit" class="text-center">
+                    @Confluence.ButtonAddNewRows(
+                        Localization.GetText(
+                            "OP.OD.TabResponsibilityData.OperationTeam.AddTeamMember"),
+                        "operationTeamsTable",
+                        null,
+                        "newTeamMember",
+                        dataAttributes:
+                            new Dictionary<string, string>()
+                            {
+                                { "idb-fieldname", "btnNewOrgTeam" }
+                            })
+                </div>
+            </div>
+            }
+        </div>
+    </div>
+}

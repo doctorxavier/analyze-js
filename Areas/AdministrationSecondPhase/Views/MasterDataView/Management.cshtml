@@ -1,0 +1,366 @@
+﻿@using IDB.MW.Domain.Values
+@using IDB.MW.Infrastructure.Configuration
+@model IDB.MW.Application.AdministrationModule.ViewModels.MasterData.TableMasterDataTypeViewModel
+@{var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate; }
+@{
+    ViewBag.fixLoad = true;
+    Layout = "~/Areas/AdministrationSecondPhase/Views/Shared/_Layout.cshtml";
+}
+
+@Styles.Render("~/Content/NewConfluence/Generic.css")
+@Styles.Render("~/Content/NewConfluence/Button.css")
+@Styles.Render("~/Content/NewConfluence/Label.css")
+@Styles.Render("~/Content/NewConfluence/Table.css")
+@Styles.Render("~/Content/NewConfluence/Input.css")
+@Styles.Render("~/Content/NewConfluence/Icon.css")
+@Styles.Render("~/Content/NewConfluence/Other.css")
+@Styles.Render("~/Content/NewConfluence/Legacy.css")
+
+<div class="header">
+    <div class="col-md-12">
+        @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("OP.MD.MG.Title")), Url.Action("search", "MasterDataView"))
+    </div>
+
+    <div class="row">
+        <div class="col-md-12 md40">
+            @Html.Partial("Partial/ButtonsManagement")
+        </div>
+    </div>
+</div>
+
+<div id="PageContent"
+     class="page"
+     data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-url="@Url.Action("MasterDataEditSave", "MasterDataSave", new { area = "AdministrationSecondPhase" })"
+     data-loadurl="@Url.Action("ManagementContent", "MasterDataView", new { area = "AdministrationSecondPhase" })">
+
+    @Html.Partial("Partial/managementPartial", Model)
+
+</div>
+<div class="col-md-12">
+    @Html.Partial("Partial/ButtonsManagement")
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+        function edit(source) {
+            var canEdit = true;
+            @if (Model.MasterTypeId > 0)
+            {
+            <text>
+            postUrlWithOptions('@Url.Action("LockRegister", "MasterDataView", new {area = "AdministrationSecondPhase"})', { async: false }, { operationNumber: '@Model.MasterTypeId', url: '@OPUSGlobalValues.URL_MASTER_DATA' })
+                        .done(function (data) {
+                            if (data.IsValid === false) {
+                                canEdit = false;
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+            </text>
+            }
+        if (canEdit) {
+            var success = enterEditMode(false, $('#PageContent'), false);
+            if (success) {
+                bindHandlers();
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+            }
+        }
+    }
+
+
+        function cancel(source) {
+            var msg = "@Localization.GetText("OP.MD.Message.Confirm")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    @if (Model.MasterTypeId > 0)
+                    {
+                    <text>
+                     postUrlWithOptions('@Url.Action("UnlockRegister", "MasterDataView", new {area = "AdministrationSecondPhase"})', { async: true }, { operationNumber: '@Model.MasterTypeId', url: '@OPUSGlobalValues.URL_MASTER_DATA' });
+                    </text>
+                    }
+                    var masterTypefil = getUrlParameter('filter');
+                    if (masterTypefil == 0) {
+                        window.location.href = '@Url.Action(controllerName: "MasterDataView", actionName: "Search")';
+                    } else {
+                        location.reload();
+                    }
+
+                }
+            });
+        }
+
+        function saveManagement(source) {
+            if (validateRequiered && validateCode()) {
+                var modelSerialized = '#hidViewModel';
+                var response = saveContainer($('#PageContent'), modelSerialized, true, $('#headerButtons'), null, false);
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                            showMessage(data.ErrorMessage);
+                        } else {
+                            var idMasterDataType = data.IdMasterDataType;
+                            var url = '@Url.Action("ManagementFilter", "MasterDataView")' + "?filter=" + idMasterDataType;
+                            window.location.href = url;
+                        }
+                    });
+
+                }
+            }
+        }
+
+        function validateRequiered() {
+            if (!validateContainer($('#PageContent'))) {
+                return false;
+            }
+            if (!ValidateExpirationDate()) {
+                return false;
+            }
+            return true;
+        }
+
+        function validateCode() {
+            var listCodeValue = [];
+            var listCodeRepeats = [];
+
+            for (var i = 0; i < $('[name^="tableManagementCode"]').length; i++) {
+                var element = $($('[name^="tableManagementCode"]')[i]);
+                if ($(element).val() !== "") {
+                    if ($.inArray($(element).val().trim().toUpperCase(), listCodeValue) == -1) {
+                        listCodeValue.push(element.val().trim().toUpperCase());
+                    } else {
+                        listCodeRepeats.push(element.val());
+                    }
+                }
+            }
+
+            if (listCodeRepeats.length > 0) {
+                //showMessage(" " + listCodeRepeats.join(", "));
+                showMessage("@Localization.GetText("OP.MD.MG.Table.Table.DuplicateCodeData")");
+                return false;
+            }
+            return true;
+        }
+
+
+        function addNewRowValueManagement() {
+            var container = $("#TableManagement").find('tbody');
+            var lastRow = $('#TableManagement tr[data-id]').map(function() { return $(this).attr('data-id') }).sort().last();
+            var masterDataTypeId = getUrlParameter('filter');
+            $.ajax({
+                url: "@Url.Action("AddMasterDataView", "MasterDataView", new {area = "AdministrationSecondPhase"})",
+                type: "POST",
+                data: { 'row': parseInt(lastRow), 'masterDataTypeId': masterDataTypeId },
+                success: function(data) {
+                    if ($(container).find('td.dataTables_empty').length > 0) {
+                        $(container).find('tr').remove();
+                    }
+                    $(container).append(data);
+                    enterEditMode(false, $(container), false, false, true);
+                },
+                error: function(data) {
+                    if ($(container).find('td.dataTables_empty').length > 0) {
+                        $(container).find('tr').remove();
+                    }
+                    $(container).append(data.responseText);
+                    enterEditMode(false, $(container), false, false, true);
+                }
+            });
+            $('.expandable-arrow').last().btnExpandable();
+            $(".ctrl.selectFilter").dropDownSeachBox();
+            bindHandlers();
+            destroyParsley();
+            initParsley();
+
+        }
+
+        function removeRowManagement(source) {
+            var row = source.closest("tr");
+            row.next().remove();
+            row.remove();
+        }
+
+
+        $("input[name='txtGetMasterData_text']").on("keydown", function(e) {
+            if (e.keyCode === 13) {
+                filtrarGrillaMasterData(e);
+            }
+        });
+
+        function filtrarGrillaMasterData() {
+            var filter = $('input[name=txtGetMasterData_text]').val();
+            var masterType = getUrlParameter('filter');
+            $.get("../MasterDataView/SearchMasterDataFilter", { 'filter': filter, 'masterType': masterType }, function(data) {
+                var resultSearchPanel = $('#ManagementTable');
+                resultSearchPanel.html(data);
+                bindHandlers(resultSearchPanel);
+                $("#TableManagement").paginationConfluense(5);
+                exitEditMode(false, $('#PageContent'), false, false);
+            });
+
+            return false;
+        }
+
+        function getUrlParameter(sParam) {
+            var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+                sURLVariables = sPageURL.split('&'),
+                sParameterName,
+                i;
+
+            for (i = 0; i < sURLVariables.length; i++) {
+                sParameterName = sURLVariables[i].split('=');
+
+                if (sParameterName[0] === sParam) {
+                    return sParameterName[1] === undefined ? true : sParameterName[1];
+                }
+            }
+        }
+
+        $(document).ready(function() {
+            var masterType = getUrlParameter('filter');
+
+            $("#TableManagement").paginationConfluense(5);
+            if (masterType === "0") {
+                $(".addNewRow").attr("disabled", "disabled");
+                edit();
+            }
+            $("#TableManagement").sortableConfluense();
+        });
+
+        $(document).on("click", '#expandButton', function() {
+            $("#TableManagement").paginationConfluense(5);
+        });
+
+        $(document).on("change", 'input[name="tableManagementExpirationDate"]', function() {
+            var expirationDateTable = converToDate($(this).val());
+            var effectiveDateTable = $(this).closest('tr').find('[name="tableManagementEffectiveDate"]').val();
+
+            effectiveDateTable = effectiveDateTable !== "" ? converToDate(effectiveDateTable) : "";
+
+            if (effectiveDateTable !== "" && expirationDateTable < effectiveDateTable) {
+               
+                $(this).val("");
+                return false;
+                
+            }
+            return true;
+        });
+
+        $(document).on("change", 'input[name="tableManagementEffectiveDate"]', function() {
+            
+
+            var effectiveDateTable = converToDate($(this).val());
+            var expirationDateTable = $(this).closest('tr').find('[name="tableManagementExpirationDate"]').val();
+            expirationDateTable = expirationDateTable !== "" ? converToDate(expirationDateTable) : "";
+
+         if (expirationDateTable !== "" && effectiveDateTable > expirationDateTable) {
+                showMessage("@Localization.GetText("OP.MD.Message.Error.EffectiveDate")");
+
+                $(this).val("");
+                return false;
+   
+            }
+            return true;
+        });
+
+        $(document).on("focusout", "#tableManagementCode", function() {
+            if ($(this).val() !== "") {
+                var code = $(this).val();
+                var exist = false;
+
+                $("#TableManagement tbody tr").each(function() {
+                    var rowCode = $(this).find("td").eq(0).text();
+                    if (rowCode.toUpperCase() === code.toUpperCase()) {
+                        exist = true;
+                    }
+                });
+
+                if (exist) {
+                    showMessage("@Localization.GetText("OP.MD.Message.Error3")");
+                }
+            }
+        });
+
+        $(document).on("focusout", 'input[name="MasterDataType"]', function() {
+            var masterType = getUrlParameter('filter');
+            if (masterType == 0) {
+                if ($(this).val() !== "") {
+                    var masterType = $(this).val();
+                    $.get("../MasterDataView/ExistMasterDataType", { 'masterType': masterType }, function(data) {
+                        if (data === "True") {
+                            showMessage("@Localization.GetText("OP.MD.Message.MasterType")");
+                            $('input[name="MasterDataType"]').val("");
+                        }
+                    });
+                }
+            }
+        });
+
+        $(document).on("change", "input[name='MasterDataType']", function() {
+            var masterType = $("input[name='MasterDataType']").val();
+            $(".addNewRow").attr("data-parsley-required", masterType !== "");
+            if (masterType !== "") {
+                $(".addNewRow").removeAttr("disabled");
+            } else {
+                $(".addNewRow").attr("disabled", "disabled");
+            }
+        });
+
+        
+        $('#EffectiveDate').change(function() {
+         
+            var effectiveDate = converToDate($(this).val());
+            var fechaActual = new Date();
+            var validationDate = "";
+
+            if (effectiveDate > fechaActual) {
+                
+                $("[name='tableManagementEffectiveDate']").each(function() {
+                    var EffectiveDateFila = $(this).closest('tr').find('[name="tableManagementEffectiveDate"]').val();
+                    EffectiveDateFila = EffectiveDateFila !== "" ? converToDate(EffectiveDateFila) : "";
+
+                    if (EffectiveDateFila !== "" && effectiveDate > EffectiveDateFila) {
+                        validationDate = true;
+                        return;
+                    }
+                });
+
+                if (validationDate === true) {
+
+                    showMessage("The date Effective date entered is higher than your dates.");
+                    $('[name="EffectiveDate"]').val('');
+                }
+            }
+        });
+
+
+            $('#ExpirationDate').change(function() {
+              
+                var ExpirationDate = converToDate($(this).val());
+                var effectiveDate = converToDate($('[name="EffectiveDate"]').val());
+                var validationDate = "";
+
+                if (ExpirationDate > effectiveDate) {
+
+                    $("[name='tableManagementExpirationDate']").each(function() {
+                        var ExpirationDateFila = $(this).closest('tr').find('[name="tableManagementExpirationDate"]').val();
+                        ExpirationDateFila = ExpirationDateFila !== "" ? converToDate(ExpirationDateFila) : "";
+
+                        if (ExpirationDateFila !== "" && ExpirationDateFila > ExpirationDate) {
+                            validationDate = true;
+                            return;
+                        }
+                    });
+
+                    if (validationDate === true) {
+
+                        showMessage("The date Expiration date entered is lower than your dates.");
+                        $('[name="ExpirationDate"]').val('');
+                    }
+                }
+            
+
+            });
+
+    </script>
+}
+

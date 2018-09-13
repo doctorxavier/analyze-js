@@ -1,0 +1,121 @@
+﻿@using System.Globalization
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+
+@model OperationLevelViewModel
+
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var NonObjectionStatusList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("NonObjectionStatus").ConvertToSelectListItems();
+    var nonStartedId = Model.ViewContainer.GetValue<int>("NonStartedId");
+    var canPublishAndRquestNon = Model.ViewContainer.GetValue<bool>("canPublishAndRquestNon");
+
+    bool publishButton = false;
+
+    if (Model.ProcurementPlanTable != null && Model.ProcurementPlanTable.Any())
+    {
+        var nonObjectionStatusDoc = Model.ProcurementPlanTable.FirstOrDefault();
+        publishButton = nonObjectionStatusDoc != null && nonObjectionStatusDoc.NonObjectionStatusId == nonStartedId;
+    }
+
+    var config = Html.RenderDataTable(Model.ProcurementPlanTable)
+        .Name("ProcurementPlanTable")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(true)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.User)
+                .Orderable(false)
+                .CssClass("colDocumentUser textalign-center")
+                .CssHeaderClass("colDocumentUser")
+                .Header(Localization.GetText("COMMON.User"))
+                .Hidden(false);
+            columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+                .Orderable(false)
+                .CssClass("colDate textalign-center")
+                .CssHeaderClass("colDate")
+                .Header(Localization.GetText("COMMON.Date"))
+                .Hidden(false);
+            columns.Template(c => Confluence.ButtonLink(c.DocumentNumber, "documentNumberLink", htmlClass: "bold"))
+                .Orderable(false)
+                .CssClass("document-number colDocumentNumber textalign-center")
+                .CssHeaderClass("colDocumentNumber")
+                .Header(Localization.GetText("COMMON.SVQ.DocNumber#"))
+                .Hidden(false);
+            columns.Bound(c => c.Description)
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.Description"))
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(c.NonObjectionStatusId, NonObjectionStatusList, false))
+                .Orderable(false)
+                .CssClass("colNonObjectionStatus")
+                .CssHeaderClass("colNonObjectionStatus")
+                .Header(Localization.GetText("SGP.Label.NonObjectionStatus"))
+                .Hidden(false);
+            columns.Template(c => Confluence.InputText(c.DocumentNumber, "ProcurementPlan-DocumentIDBDoc", disabled: false, width: "100%", required: false))
+                .Orderable(false)
+                .Hidden(true);
+            columns.Template(c => ActionsTermsReference(c))
+                .Orderable(false)
+                .CssClass("colAction140")
+                .CssHeaderClass("colAction140")
+                .Header(Localization.GetText("COMMON.Action"))
+                .Hidden(false);
+        })
+;
+
+    config.TableClass = "tableNormal";
+
+}
+
+<table class="table-transparent mb10">
+    <tr>
+        <td class="table-transparent-text">
+            <div class="aligment">
+                @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.ProcurementPlanTable"))
+            </div>
+        </td>
+        <td class="table-transparent-buttons">
+            @Confluence.LabelLinkBlank(
+                    text: Localization.GetText("SGP.COMMON.ViewTemplates"),
+                    url: "",
+                    name: "viewTemplatesLink",
+                    htmlClass: "bold hide")
+        </td>
+        @if (publishButton && canPublishAndRquestNon)
+        {
+            <td class="table-transparent-buttons" style="padding-right:0 !important;">
+                @Confluence.ButtonBlue(Localization.GetText("COMMON.SVQ.Publish"), "publishButton", dataAttributes: new Dictionary<string, string> { { "button-id", "procPlanDocPublishButton" } })
+            </td>
+        }
+    </tr>
+</table>
+
+
+
+<div class="row">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper ActionsTermsReference(ProcurementPlanRowViewModel row)
+{
+    <div class="textalign-center">
+        @Confluence.ButtonDownload("", "DownLoadDoc")
+    </div>
+}

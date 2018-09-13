@@ -1,0 +1,570 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture;
+@using IDB.Architecture.Language
+@model IDB.Presentation.MVC4.Models.Documents.MediaFileModalViewModel
+
+<div data-id="@Model.MediaFileModalId" class="contentMediaFile">
+    @Confluence.Tabs(new Dictionary<string, string>()
+        { { "linktab1", Localization.GetText("MediaFile.Tabs.Add") },
+        { "linktab2", Localization.GetText("MediaFile.Tabs.Search") }, })
+    <div class="tab-content">
+        <div class="tab-pane" id="linktab1"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-url=""
+             data-loadurl="">
+            <div id="ContentAddIDBMediaForm" class="ContenidoColapsableTest">
+                @Html.Partial("Controls/IDBMedia/AddIDBMediaForm", Model)
+            </div>
+        </div>
+        <div class="tab-pane" id="linktab2"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-url=""
+             data-loadurl="">
+            <div id="ContenidoColapsableAll" class="ContenidoColapsableTest">
+                @Html.Partial("Controls/IDBMedia/SearchIDBMedia", Model)
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.ScriptBlock(
+
+    @<script type="text/javascript">
+
+        registerCallback(function () {
+
+            var textButtonAttachSelect = '@Localization.GetText("MediaFile.Button.Ok")';
+
+            //--------------------- Parsley ------------------- //
+
+            //Validator Geography
+            window.ParsleyValidator
+                .addValidator('rangeValueGeography', function (value, requirement) {
+                    var inputNumber = parseFloatFormated(value);
+                    return (inputNumber > -90 && inputNumber < 90);
+                }, 32).addMessage('en', 'rangeValueGeography', 'Value Invalid [-90,90]');
+
+            //Validator DocumentMedia
+            window.ParsleyValidator
+              .addValidator('formatDocumentMedia', function (value, requirement) {
+
+                  var validExtensions = false;
+                  var inputFile = $('[data-id=@Model.MediaFileModalId] input[name=fileMedia]');
+                  var inputFileInput = $('[data-id=@Model.MediaFileModalId] input.inputFileInput');
+                  var file = inputFile.prop('files')[0];
+                  var fileName = file.name.toString();
+                  var fileNameArray = fileName.split('.');
+                  var fileExtension = fileNameArray[(fileNameArray.length - 1)].toLowerCase();
+
+                  $.each(['png', 'jpg', 'jpeg', 'gif', 'bpm', 'avi', 'wmf', 'mp4', 'flv'], function (index, value) {
+                      if (fileExtension == value) {
+                          validExtensions = true;
+                      }
+                  });
+                  if (!validExtensions) {
+                      inputFile.val('');
+                      inputFileInput.val('');
+                      $('#imgMediaFile').attr('src', '@Globals.GetSetting("BasePath")/Content/images/image-blank.png');
+                  } else {
+                      readURL(file);
+                  }
+                  return validExtensions;
+              }, 32).addMessage('en', 'formatDocumentMedia', 'Incorrect format.Use png, jpg, jpeg, gif, bmp, avi, wmf, mp4, flv');
+
+            //--------------------- Add Media Files ------------------- //
+
+            //Preview Image & Load Image Data
+            $(document).off("change", "[data-id=@Model.MediaFileModalId] input[name=fileMedia]");
+            $(document).on("change", "[data-id=@Model.MediaFileModalId] input[name=fileMedia]", function () {
+
+                showLoader();
+
+                var inputFile = $('[data-id=@Model.MediaFileModalId] input[name=fileMedia]');
+                var file = this.files[0];
+                var parlseyInputFile = inputFile.parsley().validate();
+
+                if (parlseyInputFile == true || parlseyInputFile.length == 0) {
+
+                    var dataForm = new FormData();
+                    dataForm.append('fileMedia', file);
+
+                    var url = '@Url.Action("GetMetadataMediaFile", "MediaFileModal", new { area = "" })';
+                    var options = {
+                        data: dataForm,
+                        async: false,
+                        contentType: false,
+                        processData: false,
+                    };
+                    var promise = postUrlWithOptions(url, options, dataForm);
+                    promise.done(function (data) {
+                        if (data.IsValid) {
+                            if (data.Date != null) {
+                                $('input[name="Date"]').val(data.Date);
+                            }
+                            if (data.Latitude != null) {
+                                $('input[name="Latitud"]').val(parseFloatFormated(data.Latitude.toString(), 2));
+                            }
+                            if (data.Longitud != null) {
+                                $('input[name="Longitud"]').val(parseFloatFormated(data.Longitud.toString(), 2));
+                            }
+                        }
+                        if (data.ErrorMessage != null && data.ErrorMessage.length > 0) {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+                hideLoader();
+            });
+
+            //--------------------- Search Media Files ------------------- //
+
+            //Edit Media File
+            $(document).off("click", '[data-id=@Model.MediaFileModalId] div[name="editDocumentMedia"]');
+            $(document).on("click", '[data-id=@Model.MediaFileModalId] div[name="editDocumentMedia"]', function (event) {
+                event.stopPropagation();
+                //Get Parameters
+                var source = $(this);
+                var documentMediaText = source.closest('[data-id="selectableMediaDocument"]').attr('data-json');
+                var documentMedia = $.parseJSON(documentMediaText);
+                var formAdd = $('[data-id=@Model.MediaFileModalId] div[data-name="addContent"]');
+                var tabAdd = $('[data-id=@Model.MediaFileModalId] [dd-tab="#linktab1"]');
+                var inputFile = $('[data-id=@Model.MediaFileModalId] input[name="fileMedia"]');
+                var tab = $("[data-id=@Model.MediaFileModalId] ul.tabs");
+                var buttonAttach = $('[data-id=@Model.MediaFileModalId] button[name="Attach"]');
+                var buttonCancel = $('[data-id=@Model.MediaFileModalId] button[name="cancel"]');
+                var urlMedia = documentMedia.MediaUrl;
+                var img = $('[data-id=@Model.MediaFileModalId] #imgMediaFile');
+
+                //Set Input, Json Values
+                for (var name in documentMedia) {
+                    var item = $(String.format('[data-id=@Model.MediaFileModalId] div[data-name="addContent"] [name="{0}"]', name));
+                    var isCheckbox = item.is('input[type=checkbox]');
+                    var isDatePicker = item.hasClass('datepicker-default');
+                    if (isCheckbox) {
+                        item.prop('checked', false);
+                        if (documentMedia[name] == true) {
+                            item.prop('checked', true);
+                        }
+                    }
+                    else if (isDatePicker) {
+                        var value = documentMedia[name];
+                        if (value != null) {
+                            item.datepicker('setDate', new Date(value));
+                        }
+                    }
+                    else {
+                        item.val(documentMedia[name]);
+                    }
+                }
+                //Reset Parameters, Return ADD Container
+                img.attr('src', urlMedia);
+                buttonAttach.attr('data-action', 'submitAttachAddMediaFileEdit');
+                buttonCancel.attr('data-action', 'returnSearchContainer');
+                inputFile.addClass('hide');
+                tabAdd.click();
+                buttonAttach.html(textButtonAttachSelect);
+                tab.addClass('hide');
+                $('div.inputSearch.uploadFile').addClass('hide');
+            });
+
+            //Edit Class Selectable DocumentMedia
+            $(document).off('click', '[data-id=@Model.MediaFileModalId] div[data-id="selectableMediaDocument"]');
+            $(document).on('click', '[data-id=@Model.MediaFileModalId] div[data-id="selectableMediaDocument"]', function () {
+
+                var source = $(this);
+                var sourceChecked = $(source.find('div[name="selectDocumentMedia"]'));
+                var sourceEditChecked = $(source.find('div[name="editDocumentMedia"]'));
+
+                if (source.hasClass("selected")) {
+                    source.removeClass("selected")
+                    if (sourceChecked.hasClass('hide') == false) {
+                        sourceChecked.toggleClass('hide');
+                    }
+                } else {
+                    source.toggleClass('selected');
+                    if (sourceChecked.hasClass('hide')) {
+                        sourceChecked.removeClass('hide');
+                    }
+                }
+            });
+
+            //Hide/Show, KeyWords Filter
+            $(document).off("click", '[data-id=@Model.MediaFileModalId] label[data-use="getKeywords"]');
+            $(document).on("click", '[data-id=@Model.MediaFileModalId] label[data-use="getKeywords"]', function () {
+
+                var source = $(this);
+                var nameContainer = source.closest('div[data-name-container]').attr('data-name-container');
+                var contentSocialKeywords = $('[data-id=@Model.MediaFileModalId] div[data-name-container="contentSocialKeywords"]');
+                var contentEnvironmentalKeywords = $('[data-id=@Model.MediaFileModalId] div[data-name-container="contentEnvironmentalKeywords"]');
+
+                if (nameContainer == "contentSocialKeywords") {
+                    if (contentEnvironmentalKeywords.hasClass('hide')) {
+                        contentEnvironmentalKeywords.removeClass('hide');
+                        contentSocialKeywords.addClass('hide');
+                    }
+                }
+                else if (nameContainer == "contentEnvironmentalKeywords") {
+                    if (contentSocialKeywords.hasClass('hide')) {
+                        contentSocialKeywords.removeClass('hide');
+                        contentEnvironmentalKeywords.addClass('hide');
+                    }
+                }
+            });
+
+            //--------------------- Navigation ------------------- //
+
+            $(document).off("click", '[data-id=@Model.MediaFileModalId] li[dd-tab="#linktab2"]');
+            $(document).on("click", '[data-id=@Model.MediaFileModalId] li[dd-tab="#linktab2"]', function () {
+
+                var divModal = $('[data-id=@Model.MediaFileModalId]');
+                var formAdd = divModal.find('div[data-name="addContent"]');
+
+                var inputsDivModal = formAdd.find('input');
+                var ckechsDivModal = formAdd.find('input[type="checkbox"]');
+
+                var image = divModal.find('#imgMediaFile');
+                image.attr('src', '@Globals.GetSetting("BasePath")/Content/images/image-blank.png');
+
+                inputsDivModal.each(function () {
+                    var source = $(this);
+                    source.val('');
+                });
+
+                ckechsDivModal.each(function () {
+                    var source = $(this);
+                    source.removeAttr('checked');
+                });
+
+                formAdd.parsley().reset();
+            });
+
+            $(document).on('mouseover', '[data-id=@Model.MediaFileModalId] div[data-id="selectableMediaDocument"]', function () {
+                var source = $(this);
+                var editDocumentMedia = source.find('div[name="editDocumentMedia"]');
+                editDocumentMedia.removeClass("hide");
+            });
+
+            $(document).on('mouseleave', '[data-id=@Model.MediaFileModalId] div[data-id="selectableMediaDocument"]', function () {
+                var source = $(this);
+                var editDocumentMedia = source.find('div[name="editDocumentMedia"]');
+                editDocumentMedia.addClass("hide");
+            });
+
+            $(document).off("click", '[data-id=@Model.MediaFileModalId] li[dd-tab="#linktab1"]');
+            $(document).on("click", '[data-id=@Model.MediaFileModalId]  li[dd-tab="#linktab1"]', function (event) {
+                var formModal = $('[data-id=@Model.MediaFileModalId]');
+                var buttonAttach = formModal.find('button[name="Attach"]');
+                buttonAttach.html('@Localization.GetText("MediaFile.Button.Attach")');
+            });
+
+        });
+
+        //--------------------- Functions ------------------- //
+
+        //--------------------- Add Media Files ------------------- //
+
+        //Create File Media
+        function submitAttachAddMediaFile() {
+            showLoader();
+
+            var form = $('[data-id=@Model.MediaFileModalId] div[data-name="addContent"]');
+            var inputs = form.find('input:not([type=file])');
+            var inputFile = form.find("input[type=file]")[0];
+
+            if (form.parsley().validate()) {
+
+                var dataForm = inicializeDataForm(inputs);
+                dataForm.append('fileMedia', inputFile.files[0]);
+                dataForm.append('operationNumber', '@Model.OperationNumber');
+                var url = '@Url.Action("AttachAddMediaFile", "MediaFileModal", new { area = "" })';
+                var options = {
+                    dataType: 'json',
+                    data: dataForm,
+                    async: false,
+                    contentType: false,
+                    processData: false
+
+                };
+                var promise = postUrlWithOptions(url, options, dataForm);
+                promise.done(function (data) {
+                    if (data.IsValid) {
+                        var nameTable = "@Model.MediaFileModalId";
+                        addSaveDocumentMedia(data.MediaFile, nameTable);
+                        exitModal();
+                    }
+                    if (data.ErrorMessage != null && data.ErrorMessage.length > 0) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+
+            hideLoader();
+        }
+
+        function addSaveDocumentMedia(documentMedia, tableDocumentMedia) {
+
+            var table = $('#' + tableDocumentMedia);
+            var templateTr = $('#' + tableDocumentMedia + ' tbody tr:first');
+
+            if (documentMedia != null) {
+
+                var documentMediaId = documentMedia.MediaId;
+                var documentMediaUser = documentMedia.User;
+                var documentMediaDate = documentMedia.Date;
+                var documentMediaCaption = documentMedia.Caption;
+
+                var clonedTr = templateTr.clone(false).appendTo('#' + tableDocumentMedia + ' tbody');
+                clonedTr.find('input[name=' + tableDocumentMedia + '-RowId]').attr('data-persist-new', documentMediaId);
+                clonedTr.find('input[name=' + tableDocumentMedia + '-RowId]').val(documentMediaId);
+                clonedTr.find("td:eq(1)").html(documentMediaUser);
+                clonedTr.find("td:eq(2)").html(documentMediaDate);
+                clonedTr.find("td:eq(3)").html(documentMediaCaption);
+                clonedTr.attr("data-new-id", "new");
+                clonedTr.attr("data-id", "newDocument");
+                clonedTr.find('button[data-action="DownloadDocumentMedia"]').attr('data-url', documentMedia.MediaUrl);
+                bindHandlers(clonedTr);
+                clonedTr.removeClass("hide");
+            }
+        }
+
+        //Load Imge Preview
+        function readURL(file) {
+            if (file != null) {
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    $('#imgMediaFile').attr('src', e.target.result);
+                }
+                reader.readAsDataURL(file);
+            }
+            else {
+                $('#imgMediaFile').attr('src', "@Globals.GetSetting("BasePath")/Content/images/image-blank.png");
+            }
+        }
+
+        //--------------------- Search Media Files ------------------- //
+
+        //Filter File Media Results
+        function applyFilterFileMedia() {
+
+            showLoader();
+
+            var form = $('[data-id=@Model.MediaFileModalId] div[data-name="searchContent"]');
+            var inputs = form.find('input');
+            var containerResultFilter = $('div[name="resultFileMediaFilter"]');
+            var dataForm = inicializeDataForm(inputs);
+
+            dataForm.append('operationNumber', '@Model.OperationNumber');
+
+            $.ajax({
+                url: '@Url.Action("LoadFilterMediaFiles", "MediaFileModal", new { area = "" })',
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                type: 'POST',
+                async: false,
+            }).done(function (data) {
+                containerResultFilter.html(data);
+            });
+
+            hideLoader();
+        }
+
+        //Filter File Media Results
+        function applyFilterFileMediaSelected(listDocumentsSelected) {
+
+            showLoader();
+
+            var form = $('[data-id=@Model.MediaFileModalId] div[data-name="searchContent"]');
+            var inputs = form.find('input');
+            var containerResultFilter = $('div[name="resultFileMediaFilter"]');
+            var dataForm = inicializeDataForm(inputs);
+            dataForm.append("listDocumentsSelected", listDocumentsSelected);
+            $.ajax({
+                url: '@Url.Action("LoadFilterMediaFiles", "MediaFileModal", new { area = "" })',
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                type: 'POST',
+                async: false,
+            }).done(function (data) {
+                containerResultFilter.html(data);
+            });
+
+            hideLoader();
+        }
+
+        //Edit File Media
+        function submitAttachAddMediaFileEdit() {
+
+            showLoader();
+
+            var form = $('[data-id=@Model.MediaFileModalId] div[data-name="addContent"]');
+            var inputs = form.find('input:not([type=file])');
+            var inputFile = form.find("input[type=file]")[0];
+            var valInputDescription = form.find('input[name="Description"]').val();
+            var valInputMediaId = form.find('input[name="MediaId"]').val();
+            var valInputDate = form.find('input[name="Date"]').val();
+            var listDocumentsSelected = new Array();
+
+            var formSearch = $('[data-id=@Model.MediaFileModalId] div[data-name="searchContent"]');
+            var documentSelected = formSearch.find('div.documentMedia-box.selected');
+
+            documentSelected.each(function () {
+                var source = $(this);
+                var id = parseInt(source.attr('data-id-selector'));
+                listDocumentsSelected.push(id);
+            });
+
+            var dataForm = inicializeDataForm(inputs);
+
+            var url = '@Url.Action("AttachAddMediaFile", "MediaFileModal", new { area = "" })';
+            var options = {
+                dataType: 'json',
+                data: dataForm,
+                async: false,
+                contentType: false,
+                processData: false,
+                cache: false
+            };
+            var promise = postUrlWithOptions(url, options, dataForm);
+            promise.done(function (data) {
+                returnSearchContainerEdit(valInputDescription, valInputMediaId, valInputDate, listDocumentsSelected);
+            });
+
+            hideLoader();
+        }
+
+        //--------------------- Table Media Files ------------------- //
+
+        //Add Rows by File Media Selected
+        function submitSelectedMediaFile() {
+            var container = $('[data-id=@Model.MediaFileModalId] div[name="resultFileMediaFilter"]');
+            var documentList = container.find('div[data-id="selectableMediaDocument"].selected');
+
+            var documentsObject = [];
+            documentList.each(function (index, element) {
+                documentsObject.push($.parseJSON($(element).attr('data-json')));
+            });
+
+            @if (!string.IsNullOrEmpty(Model.TargetFunction))
+            {
+                @:window["@Model.TargetFunction"](documentsObject, "@Model.MediaFileModalId");
+                                                                                         }
+            exitModal();
+        }
+
+        //--------------------- Navigation ------------------- //
+
+
+        function returnSearchContainerEdit(valInputDescription, valInputMediaId, valInputDate, listDocumentsSelected) {
+
+            var textButtonAttach = '@Localization.GetText("MediaFile.Button.Attach")';
+
+            showLoader();
+
+            var formModal = $('[data-id=@Model.MediaFileModalId]');
+            var inputApplyFilter = formModal.find('button[name="applyFilterFileMedia"]');
+
+            var buttonAttach = formModal.find('button[name="Attach"]');
+            var buttonCancel = formModal.find('button[name="cancel"]');
+            buttonAttach.attr('data-action', 'submitAttachAddMediaFile');
+            buttonAttach.html(textButtonAttach);
+            buttonCancel.attr('data-action', 'exitModal');
+
+            var uploadFile = formModal.find('div.inputSearch.uploadFile');
+            uploadFile.removeClass('hide');
+
+
+            var tab = formModal.find('ul.tabs');
+            var tabSearch = formModal.find('[dd-tab="#linktab2"]');
+            var inputFile = formModal.find('input[name="fileMedia"]');
+
+            tab.removeClass('hide');
+            inputFile.removeClass('hide');
+            showLoader();
+            tabSearch.click();
+
+            applyFilterFileMediaSelected(listDocumentsSelected);
+
+            hideLoader();
+        }
+
+        function returnSearchContainer() {
+
+            var formModal = $('[data-id=@Model.MediaFileModalId]');
+
+            var buttonAttach = formModal.find('button[name="Attach"]');
+            var buttonCancel = formModal.find('button[name="cancel"]');
+
+            buttonAttach.attr('data-action', 'submitAttachAddMediaFile');
+            buttonCancel.attr('data-action', 'exitModal');
+
+            var formAdd = formModal.find('div[data-name="addContent"]');
+            var img = formAdd.find('#imgMediaFile');
+            var inputFile = formAdd.find('input[name="fileMedia"]');
+            var uploadFile = formAdd.find('div.inputSearch.uploadFile');
+
+            img.attr('src', '@Globals.GetSetting("BasePath")/Content/images/image-blank.png');
+            inputFile.removeClass('hide');
+            uploadFile.removeClass('hide');
+
+            var tab = formModal.find('ul.tabs');
+            var tabSearch = formModal.find('[dd-tab="#linktab2"]');
+
+            tab.removeClass('hide');
+            tabSearch.click();
+        }
+
+        function exitModal() {
+            var container = $('[data-id=@Model.MediaFileModalId]');
+            var modal = container.closest('div.vex-content');
+            var buttonClose = modal.find('div.vex-close');
+            buttonClose.click();
+        }
+
+        function inicializeDataForm(inputs) {
+
+            var dataForm = new FormData();
+
+            inputs.each(function () {
+                var source = $(this);
+                var name = source.attr('name');
+                var value = null;
+                if (source.attr('type') == 'checkbox') {
+                    value = source.is(':checked');
+                }
+                else if (source.attr('data-input') == 'decimal') {
+                    if (source.val() != "") {
+                        value = parseFloatFormated(source.val());
+                    }
+                }
+                else if (source.attr('type') == 'text' && source.attr('data-input') != 'decimal') {
+                    value = source.val();
+                }
+                dataForm.append(name, value);
+            });
+
+            return dataForm;
+        }
+
+
+        function GetDate(str) {
+
+            var resul = "";
+            if (str != "" && str != null) {
+                var arr = str.split("-");
+                var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                var month = months[parseInt(arr[1]) - 1];
+                var day = arr[2].split("T")[0];
+                var year = arr[0].toLowerCase();
+                resul = day + " " + month + " " + year;
+            }
+            return resul;
+        }
+
+
+    </script>)

@@ -1,0 +1,631 @@
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.General.Helpers;
+@using IDB.MW.Domain.Values
+@model IDB.MW.Application.OPUSModule.ViewModels.DeliverableService.DeliverableViewModel
+@{
+    ViewBag.Title = @Localization.GetText("TC.Header.Title").HtmlEncode();
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+    var operationNumber = Request.QueryString["OperationNumber"];
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+
+    var documentTempUrl = appSettings.DocumentTemplate_TemplateUrl;
+    var templateUrl = appSettings.DocumentTemplate_PublicationFolder;
+    var language = Localization.CurrentLanguage;
+}
+@section CSS {
+    <style type="text/css">
+        .w70 {
+            max-width: 70px !important;
+            min-width: 70px !important;
+            width: 70px !important;
+        }
+
+        .w80 {
+            max-width: 80px !important;
+            min-width: 80px !important;
+            width: 80px !important;
+        }
+
+        .w85 {
+            max-width: 85px !important;
+            min-width: 85px !important;
+            width: 85px !important;
+        }
+
+
+        .w90 {
+            max-width: 90px !important;
+            min-width: 90px !important;
+            width: 90px !important;
+        }
+
+        .w95 {
+            max-width: 95px !important;
+            min-width: 95px !important;
+            width: 95px !important;
+        }
+
+        .w115 {
+            max-width: 115px !important;
+            min-width: 115px !important;
+            width: 115px !important;
+        }
+
+        .w120 {
+            max-width: 120px !important;
+            min-width: 120px !important;
+            width: 120px !important;
+        }
+
+        .w140 {
+            max-width: 140px !important;
+            min-width: 140px !important;
+            width: 140px !important;
+        }
+
+        .w150 {
+            max-width: 150px !important;
+            min-width: 150px !important;
+            width: 150px !important;
+        }
+
+        .w160 {
+            max-width: 160px !important;
+            min-width: 160px !important;
+            width: 160px !important;
+        }
+
+        .w170 {
+            max-width: 170px !important;
+            min-width: 170px !important;
+            width: 170px !important;
+        }
+
+        .w180 {
+            max-width: 180px !important;
+            min-width: 180px !important;
+            width: 180px !important;
+        }
+
+        .w220 {
+            max-width: 220px !important;
+            min-width: 220px !important;
+            width: 220px !important;
+        }
+
+        .w400 {
+            max-width: 400px !important;
+            min-width: 400px !important;
+            width: 400px !important;
+        }
+
+        .font14 {
+            font: 14px !important;
+        }
+
+        .col-xs-1 .showDataEdit .checkbox-default-icon {
+            margin-top: 5px !important;
+        }
+    </style>
+}
+
+<div class="header mb40">
+    <div class="row">
+        <div class="col-md-12">
+            @Confluence.LabelMainTitle(Localization.GetText("OP.DL.Title"))
+        </div>
+    </div>
+    <span class="text-right">
+        @Html.Partial("Partials/Deliverable/buttons")
+    </span>
+</div>
+<div class="page">
+    <div id="PageContent"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-loadurl="@Url.Action("DeliverableContent", "View", new { area = "OPUS" })"
+         data-url="@(Url.Action("SaveDeliverable", "Save", new { area = "OPUS" }))">
+        @Html.Partial("Partials/Deliverable/DeliverablePartial", Model)
+    </div>
+</div>
+<div class="header">
+    <div class="row row-title">
+        <div class="col-md-12">
+            <span class="text-right">
+                @Html.Partial("Partials/Deliverable/buttons")
+            </span>
+        </div>
+    </div>
+</div>
+<div class="col-md-6 text-right">
+    <div id="DeliverableDocuments-modal-add" class="hide">
+        @Html.Partial("Controls/IDBDocsNew/AddIDBDoc", new IDB.Presentation.MVC4.Models.Documents.SearchDocumentModalViewModel { SearchModalId = "DeliverablesTableDocuments", MultipleSelection = false, TargetFunction = "addDocumentInTable", BusinessAreaCode = "BA_DELIVERABLES", OperationNumber = operationNumber })
+    </div>
+</div>
+<input type="hidden" id="deliverableIdForDocument" />
+@section scripts{
+    <script type="text/javascript">
+
+        var language = '@language';
+        var templateUrl = '@documentTempUrl';
+        var publicationFolder = '@templateUrl';
+
+        $(document).ready(function () {
+            initializeGlobalLoader();
+        });
+        var elementDocumentGlobal;
+
+        function save() {
+            cleanPlannedDateErrors();
+            if (yearPlannedValidation()) {
+                var response = saveContainer($('#PageContent'), '#hidViewModel', true, $('#headerButtons'), null, true);
+                if (response !== false) {
+
+                    response.done(function (data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                            showMessage(data.ErrorMessage);
+                            return false;
+                        } else {
+                            exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                            var msg = '@Localization.GetText("OP.DL.Message.Success")';
+                            ShowMessageFunctions.CurrentFunction(msg, true, window.location.href);
+                        }
+                    });
+                }
+            }
+        }
+
+        function edit() {
+            postUrlWithOptions('@Url.Action("LockRegister", "View", new {area = "OPUS"})', { async: false }, { url: '@OPUSGlobalValues.URL_DELIVERABLE' })
+                .done(function (data) {
+                    if (data.IsValid === true) {
+                        var success = enterEditMode(false, $("#PageContent"), false);
+                        if (success) {
+                            enterEditMode(false, $('[data-id=headerButtons]'), false);
+                            $("[name=deliverableName]:disabled").css("color", "black");
+
+                            if (!hasPermissionDeliverableWrite()) {
+                                disableEditionWhenProposalStatusCompleted();
+                            }
+
+                            alignStatusColumn();
+                            $('[name=completedDate]').datepicker("option", "maxDate", 0);
+                        }
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+        }
+
+        function cancel() {
+            var msg = "@Localization.GetText("OP.DL.Message.Cancel")";
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "View", new { area = "OPUS" })', { async: true }, { url: '@OPUSGlobalValues.URL_DELIVERABLE' });
+                    exitEditMode(true, $('#PageContent'), true, true);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                }
+            });
+        }
+
+        function addRowDeliverale() {
+            var $deliverablesTable = $("#deliverablesTable");
+            var url = '@Url.Action("GetRowDeliverable", "View", new {area = "OPUS"})';
+            postUrlWithOptions(
+                url,
+                { async: false },
+                {
+                    countryCode: '@Model.CountryCode',
+                    countryId: '@Model.CountryId',
+                    isRegional: '@Model.IsRegional.ToString().ToLower()',
+                    responsible: '@Model.Responsible',
+                    year: '@(DateTime.UtcNow.Year - 1)'
+                })
+            .done(function (responseText) {
+                if ($deliverablesTable.find('td.dataTables_empty').length > 0) {
+                    $deliverablesTable.find('tbody tr').remove();
+                }
+
+                $deliverablesTable.find('tbody').append(responseText);
+                bindHandlers();
+            });
+
+            $('[name=completedDate]').datepicker("option", "maxDate", 0);
+
+            var year = new Date().getFullYear();
+            $deliverablesTable.find('tbody tr:last').prev()
+                .find('td:first span[data-pagemode=edit] div.dropdown')
+                .SetValue(year, year.toString());
+
+            var styles = {
+                'border': "none",
+                'background-color': "white"
+            };
+
+            $deliverablesTable.find('tbody')
+                .find('tr')
+                .find('button.buttonLink[name="deliverablesDocumentNumber"]')
+                .last()
+                .css(styles);
+
+            alignStatusColumn();
+        }
+
+        function alignStatusColumn() {
+            var $deliverablesTable = $("#deliverablesTable");
+            $deliverablesTable.find('thead th').eq(4).addClass('text-center');
+
+            $deliverablesTable.find('tbody tr:not([data-publication-row])').each(function () {
+                $(this).find('td').eq(1).addClass('text-center');
+                $(this).find('td').eq(3).addClass('text-center');
+                $(this).find('td').eq(4).addClass('text-center');
+                $(this).find('td').last().addClass('text-center');
+
+            });
+
+            $('[name=completedDate]').parents('td').addClass('text-center');
+        }
+
+        function removeRowDeliverable(source) {
+            var tr = source.closest('tr');
+            var dataId = tr.attr('data-id');
+            var trPublication = tr.nextAll(String.format('[data-row-parent-id="{0}"]:last', dataId));
+            var publicationIdInput = trPublication.find('[name="PublicationId"]');
+
+            if ((publicationIdInput.length == 0) || (publicationIdInput.val() == 0)) {
+                var msg = '@Localization.GetText("R6.Proposal.Deliverables.Message.RowDeliverable")';
+                confirmAction(msg).done(function (pressOk) {
+                    if (pressOk) {
+                        var row = source.closest("tr");
+                        var rowPublication = row.next();
+                        var rowPubButton = rowPublication.next();
+                        disablePublicationRow(rowPubButton.next().find('[name="removeRowPublication"]'));
+                        rowPublication.next().remove();
+                        row.next().remove();
+                        row.remove();
+                    };
+                });
+            } else {
+                var msg = '@Localization.GetText("OP.DL.NODELETEDDELIVERABLE")';
+                showMessage(msg);
+            }
+        }
+
+        function downloadReport(source) {
+            var formatType = source.attr('name').toString();
+            var url = '@Url.Action("DownloadDeliverable", "View", new {area = "OPUS"})' + "?formatType=" + formatType;
+            window.open(url, '_blank');
+        }
+
+        $(document).on('click', '[name="StartPublication"]', function () {
+            var source = $(this);
+            var trButton = source.closest('tr');
+            trDeliverableDetail = trButton.prev();
+            var trPublication = trButton.next();
+            var dismiss = trDeliverableDetail.find('[name="IsDismiss"]');
+
+            var allInputs = trPublication.find('[name="PublicationName"], [name="CoPublication"], [name="MainLanguaje"], #id-MainLanguaje');
+            allInputs.removeAttr('disabled');
+            dismiss.attr('disabled', 'disabled');
+            trPublication.css('display', '');
+            trPublication.attr('data-is-row-visible', 'true');
+            source.addClass('hide');
+
+            destroyParsley();
+            initParsley()
+            destroyParsley();
+            initParsley()
+        });
+
+        $(document).on('click', '[name="removeRowPublication"]', function () {
+            var source = $(this);
+            var trPublication = source.closest('tr');
+            var trButton = trPublication.prev();
+            var trDeliverableDetail = trButton.prev();
+            var buttonPublication = trButton.find('[name="StartPublication"]');
+            buttonPublication.removeClass('hide');
+            trPublication.attr('data-is-row-visible', 'false')
+
+            disablePublicationRow(source);
+
+            destroyParsley();
+            initParsley()
+            destroyParsley();
+            initParsley()
+        });
+
+        function disablePublicationRow(source) {
+
+            var trPublication = source.closest('tr');
+            var trButton = trPublication.prev()
+            var trDeliverableDetail = trButton.prev();
+            var buttonPublication = trDeliverableDetail.next('tr').find('[name="StartPublication"]');
+
+            var pubInputName = trPublication.find('[name="PublicationName"]');
+            var pubCheckCoPub = trPublication.find('[name="CoPublication"]');
+            var pubDropdownLang = trPublication.find('[name="MainLanguaje"]');
+            var pubDropdownLangBtn = trPublication.find('#id-MainLanguaje');
+
+            pubInputName.val('');
+            pubCheckCoPub.prop('checked', false);
+            selectDropDownItem(pubDropdownLang, '');
+
+            pubInputName.attr('disabled', 'disabled');
+            pubCheckCoPub.attr('disabled', 'disabled');
+            pubDropdownLang.attr('disabled', 'disabled');
+            pubDropdownLangBtn.attr('disabled', 'disabled');
+            trPublication.css('cssText', 'display: none !important;');
+            trPublication.attr('data-is-row-visible', 'false');
+        }
+
+
+        $(document).on("change", "input[name='IsDismiss']", function () {
+            var row = $(this).closest('tr');
+            var label = row.prev().find('.DeliverableLabelStatus');
+            var button = row.find('[name="IsDismiss"]');
+            var fromProposalArray = ["En Propuesta", "From Proposal", "Na proposta", "De la proposition"];
+
+            if (button.attr("checked") === "checked") {
+                if (!(fromProposalArray.indexOf(row.find('div.deliverableType').find('div').eq(1).find('label').text()) >= 0)) {
+                    button.removeAttr("checked");
+                    row.find('button,input').not('[data-keep-disabled]').removeAttr("disabled");
+                    row.prev().find('button,input').not('[data-keep-disabled], [name=proposalYear]').removeAttr("disabled");
+                    label.text("@Localization.GetText("OP.DL.InProgress")");
+                } else {
+                    switch (label.text()) {
+                        case "Completed Pending Document":
+                            row.find('[name=buttonModalDocument]').removeAttr('disabled');
+                            row.find('[name=completedDate]').removeAttr('disabled');
+                            row.find('[name=deliverablesDocumentNumber]').removeAttr('disabled');
+                            row.find('[name=deleteButtonDeliverable]').removeAttr('disabled');
+                            row.prev().find('[name=planedDate]').removeAttr('disabled');
+                            row.find('button.buttonUpload').removeAttr('disabled');
+                            break;
+                        case "In Progress":
+                            row.prev().find('[name=planedDate]').removeAttr('disabled');
+                            row.find('[name=completedDate]').removeAttr('disabled');
+                            row.find('button.buttonUpload').removeAttr('disabled');
+                            row.find('[name=deliverablesDocumentNumber]').removeAttr('disabled');
+                            break
+                        case "Completed":
+                            row.find('[name=buttonModalDocument]').removeAttr('disabled');
+                            row.find('[name=completedDate]').removeAttr('disabled');
+                            row.find('[name=deliverablesDocumentNumber]').removeAttr('disabled');
+                            row.find('[name=deleteButtonDeliverable]').removeAttr('disabled');
+                            row.find('.buttonTrash').removeAttr('disabled');
+                            row.prev().find('[name=planedDate]').removeAttr('disabled');
+                            row.prev().find('button.buttonDownload').removeAttr('disabled');
+                            break;
+                        case "Dismissed":
+                            row.find('[name=buttonModalDocument]').removeAttr('disabled');
+                            row.find('[name=completedDate]').removeAttr('disabled');
+                            row.find('[name=deliverablesDocumentNumber]').removeAttr('disabled');
+                            row.find('[name=deleteButtonDeliverable]').removeAttr('disabled');
+                            row.find('.buttonTrash').removeAttr('disabled');
+                            row.prev().find('[name=planedDate]').removeAttr('disabled');
+                            row.prev().find('button.buttonDownload').removeAttr('disabled');
+                            row.prev().find('[name=deliverableType]').parent().find('button,input').removeAttr("disabled");
+                            break;
+                    }
+                }
+
+                row.next().find('[name="StartPublication"]').removeAttr("disabled");
+                button.removeAttr("checked", "checked");
+            }
+            else {
+                row.find('button,input').not("[type='checkbox'],[name=DownloadTemplateLink],[name='deliverablesDocumentNumber']").attr("disabled", "disabled");
+                row.next().find('[name="StartPublication"]').attr("disabled", "disabled");
+                row.prev().find('button,input').not("button.buttonShowRow").attr("disabled", "disabled");
+                label.text("@Localization.GetText("OP.DL.Dismissed")")
+                button.attr("checked", "checked");
+            };
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-deliverablesYearPlanned"] a', function () {
+            var planedDate = $(this).closest('tr').find('[name="planedDate"]').val();
+            var year = planedDate !== "" ? new Date(planedDate).getFullYear() : 0;
+            if ($(this).attr("dd-value") !== "" && year > 0 && parseInt($(this).attr("dd-value")) > year) {
+                $(this).closest('tr').find("[name='deliverablesYearPlanned']").FirstorDefault();
+                showMessage('@Localization.GetText("OP.DL.Message.PlannedDateLessEqualsPlannedYear")');
+            }
+        });
+
+
+
+        $(document).on("change", "input[name='planedDate']", function () {
+            var planedDate = $(this).val();
+            var year = planedDate !== "" ? new Date(planedDate).getFullYear() : 0;
+            var planedYear = $(this).closest('tr').find("[name='deliverablesYearPlanned']").val();
+
+            if (planedYear !== "" && parseInt(planedYear) > year) {
+                $(this).val("");
+                showMessage('@Localization.GetText("OP.DL.Message.PlannedDateLessEqualsPlannedYear")');
+            }
+        });
+
+        $(document).on("change", '[name="deliverableType"]', function () {
+            var source = $(this);
+            var deliverableValue = source.val();
+            var deliverableRow = source.closest('tr');
+            var delivDetailsRow = deliverableRow.next();
+            var publicationButtonRow = delivDetailsRow.next();
+            var publicationRow = publicationButtonRow.next();
+            var linkDownloadTemp = publicationButtonRow.find('[name="DownloadTemplateLink"]');
+            var buttonPublish = publicationButtonRow.find('[name = "StartPublication"]');
+
+            var url = '@Url.Action("GetPublicationCode", "View", new { area = "OPUS"})';
+            $.ajax({
+                url: url,
+                data: {
+                    "categoryId": deliverableValue,
+                },
+                cache: false,
+                type: 'POST',
+            }).done(function (response) {
+                if ((response.Data != null) && (response.Data.trim() != '')) {
+                    linkDownloadTemp.removeClass('hide');
+                    linkDownloadTemp.attr('data-blank-link', String.format("{0}{1}/{2}", templateUrl, publicationFolder, response.Data));
+
+                    if (publicationRow.attr('data-is-row-visible') == 'false') {
+                        buttonPublish.removeClass('hide');
+                    }
+                }
+                else {
+                    var buttonTrash = publicationRow.find('[name="removeRowPublication"]');
+                    disablePublicationRow(buttonTrash);
+                    linkDownloadTemp.removeAttr('data-blank-link');
+                    linkDownloadTemp.addClass('hide');
+                    buttonPublish.addClass('hide');
+                }
+            });
+        });
+
+        function addDocumentInTable(documentList, sourceType, fileNames) {
+            var docNumber;
+            var fileName;
+
+            if (documentList == undefined)
+                return;
+            if (documentList.length <= 0)
+                return;
+            showLoader();
+            if (sourceType === "selected") {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0].DocumentNumber;
+                }
+                if (fileNames !== undefined) {
+                    if (fileNames.length > 0) {
+                        fileName = fileNames[0].FileName;
+                    }
+                }
+            }
+            else {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0];
+                }
+                if (fileNames.length > 0) {
+                    fileName = fileNames[0];
+                }
+            }
+
+            var rowId = $('#deliverableIdForDocument').val();
+            $('#deliverablesTable tbody').find("[data-row-parent-id=" + rowId + "]").find("[name=deliverablesDocumentNumber]").html(docNumber);
+            $('#deliverablesTable tbody').find("[data-row-parent-id=" + rowId + "]").find("[name=deliverablesDocumentNumber]").attr("data-docnumber", docNumber);
+            $('#deliverablesTable tbody').find("[data-row-parent-id=" + rowId + "]").find("[name=deleteButtonDeliverable]").removeAttr('disabled');
+            $('#deliverablesTable tbody').find("[data-row-parent-id=" + rowId + "]").find("[name=documentNumberHidden]").val(docNumber);
+            hideLoader();
+            hideLoaderOptional();
+            closeModal()
+
+        }
+
+        function showWarningDocument(source) {
+
+            var tr = source.closest('tr[data-row-parent-id]');
+            var rowId = tr.attr('data-row-parent-id');
+            $('#deliverableIdForDocument').val(rowId);
+
+            var buttonModal = tr.find('[name=deliverableDocumentsAdd]');
+
+            var documentId = tr.find('[name="documentNumberHidden"]').val();
+
+            if (documentId !== '') {
+                confirmAction('@Localization.GetText("R6.Proposal.Deliverables.Message.OverwriteDocument")').done(function (selectionOk) {
+                    if (selectionOk) {
+                        buttonModal.click();
+                    }
+                });
+            } else {
+                buttonModal.click();
+            }
+        }
+
+        function actionDeleteDeliverable(source) {
+
+            confirmAction('@Localization.GetText("R6.Proposal.Deliverables.Message.DeleteDocument")').done(function (selectionOk) {
+                if (selectionOk) {
+                    source.attr('disabled', 'disabled');
+
+                    var tr = source.closest('tr');
+
+                    var docNumberHiden = tr.find("[name=documentNumberHidden]");
+                    docNumberHiden.val('');
+
+                    var linkDocNumber = tr.find('[name="deliverablesDocumentNumber"]');
+                    linkDocNumber.html('');
+                    linkDocNumber.attr('data-docnumber', '');
+                }
+            });
+        }
+
+        function getDocNumber(source) {
+            var docNumber = source.attr('data-docnumber');
+            return docNumber;
+        }
+
+        function downloadDocument(source) {
+            var docNumber = getDocNumber(source);
+            var url = '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })?documentNumber=' + docNumber;
+            window.open(url, '_blank');
+        }
+
+        function disableEditionWhenProposalStatusCompleted() {
+            var datesToCompare = $("#HasProposalAndIsCompleted").val().split(",");
+
+            $("#deliverablesTable").find('tbody tr').each(function () {
+                var row = $(this);
+                if (datesToCompare.indexOf(row.find('[name=deliverablesYearPlanned]').val()) >= 0) {
+                    row.find('[name=deliverablesYearPlanned]').prev('button').attr('disabled', 'disabled')
+                    row.find('button#id-deliverableType').attr('disabled', 'disabled');
+                    row.find('button.buttonTrash').attr('disabled', 'disabled');
+                    row.find("[name=deliverableType]").attr('disabled', 'disabled');
+                    row.next().find('[name=deliverablesCountry]').prev('button').attr('disabled', 'disabled');
+                    row.find('[name=planedDate]').attr('disabled', 'disabled');
+                    row.next().find('[name=completedDate]').attr('disabled', 'disabled');
+                    row.find('button.buttonDownload').attr('disabled', 'disabled');
+                    row.next().find('button.buttonTrash').attr('disabled', 'disabled');
+                    row.find('.inputSearch').attr('disabled', 'disabled');
+                    row.next().find('[name="deliverablesResponsible_text"]').attr('disabled', 'disabled');
+                    row.next().find('[name="deliverablesResponsible"]').prev('button').attr('disabled', 'disabled');
+                    row.next().find('[name=IsDismiss]').attr('disabled', 'disabled');
+                    row.find('[name=deliverableName]').attr('disabled', 'disabled');
+                    row.find('[name=deliverableName]').css('color', 'black');
+                    row.next().find('[name=buttonModalDocument]').attr('disabled', 'disabled');
+                    row.next().find('[name=deliverablesDocumentNumber]').attr('disabled', 'disabled');
+                    row.find('[name=deleteButtonDeliverable]').attr('disabled', 'disabled');
+                }
+            });
+        }
+
+        function yearPlannedValidation() {
+            var isValid = true;
+            var datesToCompare = $("#HasProposalAndIsCompleted").val().split(",");
+
+            if (!hasPermissionDeliverableWrite()) {
+                $('[name=deliverablesYearPlanned]').each(function () {
+                    if (!$(this).prev('button').is(':disabled') && (datesToCompare.indexOf($(this).prev('button').text().trim()) >= 0)) {
+                        isValid = false;
+                        showMessage('@Localization.GetText("R6.Proposal.Deliverables.validatedate")');
+                    }
+                })
+            }
+            return isValid;
+        }
+
+        function cleanPlannedDateErrors() {
+            $('[name=deliverablesYearPlanned]').each(function () {
+                $(this).prev('button').parents('div.dropdown').find('ul.parsley-errors-list').remove();
+            });
+        }
+
+        function hasPermissionDeliverableWrite() {
+            return JSON.parse("@Model.HasPermissionDeliverableWrite".toLowerCase());
+        }
+
+        function closeModal() {
+            var vexModal = $('#DeliverableDocuments-modal-add').parents('.vex');
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+    </script>
+}

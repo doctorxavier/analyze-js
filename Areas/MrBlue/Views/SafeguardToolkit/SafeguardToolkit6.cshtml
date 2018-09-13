@@ -1,0 +1,142 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.SafeguardToolkit
+@using IDB.MW.Application.MrBlueModule.Enums
+@using IDB.Presentation.MVC4.Areas.MrBlue.Enums;
+@using IDB.MW.Application.MrBlueModule.Enums
+@using IDB.Presentation.MVC4.Areas.MrBlue.Models
+
+
+@model SafeguardToolkitStep6ViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+    var buttonsViewModel = new SafeguardToolkitButtonsViewModel { VersionId = Model.SafeguardToolkitId, Step = SafeguardToolkitStepEnum.Step5, ShowClose = true, isStep2 = false };
+}
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Html.Partial("Partials/buttons", buttonsViewModel)
+        @Confluence.LabelsGroup(
+            Localization.GetText("MrBlue.SafeguardToolkit.Step6.StepName"),
+            contentAlways : Confluence.LabelBold(
+            Localization.GetText("MrBlue.SafeguardToolkit.Step6.StepTitle")),
+            asterisk : false)
+    </div>
+</div>
+
+<div class="row  mb20">
+    <div class="col-md-12">
+        @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.SafeguardToolkit.SafeguardToolkitStepsTitle"))
+    </div>
+</div>
+<div class="row mb20">
+    <div class="col-md-5">
+        @Confluence.Paragraph(Localization.GetText("MrBlue.SafeguardToolkit.Step6.SafeguarPolicyScreeningParagraph"))
+    </div>
+</div>
+<div class="page">
+    <div id="Data"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-loadurl="@Url.Action( "SafeguardToolkit6Edit" , "View" , new { area = "MrBlue" } )"
+         data-url="@Url.Action( "SafeguardToolkit6" , "Save" , new { area = "MrBlue" } )">
+
+        @if(Model != null)
+        {
+            @Html.Partial("Partials/Step6/SafeguardToolkit6Partial", Model);
+        }
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        @Html.Partial("Partials/buttons", buttonsViewModel)
+    </div>
+</div>
+
+@section scripts{
+
+    @ModuleScripts.KeyWordsToolkit(Url)
+    @ModuleScripts.TableFunctions()
+    @MrBlue.RadioButtonFix()
+
+    <script type="text/javascript">
+
+    registerCallback(function () {
+        enterEditMode(false, $('#Data'), false);
+    });
+
+    function reload() {
+        var url = '@Url.Action("SafeguardToolkit6", "SafeguardToolkit", new { area = "MrBlue", versionId = Model.SafeguardToolkitId })';
+        window.location.assign(url);
+    }
+
+    function removeComment(source) {
+        var sourceDocumentType = source.attr('data-comment-type');
+        var textAreaForClear = $('textarea[data-comment-type="' + sourceDocumentType + '"]');
+        textAreaForClear.val('');
+    }
+
+    function deleteComment(source) {
+        var commentId = source.attr("data-id");
+        var url = '@Url.Action("SaveSafeguardToolkitDeleteComment", "SafeguardToolkit", new { area = "MrBlue" })?userCommentId=' + commentId;;
+        postUrl(url).done(function (data) {
+            if (data.IsValid) {
+                source.parents('[data-row-comment]').remove();
+            }
+        });
+    }
+
+    function saveComment(source) {
+
+        var sourceDocumentType = source.attr('data-comment-type');
+
+        var versionId = $('input[name="versionId"][data-comment-type="' + sourceDocumentType + '"]').val();
+        var comment = $('textarea[name="Comment"][data-comment-type="' + sourceDocumentType + '"]').val();
+
+        var documentType;
+        if (sourceDocumentType == "@ESGDocumentTypeEnum.SafeguardToolkitSPF.ToString()") {
+            documentType = "@((int)ESGDocumentTypeEnum.SafeguardToolkitSPF)";
+        }
+        if (sourceDocumentType == "@ESGDocumentTypeEnum.SafeguardToolkitSSF.ToString()") {
+            documentType = "@((int)ESGDocumentTypeEnum.SafeguardToolkitSSF)";
+        }
+
+        loadComment(versionId, comment, documentType);
+    }
+
+    function loadComment(versionId, comment, documentType) {
+        var url = '@Url.Action("SaveSafeguardToolkitSaveComment", "SafeguardToolkit", new { area = "MrBlue"})?versionId=' + versionId + '&comment=' + comment + '&documentType=' + documentType;
+
+        postUrl(url).done(function (data) {
+            if (data.IsValid) {
+                reload();
+            }
+        });
+    }
+
+    function downloadSSFReport() {
+        var Mifecha = $('[name="SafeguardToolkitDate"]').val();
+
+        var url = '@Url.Action("SafeguardToolkitDownload", "SafeguardToolkit", new { area = "MrBlue", versionId = Model.SafeguardToolkitId })&documentType=' +  @((int)ESGDocumentTypeEnum.SafeguardToolkitSSF) + "&fecha=" + Mifecha;
+        window.location.assign(url);
+    }
+
+    function downloadSPFReport() {
+        //var safeguardToolkitId = $('[name="SafeguardToolkitId"]').val();
+
+        var Mifecha = $('[name="SafeguardToolkitDate"]').val();
+   
+      
+        var url = '@Url.Action("SafeguardToolkitDownload", "SafeguardToolkit", new { area = "MrBlue", versionId = Model.SafeguardToolkitId })&documentType=' +  @((int)ESGDocumentTypeEnum.SafeguardToolkitSPF) + "&fecha=" + Mifecha;
+        window.location.assign(url);
+    }
+
+
+    </script>
+}

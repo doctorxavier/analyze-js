@@ -1,0 +1,1593 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Domain.Values
+
+@model IDB.MW.Application.AdministrationModule.ViewModels.Delegation.DelegationViewModel
+
+@section CSS {
+    @Styles.Render("~/Content/overrides/delegationOverride.css")
+    @Styles.Render("~/Content/Modules/Delegation/Permission.css")
+    @Styles.Render("~/Content/Modules/Delegation/Partial.css")
+}
+
+@{
+    ViewBag.fixLoad = true;
+    ViewBag.NewDelegation = Model.DelegationId == 0;
+}
+
+<div class="col-md-12 authorizationTitle pl0">
+    @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("OP.DE.SE.RE.Title")), Url.Action(controllerName: "DelegationView", actionName: "Search"))
+</div>
+
+@if (Model.IsEditable)
+{
+    <div class="pull-right mb20">
+        @Html.Partial("Partial/Delegation/Buttons")
+    </div>
+}
+
+
+<div class="mt60" id="PageContent"
+     data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-url="@Url.Action("DelegationSave", "DelegationSave", new {area = "AdministrationSecondPhase"})"
+     data-loadurl="@Url.Action("DelegationContent", "DelegationView", new {area = "AdministrationSecondPhase", delegationId = Model.DelegationId})">
+    @Html.Partial("Partial/Delegation/DelegationPartial", Model)
+</div>
+
+@if (Model.IsEditable)
+{
+    <div class="pull-right mb20">
+        @Html.Partial("Partial/Delegation/Buttons")
+    </div>
+}
+
+
+@section scripts{
+    <script type="text/javascript">
+        $(document).on('ready',
+            function () {
+                var delegationOperations = @Html.Raw(Json.Encode(Model.ListOfOperations));
+                var listOfAllOperations = @Html.Raw(Json.Encode(Model.ListOfAllOperations));
+                showLoader();
+                operationTypeClick()
+                LogicForModulesandWorkflow();
+                @if (Model.DelegationId != 0)
+                {
+                    <text>
+                $("#hideContentDelegation").removeClass('hide');
+                loadOperationsListTable(delegationOperations, listOfAllOperations);
+                </text>
+                }
+                else
+                {
+                    <text>
+                edit();
+                </text>
+                }
+                separateColumnIntoSeveralDivs();
+
+                @if (ViewBag.DelegationAdminPermission != true && Model.DelegationId == 0)
+                {
+                    <text>
+                searchDelegatorFilter();
+                </text>
+                }
+                hideLoader();
+                @if (ViewBag.LockScreen != null && ViewBag.LockScreen)
+                {
+                    <text>
+                loadError();
+                </text>
+                }
+
+                $("#DelegatorTable").paginationConfluense(5).sortableConfluense();
+                $("#DocumentsTable").paginationConfluense(5).sortableConfluense();
+                Validation.Init();
+
+                var iframe = window.parent.document.getElementById('mainframe_ContentIframe');
+                if (iframe != null && iframe.style != null) {
+                    iframe.style.height =  document.body.clientHeight + "px";
+                }
+
+                $(document.body).resize(function () {
+                    var iframe = window.parent.document.getElementById('mainframe_ContentIframe');
+                    if (iframe != null && iframe.style != null)
+                    {
+                        iframe.style.height =  document.body.clientHeight + "px";
+                    }
+                });
+                DisableSelectOption();
+            });
+
+        $(document).on('change', '[name="txt_chkSetMaxAmount"]', function (element) {
+            if ($(this).val().length > 0) {
+                if ($('#editMinAmount').find('input[name ="txt_chkSetMinAmount"]').val().length == 0 && $('#editMinAmount').find('input[name ="txt_chkSetMinAmount"]').attr('disabled') != 'disabled') {
+                    $('#editMinAmount').find('input[name ="txt_chkSetMinAmount"]').val('0');
+                }
+            }
+        });
+
+        $(document).on('click',
+            'ul.dropdown-menu[aria-labelledby="id-ddlPagination"] a',
+            function() {
+                var value = $(this).attr('dd-value');
+                if (value === "All") {
+                    value = $("#DelegatorTable tbody tr").length;
+                }
+                $("#DelegatorTable").paginationConfluense(parseInt(value));
+            });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-ddlDocumentsPagination"] a', function() {
+            var value = $(this).attr('dd-value');
+            if (value === "All") {
+                value = $("#DocumentsTable tbody tr").length;
+            }
+
+            $("#DocumentsTable").paginationConfluense(parseInt(value));
+        });
+
+        function DisableSelectOption(){
+            var li = $($("[aria-labelledby='id-delegationReason']")[0]).children();
+            $(li[0]).children().attr("disabled",true);
+        }
+
+        function loadError() {
+            showMessage("@Localization.GetText("R6.DEL.Message.NotUpdate")");
+            window.setTimeout(function() {
+                window.location.href = '@Url.Action(controllerName: "DelegationView", actionName: "Search")';
+            },
+                5000);
+        }
+
+        function searchDelegatorFilter() {
+            var searchDelegatorName = $('[name="SearchDelegatorName"]').val();
+            if (searchDelegatorName !== "") {
+                var operationNumber = $('[name="OperationNumberFilter"]').val();
+                $('input[name="SearchDelegateUser_text"]').val('');
+                $('input[name="SearchDelegateUser"]').val('');
+                $('input[name="startDate"]').val('@DateTime.Now.ToString("dd MMM yyyy")');
+                var endDate = $('input[name="endDate"]');
+                endDate.val('');
+                endDate.removeAttr('value');
+                endDate.removeAttr('value');
+                endDate.attr('data-parsley-required', true);
+                $('input[name="delegationReason"]').FirstorDefault();
+                $('textarea[name="commentComment"]').val('');
+                showLoader();
+                var role = parseInt($('[name="RoleFilter"]').val()) ? parseInt($('input[name="RoleFilter"]').val()) : 0;
+                postUrlWithOptions(
+                        '@Url.Action("SearchDelegatorFilter", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                        { async: false },
+                        {
+                            'searchDelegatorName': searchDelegatorName,
+                            'nameOperationNumber': operationNumber,
+                            'role': role
+                        })
+                    .done(function(data) {
+                        var resultSearchPanel = $('#tableDelegatorContent');
+                        resultSearchPanel.html(data);
+                        bindHandlers(resultSearchPanel);
+                        enterEditMode(false, $('#DelegatorTable'), false);
+                        var value = $('[name="ddlPagination"]').val();
+                        if (value === "All") {
+                            value = $("#DelegatorTable tbody tr").length;
+                        }
+
+                        var delegatorTable = $("#DelegatorTable");
+                        previousSortableConfluense();
+                        delegatorTable.sortableConfluense();
+                        delegatorTable.paginationConfluense(parseInt(value));
+
+                        $("#hideContentDelegation").addClass('hide');
+                        $("#assignPermissionContent").addClass('hide');
+                        $('[name="SearchDelegatorName_text"]').prop('disabled', true);
+                        $('input[name="SearchDelegatorName_text"]').closest('div').find('button')
+                            .prop('disabled', true);
+                        hideLoader();
+                        Validation.Init();
+                    });
+            } else {
+                showMessage('@Localization.GetText("Delegation.All.SelectDelegator")');
+                $("#DelegatorTable tbody tr").remove();
+            }
+        }
+
+        function cleanDelegatorButton() {
+            if (!$('[name="OperationNumberFilter"]').prop('disabled') && !$('#id-RoleFilter').prop('disabled')
+                && $("input[name='SearchDelegatorName_text']").attr("data-disabled-delegator") != 'True') {
+                var searchDelegatorNameText = $('input[name="SearchDelegatorName_text"]');
+                searchDelegatorNameText.val('');
+                $("#UserCommentFields").empty();
+                $("#DocumentsTable tbody").empty();
+                $('[name="SearchDelegatorName"]').val('');
+                $('[name="SearchDelegatorName_text"]').prop('disabled', false);
+                searchDelegatorNameText.closest('div').find('button').prop('disabled', false);
+            }
+
+            $('input[name="OperationNumberFilter"]').val('');
+            $("#id-RoleFilter").FirstorDefault();
+            $("#DelegatorTable").find("tbody").remove();
+            $('div.Pagination[dd-table="DelegatorTable"]').remove();
+            $("#hideContentDelegation").addClass('hide');
+
+            $(".filterName").siblings('.filterGroup').find('.dropdown-menu li').removeClass('hide');
+        }
+
+        $(document).on("click", '[type="checkbox"][name="SelectDelegator"]', function() {
+            showLoader();
+            setTimeout(function(item) {
+                selectDelegator(item);
+            }, 500, $(this));
+        });
+
+        function isInArray(value, array) {
+            return array.indexOf(value) > -1;
+        }
+
+        function selectDelegator(item) {
+            var operationNumbers = [];
+            var countrys = [];
+            var departments = [];
+            var cDepartments = [];
+            var divisions = [];
+            var valDel = $(item).closest("tr").find("td.hide").find('input[name="SelectDelegatorHidden"]').val();
+            var takeLen = valDel.length-2;
+
+            var newValDel = valDel.substring(0,takeLen);
+
+            $(item).closest("tr").find("td.hide").find('input[name="SelectDelegatorHidden"]').val(newValDel + "|0");
+
+            if($(item).closest('tr').find('td input:checked').length == 1) {
+                $('#DelegatorTable').find('input:checked').each(function() {
+                    var row = $(this).closest('tr');
+                    var element = $(item);
+                    element.attr("checked", $(element).prop("checked", true));
+                    var operationNumber = $(row).find('td.operationNumber span').text()
+                    if(operationNumber != "" && !isInArray(operationNumber, operationNumbers))
+                    {
+                        operationNumbers.push(operationNumber);
+                    }
+
+                    var country = $(row).find('td.country span').text()
+                    if(country != "" && !isInArray(country, countrys))
+                    {
+                        countrys.push(country);
+                    }
+
+                    var department = $(row).find('td.department span').text()
+                    if(department != "" && !isInArray(department, departments))
+                    {
+                        departments.push(department);
+                    }
+
+                    var cDepartment = $(row).find('td.cDepartment span').text()
+                    if(cDepartment != "" && !isInArray(cDepartment, cDepartments))
+                    {
+                        cDepartments.push(cDepartment);
+                    }
+
+                    var division = $(row).find('td.division span').text()
+                    if(division != "" && !isInArray(division, divisions))
+                    {
+                        divisions.push(division);
+                    }
+                });
+
+                if ($('#DelegatorTable').find('input:checked').length >= 1) {
+                    var valDel = $(item).closest("tr").find("td.hide").find('input[name="SelectDelegatorHidden"]').val();
+                    var takeLen = valDel.length-2;
+
+                    var newValDel = valDel.substring(0,takeLen);
+
+                    $(item).closest("tr").find("td.hide").find('input[name="SelectDelegatorHidden"]').val(newValDel + "|-");
+
+                    if ($('[name="SearchDelegateUser"]').val() != "") {
+                        delegablePermissionTask();
+                        LogicForModulesandWorkflow();
+                    }
+                    else
+                    {
+                        $('#operationsListContent').html("");
+                        $('h3.operationsListTitle').addClass("hide");
+
+                        var userName = $('[name="SearchDelegatorName"]').val();
+                        var roleDelegetor = $(item).closest('tr').find('[name="roleIdDelegator"]').val();
+                        var operationNumber = $(item).closest('tr').find('[name="OperationNumber"]').val();
+                        var country = $(item).closest('tr').find("td.country").find("span:first").text();
+                        var department = $(item).closest('tr').find("td.department").find("span:first").text();
+                        var cDepartment = $(item).closest('tr').find("td.cDepartment").find("span:first").text();
+                        var division = $(item).closest('tr').find("td.division").find("span:first").text();
+
+                        postUrlWithOptions(
+                                '@Url.Action("RefreshAssignPermissionTaskDelegation", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                                { async: false },
+                                {
+                                    'userName': userName,
+                                    'operationNumbers': operationNumbers,
+                                    'delegationId': '@Model.DelegationId',
+                                    'roleId': roleDelegetor,
+                                    'countrys': country,
+                                    'cDepartments': cDepartment,
+                                    'departments': department,
+                                    'divisions': division
+                                })
+                            .done(function(data) {
+                                var resultSearchPanel = $('#assignPermissionContent');
+                                resultSearchPanel.html(data);
+                                bindHandlers(resultSearchPanel);
+                                enterEditMode(false, $('#assignPermissionContent'), false);
+                                $('#hidViewModel').val($('#NewhidViewModel').val());
+                                hideLoader();
+
+
+                            });
+
+                        var selectedRole = $(item).closest("tr").find("td.delegate-role span").text().trim();
+                        $(item).closest("tbody").find("tr").each(function(index) {
+                            var currentTrRole = $(this).find("td.delegate-role span").text().trim();
+                            if (currentTrRole != selectedRole) {
+                                var element = $(this).find('label.checkbox-default')
+                                    .find('input[name="SelectDelegator"]');
+                                element.attr("disabled", $(element).prop("disabled", true));
+                            }
+                        });
+
+                        separateColumnIntoSeveralDivs();
+                        $("#assignPermissionContent").removeClass('hide');
+                        $("#hideContentDelegation").removeClass('hide');
+
+                        var elements = $('#subdelegationContainer').find('[type="checkbox"]').not(":disabled");
+                        var unchecked = $.grep(elements, function(element) {
+                            return $(element).prop('checked') == false;
+                        });
+
+                        var selectAll = $('[name="selectAllSubdelegate"]');
+                        var labelElement = $(selectAll).closest('div').find('label.labelNormal');
+
+                        if (unchecked.length == 0) {
+                            labelElement.text("@Localization.GetText("OP.DE.SE.RE.UnselectAll")");
+                            $(selectAll).prop('checked', true);
+                        } else {
+                            labelElement.text("@Localization.GetText("OP.DE.SE.RE.SelectAll")");
+                            $(selectAll).prop('checked', false);
+                        }
+
+                        $("#subdelegationContainer, #assignPermissionContainer").find("tbody > tr")
+                            .attr("class", "hide");
+
+                        operationTypeClick();
+                    }
+
+                }
+            } else {
+
+                if($('#DelegatorTable').find('input:checked').length > 0)
+                {
+                    var element =  $('#DelegatorTable').find('input:checked')[0];
+                    selectDelegator(element);
+                }
+                else
+                {
+                    var element = $(item).closest('tr').find('input[name="SelectDelegator"]');
+                    element.removeAttr("checked");
+                    $('input[name="SearchDelegateUser_text"]').val('');
+                    $('input[name="SearchDelegateUser"]').val('');
+                    $('input[name="startDate"]').val('@DateTime.Now.ToString("dd MMM yyyy")');
+                    $('input[name="endDate"]').val('');
+                    $('input[name="endDate"]').removeAttr('value');
+                    $('input[name="endDate"]').removeAttr('value');
+                    $('input[name="endDate"]').attr('data-parsley-required', true);
+                    $('input[name="delegationReason"]').FirstorDefault();
+                    $('textarea[name="commentComment"]').val('');
+
+                    if ($('#DelegatorTable').find('input:checked').length == 0) {
+                        $("#hideContentDelegation").addClass('hide');
+                        $('#DelegatorTable').find('input[name="SelectDelegator"]').each(function() {
+                            $(this).removeAttr("disabled");
+                        });
+                    }
+                }
+
+            }
+
+            hideLoader();
+            LogicForModulesandWorkflow();
+        }
+
+        function LogicForModulesandWorkflow(){
+            $('input[data-id]').change(function () {
+                var element = $(this);
+                var id = element.attr('data-id');
+                if (element.prop('checked')) {
+                    $('input[data-parent="' + id + '"]').prop('checked', true);
+                    $('input[data-parent="' + id + '"]').trigger("change");
+                } else {
+                    $('input[data-parent="' + id + '"]').prop('checked', false);
+                    $('input[data-parent="' + id + '"]').trigger("change");
+                }
+            });
+
+            $('input[data-parent]').change(function () {
+                var element = $(this);
+                var id = element.attr('data-parent');
+
+                if ($('input[data-parent="' + id + '"]:checked').length > 0) {
+                    $('input[data-id="' + id + '"]').prop('checked', true);
+                }
+                else {
+                    $('input[data-id="' + id + '"]').prop('checked', false);
+                }
+            });
+
+            $('input[name="selectAllModulesWorkflow"]').change(function () {
+                var element = $(this);
+                if (element.prop('checked')) {
+                    $('input[data-id]').prop('checked', true).change();
+                } else {
+                    $('input[data-id]').prop('checked', false).change();
+                }
+            });
+        }
+
+        function removeRowDocument(source) {
+            var row = source.closest("tr");
+            row.remove();
+            var value = $('[name="ddlDocumentsPagination"]').val();
+            if (value === "All") {
+                value = $("#DocumentsTable tbody tr").length;
+            }
+            $("#DocumentsTable").paginationConfluense(parseInt(value));
+        }
+
+        function newComment() {
+            postUrlWithOptions(
+                    '@Url.Action("GetRowComment", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                    { async: false })
+                .done(function(data) {
+                    var container = $('#UserCommentFields');
+                    $(container).append(data);
+                    bindHandlers();
+                    enterEditMode(false, container, false);
+                });
+        }
+
+
+        function removeRowComment(source) {
+            $(source).closest('.rowComment').remove();
+        }
+
+        function edit() {
+            var canEdit = true;
+
+            @if (Model.DelegationId > 0)
+            {
+                <text>
+
+            postUrlWithOptions(
+                    '@Url.Action("LockRegister", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                    { async: false },
+                    { operationNumber: '@Model.DelegationId', url: '@OPUSGlobalValues.URL_DELEGATION' })
+                .done(function(data) {
+                    if (data.IsValid === false) {
+                        canEdit = false;
+                        showMessage(data.ErrorMessage);
+                    }
+
+                    separateColumnIntoSeveralDivs();
+                    desactivateEditHeader();
+                    $('.NotYetDelegatedOperation').find('input:first').removeAttr("disabled");
+                });
+            </text>
+            }
+
+            if (canEdit) {
+                var success = enterEditMode(false, $('#PageContent'), false);
+
+                fixUserAssignInputSearchStyle();
+
+                if (success) {
+                    enterEditMode(false, $('[data-id=headerButtons]'), false);
+                }
+            }
+        }
+
+        function cancel() {
+            var msg = "@Localization.GetText("OP.DE.Cancel.Warning.Message")";
+
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    exitEditMode(false, $('#PageContent'), false, true);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                    $('.NotYetDelegatedOperation').find('input:first:checked').click();
+                    $('.NotYetDelegatedOperation').find('input:first').attr("disabled", "disabled");
+                }
+            });
+        }
+
+        function cancelNew() {
+            var msg = "@Localization.GetText("OP.DE.Cancel.Warning.Message")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    showLoader();
+                    window.location.href = '@Url.Action(controllerName: "DelegationView", actionName: "Search")';
+                    separateColumnIntoSeveralDivs();
+                }
+            });
+        }
+
+        function saveMain() {
+            var reasonSelected = $('input[name="delegationReason"]').parent().find('span:first').text();
+            var commentsCount = $('textarea[name="commentComment"]').length;
+            var delegate = $('ul.dropdown-menu[aria-labelledby="id-SearchDelegateUser"] a[dd-selected]')
+                .attr('dd-value');
+            var delegator = $.trim($('#DelegatorTable tbody tr').find('input[checked="checked"]').closest('tr')
+                .find('td:nth-child(3)').text());
+            var delegationTypeSelect = $('#id-delegationType').parent();
+            var defatulDelegationType = delegationTypeSelect.SelectIndex(1);
+            delegationTypeSelect.SetValue(delegationTypeSelect.GetValue(), delegationTypeSelect.GetText());
+            loadOperationsNumbersToBeSaved();
+
+            if (reasonSelected == "@Model.OtherReason" && commentsCount == 0) {
+                showMessage("@Localization.GetText("R6.DEL.Message.OtherAsReason")");
+                return false;
+            } else if (delegate != null && delegator != null
+                && delegate.toUpperCase() == delegator.toUpperCase()) {
+                showMessage("@Localization.GetText("R6.DEL.Message.DelegatorAsDelegate")");
+                return false;
+            } else {
+                if (validateRequiered()) {
+                    @if (Model.DelegationId > 0)
+                    {
+                        <text>
+                    var response = saveContainer($('#PageContent'),
+                        '#hidViewModel',
+                        true,
+                        $('#headerButtons'),
+                        null);
+                    </text>
+                    }
+                    else
+                    {
+                        <text>
+                    var response = saveContainer($('#PageContent'),
+                        '#hidViewModel',
+                        false,
+                        $('#headerButtons'),
+                        null,
+                        false);
+                    </text>
+                    }
+
+                    response.done(function(data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                            showMessage(data.ErrorMessage);
+                        } else {
+                            window.setTimeout(function() {
+                                showLoader();
+                                window.location.href =
+                                    '@Url.Action(controllerName: "DelegationView", actionName: "Delegation")' +
+                                    '?delegationId=' +
+                                    data.DelegationId;
+                            },
+                                500);
+                        }
+                    });
+                }
+            }
+            separateColumnIntoSeveralDivs();
+        }
+
+        function save() {
+
+            if ($('[name="SearchDelegatorName"]').val().length === 0) {
+                return Validation.Container($('#PartialSearchContent'));
+            }
+
+            if ($('#DelegatorTable tbody tr').length === 0) {
+                showMessage("@Localization.GetText("Delegation.All.UserNotHasRoles")");
+                return false;
+            }
+
+            if ($('#DelegatorTable tbody tr').find('[name="SelectDelegator"]:checked').length === 0) {
+                showMessage("@Localization.GetText("R6.DEL.Message.SelectAssingPermission")");
+                return false;
+            }
+
+            if (Validation.Container()) {
+                var delegatorName = $("input[name='SearchDelegatorName']").val();
+                if (delegatorName.length > 0)
+                {
+                    delegatorName = delegatorName.toUpperCase();
+                }
+                var currentUser = "@IDBContext.Current.UserName";
+                delDocCount = $('#DocumentsTable').find('tbody tr').length;
+
+                if (currentUser != null && delegatorName != currentUser.toUpperCase()) {
+                    if (delDocCount > 0) {
+                        saveMain();
+                    } else {
+                        Confirm.ShowInfo("@Localization.GetText("R6.DEL.Message.AddDocumentAdmin")", "", "", "", true, { cancel:false });
+                    }
+                } else {
+                    saveMain();
+                }
+            }
+        }
+
+        function validateRequiered() {
+            if (!validateContainer($('#PageContent'))) {
+                return false;
+            }
+
+            if ($("#ModulesWorkflowContainer").find('[type=checkbox]:checked').length < 1)
+            {
+                showMessage("@Localization.GetText("R6.DEL.Message.SelectOneAssign")");
+                return false;
+            }
+
+            if ($("@Localization.GetText("R6.DEL.Message.Other")" === '[name="delegationReason"]')
+                .closest('div.dropdown').find('.valueText').text()) {
+                if ($('[name="commentComment"]').length < 1) {
+                    showMessage("@Localization.GetText("R6.DEL.Message.CommentWithReason")");
+                    return false;
+                }
+            }
+            if ($("#id-delegationReason").GetText() === "@Localization.GetText("R6.DEL.Message.Others")" &&
+                !$("#UserCommentFields").has("div").length) {
+                showMessage("@Localization.GetText("R6.DEL.Message.EnterReason")");
+                return false;
+            }
+            return true;
+        }
+
+        $(document).on("change", 'input[name="SearchDelegateUser"]', function() {
+            delegablePermissionTask();
+            LogicForModulesandWorkflow();
+        });
+
+        $(document).on("change", 'input[name="SearchDelegatorName"]', function() {
+            showLoader();
+        });
+
+        $(document).on("click", ".authorizationTitle button", function() {
+            showLoader();
+        });
+
+        $(document).on("change", "input[data-parent]", function() {
+            var div = $(this).attr("data-parent");
+            if ($(this).is(':checked')) {
+                $("#" + div).removeClass('hide');
+            } else {
+                $("#" + div).addClass('hide');
+            }
+        });
+
+        $(document).on("change", 'input[name="DelegateAuthorize"]', function() {
+            var div = $("input[data-parent]");
+
+            var checked = $(this).is(':checked');
+            var selectAllPermissions = $('input[name="selectAllPermissions"]').first();
+            var selectAllSubdelegate = $('input[name="selectAllSubdelegate"]').first();
+
+            if (!checked) {
+                $('input[name="DelegateAuthorize"]').removeAttr('checked');
+                if ($(selectAllPermissions).is(":checked")) {
+                    $(selectAllPermissions).click();
+                }
+
+                if ($(selectAllSubdelegate).is(":checked")) {
+                    $(selectAllSubdelegate).click();
+                }
+
+            } else if (checked) {
+                $('input[name="DelegateAuthorize"]').attr('checked', 'checked');
+                if (!$(selectAllPermissions).is(":checked")) {
+                    $(selectAllPermissions).click();
+                }
+
+                if (!$(selectAllSubdelegate).is(":checked")) {
+                    $(selectAllSubdelegate).click();
+                }
+            }
+        });
+
+        function checkVerifyAuthorize() {
+            var arr = ['input[name="selectAllPermissions"]', 'input[name="selectAllSubdelegate"]'];
+            var el = [];
+            $.each(arr,
+                function(index, element) {
+                    el.push($(element).prop("checked"));
+                });
+
+            if (($(el)[0] == true || $(el)[0] === undefined) &&
+                ($(el)[1] == true || $(el)[1] === undefined) &&
+                ($(el)[2] == true || $(el)[2] === undefined)) {
+                $('input[name="DelegateAuthorize"]').prop('checked', true);
+            } else {
+                $('input[name="DelegateAuthorize"]').removeAttr('checked');
+            }
+        }
+
+
+        function verifyChecked() {
+            var filter = "input[data-parent]";
+            var elements = $(filter);
+            var elementsChecked = $(filter + ":checked");
+            if (elements.length === elementsChecked.length) {
+                $('input[name="DelegateAuthorize"]').prop('checked', true);
+            } else {
+                $('input[name="DelegateAuthorize"]').prop('checked', false);
+            }
+        }
+
+
+        function resizeContentLocalDelegationDocuments(source) {
+            var css = '<style id="pseudo">.vex.vex-theme-default .vex-close:before{display: none !important;}</style>';
+            document.head.insertAdjacentHTML('beforeEnd', css);
+            $('.vex-content').find(".buttonsAction").attr("data-id", source.attr("data-id"));
+        }
+
+        function closeModal() {
+            var vexModal = $('[data-id="mainContainer"]').parents('.vex');
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+
+        function downloadDocument(target) {
+            var docNumber = $(target.closest('tr')).find('td:nth-child(3)')[0].outerText;
+
+            var url = '@Url.Action("DownloadDocument", "DocumentModal", new {area = ""})' +
+                '?documentNumber=' +
+                docNumber;
+            window.open(url, '_blank');
+        }
+
+        $(document).on('change', '[name="startDate"],[name="endDate"]', function() {
+            var isCorrect = true;
+            var isStart;
+            var dateOne = $(this);
+            var dateTwo;
+            if (dateOne.attr("name") === "startDate") {
+                isStart = true;
+                dateTwo = $('[name="endDate"]');
+            } else {
+                isStart = false;
+                dateTwo = $('[name="startDate"]');
+            }
+
+            var dateSelected = Date.parse(dateOne.val());
+            var todayDate = Date.parse('@DateTime.Today.ToShortDateString()');
+            var diffWithToday = dateSelected - todayDate;
+
+            cleanDateField($(dateOne));
+            cleanDateField($(dateTwo));
+
+            if (isStart && dateOne.val() !== "") {
+
+                @if (Model.DelegationId > 0)
+                    {
+                        <text>
+
+                var initialDate =
+                    Date.parse('@Model.UserToAssign.StartDate.GetValueOrDefault().ToShortDateString()');
+                var diffWithInitial = dateSelected - initialDate;
+
+                </text>
+                    }
+                    else
+                    {
+                        <text>
+                if (0 > diffWithToday) {
+                    addDateErrorMessage($(dateOne), '@Localization.GetText("R6.DEL.Message.StartDate")');
+                    return false;
+                }
+                </text>
+                    }
+            } else {
+
+                if (0 > diffWithToday) {
+                    addDateErrorMessage($(dateOne), '@Localization.GetText("OP.FD.Preparation.MsgEndDate")');
+                    return false;
+                }
+
+            }
+            if (dateOne.val() !== "" && dateTwo.val() !== "") {
+
+                if(!isStart){
+                    var startDate = new Date(dateTwo.val());
+                    var endDate = new Date(dateOne.val());
+                    var maxEndDate = new Date(startDate.getFullYear() + 1, startDate.getMonth(), startDate.getDate());
+                    if(endDate > maxEndDate){
+                        addDateErrorMessage($(dateOne), '@Localization.GetText("GLOBAL.VALIDATION.DATELESS")' + ' ' + formatDate(maxEndDate));
+                        return false;
+                    }
+                }else{
+                    var startDate = new Date(dateOne.val());
+                    var endDate = new Date(dateTwo.val());
+                    var maxEndDate = new Date(startDate.getFullYear() + 1, startDate.getMonth(), startDate.getDate());
+                    if(endDate > maxEndDate){
+                        addDateErrorMessage($(dateTwo), '@Localization.GetText("GLOBAL.VALIDATION.DATELESS")' + ' ' + formatDate(maxEndDate));
+                        return false;
+                    }
+                }
+
+                if (isStart) {
+                    isCorrect = dateDiffInDays(dateOne.val(), dateTwo.val());
+                } else {
+                    isCorrect = dateDiffInDays(dateTwo.val(), dateOne.val());
+                }
+            }
+
+            $('.parsley-range').closest('ul').removeClass('filled');
+            $('.parsley-range').remove();
+
+            if (!isCorrect) {
+                $(dateOne).val("");
+                addParsleyError($(dateOne));
+                $(dateTwo).attr("data-parsley-required", false).removeClass('parsley-error')
+                    .addClass('parsley-success');
+                $('#parsley-id-' + $(dateOne).attr('data-parsley-id')).addClass('filled')
+                    .append('<li class="parsley-range">' +
+                        '@Localization.GetText("R6.DEL.Message.StartEndDate")' +
+                        '</li>');
+            } else {
+                if (dateOne.val() === "" && dateTwo.val() === "") {
+                    addParsleyError($(dateOne));
+                    addParsleyError($(dateTwo));
+                } else if (dateOne.val() === "") {
+                    addParsleyError($(dateOne));
+                } else if (dateTwo.val() === "") {
+                    addParsleyError($(dateTwo));
+                }
+            }
+
+        });
+
+        function dateDiffInDays(a, b) {
+            var aDate = a === "" ? Date.parse("0") : Date.parse(a);
+            var bDate = b === "" ? Date.parse("0") : Date.parse(b);
+            var diff = (aDate) - (bDate);
+            return diff <= 0 ? true : false;
+        }
+
+        function formatDate(date) {
+            var monthNames = [
+                '@Localization.GetText("Jan")',
+                '@Localization.GetText("Feb")',
+                '@Localization.GetText("Mar")',
+                '@Localization.GetText("Apr")',
+                '@Localization.GetText("May")',
+                '@Localization.GetText("Jun")',
+                '@Localization.GetText("Jul")',
+                '@Localization.GetText("Aug")',
+                '@Localization.GetText("Sep")',
+                '@Localization.GetText("Oct")',
+                '@Localization.GetText("Nov")',
+                '@Localization.GetText("Dec")'
+            ];
+
+            var day = date.getDate();
+            var monthIndex = date.getMonth();
+            var year = date.getFullYear();
+
+            return day + ' ' + monthNames[monthIndex] + ' ' + year;
+        }
+
+
+        function cleanDateField(dateField) {
+            dateField.attr("data-parsley-required", false).removeClass('parsley-error').addClass('parsley-success');
+            dateField.closest("div").find('ul').removeClass('filled');
+            dateField.closest("div").find('ul li').remove();
+        }
+
+        function addDateErrorMessage(dateField, errorMessage) {
+            dateField.val("");
+            dateField.attr("data-parsley-required", true).removeClass('parsley-success').addClass('parsley-error');
+            dateField.closest("div").find('ul').addClass("filled")
+                .append("<li id='retroEndDateMessage'>" + errorMessage + "</li>");
+        }
+
+        function addAmountErrorMessage(amountField, errorMessage){
+            amountField.val("");
+            amountField.attr("data-parsley-required", true).removeClass('parsley-success').addClass('parsley-error');
+            if ( $('#retroAmountErrorMessage').length <= 0){
+                amountField.closest("div").find('ul').addClass("filled")
+                .append("<li id='retroAmountErrorMessage'>" + errorMessage + "</li>");
+            }
+        }
+
+        function addParsleyError(dateField) {
+            dateField.attr("data-parsley-required", true).removeClass('parsley-success').addClass('parsley-error');
+        }
+
+        $(document).on("click", '[name="selectAllSubdelegate"]', function() {
+            var labelElement = $(this).closest('div').find('label.labelNormal');
+
+            if ($(this).prop('checked')) {
+                $("td.itemCheckDelegation#Subdelegate")
+                    .find("input[type='checkbox']:enabled")
+                    .prop('checked', true);
+
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.UnselectAll")");
+
+                $('#subdelegationContainer').find('[type="checkbox"]')
+                    .not(":disabled")
+                    .prop("checked", true);
+
+                showLoader();
+                setTimeout(function() {
+                    editOperationTypeNoAsyn();
+
+                    $('#attributeTable')
+                        .find("input[type='checkbox']:enabled")
+                        .prop('checked', true);
+
+                    hideLoader();
+                }, 500);
+            } else {
+                $("td.itemCheckDelegation#Subdelegate")
+                    .find("input[type='checkbox']:enabled")
+                    .prop('checked', false);
+
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.SelectAll")");
+
+                $('#subdelegationContainer').find('[type="checkbox"]')
+                    .not(":disabled")
+                    .prop("checked", false);
+
+                    showLoader();
+                    setTimeout(function() {
+                        editOperationTypeNoAsyn();
+                        hideLoader();
+                    }, 500);
+            }
+
+            checkVerifyAuthorize();
+
+        });
+
+        $(document).on("click", '[name="selectAllPermissions"]', function() {
+            var labelElement = $(this).closest('div').find('label.labelNormal');
+
+            if ($(this).prop('checked')) {
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.UnselectAll")");
+
+                $('#assignPermissionContainerBody').find('[type="checkbox"]')
+                    .not(":disabled")
+                    .prop("checked", true);
+
+            } else {
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.SelectAll")");
+
+                $('#assignPermissionContainerBody').find('[type="checkbox"]')
+                    .not(":disabled")
+                    .prop("checked", false);
+            }
+
+            checkVerifyAuthorize();
+        });
+
+        $(document).on("click", '#assignPermissionContainerBody [type="checkbox"]', function() {
+            var elements = $('#assignPermissionContainerBody').find('[type="checkbox"]').not(":disabled");
+            var unchecked = $.grep(elements, function(element) {
+                return $(element).prop('checked') == false;
+            });
+
+            var selectAll = $('[name="selectAllPermissions"]');
+            var labelElement = $(selectAll).closest('div').find('label.labelNormal');
+
+            if (unchecked.length == 0) {
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.UnselectAll")");
+                $(selectAll).prop('checked', true);
+            } else {
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.SelectAll")");
+                $(selectAll).prop('checked', false);
+            }
+        });
+
+        $(document).on("click", '#subdelegationContainer [type="checkbox"]', function() {
+            var elements = $('#subdelegationContainer').find('[type="checkbox"]').not(":disabled");
+            var unchecked = $.grep(elements, function(element) {
+                return $(element).prop('checked') == false;
+            });
+
+            var selectAll = $('[name="selectAllSubdelegate"]');
+            var labelElement = $(selectAll).closest('div').find('label.labelNormal');
+
+            if (unchecked.length == 0) {
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.UnselectAll")");
+                $(selectAll).prop('checked', true);
+            } else {
+                labelElement.text("@Localization.GetText("OP.DE.SE.RE.SelectAll")");
+                $(selectAll).prop('checked', false);
+            }
+        });
+
+        function containsRoles(roleList, currentRoleId) {
+            for (var i = 0; i < roleList.length; i++) {
+                if (roleList[i] === currentRoleId) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function populateRoles() {
+            var searchDelegatorName = $('[name="SearchDelegatorName"]').val();
+            var operationNumber = $('[name="OperationNumberFilter"]').val();
+            var role = 0;
+            if (searchDelegatorName !== "") {
+                postUrlWithOptions(
+                        '@Url.Action("SearchDelegatorFilterRol", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                        { async: false },
+                        { 'userName': searchDelegatorName, 'operationNumber': operationNumber })
+                    .done(function(data) {
+                        var roleContainer = $(".filterName").siblings('.filterGroup').find('.dropdown-menu');
+                        var listData = data;
+                        var roleList = new Array();
+                        if (listData.GetListItemRoles != null) {
+
+                            for (i = 0; i < listData.GetListItemRoles.length; i++) {
+                                var newRole = data.GetListItemRoles[i].Value;
+                                roleList.push(newRole);
+                            }
+
+                        } else {
+                            $(".filterName").siblings('.filterGroup').find('.dropdown-menu li').addClass('hide');
+                        }
+
+                        roleContainer.find("li").each(function() {
+                            var currentRoleId = $(this).find("a").attr("dd-value");
+                            if (!containsRoles(roleList, currentRoleId)) {
+                                $(this).addClass('hide');
+                            };
+                        });
+
+                    });
+            } else {
+                showMessage('@Localization.GetText("Delegation.All.SelectDelegator")');
+                $("#DelegatorTable tbody tr").remove();
+            }
+        }
+
+        $(".filterName").find(".dropdown-menu").on('click', 'li a', function() {
+            var rolNameValue = $(this).text();
+            populateRoles();
+        });
+
+        $(".filterName").find('input[name="SearchDelegatorName_text"]').on('change',
+            function() {
+                if ($(this).val() == "") {
+                    $(".filterName").siblings('.filterGroup').find('.dropdown-menu li').removeClass('hide');
+                }
+            });
+
+        $(".filterName").find('input[name="SearchDelegatorName_text"]').on('keyup',
+            function() {
+                $(".filterName").siblings('.filterGroup').find('span.valueText').html('(Select Option)');
+                $(".filterName").siblings('.filterGroup').find('.dropdown').addClass('placeholder');
+                $(".filterName").siblings('.filterGroup').find('.dropdown-menu li').removeClass('hide');
+            });
+
+        function separateColumnIntoSeveralDivs() {
+            if ($(".delegationColumn").length === 0) {
+                var divsColumns = $(".delegationContainer .delegationColumns");
+                var divColumnsLenght = divsColumns.length;
+                var divColumnsLengthForThreeColumns = Math.floor(divColumnsLenght / 3);
+
+                if (divColumnsLenght <= 8) {
+                    if (divColumnsLengthForThreeColumns % 2 != 0) {
+                        divColumnsLengthForThreeColumns = divColumnsLengthForThreeColumns + 1;
+                    }
+                }
+
+                if (divColumnsLengthForThreeColumns === 0) {
+                    divColumnsLengthForThreeColumns = 1;
+                }
+
+                for (var i = 0; i < divColumnsLenght; i += divColumnsLengthForThreeColumns) {
+                    divsColumns.slice(i, i + divColumnsLengthForThreeColumns)
+                        .wrapAll("<div class='col-md-3 delegationColumn'></div>");
+                }
+
+                $(".delegationColumns:last").parent().css("border", "none");
+
+                $('.delegationContainer').find('span.icon').click();
+            }
+        }
+
+        function childrensSelection(parentName) {
+            var selected = $("input[data-children='" + parentName + "']");
+            selected.prop("checked", true);
+        }
+
+        function childrensDeselected(parentName) {
+            var selected = $("input[data-children='" + parentName + "']");
+            selected.prop("checked", false);
+        }
+
+        function editOperationTypeNoAsyn() {
+            var operationNames = [];
+            $(".operationTypeData #editDelegatePermissions input[type='checkbox']:checked").each(function() {
+                operationNames.push($(this).siblings("span").children("label").text());
+            });
+
+            var operationNamesGroup = operationNames.join("|");
+
+            postUrlWithOptions(
+                    '@Url.Action("RefreshAssignAttributesSubdelegation", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                    { async: false },
+                    { 'operationTypes': operationNamesGroup, 'delegationId': '@Model.DelegationId' })
+                .done(function(data) {
+                    var resultSearchPanel = $('.AssignAttributes');
+                    resultSearchPanel.html(data);
+                    bindHandlers(resultSearchPanel);
+                    enterEditMode(false, resultSearchPanel, false);
+                });
+        }
+
+        function operationTypeClick() {
+            $(".operationTypeData").on("click", "#editDelegatePermissions input[type='checkbox']",
+                function() {
+                    showLoader();
+                    setTimeout(function() {
+                        editOperationTypeNoAsyn();
+                        hideLoader();
+                    }, 500);
+                });
+        }
+
+        function fixUserAssignInputSearchStyle() {
+            $('.inputSearch').eq(1).find('input[type="text"]').first().addClass('mb20');
+            $('.inputSearch').eq(1).attr('style', 'width: 250px !important');
+        }
+
+        function desactivateEditHeader() {
+            $(".buttonblue").data("action", "cleanDelegatorButton").prop("disabled", "disabled");
+            $("input[name=SearchDelegatorName_text], input[name=OperationNumberFilter], #id-RoleFilter")
+                .prop("disabled", "disabled");
+            $(".filterNormal").find("button.buttonBlue, button").prop("disabled", "disabled");
+        }
+
+        function loadOperationsList(roleName, currentOperation) {
+            var operationsList = [];
+
+            $('#DelegatorTable tbody tr').each(function() {
+                var currentRow = $(this);
+                if (currentRow.find('td:last').prev().find('span:first').find('label').text() === roleName) {
+                    operationsList.push(currentRow.find('td.operationNumber').find('span:first').text());
+                }
+            });
+
+            var index = operationsList.indexOf(currentOperation);
+            if (index != -1)
+                operationsList.splice(index, 1);
+
+            operationsList = jQuery.unique(operationsList);
+
+            return operationsList;
+        }
+
+        function loadOperationsListTable(operationsList, listOfAllOperations) {
+            $('#operationsListContent').html("");
+            if (operationsList.length > 0) {
+                addOperationsRows(operationsList, listOfAllOperations);
+
+                $('h3.operationsListTitle').removeClass("hide");
+
+                separateOperationsListIntoSeveralRows();
+            }
+        }
+
+        function addOperationsRows(operationsList, listOfAllOperations) {
+            $.each(operationsList,
+                function(index, value) {
+                    var operationTitle = value;
+                    var newOperation =
+                        '@Confluence.InputCheckbox(Model.DelegationId != 0, "operationNumber", label: "operationNumberText", disabled: Model.DelegationId != 0, labelBold: true, htmlClass: "operationNumberItem").ToString().Replace("\r\n", "").Replace("\n", "")';
+                    newOperation = newOperation.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+                        .replace(/&/g, '&').replace("\r\n", "").replace("\n", "")
+                        .replace("operationNumberText", operationTitle);
+                    $('#operationsListContent').append(newOperation);
+                });
+
+            if (listOfAllOperations.length > 0) {
+                var remainingOperationsNotAddedYet = $(listOfAllOperations).not(operationsList);
+                $.each(remainingOperationsNotAddedYet,
+                    function(index, value) {
+                        var operationTitle = value;
+                        var newOperation =
+                            '@Confluence.InputCheckbox(false, "operationNumber", label: "operationNumberText", disabled: true, labelBold: true, htmlClass: "operationNumberItem NotYetDelegatedOperation").ToString().Replace("\r\n", "").Replace("\n", "")';
+                        newOperation = newOperation.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+                            .replace(/&/g, '&').replace("\r\n", "").replace("\n", "")
+                            .replace("operationNumberText", operationTitle);
+                        $('#operationsListContent').append(newOperation);
+                    });
+            }
+        }
+
+        function separateOperationsListIntoSeveralRows() {
+            var operationsColumns = $("#operationsList label.checkbox-default");
+            var operationsColumnsColumnsLenght = operationsColumns.length;
+            var operationsColumnsColumnsLengthForThreeColumns = Math.floor(operationsColumnsColumnsLenght / 3);
+
+            if (operationsColumnsColumnsLenght <= 8) {
+                if (operationsColumnsColumnsLengthForThreeColumns % 2 != 0) {
+                    operationsColumnsColumnsLengthForThreeColumns = operationsColumnsColumnsLengthForThreeColumns + 1;
+                }
+            }
+
+            if (operationsColumnsColumnsLengthForThreeColumns === 0) {
+                operationsColumnsColumnsLengthForThreeColumns = 1;
+            }
+
+            for (var i = 0; i < operationsColumnsColumnsLenght; i += operationsColumnsColumnsLengthForThreeColumns) {
+                operationsColumns.slice(i, i + operationsColumnsColumnsLengthForThreeColumns)
+                    .wrapAll("<div class='operationsListRow col-md-12 mb10 pl0'></div>");
+            }
+        }
+
+        function loadOperationsNumbersToBeSaved() {
+            var operationsNumbers = "";
+            $("#DelegatorTable").find("tbody>tr").each(function() {
+                var isChecked = $($(this).find("td")[0]).find("input:checked").length;
+                var isNotFirstSelection = $($(this).find("td")[11]).find("input:checked").length;
+                if (isChecked > 0 && isNotFirstSelection == 0) {
+                    operationsNumbers += $($($(this).find("td")[9]).find("span")).text().trim() + ",";
+                }
+            });
+
+            $("#operationsToBeSaved").val(operationsNumbers);
+        }
+
+
+        function downloadDelegatorExport(source) {
+            var formatType = source.attr('name');
+            var delegationId = '@Model.DelegationId';
+            var searchDelegatorName = $('[name="SearchDelegatorName"]').val();
+            var operationNumber = $('[name="OperationNumberFilter"]').val();
+            var role = parseInt($('[name="RoleFilter"]').val()) ? parseInt($('input[name="RoleFilter"]').val()) : 0;
+            var operationNumbers = [];
+            $('#DelegatorTable').find('input:checked').each(function() {
+                var row = $(this).closest('tr');
+                var operationNumber = $(row).find('td.operationNumber span').text()
+                if(operationNumber != "" && !isInArray(operationNumber, operationNumbers))
+                {
+                    operationNumbers.push(operationNumber);
+                }
+            });
+            var url =
+                '@Url.Action("DownloadDelegatorFileExport", "DelegationView", new {area = "AdministrationSecondPhase"})?formatType=' +
+                    formatType +
+                    '&searchDelegatorName=' +
+                    searchDelegatorName +
+                    '&operationNumber=' +
+                    operationNumbers +
+                    '&role=' +
+                    role +
+                    '&delegationId=' +
+                    delegationId;
+            window.open(url, '_blank');
+        }
+
+        function downloadDocumentsExport(source) {
+            var formatType = source.attr('name');
+            var rowSelected = $('#DelegatorTable tbody tr').has(":checked");
+            var userName = $('[name="SearchDelegatorName"]').val();
+            var operationNumber = rowSelected.find("td.OperationNumber").find("span:first").text();
+            var delegationId = '@Model.DelegationId';
+            var roleDelegetor = rowSelected.find('[name="roleIdDelegator"]').val();
+            var country = rowSelected.find("td.country").find("span:first").text();
+            var department = rowSelected.find("td.department").find("span:first").text();
+            var cDepartment = rowSelected.find("td.cDepartment").find("span:first").text();
+            var division = rowSelected.find("td.division").find("span:first").text();
+            var operationNumbers = [];
+            var countrys = [];
+            var departments = [];
+            var cDepartments = [];
+            var divisions = [];
+            $('#DelegatorTable').find('input:checked').each(function() {
+                var row = $(this).closest('tr');
+                var operationNumber = $(row).find('td.operationNumber span').text()
+                if(operationNumber != "" && !isInArray(operationNumber, operationNumbers))
+                {
+                    operationNumbers.push(operationNumber);
+                }
+
+                var country = $(row).find('td.country span').text()
+                if(country != "" && !isInArray(country, countrys))
+                {
+                    countrys.push(country);
+                }
+
+                var department = $(row).find('td.department span').text()
+                if(department != "" && !isInArray(department, departments))
+                {
+                    departments.push(department);
+                }
+
+                var cDepartment = $(row).find('td.cDepartment span').text()
+                if(cDepartment != "" && !isInArray(cDepartment, cDepartments))
+                {
+                    cDepartments.push(cDepartment);
+                }
+
+                var division = $(row).find('td.division span').text()
+                if(division != "" && !isInArray(division, divisions))
+                {
+                    divisions.push(division);
+                }
+            });
+            var url =
+                '@Url.Action("DownloadDelegationDocumentsFileExport", "DelegationView", new {area = "AdministrationSecondPhase"})?formatType=' +
+                    formatType +
+                    '&userName=' +
+                    userName +
+                    '&operationNumber=' +
+                    operationNumbers +
+                    '&delegationId=' +
+                    delegationId +
+                    '&roleId=' +
+                    roleDelegetor +
+                    '&country=' +
+                    countrys +
+                    '&countryDepartment=' +
+                    cDepartments +
+                    '&department=' +
+                    departments +
+                    '&division=' +
+                    divisions;
+            window.open(url, '_blank');
+        }
+
+        function previousSortableConfluense() {
+            $('#DelegatorTable [data-pagemode="edit"]').each(function() {
+                if ($(this).text().length == 0) {
+                    $(this).remove();
+                }
+            });
+        }
+
+        function delegablePermissionTask(){
+            var selectedAuthorizedRow = $('input[name="SelectDelegator"][type="checkbox"]:checked').first().closest("tr");
+            var userName = $('[name="SearchDelegatorName"]').val();
+            var roleDelegetor = selectedAuthorizedRow.find('input[name="roleIdDelegator"]').val();
+            var division = selectedAuthorizedRow.find("td.division").find("span:first").text().trim();
+            var delegateUsername = $('[name="SearchDelegateUser"]').val();
+
+            var operationNumbers = [];
+            var countrys = [];
+            var departments = [];
+            var cDepartments = [];
+            var divisions = [];
+            $('#DelegatorTable').find('input:checked').each(function() {
+                var row = $(this).closest('tr');
+                var operationNumber = $(row).find('td.operationNumber span').text()
+                if(operationNumber != "" && !isInArray(operationNumber, operationNumbers))
+                {
+                    operationNumbers.push(operationNumber);
+                }
+
+                var country = $(row).find('td.country span').text()
+                if(country != "" && !isInArray(country, countrys))
+                {
+                    countrys.push(country);
+                }
+
+                var department = $(row).find('td.department span').text()
+                if(department != "" && !isInArray(department, departments))
+                {
+                    departments.push(department);
+                }
+
+                var cDepartment = $(row).find('td.cDepartment span').text()
+                if(cDepartment != "" && !isInArray(cDepartment, cDepartments))
+                {
+                    cDepartments.push(cDepartment);
+                }
+
+                var division = $(row).find('td.division span').text()
+                if(division != "" && !isInArray(division, divisions))
+                {
+                    divisions.push(division);
+                }
+            });
+
+            showLoader();
+            postUrlWithOptions(
+                    '@Url.Action("DelegablePermissionTask", "DelegationView", new {area = "AdministrationSecondPhase"})',
+                    { async: false },
+                    {
+                        'userName': userName,
+                        'operationNumbers': operationNumbers,
+                        'delegationId': '@Model.DelegationId',
+                        'roleId': roleDelegetor,
+                        'countrys': countrys,
+                        'cDepartments': cDepartments,
+                        'departments': departments,
+                        'divisions': divisions,
+                        'delegateUsername': delegateUsername
+                    })
+                .done(function(data) {
+                    var resultSearchPanel = $('#assignPermissionContent');
+                    resultSearchPanel.html(data);
+                    bindHandlers(resultSearchPanel);
+                    enterEditMode(false, $('#assignPermissionContent'), false);
+                    $("#assignPermissionContent").removeClass('hide');
+                    $('#hidViewModel').val($('#NewhidViewModel').val());
+
+                    separateColumnIntoSeveralDivs();
+
+                    hideLoader();
+                    $('[name="selectAllSubdelegate"]').prop('checked', false);
+                    $('[name="selectAllPermissions"]').prop('checked', false);
+
+                    operationTypeClick();
+
+                    setTimeout(function() {
+                        $(".btnCollapseAll").Expandable(true);
+                    }, 500);
+                });
+        }
+
+        function renderizeRow(documentList, sourceType, fileNames) {
+            var docNumber;
+            var fileName;
+            if (documentList.length <= 0)
+                return;
+            if (sourceType === "selected") {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0].DocumentNumber;
+                    fileName = documentList[0].DocumentName;
+                }
+
+            } else {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0];
+                }
+                if (fileNames.length > 0) {
+                    fileName = fileNames[0];
+                }
+            }
+
+            var url = $('#tableDocumentContent').attr('data-loadurl');
+
+            $.ajax({
+                type: "POST",
+                url: url,
+                data: {
+                    documentNumber: docNumber,
+                    fileName: fileName
+                },
+                success: function (data) {
+                    $('#DocumentsTable > tbody').append(data);
+                    var divDocuments = $('#DocumentsTable').find('tbody');
+                    if ($(divDocuments).find('td.dataTables_empty').length > 0) {
+                        $(divDocuments).find('td.dataTables_empty').parent().remove();
+                    }
+                    var value = $('[name="ddlDocumentsPagination"]').val();
+                    if (value === "All") {
+                        value = $("#DocumentsTable tbody tr").length;
+                    }
+                    $("#DocumentsTable").paginationConfluense(parseInt(value));
+                    closeModal();
+                    enterEditMode(false, $(divDocuments), false);
+                },
+                error: function (error) {
+                    showMessage(error);
+                }
+            });
+        }
+
+
+        $(document).on("change", "input[name='chkSetMinAmount'] , input[name='chkSetMaxAmount'] , input[name^=chkAmount_]", function() {
+            var element = $(this);
+            var elementName = element.attr('name')
+            var attrValue = $(this).prop('checked');
+            var content =  $(element).closest('div[amount-parent]');
+
+            $(element).attr("checked", $(element).prop("checked", attrValue));
+            if (elementName.match(/chkAmount_.*/))
+            {
+                if (attrValue)
+                {
+                    content.find("div[amount-children]").removeClass("hide");
+                }
+                else
+                {
+                    content.find("div[amount-children]").addClass("hide");
+                    var origMaxAmount = content.find("div[data-pagemode='edit'] input[name='txt_chkSetMaxAmount']").attr('data-orig-value');
+                    var origMinAmount = content.find("div[data-pagemode='edit'] input[name='txt_chkSetMinAmount']").attr('data-orig-value');
+                    origMaxAmount = isNaN(origMaxAmount) ? '' : parseFloatFormated(origMaxAmount, 2);
+                    origMinAmount = isNaN(origMinAmount) ? '' : parseFloatFormated(origMinAmount, 2);
+                    content.find("div[data-pagemode='edit'] input[name='txt_chkSetMaxAmount']").val(origMaxAmount).prop('disabled', true).blur();
+                    content.find("div[data-pagemode='edit'] input[name='txt_chkSetMinAmount']").val(origMinAmount).prop('disabled', true).blur();
+
+                    $(content).find("div[data-pagemode='edit'] input[name='chkSetMinAmount']").attr("checked", $(content).find("div[data-pagemode='edit'] input[name='chkSetMinAmount']").prop("checked", false));
+                    $(content).find("div[data-pagemode='edit'] input[name='chkSetMaxAmount']").attr("checked", $(content).find("div[data-pagemode='edit'] input[name='chkSetMaxAmount']").prop("checked", false));
+                }
+            }
+            else
+            {
+                if (attrValue)
+                {
+                    $(content).find("div[data-pagemode='edit'] input[name='txt_" + elementName + "']").prop('disabled', !attrValue);
+                }
+                else
+                {
+                    var origAmount = content.find("input[name='txt_" + elementName + "']").attr('data-orig-value');
+                    origAmount = isNaN(origAmount) ? '' : parseFloatFormated(origAmount, 2);
+                    $(content).find("div[data-pagemode='edit'] input[name='txt_" + elementName + "']").val(origAmount).prop('disabled', !attrValue).blur();
+                }
+            }
+
+            $('[name="txt_chkSetMaxAmount"]').change(function (element) {
+                if ($(this).val().length > 0) {
+                    if ($('[name="txt_chkSetMinAmount"]').val().length == 0) {
+                        $('[name="txt_chkSetMinAmount"]').val('0');
+                    }
+                }
+            });
+        });
+
+        $(document).on("change", "input[name='txt_chkSetMinAmount'] , input[name='txt_chkSetMaxAmount']", function(){
+            var element = $(this);
+            var elementVal = $(this).val();
+            if (elementVal != undefined && elementVal != null)
+            {
+                $(element).val(elementVal.replace("-",""));
+            }
+
+            var content =  $(element).closest('div[amount-children]');
+            var elementName = element.attr('name');
+            var anotherElement;
+
+            if (elementName == 'txt_chkSetMinAmount')
+            {
+                anotherElement = content.find("div[data-pagemode='edit'] input[name='txt_chkSetMaxAmount']");
+                validateInputAmount(element, anotherElement, element);
+            }
+            else
+            {
+                anotherElement = content.find("div[data-pagemode='edit'] input[name='txt_chkSetMinAmount']");
+                validateInputAmount(anotherElement, element, element);
+            }
+
+            $('[name="txt_chkSetMaxAmount"]').change(function (element) {
+                if ($(this).val().length > 0) {
+                    if ($('[name="txt_chkSetMinAmount"]').val().length == 0) {
+                        $('[name="txt_chkSetMinAmount"]').val('0');
+                    }
+                }
+            });
+        });
+
+        function validateInputAmount(element1, element2, currentInput)
+        {
+            var currentContent = $(currentInput).closest('div[amount-children]');
+            var elementName = element1.attr('name');
+            var elementValue = element1.val();
+            var anotherElementValue = element2.val();
+
+            if (anotherElementValue != '' && anotherElementValue != null && elementValue != '' && elementValue != null && parseFloat(parseFloatFormated(elementValue, 2)) > parseFloat(parseFloatFormated(anotherElementValue, 2)))
+            {
+                $(currentContent).find("div[data-pagemode='edit'] input[name='" + elementName + "']").addClass('validation-fail');
+                addAmountErrorMessage(currentInput, '@Localization.GetText("OP.DE.RE.Validation.Minimumfield")');
+            }
+            else
+            {
+                $(currentContent).find("div[data-pagemode='edit'] input[name^='txt_chkSet']").removeClass('validation-fail');
+                cleanDateField(element1);
+                cleanDateField(element2);
+            }
+        }
+
+        $(document).on("keydown", "input[name^='txt_chkSet']", function (e) {
+            if (e.which == 109 || e.which == 189)
+                e.preventDefault();
+        });
+
+
+
+    </script>
+}

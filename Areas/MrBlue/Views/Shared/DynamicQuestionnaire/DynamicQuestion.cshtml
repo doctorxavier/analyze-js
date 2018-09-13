@@ -1,0 +1,73 @@
+﻿@using IDB.MW.Application.MrBlueModule.ViewModels.DynamicQuestionnaire
+
+@model QuestionViewModel
+
+<div class="esgQuestionContainer @(Model.RelatedToId != null ? "subCuestionStyle": string.Empty)"
+     data-questionid="@Model.QuestionId" data-questioncode="@Model.Code" 
+     @(Model.RelatedToId != null ? new MvcHtmlString(string.Format("{0}=\"{1}\"", "data-related-id", Model.RelatedToId)) : null)  >
+    @if (Model.PrintTitle)
+    {
+        <p>
+            @Html.Raw(Model.Question)
+            @if (Model.IsMandatory)
+            {
+                @Confluence.LabelAsterisk()
+            }
+        </p>
+
+    }
+
+    <div class="esgAnswerBlockContainer" data-pagemode="edit">
+        @switch (Model.QuestionType)
+        {
+            case IDB.MW.Application.MrBlueModule.Enums.QuestionTypeEnum.Textbox:
+            case IDB.MW.Application.MrBlueModule.Enums.QuestionTypeEnum.TextArea:
+            case IDB.MW.Application.MrBlueModule.Enums.QuestionTypeEnum.Numericbox:
+            case IDB.MW.Application.MrBlueModule.Enums.QuestionTypeEnum.Date:
+            case IDB.MW.Application.MrBlueModule.Enums.QuestionTypeEnum.DateTime:
+                @Html.Partial("DynamicQuestionnaire/AnswerContainers/" + Model.QuestionType.ToString(), new AnswerViewModel { Question = Model, QuestionId = Model.QuestionId })
+                break;
+            case IDB.MW.Application.MrBlueModule.Enums.QuestionTypeEnum.Dropdown:
+            @Html.Partial("DynamicQuestionnaire/AnswerContainers/" + Model.QuestionType.ToString(),
+            new Tuple<AnswerViewModel, List<SelectListItem>>(
+                     Model.Answers.FirstOrDefault(x => x.AnswerId.ToString() == Model.Value)
+                //Default answer if the model returns null.
+                    ?? new AnswerViewModel
+                    {
+                        QuestionId = Model.QuestionId,
+                        AnswerId = default(int),
+                        Question = new QuestionViewModel
+                        {
+                            QuestionId = Model.QuestionId,
+                            QuestionCode = Model.Code,
+                            QuestionGroupId = Model.QuestionGroupId,
+                            IsMandatory = Model.IsMandatory,
+                            ValidationAttributes = new Dictionary<string, string>()
+                        }
+                    },
+                //List of possible answers.
+                    Model.Answers.Select(a => new SelectListItem
+                    {
+                        Text = a.Text,
+                        Value = a.AnswerId.ToString(),
+                        Selected = a.AnswerId.ToString() == a.Question.Value
+                    }).ToList()))
+                break;
+            default:
+                if (Model.Answers.Any())
+                {
+                    foreach (var answer in Model.Answers.OrderBy(a => a.Order))
+                    {
+                        @Html.Partial("DynamicQuestionnaire/AnswerContainers/" + Model.QuestionType.ToString(), answer)
+                    }
+                }
+                else
+                {
+                    //Only one checkbox
+                    @Html.Partial("DynamicQuestionnaire/AnswerContainers/" + Model.QuestionType.ToString(), new AnswerViewModel { Question = Model, QuestionId = Model.QuestionId, Text = Model.Question })
+                }
+
+                break;
+        }
+    </div>
+</div>

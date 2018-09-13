@@ -1,0 +1,820 @@
+﻿@using System.Web.Mvc
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.General
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model ProcurementDetailViewModel
+
+@if (Model != null && (Model.ViewContainer != null) && Model.ViewContainer.GetValue<bool>("IsValid"))
+{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatIntegerDolar = appSettings.FormatIntegerDolar;
+    var isDevelopmentMode = appSettings.IsDevelopmentMode;
+
+    var ineligibilityReasonList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("IneligibilityReasonType").ConvertToSelectListItems();
+
+    var statusCancelled = Model.ViewContainer.GetValue<int>("CancelledId");
+    var statusInigibility = Model.ViewContainer.GetValue<int>("InigibilityId");
+    var ExAnte = Model.ViewContainer.GetValue<int>("ExAnte");
+    var ExPost = Model.ViewContainer.GetValue<int>("ExPost");
+    var declareSubject = Model.ViewContainer.GetValue<int>("DeclareSubject");
+    var declareNotSubject = Model.ViewContainer.GetValue<int>("DeclareNotSubject");
+    var individualConsultingId = Model.ViewContainer.GetValue<int>("IndividualConsultingId");
+    var forceAccount = Model.ViewContainer.GetValue<int>("ForceAccountId");
+    var nationalSystem = Model.ViewContainer.GetValue<int>("NationalSystem");
+
+    var text = Localization.GetText("SGP.Label.Procurement");
+    var hasWfLaunched = Localization.GetText("SGP.Message.CheckHasWfLaunched");
+    var subTitle = text + " " + Model.Header.ProcessId + ": " + Model.Header.Name;
+    if (isDevelopmentMode)
+    {
+        <div class="row">
+            <div class="col-xs-4">
+                @Confluence.ButtonBlue("ChangeContractStatus", "ChangeContractStatus-button")
+            </div>
+            <div class="col-xs-4">
+                @Confluence.ButtonBlue("ChangeStatusExecution", "ChangeStatusExecution-button")
+            </div>
+            <div class="col-xs-4">
+                @Confluence.ButtonBlue("ChangeStatusFinished", "ChangeStatusFinished-button")
+            </div>
+        </div>
+    }
+
+    <div class="hide" data-section="modals">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"wf-inegibility-has-been-launched\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-has-inegible-wf-launched",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-cancel-ok",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                             callback: "",
+                            closeAtEnd: true))
+        <div data-name="wf-inegibility-has-been-launched" class="hide modalBody">
+            @Localization.GetText("SGP.Message.CheckHasWfInegibiityLaunched")
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"wf-has-been-launched\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-has-wf-launched",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-cancel-ok",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                             callback: "",
+                            closeAtEnd: true))
+        <div data-name="wf-has-been-launched" class="hide modalBody">
+            @hasWfLaunched
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(
+            contentSelector: "[data-name=\"cancel-process-modal\"]",
+            title: Localization.GetText("SGP.Label.RequestCancellation"),
+            type: CssClass.ModalInformationNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-cancel",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+            .AddButton(name: "btn-cancel-cancel-process",
+            text: Localization.GetText("Common.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "koCancelProcess")
+            .AddButton(name: "btn-cancel-process",
+            text: Localization.GetText("SGP.Button.CancelProcess"),
+            type: CssClass.Button01,
+            callback: "okCancelProcess",
+            closeAtEnd: true))
+
+        <div id="cancel-process-form" data-name="cancel-process-modal" class="hide modalBody modalSGP"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-url="@Url.Action("SaveCancelProcess", "ProcurementDetail", new { area = "SGP", procurementid = Model.ProcurementId })">
+            <div data-fake-pagemode="edit">
+                <input type="hidden" value="@(PageSerializationHelper.SerializeObject(Model.Header.CancelProcess))" id="hiddenCancelProcessModel" name="hiddenCancelProcessModel" />
+                @Html.Partial("EditPartial/_cancelProcess", Model.Header.CancelProcess != null ? Model.Header.CancelProcess : new CancelProcessViewModel())
+            </div>
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(
+            contentSelector: "[data-name=\"declare-ineligibility-modal\"]",
+            title: Localization.GetText("SGP.Label.RequestIneligibility"),
+            type: CssClass.ModalInformationNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-ineligibility",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+            .AddButton(name: "btn-declare-ineligibility-cancel",
+            text: Localization.GetText("Common.Cancel"),
+            type: CssClass.ButtonLink,
+            callback: "koDeclareIneligibility")
+            .AddButton(name: "btn-declare-ineligibility-ok",
+            text: Localization.GetText("SGP.Label.DeclareIngeibility"),
+            type: CssClass.Button01,
+            callback: "okDeclareIneligibility",
+            closeAtEnd: true))
+
+        <div id="declare-ineligibility-form" data-name="declare-ineligibility-modal" class="hide modalBody modalSGP"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-url="@Url.Action("SaveDeclareInegibility", "ProcurementDetail", new { area = "SGP", procurementid = Model.ProcurementId })">
+            <div data-fake-pagemode="edit">
+                <input type="hidden" value="@(PageSerializationHelper.SerializeObject(Model.Header.DeclareIneligibility))" id="hiddenDeclareIneligibilityModel" name="hiddenDeclareIneligibilityModel" />
+                @Html.Partial("EditPartial/_declareIneligibility", Model)
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt5">
+        <div class="col-xs-12">
+            @Html.Partial("ReadPartial/Buttons", Model)
+            @Confluence.LabelMainTitle(Localization.GetText("SGP.Label.ProcurementDetail"))
+        </div>
+    </div>
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Confluence.LabelMainSubTitle(subTitle, htmlClass: "subTitleSG")
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("COMMON.ApprovalNumber"),
+        contentAlways: Model.Header.ApprovalNumber, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("COMMON.SVQ.TotalCost"),
+        contentAlways: FormatHelper.Format(Model.Header.TotalCost, formatIntegerDolar), asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.ProcurementType"),
+        contentAlways: Model.Header.ProcurementTypeName, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.ProcurementMethod"),
+        contentAlways: Model.Header.ProcurementMethodName, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.SupervisionMethod"),
+        contentAlways: (Model.Header.SupervisionMethodName), asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("COMMON.Status"),
+        contentAlways: Model.Header.StatusName, asterisk: false)
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.Component"),
+        contentAlways: Model.Header.ComponentName, asterisk: false)
+        </div>
+    </div>
+    <div class="page">
+        @if (Model.Header.CancelProcess != null)
+        {
+            if (Model.Header.SupervisionMethodId == ExAnte && Model.Header.HasCancelWorkflow && Model.Header.WorkflowCancelDetail != null)
+            {
+                <div class="row">
+                    <div class="col-xs-12">
+                        @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.CancellationWorkFlowDetails"), htmlClass: "subTitleSG mb10")
+                    </div>
+                </div>
+                <div class="row mb10">
+                    <div class="col-xs-4">
+                        @Confluence.Label(Localization.GetText("COMMON.ID"))
+                    </div>
+                    <div class="col-xs-8">
+                        @Confluence.Label(Localization.GetText("COMMON.Status"))
+                    </div>
+                </div>
+            
+                <div class="row mb10">
+                    <div class="col-xs-4">
+                        @Confluence.LabelBold(text: Model.Header.WorkflowCancelDetail.WorkFlowCode)
+                    </div>
+                    <div class="col-xs-8">
+                        @Confluence.LabelBold(Model.Header.WorkflowCancelDetail.Status)
+                    </div>
+                </div>
+            }
+
+            <div class="row mb20">
+                <div class="col-xs-12"></div>
+            </div>
+            <div class="row">
+                <div class="col-xs-12">
+                    @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.ReasonForCancellationWorkFlow"),
+                   contentAlways: Model.Header.CancelProcess.WorkFlowReason, asterisk: false)
+                </div>
+            </div>
+        }
+
+        @if (Model.Header.DeclareIneligibility != null)
+        {
+            if ((Model.Header.HasDeclareInegibilitySubCancelWorkflow || Model.Header.HasDeclareInegibilityNotSubCancelWorkflow) && (Model.Header.WorkflowDeclareInigibilityDetail != null))
+            {
+                <div class="row">
+                    <div class="col-xs-12">
+                        @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.InegibilityWorkFlowDetails"), htmlClass: "subTitleSG mb10")
+                    </div>
+                </div>
+                <div class="row mb10">
+                    <div class="col-xs-4">
+                        @Confluence.Label(Localization.GetText("COMMON.ID"))
+                    </div>
+                    <div class="col-xs-8">
+                        @Confluence.Label(Localization.GetText("COMMON.Status"))
+                    </div>
+                </div>
+
+                <div class="row mb10">
+                    <div class="col-xs-4">
+                        @Confluence.LabelBold(text: Model.Header.WorkflowDeclareInigibilityDetail.WorkFlowCode)
+                    </div>
+                    <div class="col-xs-8">
+                        @Confluence.LabelBold(Model.Header.WorkflowDeclareInigibilityDetail.Status)
+                    </div>
+                </div>
+            }
+
+            <div class="row mb20">
+                <div class="col-xs-12"></div>
+            </div>
+            <div class="row">
+                <div class="col-xs-12">
+                    @Confluence.LabelsGroup(title: string.Format(Localization.GetText("SGP.Label.ReasonInegibilityWorkFlow"), Model.Header.DeclareIneligibility.IneginilityReasonText),
+                contentAlways: Model.Header.DeclareIneligibility.Reason, asterisk: false)
+
+                </div>
+            </div>
+        }
+
+        @{
+        var dictionaryTabs = new Dictionary<string, string>()
+        {
+            {ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL, Localization.GetText("SGP.Label.ProcurementDetail") },
+            {ProcurementDetailNavigation.TAB_NAME_CHECKLIST, Localization.GetText("SGP.Label.CheckList") },
+            {ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS, Localization.GetText("SGP.Label.BiddingDocuments") }
+        };
+
+        if (Model.Header.ProcurementMethodId != forceAccount && Model.Header.SupervisionMethodId != nationalSystem)
+        {
+            dictionaryTabs.Add(ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS, Localization.GetText("SGP.Label.ParticipantsEvaluation"));
+
+            if (Model.Header.ProcurementTypeId != individualConsultingId)
+            {
+                dictionaryTabs.Add(ProcurementDetailNavigation.TAB_NAME_LOTS, Localization.GetText("SGP.Label.Lots"));
+            }
+
+            dictionaryTabs.Add(ProcurementDetailNavigation.TAB_NAME_CONTRACTS, Localization.GetText("SGP.Label.Contracts"));
+        }
+        }
+
+        @Confluence.Tabs(dictionaryTabs)
+
+        <div class="tab-content mt20">
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL)">
+                @if (Model.DetailTab != null)
+                {
+                    @Html.Partial("ReadPartial/Details/DetailsPartial", Model)
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_CHECKLIST)">
+                @if (Model.ChecklistTab != null)
+                {
+                    @Html.Partial("ReadPartial/Checklist/ChecklistPartial", Model)
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS)">
+                @if (Model.BiddingDocTab != null)
+                {
+                    @Html.Partial("ReadPartial/BiddingDocuments/BiddingDocumentsPartial", Model)
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS)">
+                @if (Model.ParticipantTab != null)
+                {
+                    @Html.Partial("ReadPartial/Participants/ParticipantsPartial", Model)
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_LOTS)">
+                @if (Model.LotsTab != null)
+                {
+                    @Html.Partial("ReadPartial/Lots/LotsPartial", Model)
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_CONTRACTS)">
+                @if (Model.ContractsTab != null)
+                {
+                    @Html.Partial("ReadPartial/Contracts/ContractsPartial", Model)
+                }
+            </div>
+        </div>
+
+    </div>
+
+    @section scripts{
+
+        <script type="text/javascript">
+    /*------- NAVIGATION------- */
+
+    var razorRead = {
+        ActiveTab: '@Model.ViewContainer["ActiveTab"]',
+        Tabs: {
+            Detail: '@ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL',
+            Cheklist: '@ProcurementDetailNavigation.TAB_NAME_CHECKLIST',
+            BiddingDocument: '@ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS',
+            Participants: '@ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS',
+            Lots: '@ProcurementDetailNavigation.TAB_NAME_LOTS',
+            Contract: '@ProcurementDetailNavigation.TAB_NAME_CONTRACTS'
+        },
+        Url: {
+            Edit: '@Url.Action("Edit", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })',
+            GetChecklistAviable: '@Url.Action("GetChecklistAviable", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })',
+            DownloadDocument: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })'
+        },
+        Status: {
+            StatusCancelled: '@statusCancelled',
+            StatusInigibility: '@statusInigibility',
+            StatusHeader: '@Model.Header.StatusId',
+            SupervisionHeader: '@Model.Header.SupervisionMethodId',
+            StatusExPost: '@ExPost',
+        },
+
+        Workflow: {
+            HasWfLaunch: '@Model.Header.HasWfLaunched',
+            HasCancelWF: '@Model.Header.HasCancelWorkflow',
+            WFCancelEntityType: '@Model.Header.WorkflowCancelEntityType',
+            HasDeclareInegibilitySubWF: '@Model.Header.HasDeclareInegibilitySubCancelWorkflow',
+            WFDeclareInegibilitySub: '@Model.Header.WorkflowDeclareInegibilitySubCancelEntityType',
+            HasDeclareInegibilityNotSubWF: '@Model.Header.HasDeclareInegibilityNotSubCancelWorkflow',
+            WFDeclareInegibilityNotSub: '@Model.Header.WorkflowDeclareInegibilityNotSubCancelEntityType',
+            WFDeclareCodeType: {
+                Subjet: "WFISU",
+                NotSubject: "WFINS",
+            }
+        },
+
+        Messages: {
+            CanNotEditChecklist: '@(Localization.GetText("SGP.Label.ValidationWithFirstDateNull"))',
+        },
+
+        ReasonType: {
+            Subject: '@declareSubject',
+        NoSubjet: '@declareNotSubject',
+        },
+
+        ProcurementId: '@Model.ProcurementId',
+
+        @if (Model.Header.DeclareIneligibility != null
+                && (Model.Header.DeclareIneligibility.HasWfLaunched.HasValue
+                && Model.Header.DeclareIneligibility.HasWfLaunched.Value))
+        {
+            @:HasDeclareWfLaunched: 'True',
+                }
+        else
+        {
+            @:HasDeclareWfLaunched: 'False',
+                }
+
+        @if (Model.Header.CancelProcess != null
+            && (Model.Header.CancelProcess.HasWfLaunched.HasValue
+            && Model.Header.CancelProcess.HasWfLaunched.Value))
+        {
+            @:HasCancelWfLaunched: 'True',
+                }
+        else
+        {
+            @:HasCancelWfLaunched: 'False',
+                }
+};
+
+
+    /* ------ BUTTONS EDIT SECTION ------*/
+    registerCallback(function () {
+
+        $(document).on('click', '[name="edit-Details"]', function () {
+            var source = $(this);
+            var url = razorRead.Url.Edit;
+            var canEditDetails = source.attr('data-canEditDetails') == "true";
+
+            if (canEditDetails) {
+                url = url + '&tabName=' + razorRead.Tabs.Detail;
+                LocationAssign(url);
+            }
+            else {
+                showMessage(razorRead.Messages.CanNotEditChecklist);
+            }
+        });
+
+        $(document).on('click', '[name="Edit-Lots"]', function () {
+            var url = razorRead.Url.Edit;
+            url = url + '&tabName=' + razorRead.Tabs.Lots;
+            LocationAssign(url);
+        });
+
+        $(document).on('click', '[name="edit-Participants"]', function () {
+            var source = $(this);
+            var url = razorRead.Url.Edit;
+            var canEditParticipants = source.attr('data-canEditParticipants') == "true";
+            if (canEditParticipants) {
+                url = url + '&tabName=' + razorRead.Tabs.Participants;
+                LocationAssign(url);
+            }
+            else {
+                showMessage(razorRead.Messages.CanNotEditChecklist);
+            }
+        });
+
+        $(document).on('click', '[name="edit-Checklist"]', function () {
+            var source = $(this);
+            var canEditChecklist = source.attr('data-canEditChecklist') == "true";
+
+            if (canEditChecklist) {
+                var url = razorRead.Url.Edit;
+                url = url + '&tabName=' + razorRead.Tabs.Cheklist;
+                LocationAssign(url);
+            } else {
+                showMessage(razorRead.Messages.CanNotEditChecklist);
+            }
+        });
+
+        $(document).on('click', '[name="edit-bidding"]', function () {
+            var source = $(this);
+            var canEditBidding = source.attr('data-canEditBidding') == "true";
+
+            var selectedBiddingPackage = $('[name="BiddingIdHidden"]');
+            var inputCanEditPackage = $('input[name="canEditPackageHidden"]');
+            var inputModifyPackage = $('input[name="canModifyPackageHidden"]');
+            var canEditPackage = inputCanEditPackage.val() == "True";
+            var canModifyPackage = inputModifyPackage.val() == "True";
+            var url = razorRead.Url.Edit + '&tabName=' + razorRead.Tabs.BiddingDocument;
+
+            if (canEditBidding && canEditPackage && canModifyPackage) {
+                if (selectedBiddingPackage.length == 1) {
+                    url = url + "&packageId=" + selectedBiddingPackage.val();
+                }
+                LocationAssign(url);
+            }
+            else {
+                var messageToShow = '@(Localization.GetText("SGP.Label.CantEditPackage"))';
+
+                if (!canEditBidding) {
+                    messageToShow = '@(Localization.GetText("SGP.Label.CantEditBidding"))';
+                }
+
+                if (!canModifyPackage) {
+                    messageToShow = '@(Localization.GetText("SGP.Label.CantModifyDocBidding"))'
+                }
+
+                showMessage(messageToShow);
+            }
+        });
+
+        $(document).on('click', '[name="edit-Contracts"]', function () {
+            var source = $(this);
+            var selectedContract = $('[name="contractId-selected"]');
+            var canEditContracts = source.attr('data-canEditContracts') == "true";
+            if (canEditContracts)
+            {
+                var url = razorRead.Url.Edit + '&tabName=' + razorRead.Tabs.Contract;
+
+                if (selectedContract.length == 1) {
+                    url = url + '&contractId=' + selectedContract.val();
+                }
+                LocationAssign(url);
+            }
+            else {
+                showMessage(razorRead.Messages.CanNotEditChecklist);
+            }
+        });
+
+
+
+
+        //Document Number Link
+        $(document).on('click', '[name="documentNumberLink"]', function () {
+            var source = $(this);
+            var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+            var url = razorRead.Url.DownloadDocument + '?documentNumber=' + documentNumber;
+            window.open(url, '_blank');
+        });
+
+
+
+        /********** BUTTON DEBUG AscUpdateStatus *******************/
+        $(document).on('click', '[name="ChangeStatusExecution-button"]', function () {
+            $.ajax({
+                url: '@Url.Action("ChangeStatusExecution", "ProcurementDetail", new { area = "SGP" })',
+                data: {
+
+                },
+                cache: false,
+                type: 'POST',
+            });
+        });
+
+
+        $(document).on('click', '[name="ChangeStatusFinished-button"]', function () {
+            $.ajax({
+                url: '@Url.Action("ChangeStatusFinished", "ProcurementDetail", new { area = "SGP" })',
+                data: {
+
+                },
+                cache: false,
+                type: 'POST',
+            });
+        });
+
+        $(document).on('click', '[name="ChangeContractStatus-button"]', function () {
+            $.ajax({
+                url: '@Url.Action("ChangeContractStatus", "ProcurementDetail", new { area = "SGP" })',
+                data: {
+
+                },
+                cache: false,
+                type: 'POST',
+            });
+        });
+
+    });
+
+    registerCallback(function () {
+        var list = $('[data-fake-PageMode]');
+
+        list.each(function () {
+            var item = $(this);
+            var value = item.attr('data-fake-PageMode');
+            item.removeAttr('data-fake-PageMode');
+            item.attr('data-PageMode', value);
+        });
+        destroyParsley();
+        initParsley();
+        destroyParsley();
+        initParsley();
+    });
+
+    registerCallback(function () {
+        $(document).ready(function () {
+            var activeTab = '@Model.ViewContainer["ActiveTab"]';
+            SelectTab(razorRead.ActiveTab);
+        });
+    })
+
+    function SelectTab(tabName) {
+        $(String.format('[dd-tab="#{0}"]', tabName)).click();
+    }
+
+    /*------- DECLARE INELIGIBILITY ------- */
+
+    function selectDropDownItem(inputDropDown, itemValue) {
+        if (itemValue == null) {
+            itemValue = '';
+        }
+
+        var button = inputDropDown.prevAll('button');
+        var spanText = button.find('.valueText');
+        var aList = inputDropDown.nextAll('ul.dropdown-menu').find('a');
+        var div = inputDropDown.closest('div.dropdown');
+
+        aList.removeAttr('dd-selected');
+
+        var newSelected = aList.filter(function () {
+            var value = $(this).attr('dd-value');
+            if (value == null) {
+                value = '';
+            }
+
+            return itemValue == value;
+        });
+
+        if (newSelected.length == 1) {
+            newSelected.attr('dd-selected', 'dd-selected');
+            spanText.html(newSelected.html());
+
+            div.removeClass('placeholder');
+            if (itemValue == '') {
+                div.addClass('placeholder');
+            }
+            inputDropDown.val(itemValue);
+        }
+    }
+
+    registerCallback(function () {
+        $(document).on('click', '[name="Ineligibility"]', function () {
+            var modalBtn;
+            var inputReasonHidden = $('input[name="DeclareIniligibilityReasonHidden"]');
+            var inputReason = $('textarea[name="DeclareIniligibilityReason"]');
+
+            var inputReasonTypeId = $('input[name="ineligibilityReasonTypeId"]');
+            var inputReasonTypeIdHidden = $('input[name="ineligibilityReasonTypeIdHidden"]');
+
+            inputReason.val(inputReasonHidden.val());
+            selectDropDownItem(inputReasonTypeId, inputReasonTypeIdHidden.val())
+
+            if (razorRead.Workflow.HasWfLaunch != '' && razorRead.Workflow.HasWfLaunch == 'True') {
+                modalBtn = $('[name="btn-open-popup-has-wf-launched"]');
+            } else {
+                modalBtn = $('[name="btn-open-popup-ineligibility"]');
+            }
+
+            modalBtn.click();
+
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+            initParsley();
+        });
+    })
+
+            function okDeclareIneligibility(source) {
+                var promise = $.Deferred();
+                var formDeclareIneligibility = $('#declare-ineligibility-form');
+                var validateDeclareIneligibility = validateContainer(formDeclareIneligibility);
+
+                if (validateDeclareIneligibility == true) {
+                    //// If no required workflow or is ex-post, save the form
+                    if (razorRead.Workflow.HasDeclareInegibilityNotSubWF != 'True' || razorRead.Workflow.HasDeclareInegibilitySubWF != 'True') {
+
+                        var response = saveContainer(formDeclareIneligibility, $('#hiddenDeclareIneligibilityModel'), false, null, null, false, true, null);
+                        if (response !== false) {
+                            response.done(function (data) {
+                                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                    showMessage(data.ErrorMessage)
+                                }
+
+                                if ((data.IsValid == true)) {
+                                    var inputReasonHidden = $('input[name="DeclareIniligibilityReasonHidden"]');
+                                    var inputReason = $('textarea[name="DeclareIniligibilityReason"]');
+
+                                    var inputReasonTypeId = $('input[name="ineligibilityReasonTypeId"]');
+                                    var inputReasonTypeIdHidden = $('input[name="ineligibilityReasonTypeIdHidden"]');
+
+                                    inputReasonHidden.val(inputReason.val());
+                                    inputReasonTypeIdHidden.val(inputReasonTypeId.val());
+
+                                }
+                            });
+                        }
+                } else {
+
+                    //// if required workflow, calculate workflow code and reason type and send date to controller
+                    var entityType = "";
+                    var entityTypeSubject = razorRead.Workflow.WFDeclareInegibilitySub;
+                    var entityTypeNotSubject = razorRead.Workflow.WFDeclareInegibilityNotSub;
+
+                    var entityId = razorRead.ProcurementId;
+                    var reason = $('[name="reasonText-inegibility"]').val();
+                    var reasonTypeId = $('[name="reasonTypeId-inegbility"]').val();
+                    var workflowTypeCode = razorRead.Workflow.WFDeclareCodeType.Subjet;
+
+                    if (reasonTypeId != null || reasonTypeId.length != 0) { 
+                    if (reasonTypeId == razorRead.ReasonType.Subject) {
+                        workflowTypeCode = razorRead.Workflow.WFDeclareCodeType.Subjet;
+                        entityType = entityTypeSubject;
+
+                    } else if (reasonTypeId == razorRead.ReasonType.NoSubjet) {
+                        workflowTypeCode = razorRead.Workflow.WFDeclareCodeType.NotSubject;
+                        entityType = entityTypeNotSubject;
+                    }
+
+                    var url = '@Url.Action("InitDeclareInegibilityWorkflow", "ProcurementDetail", new { area = "SGP" })';
+                    url = url
+                        + '?procurementId=' + razorRead.ProcurementId
+                        + '&entityType=' + entityType
+                        + '&entityId=' + entityId
+                        + '&workflowCode=' + workflowTypeCode
+                        + '&reasonType=' + reasonTypeId
+                        + '&reason=' + reason;
+
+                    LocationAssign(url);
+                    }
+
+                }
+                promise.resolve();
+            } else {
+                promise.reject();
+            }
+        
+        return promise;
+    }
+
+
+    function koDeclareIneligibility(source) {
+        var promise = $.Deferred();
+        $('[name="reasonText-inegibility"]').val('');
+        selectDropDownItem($('[name="reasonTypeId-inegbility"]'), null);
+        vex.close();
+        promise.resolve();
+        return promise;
+    }
+
+    /*------- CANCEL PROCESS ------- */
+    registerCallback(function () {
+        $(document).on('click', '[name="CancelProcess"]', function () {
+            var modalBtn;
+
+            var hasDeclareLaunchedWF = razorRead.HasDeclareWfLaunched != '' && razorRead.HasDeclareWfLaunched == 'True';
+            var hasCancelLaunchedWF = razorRead.HasCancelWfLaunched != '' && razorRead.HasCancelWfLaunched == 'True';
+
+            if (razorRead.Workflow.HasWfLaunch != '' && razorRead.Workflow.HasWfLaunch == 'True') {
+                modalBtn = $('[name="btn-open-popup-has-wf-launched"]');
+            } else if (hasDeclareLaunchedWF || hasCancelLaunchedWF) {
+                modalBtn = $('[name="btn-open-popup-has-inegible-wf-launched"]');
+            } else {
+                modalBtn = $('[name="btn-open-popup-cancel"]');
+            }
+
+            modalBtn.click();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+            initParsley();
+        });
+    })
+
+    function okCancelProcess(source) {
+        var promise = $.Deferred();
+
+            var formCancelProcess = $('#cancel-process-form');
+            var validateCancelProcess = validateContainer(formCancelProcess);
+
+            if (validateCancelProcess == true) {
+
+                if (razorRead.Status.SupervisionHeader == razorRead.Status.StatusExPost || razorRead.Workflow.HasCancelWF != 'True') {
+                    var formCancelProcess = $('#cancel-process-form');
+                    var validateCancelProcess = validateContainer(formCancelProcess);
+
+                    if (validateCancelProcess == true) {
+
+                        var response = saveContainer(formCancelProcess, $('#hiddenCancelProcessModel'), false, null, null, false, true, null);
+                        if (response !== false) {
+                            response.done(function (data) {
+                                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                    showMessage(data.ErrorMessage)
+                                }
+
+                                if (data.IsValid == true) {
+                                    var inputReasonHidden = $('input[name="cancelProcessReasonHidden"]');
+                                    var inputReason = $('textarea[name="cancelProcessReason"]');
+
+                                    inputReasonHidden.val(inputReason.val());
+
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    var entityType = razorRead.Workflow.WFCancelEntityType;
+                    var entityId = razorRead.ProcurementId;
+                    var reason = $('[name="reason-cancelProcess"]').val();
+                    var url = '@Url.Action("InitCancelWorkflow", "ProcurementDetail", new { area = "SGP" })';
+                    url = url
+                        + '?procurementId=' + razorRead.ProcurementId
+                        + '&entityType=' + entityType
+                        + '&entityId=' + entityId
+                        + '&reason=' + reason;
+
+                    LocationAssign(url);
+                }
+                promise.resolve();
+            } else {
+                promise.reject();
+            }
+        
+        return promise;
+    }
+
+    function koCancelProcess(source) {
+        var promise = $.Deferred();
+        $('[name="reason-cancelProcess"]').val('');
+        vex.close();
+        promise.resolve();
+        return promise;
+    }
+
+</script>
+    }
+}

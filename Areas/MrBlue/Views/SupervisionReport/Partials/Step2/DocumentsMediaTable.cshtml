@@ -1,0 +1,167 @@
+﻿@using System.Configuration
+@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Architecture.Language
+
+
+@model IDB.Presentation.MVC4.Areas.MrBlue.Models.DocumentMediaTableViewModel
+
+@{
+    var tableName = string.IsNullOrWhiteSpace(Model.DocumentTableName) ? "documentTable" : Model.DocumentTableName;
+    var addFunctionName = string.IsNullOrWhiteSpace(Model.AddFunctionName) ? "addDocumentMedia" : Model.AddFunctionName;
+    var dateFormat = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+
+@if(Model.ShowAddButton)
+{
+    var modalName = string.Format("{0}-modal", tableName);
+
+    <div class="row row-header">
+        <div class="col-md-12">
+            @Confluence.LabelSubTitleGroup(text : Localization.GetText("Mediafiles.Title"))
+
+            <div class="float-right" data-pagemode="edit">
+                @Display.AddModalButton(new ModalViewModel("#documentMediaTable-modal",
+                   type : CssClass.ModalSearchMediaAddDocument,
+                   title : Localization.GetText("MediaFile.ModalTitle"),
+                   typeButton : CssClass.Button01,
+                   text : Localization.GetText("Add"),
+                   moveOriginalContent : true, actionOnClose : "resetModal"))
+            </div>
+        </div>
+    </div>
+}
+<div class="mb20">
+    @{
+        var config = Html.RenderDataTable(Model.Documents);
+        config.Name(tableName)
+            .PrimaryKey(m => m.RowId.ToString())
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+                columns.Template(
+                    @<div data-pagemode="edit"><input type="hidden" name="@tableName-RowId" value="@item.RowId" /> </div>)
+                          .Hidden(true).Persistent();
+
+                columns.Bound(c => c.Name)
+                    .Header(@Localization.GetText("TC.Documents.User"))
+                    .Persistent();
+
+                columns.Bound(c => c.FileDate)
+                    .Header(@Localization.GetText("TC.Documents.Date"))
+                    .Persistent();
+
+                columns.Bound(c => c.Caption)
+                    .Header(@Localization.GetText("MediaFile.Label.Caption")
+                    ).Persistent();
+
+                columns.Template(c => GroupButtonDocumentEdit(c))
+                    .Header(@Localization.GetText("TC.Documents.Actions"))
+                    .Persistent()
+                    .Center();
+
+            });
+
+        config.TableClass = "table-default";
+
+        config.RowTemplates(x =>
+        {
+
+            if(Model.CanDelete)
+            {
+                x.Create(RowTemplateType.FirstRow,
+
+                    @<tr data-id="template" role="row" class="hide">
+                        <td class="hide">
+                            <div data-pagemode="edit" class="">
+                                <input type="hidden" name="@tableName-RowId" value="">
+                            </div>
+                        </td>
+                        <td><span>@(( (string) ViewBag.UserName ).HtmlEncode())</span></td>
+                        <td data-name="idb-doc-date"><span></span></td>
+                        <td data-name="idb-doc-description"><span></span></td>
+                        <td class="text-center">
+
+                            @Display.Button07_2(attributes :
+
+                                new Dictionary<string, string> {{"data-action","DownloadDocumentMedia"},
+
+                                {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                                {"data-id",""}})
+
+                            @Display.Button07_4(attributes :
+                                new Dictionary<string, string>
+                                {{"data-action","DeleteDocumentGeneric"},
+                                {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName)?
+                                    null : Model.BeforeDeleteFuncionName }})
+
+                        </td>
+                    </tr>
+);
+            }
+            else
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="newDocument" role="row" class="hide">
+                        <td class="hide">
+                            <div data-pagemode="edit" class="">
+                                <input type="hidden" name="@tableName-docNumber" value="">
+                            </div>
+                        </td>
+                        <td><span></span></td>
+                        <td data-name="idb-doc-date"><span></span></td>
+                        <td data-name="idb-doc-number"><span></span></td>
+                        <td>
+                            <div data-pagemode="edit" class="">
+                                @Confluence.InputDropDown(
+                                String.Empty,
+                                "typeDocument",
+                                ViewBag.DocumentTypeList,
+                                required : false,
+                                disabled : true)
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            @Display.Button07_2(attributes :
+                                new Dictionary<string, string>
+                                {{"data-action","DownloadDocumentMedia"},
+                                {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+                                {"data-id",""}})
+
+                        </td>
+                    </tr>
+);
+            }
+        });
+    }
+    @Html.Partial("Controls/DataTable", config)
+</div>
+
+
+@helper GroupButtonDocumentEdit(IDB.MW.Application.MrBlueModule.ViewModels.ManageMediaFiles.ManageMediaFilesRowViewModel mediaFile)
+{
+
+    @Display.Button07_2(attributes : new Dictionary<string, string>
+    {{"data-action","DownloadDocumentMedia"},{"data-url", mediaFile.MediaUrl},
+    {"data-id", mediaFile.RowId.ToString()}})
+
+    if(Model.CanDelete)
+    {
+        @Display.Button07_4(attributes : new Dictionary<string, string> { { "data-action", "DeleteDocumentGeneric" }, 
+        { "data-before-delete", string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName } })
+    }
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        $('#@tableName').data('autogenerate-id', 0);
+    </script>
+    )

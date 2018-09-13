@@ -1,0 +1,132 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.Indicators
+
+@model IndicatorsViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@Html.Partial("_MockReadWritePermissions", IDB.Presentation.MVC4.Models.Mock.MockReadWritePermissionsViewModel.Create(Permission.ESG_SPECIALIST_WRITE_PERMISSIONS))
+
+<div class="row">
+    <div class="col-md-12">
+        @if (!Model.IsReadOnly)
+        {
+            @Html.Partial("Partials/buttons")
+        }
+        else
+        {
+            @Html.Partial("Partials/buttonCancel")             
+        }     
+        @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.Indicators.FormTitle"))
+    </div>
+</div>
+
+<div class="page">
+    @if (ViewBag.ReadRole ?? false)
+{
+
+    <div id="Data"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-url="@Url.Action("SaveIndicators", "Indicators", new { area = "MrBlue" })">
+
+        @if (Model != null)
+        {
+            @Html.Partial("Partials/IndicatorsFormPartial", Model)
+        }
+    </div>
+}
+</div>
+<div class="row">
+    <div class="col-md-12">
+        @if (!Model.IsReadOnly)
+        {
+            @Html.Partial("Partials/buttons")
+        }
+        else
+        {
+            @Html.Partial("Partials/buttonCancel")             
+        }               
+    </div>
+</div>
+
+@section scripts{
+
+    @ModuleScripts.KeyWordsToolkit(Url)
+    @MrBlue.DynamicQuestionnaire(Model.IndicatorsDynamicQuestionnaire)
+    @MrBlue.RadioButtonFix()
+
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+            showLoader();
+            window.ParsleyValidator
+           .addValidator('valueindicatorsacepted', function (value, requirement) {
+               var resul = false;
+               if ($.isNumeric(value)) {
+                   resul = true;
+               } else if (value == "TBD" || value == "N/A") {
+                   resul = true;
+               }
+               return resul;
+           }, 32)
+           .addMessage('en', 'valueindicatorsacepted', 'Must be "N/A", "TBD", or any whole numeric value (no commas or periods)');
+
+            enterEditMode(false, $('#Data'), false);
+            questionarieWithoutBorder();
+            hideLoader();
+            disabledNumberOfResettledFamilies();
+        });
+
+        function disabledNumberOfResettledFamilies() {
+            // It's a legacy field: Number of resettled families.
+            $('#IN002').attr('disabled', 'disabled');
+            $('.esgQuestionContainer[data-questioncode="IN002"]').hide();
+
+            if ($('#IN002').val() != "") {
+                $('.esgQuestionContainer[data-questioncode="IN002"]').show();
+            }
+
+        }
+
+        function save() {
+            var response = saveContainer($('#Data'), '#hidViewModel', false, null, null, false);
+            if (response !== false) {
+                response
+                    .done(function (data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        else if (data.IsValid) {
+                            redirectToDashboard();
+                        }                                                
+                    });
+            }
+        }
+
+        function cancel() {
+            redirectToDashboard();
+        }
+
+        function redirectToDashboard() {
+            var url = '@Url.Action("IndicatorsDashboard", "Indicators", new { area = "MrBlue" })';
+            window.location.assign(url);
+        }
+
+        $(document).ready(function () {
+            var elementFrame = window.parent.document.getElementsByName('someFrame')[0];
+            elementFrame.removeAttribute("height");
+            elementFrame.removeAttribute("style");
+        });
+
+</script>
+}

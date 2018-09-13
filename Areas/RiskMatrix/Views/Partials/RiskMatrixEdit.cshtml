@@ -1,0 +1,698 @@
+﻿@using System.Configuration
+@using System.Web.Mvc.Html
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Areas.RisksMatrix.Models
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.MVCExtensions
+
+@model RiskMatrixViewModel
+
+@{
+    string userName = IDBContext.Current.UserName;
+    List<string> tables = new List<string>();
+    for (int i = 0; i < Model.Risks.Count; i++)
+    {
+        tables.Add(string.Format("tblRisk-{0}", i));
+    }
+
+    bool showRiskButtonTrash = SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnDeleteRisk", Model.ScreenSecurity.Security);
+    bool showActivityButtonTrash = SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnDeleteActivity", Model.ScreenSecurity.Security);
+    bool showRMGComment = SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "chkbIsRmgComment", Model.ScreenSecurity.Security);
+    bool showRiskButtonAdd = SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnAddNewRisk", Model.ScreenSecurity.Security);
+    bool showActivityButtonAdd = SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnAddActivity", Model.ScreenSecurity.Security);
+    bool showRMGAddComment = SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnRiskAddComment", Model.ScreenSecurity.Security);
+}
+
+@Html.Partial("~/Areas/RiskMatrix/Views/Modals/RiskMatrixEditModals.cshtml", Model)
+
+
+@using (Ajax.BeginForm("Save", "RiskMatrix", new { operationNumber = Model.OperationNumber }, new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMatrixAjaxOnComplete", OnBegin = "riskMatrixAjaxOnBegin", OnFailure = "riskMatrixAjaxOnFailure" }, new { id = "frmRiskMatrixEditMode", novalidate = "" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.OperationNumber)
+    @Html.HiddenFor(model => model.IsEdit)
+    @Html.HiddenFor(model => model.OperationRiskId)
+
+    <div class="col-md-9 mt10">
+        <h2 class="titlePrincipal">@Localization.GetText("RISK.TITLE")</h2>
+    </div>
+    <div class="col-md-3 mt10">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnRiskMatrixSave", Model.ScreenSecurity.Security))
+        {
+            <button class="buttonOrange pull-right" type="submit" id="btnRiskMatrixSave">@Localization.GetText("RISK.SAVE")</button> @*RISK.SAVE*@
+        }
+
+        @Ajax.ActionLink(Localization.GetText("RISK.CANCEL"), "Cancel", "RiskMatrix", new { operationNumber = Model.OperationNumber }, new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMatrixAjaxOnComplete", OnBegin = "riskMatrixAjaxOnBeginNoValidate", OnFailure = "riskMatrixAjaxOnFailure" }, new { @class = "pull-right buttonLink", id = "btnRiskMatrixCancel" }) @*RISK.CANCEL*@
+    </div>
+
+    @Html.Partial("~/Areas/RiskMatrix/Views/Partials/RiskHeader.cshtml", Model.HeaderInfo)
+
+    <div class="col-md-12">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnExcel", Model.ScreenSecurity.Security))
+        {
+            @Confluence.ButtonExcel("btnExcel", "ExportFileRiskReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "xls" } })
+        }
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnWord", Model.ScreenSecurity.Security))
+        {
+            @Confluence.ButtonWord("btnWord", "ExportFileRiskReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "doc" } })
+        }
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnPDF", Model.ScreenSecurity.Security))
+        {
+            @Confluence.ButtonPdf("btnPDF", "ExportFileRiskReport", clase: "pull-right", dataAttributes: new Dictionary<string, string> { { "fileType", "pdf" } })
+        }
+    </div>
+    <div class="col-md-12">
+        <ul class="tabs">
+            <li class="active">
+                @Ajax.ActionLink(Localization.GetText("RISK.MATRIX.TAB"), "Index", "RiskMatrix", new { operationNumber = Model.OperationNumber }, new AjaxOptions { UpdateTargetId = "mainLayoutOperationContent", OnComplete = "riskMatrixAjaxOnComplete", OnBegin = "riskMatrixAjaxOnBegin", OnFailure = "riskMatrixAjaxOnFailure" }, new { })
+            </li>
+            <li class="disabled">
+                <a>@Localization.GetText("RISK.MATERIALIZED.TAB")</a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="col-md-12">
+        <div class="col-md-3">
+            @Confluence.LabelBold(Localization.GetText("RISK.MATRIX.TITLE"))
+        </div>
+
+        <div class="col-md-9">
+            <div class="floatRight">
+                @RiskMatrixHelpers.ButtonColapseAllRiskMatrix(new List<string> { "tblRisk" }, isCollapsed: true)
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-12" id="riskContentAll">
+        <table id="tblRisk" class="tableNormal">
+            <thead>
+                <tr>
+                    <th class="noBackground"></th>
+                    <th class="sort" order-type="numeric" width="10%">@Localization.GetText("RISK.RISK.ID")</th>
+                    <th class="sort maxw50" width="10%">@Localization.GetText("RISK.MATRIX.ICONO.HEAD")</th>
+                    <th class="sort" width="10%">@Localization.GetText("RISK.OPERATION.NUMBER")</th>
+                    <th class="sort" width="10%">@Localization.GetText("RISK.RISK.STATUS")</th>
+                    <th class="sort" width="20%">@Localization.GetText("RISK.RISK.DESCRIPTION")</th>
+                    <th class="sort" width="10%">@Localization.GetText("RISK.PROBABILITY")</th>
+                    <th class="sort" width="9%">@Localization.GetText("RISK.IMPACT")</th>
+                    <th class="sort" width="12%">@Localization.GetText("RISK.RISK.LEVEL")</th>
+                    <th class="sort" width="9%">@Localization.GetText("RISK.RISK.TAXONOMY")</th>
+                    <th width="5%">@Localization.GetText("RISK.DETAILS")</th>
+                    <th width="5%">@Localization.GetText("RISK.ACTIONS")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Model.Risks.Count; i++)
+                {
+                    bool lastRowRisk = default(bool);
+                    if (i + 1 == Model.Risks.Count)
+                    {
+                        lastRowRisk = true;
+                    }
+
+                    <tr data-id="@Model.Risks[i].RiskId" data-desc="firstRowRisk" class="notCollapse">
+                        @{
+                            if (lastRowRisk)
+                            {
+                                <td class="tree icon" id="lastRowRisk">@RiskMatrixHelpers.ButtonShowRowExpandRiskMatrix(false, "", "selected topZero highZero", true)</td>
+
+                            }
+                            else
+                            {
+                                <td class="noBackground tree icon">@RiskMatrixHelpers.ButtonShowRowExpandRiskMatrix(false)</td>
+                            }
+                        }
+                        <td class="text-right">
+                            @Html.HiddenFor(model => model.Risks[i].RiskId)
+                            @Html.HiddenFor(model => model.Risks[i].OperationRisksId)
+                            @Html.HiddenFor(model => model.Risks[i].RiskCode)
+                            @Model.Risks[i].RiskCode.ToString()
+                        </td>
+                        <td class="text-center">
+                            @{
+                                if (Model.Risks[i].IsCriticalPath)
+                                {
+                                    @Confluence.Information()
+                                }
+                            }
+                        </td>
+                        <td class="text-center">
+                            @Model.Risks[i].OperationNumberForRisk
+                            @Html.HiddenFor(model => Model.Risks[i].OperationNumberForRisk)
+                        </td>
+                        <td class="text-left">
+                            @Confluence.InputDropDown(Model.Risks[i].RiskStatus.StatusId.ToString(), string.Format("Risks[{0}].RiskStatus.StatusId", i), Html.BuildSelectItemList(Model.RiskStatus, m => m.Text, m => m.Value), width: "110px", dataAttributes: new Dictionary<string, string>() { { "name", "ddlistStatus" }, { "id", "ddlistStatus_" + Model.Risks[i].RiskId.ToString() } })
+                        </td>
+                        <td class="text-left" title="@Localization.GetText("RISK.RISK.DESCRIPTION.INFORMATION")">
+                            @Confluence.InputText(Model.Risks[i].Description, string.Format("Risks[{0}].Description", i), id: string.Format("Risks_{0}__Description", i), width: "100%", maxLength: 2000)
+                        </td>
+                        <td class="text-left">
+                            @Confluence.InputDropDown(Model.Risks[i].Probability.Description.ToString(), string.Format("Risks[{0}].Probability.Description", i), Html.BuildSelectItemList(Model.RiskProbability, m => m.Text, m => m.Value), width: "110px", dataAttributes: new Dictionary<string, string>() { { "name", "ddlistProbability" } })
+                        </td>
+                        <td class="text-left">
+                            @Confluence.InputDropDown(Model.Risks[i].Impact.Description.ToString(), string.Format("Risks[{0}].Impact.Description", i), Html.BuildSelectItemList(Model.RiskImpact, m => m.Text, m => m.Value), width: "110px", dataAttributes: new Dictionary<string, string>() { { "name", "ddlistImpact" } })
+                        </td>
+                        <td class="text-left">
+                            @{
+                                switch (Model.Risks[i].RiskLevelClass)
+                                {
+                                    case "statusHigh":
+                                        @Confluence.CircleRed()
+                                        break;
+                                    case "statusMedHigh":
+                                        @Confluence.CircleOrange()
+                                        break;
+                                    case "statusMedlow":
+                                        @Confluence.CircleYellow()
+                                        break;
+                                    case "statuslow":
+                                        @Confluence.CircleGreen()
+                                        break;
+                                }
+                            }
+                            @Confluence.Label(Model.Risks[i].LevelName, dataAttributes: new Dictionary<string, string>() { { "name", Model.Risks[i].RiskId.ToString() + "_RiskLevel" } })
+                            @Html.HiddenFor(model => model.Risks[i].LevelName)
+                            @Html.HiddenFor(model => model.Risks[i].LevelValue)
+                        </td>
+                        <td class="text-left">
+                            @Confluence.InputDropDown(Model.Risks[i].TypeId.ToString(), string.Format("Risks[{0}].TypeId", i), Html.BuildSelectItemList(Model.RiskType, m => m.Text, m => m.Value), width: "110px", dataAttributes: new Dictionary<string, string>() { { "name", "ddlistTaxonomy" } })
+                        </td>
+                        <td align="center">
+                            @Confluence.ButtonShowRow()
+                        </td>
+                        <td class="text-center">
+                            @if (Model.Risks[i].RiskStatus.StatusId != Model.IdMaterialized && (Model.Risks[i].IsValidated == null || Model.Risks[i].IsValidated == false))
+                            {
+                                if (showRiskButtonTrash)
+                                {
+                                    @Confluence.ButtonTrash(string.Empty, action: "deleteRisk", name: "btnDeleteRisk", required: false);
+                                }
+                            }
+
+                        </td>
+                    </tr>
+                    <tr data-row-parent-id="@Model.Risks[i].RiskId" id="secondRowRisk" data-desc="secondRowRisk">
+                        @{
+                            if (lastRowRisk)
+                            {
+                                <td id="lastRowRiskSubLevel" class="tree"></td>
+                            }
+                            else
+                            {
+
+                                <td class="tree"><span></span></td>
+                            }
+                        }
+                        <td colspan="11" class="subnivel pl0 pr0 pt0 pb0">
+                            <div>
+                                <table class="tableNormal">
+                                    <tbody>
+                                        <tr class="notCollapse">
+                                            <td colspan="3" class="text-left maxw200">
+                                                @Confluence.Label(Localization.GetText("RISK.OUTPUT"))
+                                                <br />
+                                                @Confluence.InputDropDownMulti(string.Format("Risks[{0}].OutputValue", i), Html.BuildMultiSelectItemList(Model.OutPuts, m => m.Text, m => m.Value), required: false, values: string.Join(",", Model.Risks[i].Output.Select(o => o.OutputId)), width: "100%")
+                                            </td>
+                                            <td colspan="4" class="text-left maxw150">
+                                                @Confluence.Label(Localization.GetText("RISK.SOURCE.RISK"))
+                                                <br />
+                                                @Confluence.InputDropDown(Model.Risks[i].SourceRiskId.ToString(), string.Format("Risks[{0}].SourceRiskId", i), Html.BuildSelectItemList(Model.RiskProbabilityFactor, m => m.Text, m => m.Value), width: "100%", required: false, dataAttributes: new Dictionary<string, string>() { { "name", "ddlProbabilyFactor" } })
+                                            </td>
+                                            <td colspan="3" class="text-left maxw200">
+                                                @Confluence.Label(Localization.GetText("RISK.TYPE.IMPACT"))
+                                                <br />
+                                                @Confluence.InputDropDownMulti(string.Format("Risks[{0}].RiskTypeImpactValue", i), Html.BuildMultiSelectItemList(Model.ImpactScope, m => m.Text, m => m.Value), width: "100%", maxHeight: "100px", required: false, values: string.Join(",", Model.Risks[i].RiskTypeImpact.Select(o => o.RiskTypeImpactId)), dataAttributes: new Dictionary<string, string>() { { "name", "ddlTypeImpact" } })
+                                            </td>
+                                        </tr>
+                                        <tr class="notCollapse">
+                                            <td colspan="3" class="text-left maxw200" style="vertical-align:baseline">
+                                                @Confluence.Label(Localization.GetText("RISK.OUTCOMES"))
+                                                <br />
+                                                @Confluence.InputDropDownMulti(string.Format("Risks[{0}].OutcomeValue", i), Html.BuildMultiSelectItemList(Model.OutComes, m => m.Text, m => m.Value), required: false, values: string.Join(",", Model.Risks[i].Outcome.Select(o => o.OutcomeId)), width: "100%", maxHeight: "100px")
+                                            </td>
+                                            <td colspan="4" class="text-left">
+                                                @Confluence.Label(Localization.GetText("RISK.CAUSES"))
+                                                <br />
+                                                @Html.TextAreaFor(model => Model.Risks[i].Causes, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", maxLength = 2000 })
+                                            </td>
+                                            <td colspan="3" class="text-left">
+                                                @Confluence.Label(Localization.GetText("RISK.PROBABILITY.FACTOR"))
+                                                <br />
+                                                @Html.TextAreaFor(model => model.Risks[i].ProbabilyFactor, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", maxLength = 2000 })
+                                            </td>
+                                        </tr>
+                                        <tr class="notCollapse">
+                                            <td colspan="3" class="text-left maxw200">
+                                                @Confluence.Label(Localization.GetText("RISK.DESCRIPTION.IMPACT"))
+                                                <br />
+                                                @Html.TextAreaFor(model => model.Risks[i].DescriptionImpact, new { @class = "inputTextarea", style = "width:100%;height:100px;overflow-y:auto;", maxLength = 2000 })
+                                            </td>
+                                            <td colspan="4" class="text-left"></td>
+                                            <td colspan="3" class="text-left">
+                                                @if (Model.Risks[i].RiskStatus.StatusId == Model.IdInactiveStatus)
+                                                {
+                                                    if (string.IsNullOrWhiteSpace(Model.Risks[i].Justification))
+                                                    {
+                                                        <div id="riskJustification_@Model.Risks[i].RiskId">
+                                                            @Confluence.Label(Localization.GetText("RISK.JUSTIFICATION"))
+                                                            @Confluence.LabelAsterisk()
+                                                            <br />
+                                                            @Confluence.InputTextArea(Model.Risks[i].Justification, string.Format("Risks[{0}].Justification", i), required: false, maxLength: 2000, width: "100%", height: "100px")
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div id="riskJustification_@Model.Risks[i].RiskId">
+                                                            @Confluence.Label(Localization.GetText("RISK.JUSTIFICATION"))
+                                                            @Confluence.LabelAsterisk()
+                                                            <br />
+                                                            @Confluence.InputTextArea(Model.Risks[i].Justification, string.Format("Risks[{0}].Justification", i), required: true, maxLength: 2000, width: "100%", height: "100px")
+                                                        </div>
+                                                    }
+
+                                                }
+                                                else
+                                                {
+                                                    <div id="riskJustification_@Model.Risks[i].RiskId" style="display:none">
+                                                        @Confluence.Label(Localization.GetText("RISK.JUSTIFICATION"))
+                                                        @Confluence.LabelAsterisk()
+                                                        <br />
+                                                        @Confluence.InputTextArea(Model.Risks[i].Justification, string.Format("Risks[{0}].Justification", i), required: false, maxLength: 2000, width: "100%", height: "100px")
+                                                    </div>
+                                                }
+                                            </td>
+                                            <td colspan="3"></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3" class="text-left"></td>
+                                            <td colspan="4" class="text-left"></td>
+                                            <td class="text-left" colspan="3"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+
+                    </tr>
+                    <tr data-risk-id-resp="@Model.Risks[i].RiskId.ToString()" data-row-response-plan="@Model.Risks[i].RiskId" class="hide">
+                        @{
+                            if (lastRowRisk)
+                            {
+                                <td id="lastTdRisk" data-description="firtTdResponsePlan"></td>
+                            }
+                            else
+                            {
+
+                                <td class="tree" data-description="firtTdResponsePlan"><span></span></td>
+                            }
+                        }
+
+                        @{var hide = "";
+
+                            if (Model.Risks[i].ResponsePlanActivity.Count == 0) {
+                                hide = "notShowResponsePlan";
+                            }
+
+                        }
+                        <td colspan="10" class="subnivel">
+                            <div class="mb20 @hide" id="divResponsePlan_@Model.Risks[i].RiskId">
+                                       
+                                        <table class="tableNormal skinLigthBlue tblRiskResponsePlan" id="tblActivity_@Model.Risks[i].RiskId.ToString()">
+                                            <thead>
+                                                @Confluence.LabelBold(Localization.GetText("RISK.RESPONSE.ACTION"), htmlClass: "tittleResponsePlan")
+                                                <tr>
+                                                    <th class="tree icon">@RiskMatrixHelpers.ButtonExpandTableRiskMatrix(isCollapsed: true)</th>
+                                                    <th width="15%">@Localization.GetText("RISK.MANAGEMENT.STRATEGY")</th>
+                                                    <th colspan="3">@Localization.GetText("RISK.ACTIVITY.DESCRIPTION")</th>
+                                                    <th width="12%">@Localization.GetText("RISK.ACTIVITY.STATUS")</th>
+                                                    <th width="4%">@Localization.GetText("RISK.DETAILS")</th>
+                                                    <th width="4%">@Localization.GetText("RISK.ACTIONS")</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for (int l = 0; l < Model.Risks[i].ResponsePlanActivity.Count; l++)
+                                                {
+                                                    <tr data-id="@Model.Risks[i].ResponsePlanActivity[l].ActivityId" data-risk-id="@Model.Risks[i].RiskId.ToString()" data-description="firstRowResponsePlan" class="">
+                                                        @{
+                                                            bool lastRow = default(bool);
+                                                            if (l + 1 == Model.Risks[i].ResponsePlanActivity.Count)
+                                                            {
+                                                                lastRow = true;
+                                                            }
+
+                                                            if (lastRow)
+                                                            {
+                                                                <td class="tree"><span class="high50"></span><span class="selected topZero"></span></td>
+                                                            }
+                                                            else
+                                                            {
+                                                                <td class="tree"><span></span><span class="selected"></span></td>
+                                                            }
+                                                        }
+                                                        <td class="text-left maxw170">
+                                                            @Confluence.InputDropDownMulti(string.Format("Risks[{0}].ResponsePlanActivity[{1}].ManagementStrategyValues", i, l),
+                                                                        Html.BuildMultiSelectItemList(Model.RiskManagementStrategy, m => m.Text, m => m.Value), required: false,
+                                                                        values: string.Join(",", Model.Risks[i].ResponsePlanActivity[l].ManagementStrategy.Select(x => x.ManagementStrategyId)), width: "100%", maxHeight: "60px",
+                                                                        dataAttributes: new Dictionary<string, string>() { { "name", "mddlManagementStrategy" }, { "id", "mddlManagementStrategy_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } }, htmlClass: "maxw300")
+                                                            @for (int m = 0; m < Model.Risks[i].ResponsePlanActivity[l].ManagementStrategy.Count; m++)
+                                                            {
+                                                                @Html.HiddenFor(model => model.Risks[i].ResponsePlanActivity[l].ManagementStrategy[m].ManagementStrategyId);
+                                                                @Html.HiddenFor(model => model.Risks[i].ResponsePlanActivity[l].ManagementStrategy[m].Description);
+                                                            }
+                                                            @Html.HiddenFor(model => model.Risks[i].ResponsePlanActivity[l].ActivityCode)
+                                                            @Html.HiddenFor(model => model.Risks[i].ResponsePlanActivity[l].ActivityId)
+                                                        </td>
+                                                        <td class="text-left" colspan="3">
+                                                            @Confluence.InputTextArea(Model.Risks[i].ResponsePlanActivity[l].ActivityDescription, string.Format("Risks[{0}].ResponsePlanActivity[{1}].ActivityDescription", i, l),
+                                                                    id: string.Format("Risks_{0}__ResponsePlanActivity_{1}__ActivityDescription", i, l),
+                                                                    width: "100%", maxLength: 2000,
+                                                                    dataAttributes: new Dictionary<string, string>() { { "name", "activityDescription" }, { "id", "activityDescription_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                        </td>
+                                                        <td>
+                                                            @Confluence.InputDropDown(Model.Risks[i].ResponsePlanActivity[l].ActvityStatusId.ToString(),
+                                                            string.Format("Risks[{0}].ResponsePlanActivity[{1}].ActvityStatusId", i, l),
+                                                            Html.BuildSelectItemList(Model.ActivityStatus, m => m.Text, m => m.Value), width: "100%", required: false,
+                                                            dataAttributes: new Dictionary<string, string>() { { "name", "ddlActivityStatus" }, { "id", "ddlActivityStatus_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                        </td>
+                                                        <td align="center">
+                                                            @Confluence.ButtonShowRow()
+                                                        </td>
+                                                        <td>
+                                                            @if (showActivityButtonTrash)
+                                                            {
+                                                                @Confluence.ButtonTrash(string.Empty, action: "deleteActivity", name: "btnDeleteActivity", required: false)
+                                                            }
+
+                                                        </td>
+                                                    </tr>
+                                                    <tr data-row-parent-id="@Model.Risks[i].ResponsePlanActivity[l].ActivityId" data-description="secondRowResponsePlan">
+                                                        @{
+                                                            if (lastRow)
+                                                            {
+                                                                <td class="tree"></td>
+                                                            }
+                                                            else
+                                                            {
+                                                                <td class="tree"><span></span><span class=""></span></td>
+                                                            }
+                                                        }
+                                                        <td colspan="7">
+                                                            <div class="col-md-4">
+                                                                @Confluence.Label(Localization.GetText("RISK.TRIGGER.EVENT.OR.MILESTONE"))
+                                                                <br />
+                                                                @Confluence.InputText(Model.Risks[i].ResponsePlanActivity[l].TriggerEventOrMilestone,
+                                                                                string.Format("Risks[{0}].ResponsePlanActivity[{1}].TriggerEventOrMilestone", i, l),
+                                                                                id: string.Format("Risks_{0}__ResponsePlanActivity_{1}__TriggerEventOrMilestone", i, l),
+                                                                                maxLength: 1000, required: false,
+                                                                                dataAttributes: new Dictionary<string, string>() { { "name", "expectedActDate" }, { "id", "expectedActDate_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } }, width: "100%")
+
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                @Confluence.Label(Localization.GetText("RISK.BUDGET"))
+                                                                <br />
+                                                                @Confluence.InputDecimal(Model.Risks[i].ResponsePlanActivity[l].Budget, string.Format("Risks[{0}].ResponsePlanActivity[{1}].BudgetStr", i, l),
+                                                                        id: string.Format("Risks[{0}].ResponsePlanActivity[{1}].BudgetStr", i, l), required: false, width: "100%", decimalPrecision: 0,
+                                                                        dataAttributes: new Dictionary<string, string>() { { "name", "budgetActivity" }, { "id", "budgetActivity_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                @Confluence.Label(Localization.GetText("RISK.RESPONSIBLE"))
+                                                                <br />
+                                                                @Confluence.InputText(Model.Risks[i].ResponsePlanActivity[l].Responsible, string.Format("Risks[{0}].ResponsePlanActivity[{1}].Responsible", i, l), id:
+                                                                    string.Format("Risks[{0}].ResponsePlanActivity[{1}].Responsible", i, l), maxLength: 1000, required: false, width: "100%",
+                                                                    dataAttributes: new Dictionary<string, string>() { { "name", "responsibleActivity" }, { "id", "responsibleActivity_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                            </div>
+                                                            <div class="col-md-4">
+
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr data-row-parent-id="@Model.Risks[i].ResponsePlanActivity[l].ActivityId" data-description="thirdRowResponsePlan">
+                                                        @{
+
+                                                            if (lastRow)
+                                                            {
+                                                                <td class="tree"></td>
+                                                            }
+                                                            else
+                                                            {
+                                                                <td class="tree"><span></span><span class=""></span></td>
+                                                            }
+                                                        }
+                                                        <td colspan="7">
+                                                            <div class="col-md-4">
+                                                                @Confluence.Label(Localization.GetText("RISK.CURRENT.COMPLETION.DATE"))
+                                                                <br />
+                                                                @Confluence.InputDatePicker(Model.Risks[i].ResponsePlanActivity[l].CurrentCompletationDate,
+                                                                string.Format("Risks[{0}].ResponsePlanActivity[{1}].CurrentCompletationDate", i, l),
+                                                                id: string.Format("Risks_{0}__ResponsePlanActivity_{1}__CurrentCompletationDate", i, l),
+                                                                dataAttributes: new Dictionary<string, string>() { { "name", "completionDateActv" }, { "id", "completionDateActv_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } }, required: false, width: "100%")
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                @Confluence.Label(Localization.GetText("RISK.FUNDING.SOURCE"))
+                                                                <br />
+                                                                @Confluence.InputDropDown(Model.Risks[i].ResponsePlanActivity[l].FundingSourceId.ToString(),
+                                                            string.Format("Risks[{0}].ResponsePlanActivity[{1}].FundingSourceId", i, l),
+                                                            Html.BuildSelectItemList(Model.RiskFundingSource, m => m.Text, m => m.Value), width: "100%", required: false,
+                                                            dataAttributes: new Dictionary<string, string>() { { "name", "ddlFundingSource" }, { "id", "ddlFundingSource_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                @Confluence.Label(Localization.GetText("RISK.INSTITUTION"))
+                                                                <br />
+                                                                @Confluence.InputText(Model.Risks[i].ResponsePlanActivity[l].Institution,
+                                                                    string.Format("Risks[{0}].ResponsePlanActivity[{1}].Institution", i, l),
+                                                                    id: string.Format("Risks_{0}__ResponsePlanActivity_{1}__Institution", i, l), required: false, width: "100%", maxLength: 2000,
+                                                                    dataAttributes: new Dictionary<string, string>() { { "name", "institutioneActv" }, { "id", "institutioneActv_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr data-row-parent-id="@Model.Risks[i].ResponsePlanActivity[l].ActivityId" data-description="quarterRowResponsePlan">
+                                                        @{
+
+                                                            if (lastRow)
+                                                            {
+                                                                <td class="tree"></td>
+                                                            }
+                                                            else
+                                                            {
+                                                                <td class="tree"><span></span><span class="high50"></span></td>
+                                                            }
+                                                        }
+                                                        <td colspan="7">
+                                                            <div class="col-md-8"></div>
+                                                            <div class="col-md-4">
+                                                                @{
+                                                                    var it = Model.Risks[i].ResponsePlanActivity[l].ManagementStrategy.FirstOrDefault();
+
+                                                                    if (it == null)
+                                                                    {
+                                                                        <div id="riskJustificationOutputs_@Model.Risks[i].ResponsePlanActivity[l].ActivityId" style="display:none;">
+                                                                            @Confluence.Label(Localization.GetText("RISK.ACTIVITY.JUSTIFICATION"))
+                                                                            <br />
+                                                                            @Confluence.InputTextArea(Model.Risks[i].ResponsePlanActivity[l].Justification,
+                                                                                    string.Format("Risks[{0}].ResponsePlanActivity[{1}].Justification", i, l),
+                                                                                    string.Format("Model.Risks_{0}__ResponsePlanActivity_{1}__Justification", i, l), width: "100%", required: false, height: "100px", maxLength: 2000,
+                                                                                    dataAttributes: new Dictionary<string, string>() { { "name", "justificationActv" }, { "id", "justificationActv_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                                        </div>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        if (it.ManagementStrategyId == Model.IdAcceptStatus)
+                                                                        {
+                                                                            <div id="riskJustificationOutputs_@Model.Risks[i].ResponsePlanActivity[l].ActivityId">
+                                                                                @Confluence.Label(Localization.GetText("RISK.ACTIVITY.JUSTIFICATION"))
+                                                                                <br />
+                                                                                @Confluence.InputTextArea(Model.Risks[i].ResponsePlanActivity[l].Justification,
+                                                                                       string.Format("Risks[{0}].ResponsePlanActivity[{1}].Justification", i, l),
+                                                                                       string.Format("Model.Risks_{0}__ResponsePlanActivity_{1}__Justification", i, l), width: "100%", required: true, height: "100px", maxLength: 2000,
+                                                                                       dataAttributes: new Dictionary<string, string>() { { "name", "justificationActv" }, { "id", "justificationActv_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                                            </div>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <div id="riskJustificationOutputs_@Model.Risks[i].ResponsePlanActivity[l].ActivityId" style="display:none;">
+                                                                                @Confluence.Label(Localization.GetText("RISK.ACTIVITY.JUSTIFICATION"))
+                                                                                <br />
+                                                                                @Confluence.InputTextArea(Model.Risks[i].ResponsePlanActivity[l].Justification,
+                                                                                       string.Format("Risks[{0}].ResponsePlanActivity[{1}].Justification", i, l),
+                                                                                       string.Format("Model.Risks_{0}__ResponsePlanActivity_{1}__Justification", i, l), width: "100%", required: false, height: "100px", maxLength: 2000,
+                                                                                       dataAttributes: new Dictionary<string, string>() { { "name", "justificationActv" }, { "id", "justificationActv_" + Model.Risks[i].ResponsePlanActivity[l].ActivityId.ToString() } })
+                                                                            </div>
+                                                                        }
+                                                                    }
+                                                                }
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                                    }
+                                            </tbody>
+                                        </table>
+
+                            </div>
+                            <div class="col-md-12 mb10 mt10" align="center">
+                                @if (showActivityButtonAdd)
+                                {
+                                    @Confluence.ButtonAddNewRows(Localization.GetText("RISK.ADD.ACTIVITY"), "tblActivity_" + Model.Risks[i].RiskId.ToString(), name: "btnAddActivity", action: "addNewRowActivity", htmlClass: "")
+                                }
+                            </div>
+                        </td>
+                        @Confluence.InputHidden(null, name: string.Format("Risks[{0}].DescriptionIssue", i), id: string.Format("Risks_0__.DescriptionIssue", i), dataAttributes: new Dictionary<string, string>() { { "description-issue", Model.Risks[i].RiskId.ToString() } }, required: false)
+                    </tr>
+
+                                                                    }
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-12 mb25 mt20" align="center">
+        @if (showRiskButtonAdd)
+        {
+            @Confluence.ButtonAddNewRows(Localization.GetText("RISK.ADD.RISK"), "tblRisk", action: "addNewRowRisk", name: "btnAddNewRisk")
+        }
+
+    </div>
+    <div class="col-md-12 ml30 pt10 pr10 pb0 pl0" name="noteFather">
+        <div class="col-md-8 mb10 pl0">
+            @Confluence.LabelBold(Localization.GetText("RISK.COMMENTS"))
+        </div>
+        <div class="col-md-4">
+            @if (showRMGAddComment)
+            {
+                @Confluence.ButtonBlue(Localization.GetText("RISK.NEW.NOTE"), "btnRiskAddComment", htmlClass: "pull-right", action: "addComment")
+            }
+        </div>
+        <br />
+        <div class="col-md-12 mt15 pr0 pl0" id="userCommentContainer">
+            <div class=" col-md-12 pr0 pl0 textareanote textareanewnote"></div>
+            @for (int j = 0; j < Model.UserComments.Count; j++)
+            {
+                <div class="col-md-12 pr0 pl0 textAreaNote">
+                    <div class="col-md-12 pl0 pr0 internalNote" data-id="@Model.UserComments[j].UserCommentId" id="riskmatrixUserCommentSection">
+                        <div class="col-md-4">
+                            @Confluence.Label(Model.UserComments[j].CreatedBy, htmlClass: "ml20")
+
+                            @if (userName == Model.UserComments[j].CreatedBy)
+                            {
+                                @Confluence.ButtonTrash(null, htmlClass: "ml20 mt0", required: false, action: "deleteNote")
+                            }
+                        </div>
+                        <div class="col-md-2">
+                            @Confluence.LabelGetDate(Model.UserComments[j].Created)
+                        </div>
+                        <div class="col-md-6">
+                            @if (userName == Model.UserComments[j].CreatedBy && showRMGComment)
+                            {
+                                @Confluence.InputCheckbox(Model.UserComments[j].IsRmgComment, string.Format("UserComments[{0}].IsRmgComment", j), string.Format("UserComments_{0}__IsRmgComment", j), Localization.GetText("RISK.RMG.COMMENT"), labelBold: true, value: true)
+                            }
+                            else
+                            {
+                                @Confluence.InputCheckbox(Model.UserComments[j].IsRmgComment, string.Format("UserComments[{0}].IsRmgComment", j), string.Format("UserComments_{0}__IsRmgComment", j), Localization.GetText("RISK.RMG.COMMENT"), labelBold: true, value: true, disabled: true)
+                                @Html.HiddenFor(model => model.UserComments[j].IsRmgComment)
+                            }
+                        </div>
+                        <br /><br />
+                        @Confluence.InputTextArea(Model.UserComments[j].Text,
+                                           width: "100%", height: "100px", htmlClass: "", required: true,
+                                           disabled: !(userName == Model.UserComments[j].CreatedBy),
+                                           id: string.Format("UserComments_{0}__Text", j),
+                                           name: string.Format("UserComments[{0}].Text", j))
+                        <br /><br />
+                        @Html.HiddenFor(model => Model.UserComments[j].Created)
+                        @Html.HiddenFor(model => Model.UserComments[j].UserCommentId)
+                        @Html.HiddenFor(model => Model.UserComments[j].CreatedBy)
+                        @Html.HiddenFor(model => model.UserComments[j].Modified)
+                        @Html.HiddenFor(model => model.UserComments[j].ModifiedBy)
+                        @Html.HiddenFor(model => model.UserComments[j].Text)
+                    </div>
+                </div>
+            }
+        </div>
+        <div id="sectionRiskMatrixNewComment" class="col-md-12 ml0 pl0">
+
+        </div>
+    </div>
+
+    <div class="col-md-12 mt20">
+        <div class="col-md-10 mb10">
+            @Confluence.LabelBold(Localization.GetText("RISK.DOCUMENTS"))
+        </div>
+        <div class="col-md-2 mb10">
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnRiskAddDocument", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonBlue(Localization.GetText("RISK.ADD.DOCUMENTS"), "btnRiskAddDocument", htmlClass: "pull-right", action: "addDocument")
+            }
+        </div>
+
+    </div>
+    <div class="col-md-12">
+        <table class="tableNormal" id="tblRiskMatrixDocument">
+            <thead>
+                <tr>
+                    <th class="sort">@Localization.GetText("RISK.USER")</th>
+                    <th class="sort">@Localization.GetText("RISK.DOCUMENT.DATE")</th>
+                    <th class="sort">@Localization.GetText("RISK.DOCUMENT.NUMBER")</th>
+                    <th class="sort">@Localization.GetText("RISK.DESCRIPTION")</th>
+                    <th>@Localization.GetText("RISK.ACTIONS")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int k = 0; k < Model.Documents.Count; k++)
+                {
+                    <tr data-id="@Model.Documents[k].DocumentId">
+                        <td>
+                            @Model.Documents[k].CreatedBy
+                            @Html.HiddenFor(model => Model.Documents[k].CreatedBy)
+                        </td>
+                        <td>
+                            @Confluence.LabelGetDate(Model.Documents[k].Created)
+                            @Html.HiddenFor(model => model.Documents[k].Created)
+                        </td>
+                        <td>
+                            @Model.Documents[k].DocumentReference
+                            @Html.HiddenFor(model => Model.Documents[k].DocumentReference)
+                            @Html.HiddenFor(model => Model.Documents[k].DocumentId)
+                        </td>
+                        <td>
+                            @if (Model.Documents[k].CreatedBy == IDBContext.Current.UserLoginName)
+                            {
+                                @Html.TextBoxFor(model => model.Documents[k].Description, new { @class = "inputText w100" })
+                            }
+                            else
+                            {
+                                @Model.Documents[k].Description
+                            }
+                            @Html.HiddenFor(model => Model.Documents[k].Description)
+                        </td>
+                        <td align="center">
+                            @if (Model.Documents[k].CreatedBy == IDBContext.Current.UserLoginName)
+                            {
+                                @Confluence.ButtonTrash(null, action: "deleteDocument", required: false)
+                            }
+                            @{var secureDownload = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(Model.Documents[k].DocumentReference);}
+                            <a href="@Html.Encode(secureDownload)" target="_blank">
+                                <div class="buttonDownload documentDownloadSize">
+                                    <span class="icon"></span>
+                                    <span></span>
+                                </div>
+                            </a>
+                        </td>
+                    </tr>
+                                }
+
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-12 mt20 mb20">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnRiskMatrixSave", Model.ScreenSecurity.Security))
+        {
+            <button class="buttonOrange pull-right" id="btnRiskMatrixSave" type="submit">@Localization.GetText("RISK.SAVE")</button>
+        }
+
+        @Ajax.ActionLink(Localization.GetText("RISK.CANCEL"), "Cancel", "RiskMatrix", new { operationNumber = Model.OperationNumber }, new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMatrixAjaxOnComplete", OnBegin = "riskMatrixAjaxOnBeginNoValidate", OnFailure = "riskMatrixAjaxOnFailure" }, new { @class = "pull-right buttonLink", id = "btnRiskMatrixCancel" })
+    </div>
+
+                                }

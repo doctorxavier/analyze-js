@@ -1,0 +1,238 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@using IDB.MW.Domain.Models.Visit
+@using IDB.Presentation.MVC4.Areas.Visits.Controllers
+@using IDB.MW.Domain.Models.Architecture.Enumerations
+@using IDB.Presentation.MVC4.Helpers
+@model List<VisitPlanModel>
+@{
+    ViewBag.Title = "Visit Plan Summary";
+    var isInEdit = (bool)ViewBag.EditMode;
+    var view = (IDB.Presentation.MVC4.Areas.Visits.Controllers.VisitsController.VisitsPlanView)ViewBag.EditableView;
+    var selectedYear = (int)ViewBag.SelectedYear;
+    if (Model.Count == 1) { selectedYear = (int)Model.First().Year; }
+    var Operationnum = (string)ViewBag.OperationNumber;
+    var isEmpty = !(Model != null && Model.Count > 0);
+    var modeeeee = Model;
+    var yearToCreate = isEmpty ? DateTime.Today.Year : (Model.Count == 1 ? DateTime.Today.Year + 1 : 0);
+    var errorAddingDocument = ViewBag.UploadFileError != null ? (string)ViewBag.UploadFileError : string.Empty;
+    
+}
+
+<!------CSS----------->
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Messages/jquery_notification.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")"/>
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/SupervisionPlan/module.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/SupervisionPlan/general.css")" />
+<!------JS----------->
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery-1.10.2.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery-ui-1.11.3.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/kendo/kendo.web.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visit/main.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visit/addDocument.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visit/EditVisit.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/handlebars-v1.3.0.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Messages/jquery_notification.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+    
+
+
+@if (!string.IsNullOrWhiteSpace(errorAddingDocument))
+{
+    
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+            function warningDocumentAddingError() {
+                event.preventDefault();
+                $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="dinamicModal"></div>');
+                $("#errorUploading").appendTo(".dinamicModal").removeClass("hide");
+                var title = $("#errorUploading").data("title");
+                var modal = $(".dinamicModal").kendoWindow({
+                    width: "800px",
+                    title: title,
+                    draggable: false,
+                    resizable: false,
+                    pinned: true,
+                    actions: [
+                        "Close"
+                    ],
+                    modal: true,
+                    visible: false,
+                    activate: function () {
+                        $("#ConfirmErrorWarning").click(functionCancel);
+                    },
+                    close: function () {
+                        $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                        $("#errorUploading").appendTo("#ui_sp_001").addClass("hide");
+                        $("body").find(".ui-widget-overlay").remove();
+                        $(".ui-widget-overlay").remove();
+                        $(".k-window").remove();
+                    }
+                }).data("kendoWindow");
+                $(".k-window-titlebar").addClass("warning");
+                $(".k-window-title").addClass("ico_warning");
+                modal.center();
+                modal.open();
+            };
+
+            var functionCancel = function () {
+                event.preventDefault();
+                var modal = $(".dinamicModal").data("kendoWindow");
+                modal.close();
+                $(".ui-widget-overlay").remove();
+            };
+
+            warningDocumentAddingError();
+        });
+    </script>
+
+}
+
+
+
+<div id="ui_sp_001" class="padding20" style="background-color : white">
+
+    <!-- INICIO TABLA DE AÑOS-->
+
+    @using (Html.BeginForm("VisitsPlanSummary","Visits", FormMethod.Post, new { area = "Visits", id = "main-form" }))
+    {
+
+        if (ViewData["Message"] != null)
+        {
+            @Html.ShowNotificationMessage((MessageConfiguration)ViewData["Message"]);
+        }
+
+        <div class="relative h50px verticalMargin20">
+            <h3 class="font2em absolute">@Localization.GetText("Visit Plan Summary")</h3>
+        </div>
+        
+        @Html.Hidden("SelectYearV", "", new { data_title = "SelectYear", data_route = Url.Action("SelectYear", "Visits", new { area = "Visits" }) })
+        @Html.Hidden("OperationNumber", !isEmpty ? Model.First().OperationNumber : "")
+        @Html.Hidden("Year", selectedYear)
+        @Html.Hidden("View", view, new { @class = "view-selector" })
+        @Html.Hidden("SelectedPlanId", !isEmpty ? Model.First(m => m.Year == selectedYear).VisitPlanId : -1)
+        @Html.Hidden("IsInEdit", isInEdit, new { data_route_save_warning = Url.Action("_SaveFirstOnTabChange", "Visits"), data_window_title = Localization.GetText("Warning") })
+        @Html.Hidden("PlanVersionId", !isEmpty ? Model.First(m => m.Year == selectedYear).VisitPlanId : -1)
+        @Html.Hidden("CreateNew", false)
+
+        
+        <div class="mod_style verticalMargin20 relative" style="width: 95%">
+            <table class="gridPlan grid" style="width: 100%;font-size:13px;">
+                <thead>
+                    <tr>
+                        <th>@Localization.GetText("Year")</th>
+                        <th>@Localization.GetText("Last update")</th>
+                        <th>@Localization.GetText("Creation date")</th>
+                        <th>@Localization.GetText("Actions")</th>
+                    </tr>
+                </thead>
+                <tbody class="k-alt">
+                    @foreach (var plan in Model)
+                    {
+                        <tr class="plan-row">
+                            <td><a href="@Url.Action("VisitsPlanSummary", "Visits", new { area = "Visits", operationNumber = (string)ViewBag.OperationNUmber, year = plan.Year })" style="font-weight: bold"  onclick="javascript:idbg.lockUi(null, true);">@plan.Year</a></td>
+                            <td>@plan.Modified.Value.ToString("dd MMM yyy")</td>
+                            <td>@plan.Created.Value.ToString("dd MMM yyy")</td>
+                            <td class="actionbuttons-col">@Html.Partial("~/Areas/Visits/Views/Shared/_RowActionButtons.cshtml", plan)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+
+             @if (Model.Count < 2)
+             {
+                 if (Html.HasPermission("Visit Plan Write"))
+                 {
+                        <div class="centerAlign addOneWrapper centerContent verticalMargin20 w25">
+                            <div class="addOneContainer w100 h100" style="font-size:12px">
+                                <input type="button" value=" @Localization.GetText("New Plan")" class="noBorder h100 addOne cursorPointer w100 ac-PlanYear"
+                                    title="@Localization.GetText("Delete")" data-version-id="@Operationnum" data-year ="@selectedYear" 
+                                     data-route-select-year="@Url.Action("SelectYear", "Visits", new { area = "Visits", operationNumber = Operationnum, year = yearToCreate })" 
+                                    data-window-title=" @Localization.GetText("Select Year")" data-route="@Url.Action("SavePlan", "Visits")" style="font-size:12px;"/>
+                            </div>
+                          </div>
+                        
+                 }
+             }
+        </div>
+        
+    }
+    <!-- FIN TABLA DE AÑOS-->
+    
+    
+    @if (!isEmpty)
+    {
+        <div class="relative h50px verticalMargin40" style="margin-bottom: 0;">
+            <h3 class="font2em">@Localization.GetText("Visit Plan")<span id="TitleYear" style="font-weight: bold"> @selectedYear</span></h3>
+        </div>
+        
+        <div class="tabsContainer verticalMargin20">
+            <div class="inline-block tabItem@(view == IDB.Presentation.MVC4.Areas.Visits.Controllers.VisitsController.VisitsPlanView.Visit ? " active" : "")" data-id="@IDB.Presentation.MVC4.Areas.Visits.Controllers.VisitsController.VisitsPlanView.Visit" data-route="@Url.Action("IndexVisitsPartial", "Visits")">@Localization.GetText("Visits")</div>
+        </div>
+        
+        <div id="loadingContainerSP" style="position: absolute; display: none; height: 200px; width: 97%;"></div>
+       
+        var modelp = Model.First(p => p.Year == selectedYear);
+        
+        <div class="buttonsPanel verticalMargin20">
+            @Html.Partial("~/Areas/Visits/Views/Shared/_ActionButtons.cshtml", Model.First(m => m.Year == selectedYear))
+        </div>
+        
+        <div id="VisitPlanPanel">
+            @if (ViewBag.EditMode != null && ((bool)ViewBag.EditMode))
+            {
+                @Html.Partial("~/Areas/Visits/Views/Visits/EditVisits.cshtml", Model.First(p => p.Year == selectedYear))
+            }
+            else
+            {
+                var viewName = string.Empty;
+                object model = null;
+                switch (view)
+                {
+                    case IDB.Presentation.MVC4.Areas.Visits.Controllers.VisitsController.VisitsPlanView.Visit:
+                        viewName = "~/Areas/Visits/Views/Visits/IndexVisitsPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).Visits;
+                        if (model != null)
+                        {
+                            model = Model.First(p => p.Year == selectedYear).Visits;
+                        }
+                        else
+                        {
+                            model = new List<VisitModel>();
+                        }
+                        break;
+                }
+                @Html.Partial(viewName, model)
+            }
+        </div>
+        
+        <div class="buttonsPanel verticalMargin20">
+            @Html.Partial("~/Areas/Visits/Views/Shared/_ActionButtons.cshtml", Model.First(m => m.Year == selectedYear))
+        </div>
+        
+        if (!string.IsNullOrWhiteSpace(errorAddingDocument)){
+            <div class="hide" id="errorUploading" data-title=" @Localization.GetText("Warning")">
+                <div class="padding20 popUpBody">
+                    <div class="marginBottom2">
+                        <div>
+                           @errorAddingDocument
+                        </div>
+                        <div class="rightAlign absolute right1 verticalPadding10 w60">
+                            <input type="button" class="button blueButton" id="ConfirmErrorWarning" value=" @Localization.GetText("OK")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>

@@ -1,0 +1,163 @@
+@using IDB.Presentation.MVC4.Areas.Visualization.Business;
+@using IDB.Architecture.Language;
+@using IDB.Architecture.BusinessRules;
+@using IDB.MW.Application.DEMModule.ViewModels;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+@{
+    Layout = "~/Views/Shared/_ClearLayout.cshtml";
+    var editRules = Model.Execute("Visualization.VP.IsEditable");
+    var workflowRules = Model.Execute("Visualization.Workflow.IsEnable");
+
+    DEMLockReviewProcessDataSerializableViewModel demLockReviewProcessDataViewModel = new DEMLockReviewProcessDataSerializableViewModel
+    {
+        IsLockReviewProcessDEM = false
+
+    };
+
+    if (ViewBag.DEMLockReviewProcessData != null)
+    {
+        demLockReviewProcessDataViewModel = (DEMLockReviewProcessDataSerializableViewModel)ViewBag.DEMLockReviewProcessData;
+    }
+}
+
+@section JavaScript{
+    <script type="text/javascript" src="~/scripts/jqplugins/kendo.web.js"></script>
+    <script type="text/javascript" src="~/Scripts/modules/visualization/common.js"></script>
+
+    @if (Model.EditMode)
+    {
+        <script type="text/javascript" src="~/Scripts/concurrence.js"></script>
+    }
+    <script type="text/javascript">
+        function deleteVisualOutput(vovId) {
+            $(this).prop("disabled", true);
+            var url = '@Url.Action("vovdelete")?visualOutputVersionId=' + vovId;
+            jQuery.ajax({
+                url: url,
+                success: function () {
+                    document.location.reload();
+                }
+            });
+
+        }
+        $(document).ready(function () {
+            setTimeout(function () { resizeIframeCloud(); }, 1000);
+        });        
+    </script>
+}
+
+@section css{
+    <style type="text/css">
+        body {
+            overflow: hidden;
+        }
+    </style>
+    <link rel="stylesheet" type="text/css"
+        href="@Url.Content("~/Content/Modules/ResultsMatrix/Outputs/ResultMatrix_Outputs.css")" />
+}
+
+@Html.Partial("_SharedHeader", Model)
+
+@section contentheader{
+
+    @if (Model.EditMode)
+    {
+        Html.BeginForm("GridSave", "VisualData", FormMethod.Post, new { id = "GridSaveForm" });
+    }
+
+    <div class="content-block">
+        <div class="left">
+            <h1>@Localization.GetText("Outputs")</h1>
+        </div>
+        <div class="right buttonsEdit">
+            @RenderOptions(editRules, workflowRules, demLockReviewProcessDataViewModel)
+        </div>
+    </div>
+}
+
+<div class="content-block">
+
+
+    @Html.Partial("_VDataMatrix", Model)
+
+    <div class="content-block">
+        <div class="right">
+            @RenderOptions(editRules, workflowRules, demLockReviewProcessDataViewModel)
+        </div>
+    </div>
+
+</div>
+
+@if (Model.EditMode)
+{
+    { Html.EndForm(); }
+
+    <script type="text/javascript">
+
+        $('#GridSaveForm').bind('submit', function () {
+            showNotification({
+                'message': "@Localization.GetText("TCM.SaveSuccessfulMessage")"
+            });
+        });
+
+    </script>
+}
+
+@helper RenderOptions(
+    RuleContext editRules,
+    RuleContext workflowRules,
+    DEMLockReviewProcessDataSerializableViewModel demLockReviewProcessDataViewModel)
+{
+    if (!demLockReviewProcessDataViewModel.IsLockReviewProcessDEM)
+    {
+        bool isLessTaskFive = ViewBag.isLessTaskFive ?? false;
+        if (Model.EditMode)
+        {
+            <input type="button" value="Cancel" class="button white click-action"
+                onclick="setPageFree()"
+                data-route="@Url.Action("grid")" />
+        }
+
+        if (IDBContext.Current.HasPermission(IDB.MW.Domain.Session.Permission.VISUALIZATION_WRITE_TL)
+            || IDBContext.Current.HasRole(IDB.MW.Domain.Session.Role.RM_ADMINISTRATOR))
+        {
+            <input type="button" class="button blueButton click-lock click-action"
+                   value="@Localization.GetText("VIS.publication.status")"
+                   title="@Localization.GetText("VIS.publication.status")"
+                   data-route="@Url.Action("SendToMap")" />
+        }
+
+        if (ViewBag.RMAdministrator)
+        {
+            if (editRules.GetResult<bool>())
+            {
+                    <input type="button" class="button blueButton click-lock click-action"
+                           value="@Localization.GetText("Edit")"
+                           title="@Localization.GetText("Edit")"
+                           data-lockmessage="Performing action"
+                           data-confirmation="@(editRules.GetResult<string>("Confirmation"))"
+                           data-route="@(editRules.GetResult<string>("Action"))">
+                }
+        }
+        else if (editRules.GetResult<bool>() && isLessTaskFive)
+        {
+                <input type="button" class="button blueButton click-lock click-action"
+                       value="@Localization.GetText("Edit")"
+                       title="@Localization.GetText("Edit")"
+                       data-lockmessage="Performing action"
+                       data-confirmation="@(editRules.GetResult<string>("Confirmation"))"
+                       data-route="@(editRules.GetResult<string>("Action"))">
+        }
+
+        if (Model.EditMode)
+        {
+            <input type="submit" class="button click-lock" data-lockmessage="Saving data"
+                value="@Localization.GetText("Save")">
+        }
+    }
+    else
+    {
+        <div id="dem-block-description-outputs">@Html.Raw(demLockReviewProcessDataViewModel.LockDescription)</div>
+    }
+}

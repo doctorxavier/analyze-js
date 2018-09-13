@@ -1,0 +1,150 @@
+﻿@using System.Configuration;
+
+@using IDB.Architecture.Extensions;
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.OpusMissionsModule.Enums
+@using IDB.MW.Domain.Values.Reports
+@using IDB.MW.Domain.Values
+
+@model List<IDB.MW.Application.MissionsModule.ViewModels.MissionViewModel>
+
+<div id="tablaPagContentMission" data-url="@Url.Action("SaveHelpMemoryDocument", "Save", new { area = "OpusMissions" })">
+    <table id="tablaPaginationMission" class="tableNormal beginSpacing" data-idb-fieldname="tblPaginationMission">
+        <thead>
+            <tr>
+                <th id="missionIdNumber" class="sort">@Localization.GetText("OP.MS.MissionId")</th>
+                <th class="sort">@Localization.GetText("OP.MS.MissionData.Objective")</th>
+                <th class="sort">@Localization.GetText("OP.MS.Type")</th>
+                <th class="sort">@Localization.GetText("OP.MS.Country")</th>
+                <th class="sort">@Localization.GetText("OP.MS.MissionData.MissionLeader")</th>
+                <th class="sort">@Localization.GetText("OP.MS.StartDate")</th>
+                <th class="sort">@Localization.GetText("OP.MS.EndDate")</th>
+                <th class="sort">@Localization.GetText("OP.MS.Status")</th>
+                <th>@Localization.GetText("OP.MS.Documents.Documents")</th>
+                @if (ViewBag.HasWritePermission)
+                {
+                    <th>@Localization.GetText("OP.MS.Action")</th>
+                }
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.ToList())
+            {
+                <tr data-id="@item.MissionId">
+                    <td width="7%"><a href="@Url.Action("MissionCompleteView", "View", new { area = "OpusMissions" })?missionId=@item.MissionId&OperationNumber=@item.operationNumber" data-idb-fieldname="hlViewMission">@item.MissionCode</a> </td>
+                    <td width="14%">@item.Objective</td>
+                    <td width="8%">@item.Type</td>
+                    <td width="6%">@item.Country</td>
+                    <td width="10%">@item.MissionTeamLeader</td>
+                    <td width="7%">@FormatHelper.Format(item.StartDate)</td>
+                    <td width="7%">@FormatHelper.Format(item.EndDate)</td>
+                    <td width="6%">@item.Status</td>
+                    <td width="7%">
+
+                        @if (item.Documents.HasAny() &&
+                            item.Documents.Any(a => a.Description.StartsWith(ReportType.REPORT_TYPE_TOR)))
+                        {
+                            var latestTORDocument = item.Documents
+                                .Where(a => a.Description.StartsWith(ReportType.REPORT_TYPE_TOR))
+                                .OrderByDescending(b => b.Date)
+                                .First();
+
+                            var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(latestTORDocument.DocNumber);
+
+                            <a href=@secureUrl target="_blank">@Confluence.ButtonDownload(text: string.Empty)</a><br />
+                        }
+                    </td>
+                    @if (ViewBag.HasWritePermission)
+                    {
+                        <td width="30%">
+                            @if (item.StatusCodeType.Equals("MISSION_STATUS_DRAF"))
+                            {
+                                @Confluence.ButtonTrash(null, action: "actionDeleteMission", dataAttributes: new Dictionary<string, string> { { "mission-id", Convert.ToString(item.MissionId) }, { "idb-fieldname", "btnDeleteMission" } })
+                            }
+
+                            @if (item.StatusCodeType.Equals("MISSION_STATUS_COMPLETED_PEND"))
+                            {
+                                @Confluence.ButtonUpload(text: Localization.GetText("DM.Add.Document"), name: "MissionDocumentsAdd", dataAttributes: new Dictionary<string, string> { { "id", "MissionDocuments-add" }, { "modal-allowclose", "true" }, { "custom-modal", "MissionDocuments-modal-add" }, { "custom-modal-validate", "false" }, { "custom-modal-title", Localization.GetText("OP.AP.Documents.Search") }, { "mission-id", Convert.ToString(item.MissionId) }, { "btn_add_document_Help", "true" }, { "idb-fieldname", "btnMissionDocumentsAdd" } })
+                            }
+
+                            @if (item.MissionActionsConfig.IsCancelVisible)
+                            {
+                                @Confluence.ButtonWhite(
+                                    text: "Cancel",
+                                    action: "cancelOrPosponedMission",
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                        { "mission-id", Convert.ToString(item.MissionId) },
+                                        { "mission-status", MissionStatusCode.MISSION_STATUS_CANCELLED },
+                                        { "mission-message", Localization.GetText("OP.MS.Cancelled.Popup") }
+                                    },
+                                    htmlClass: "nomargin")
+                            }
+
+                            @if (item.MissionActionsConfig.IsPostponeVisible)
+                            { 
+                                @Confluence.ButtonWhite(
+                                    text: "Postpone",
+                                    action: "cancelOrPosponedMission",
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                        { "mission-id", Convert.ToString(item.MissionId) },
+                                        { "mission-status", MissionStatusCode.MISSION_STATUS_POSTPONED },
+                                        { "mission-message", Localization.GetText("OP.MS.Postponed.Popup") }
+                                    })
+                            }
+
+                            @if (item.MissionActionsConfig.IsCompleteVisible)
+                            {
+                                var validArg = "other";
+
+                                if (item.TypeCode == MissionType.Administration)
+                                {
+                                    validArg = "Administration";
+                                }
+
+                                @Confluence.ButtonBlue(
+                                    text: Localization.GetText("OP.MS.Complete"),
+                                    action: "ChangeStatusCompletedPending",
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                        { "mission-id", Convert.ToString(item.MissionId) },
+                                        { "mission-endDate", Convert.ToString(item.EndDate) },
+                                        { "idb-fieldname", "btnChangeStatusCompletedPending" },
+                                        { "type", @validArg},
+                                        { "typeSpv", ViewBag.TypeSPV}
+                                    })
+                            }
+                        </td>
+                    }
+                    <td>
+                        @if (item.UserJustifications.HasAny())
+                        {
+                            @Confluence.ButtonShowRow()
+                        }
+                    </td>
+                </tr>
+                <tr data-row-parent-id="@item.MissionId">
+                    <td colspan="11">
+                        @foreach (var justification in item.UserJustifications)
+                        {
+                            <span>
+                                @Confluence.InputCommentBox(
+                                    section1: Confluence.Label(justification.Stage + " Justification"),
+                                    section2: Confluence.Label(Convert.ToDateTime(justification.UserJustifications.Date).ToString("dd MMM yy")),
+                                    section3: Confluence.Label(justification.UserJustifications.User),
+                                    value: justification.UserJustifications.Comment, 
+                                    name: "justification",
+                                    isReadOnly: true)
+                            </span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+</div>
+

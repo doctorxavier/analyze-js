@@ -1,0 +1,454 @@
+﻿@using IDB.MW.Business.WorkSpaceModule.ViewModels
+@model List<RowBoxesModel>
+
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+<div class="page">
+    <div id="pageContent"
+         data-parsley-validate="data-parsley-validate"
+         data-loadurl="@Url.Action("PersonalizeReload", "AdministrationWs", new { templateId = ViewBag.TemplateId, type = ViewBag.Type, val = ViewBag.Val })">
+            @Html.Partial("Partials/PersonalizePartial", Model)
+    </div>
+</div>
+
+@section scripts{
+
+    <script type="text/javascript">
+
+    var addRow;
+    var box;
+
+    function edit() {
+        enterEditMode(false, $('#pageContent'), false);
+        bindHandlers($('#pageContent'));
+        $('[name="tableBoxes"]').find('tbody').find('td').each(function() {
+            if ($(this).text().trim().length > 0) {
+                $(this).find('.dragBoxes').attr("ondragstart", "drag(event)").attr("draggable", "true");
+            } else {
+                $(this).attr("ondrop", "drop(event)").attr("ondragover", "allowDrop(event)");
+            }
+        });
+
+        if ("1" !== "@ViewBag.val") {
+            $('div#attributesList').find('.dragBoxes').each(function() {
+                if ($('#formContainer').find('#' + $(this).attr('id') + '.dragBoxes').length > 0) {
+                    $(this).addClass('hide');
+                }
+            });
+
+
+            if ($('#pageContent').find('[data-pagemode="read"]').first().is('.hide')) {
+                $('div#attributesList').find('.dragBoxes').addClass('dragableBoxes');
+                $('div#attributesList').find('.dragBoxes').attr("draggable", true);
+            }
+        }
+
+    }
+
+    function noDrag() {
+        $('[name="tableBoxes"]').find('[ondragstart]').removeAttr('ondragstart');
+        $('[name="tableBoxes"]').find('[draggable]').removeAttr('draggable');
+        $('[name="tableBoxes"]').find('[ondrop]').removeAttr('ondrop');
+        $('[name="tableBoxes"]').find('[ondragover]').removeAttr('ondragover');
+        $('[name="Roles"]').FirstorDefault();
+    }
+
+    function save() {
+        var msg = "@Localization.GetText("Workspace.Personalize.msgSave")";
+        confirmAction(msg)
+            .done(function(pressOk) {
+                if (pressOk) {
+                    var dataSave = new Array();
+                    $('[name="tableBoxes"]').find('tbody').find('tr').each(function(row) {
+                        $(this).find('[data-order]').each(function() {
+                            var order = $(this).attr('data-order') * 1;
+                            var id = $(this).find('.dragBoxes').attr('id') * 1;
+                            var templateId = "@ViewBag.TemplateId";
+                            var type = "@ViewBag.Type";
+                            if (isNaN(id)) {
+                                id = @ViewBag.BLCid;
+                            }
+
+                            dataSave.push({
+                                TemplateId: templateId,
+                                TemplateRow: row,
+                                TemplateOrder: order,
+                                ChartId: id,
+                                Type: type
+                            });
+                        });
+                    });
+
+                    $.ajax({
+                        type: 'POST',
+                        dataType: 'text',
+                        url: "@Url.Action("Save", "AdministrationWs")",
+                        data: "data=" + JSON.stringify(dataSave),
+                        success: function(data) {
+                            var obj = JSON.parse(data);
+                            if (obj.TemplateId != 0) {
+                                window.location.href = "@Url.Action("Personalize", "AdministrationWs", new { type = ViewBag.Type, val = ViewBag.Val })&templateId="+ obj.TemplateId;
+                            } else {
+                                exitEditMode(false, $('#pageContent'), false, true);
+                                noDrag();
+                            }
+                        },
+                        error: function() {
+                            showMessage("@Localization.GetText("Workspace.Personalize.errorSave")");
+                        },
+
+                        processData: false,
+                        async: true
+                    });
+                }
+            });
+    }
+
+    function cancel() {
+        var msg = "@Localization.GetText("Workspace.Personalize.msgCancel")";
+        confirmAction(msg).done(function(pressOk) {
+            if (pressOk) {
+                exitEditMode(true, $('#pageContent'), true, true);
+                noDrag();
+                bindHandlers($('#pageContent'));
+            }
+        });
+    }
+
+    $(document).ready(function() {
+        postUrlWithOptions("@Url.Action("GetRow", "AdministrationWs")", { async: false })
+            .done(function(data) {
+                addRow = $(data);
+            });
+
+        var msgError = "@ViewBag.error";
+        if (msgError.length > 0) {
+            showMessage(msgError);
+        }
+
+        edit();
+    });
+
+    $(document).on("change", '[name="Roles"]', function() {
+        var roleValue = $(this).GetValue();
+        var val = '@ViewBag.Val';
+        var param;
+        if (val === "1") {
+            param = { 'role': roleValue, 'type': 1};
+        } else {
+            param = { 'role': roleValue, 'type': @ViewBag.Type, 'name': '@ViewBag.UserName' };
+        }
+
+        if (roleValue !== "") {
+            postUrlWithOptions("@Url.Action("GetChartItemViewModels", "AdministrationWs")", { async: true }, param)
+                .done(function(data) {
+
+                    $('div#attributesList').html($(data).find('#listBoxes').html())
+                        .find('.dragBoxes').each(function() {
+                            if ($('#formContainer').find('#' + $(this).attr('id') + '.dragBoxes').length > 0) {
+                                $(this).addClass('hide');
+                            }
+                        });
+
+                    if ($('#pageContent').find('[data-pagemode="read"]').first().is('.hide')) {
+                        $('div#attributesList').find('.dragBoxes').addClass('dragableBoxes');
+                        $('div#attributesList').find('.dragBoxes').attr("draggable", true);
+                    }
+                    bindHandlers();
+                });
+        } else {
+            $('div#attributesList').html("");
+        }
+
+    });
+
+    function addNewRow(source) {
+        var element = $('[name="' + source.attr('dd-table') + '"]');
+        if (element.length > 0) {
+            element.find('tbody').append(addRow.clone());
+        }
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+    }
+
+    var origin;
+
+    function drag(ev) {
+        box = $(ev.currentTarget).clone();
+        if ($(ev.target).closest('#formContainer').length > 0) {
+            origin = $(ev.target).closest('td');
+        } else {
+            origin = null;
+        }
+    }
+
+    function remove(source) {
+        var cellCount = 0;
+        source.closest('tr').find('td[data-order]').each(function() {
+            cellCount += $(this).attr('colspan') * 1;
+        });
+
+        if (cellCount < 3) {
+            cellCount = 0;
+            var row = source.closest('tr');
+            while (cellCount < 3) {
+                row = row.prev();
+                cellCount = 0;
+                row.find('td[data-order]').each(function() {
+                    cellCount += $(this).attr('colspan') * 1;
+                });
+            }
+
+            var moreHeigth = 0;
+            row.find('[data-order]').each(function() {
+                if ($(row.find('[data-order]')[0]).attr('rowspan') * 1 > moreHeigth) {
+                    moreHeigth = $(row.find('[data-order]')[0]).attr('rowspan') * 1;
+                }
+            });
+
+            var width = row.find('[rowspan="' + moreHeigth + '"]').attr('colspan') * 1;
+            var order = row.find('[rowspan="' + moreHeigth + '"]').attr('data-order') * 1;
+            var i;
+            for (i = 0; i < moreHeigth; i++) {
+                row = row.next();
+            }
+
+            if (row.length > 0) {
+                var isClean = true;
+                for (i = 0; i < width; i++) {
+                    if (row.find('[data-order="' + (order + i) + '"]').text().trim().length > 0) {
+                        isClean = false;
+                    }
+                }
+
+                if (!isClean) {
+                    return false;
+                }
+            }
+        }
+
+        source.closest('tr').find('.dragBoxes').each(function() {
+            var id = $(this).attr('id');
+            var heigth = $(this).find('[name="heigth"]').val() * 1;
+            if (heigth > 1) {
+                var nextRow = source.closest('tr');
+                for (var i = 0; i < heigth - 1; i++) {
+                    nextRow = nextRow.next();
+
+                    if (nextRow.find('[data-order]').length === 0) {
+                        nextRow.find('td').before(addRow.find('[data-order]').clone());
+                    } else {
+                        if (nextRow.find('[data-order="1"]').length === 0) {
+                            nextRow.prepend(addRow.find('[data-order="1"]').clone());
+                        }
+
+                        if (nextRow.find('[data-order="2"]').length === 0) {
+                            nextRow.find('[data-order="1"]').after(addRow.find('[data-order="2"]').clone());
+                        }
+
+                        if (nextRow.find('[data-order="3"]').length === 0) {
+                            nextRow.find('[data-order="2"]').after(addRow.find('[data-order="3"]').clone());
+                        }
+                    }
+                }
+            }
+            $('#attributesList #' + id + '.dragBoxes').removeClass('hide');
+        });
+
+        source.closest('tr').remove();
+        $('div#formContainer').find('[name="heigth"]').each(function() {
+            if ($(this).val() * 1 > 1) {
+                var heigth = $(this).closest('td').attr('rowspan') * 1;
+                var width = $(this).closest('td').attr('colspan') * 1;
+                var order = $(this).closest('td').attr('data-order') * 1;
+                var row = $(this).closest('tr');
+                for (var i = 0; i < heigth - 1; i++) {
+                    row = row.next();
+                    if (row.length === 0) {
+                        $(this).closest('tbody').append(addRow.clone());
+                        row = $(this).closest('tbody').find('tr').last();
+                    }
+
+                    for (var j = 0; j < width; j++) {
+                        if (row.find('[data-order="' + (order + j) + '"]').length > 0) {
+                            row.find('[data-order="' + (order + j) + '"]').remove();
+                        }
+                    }
+                }
+            }
+        });
+        return false;
+    }
+
+    function dropDelete(ev) {
+        ev.preventDefault();
+
+        var id = box.attr("id");
+        if (id === null) {
+            return false;
+        }
+        $('#attributesList #' + id + '.dragBoxes').removeClass('hide');
+
+        var order = origin.attr('data-order') * 1;
+        var heigth = origin.attr('rowspan') * 1;
+        var width = origin.attr('colspan') * 1;
+        var row = origin.closest('tr');
+
+        origin.html('')
+            .attr('rowspan', '1')
+            .attr('colspan', '1')
+            .attr('ondrop', 'drop(event)')
+            .attr('ondragover', 'allowDrop(event)');
+
+        var i;
+        for (i = 0; i < width - 1; i++) {
+            row.find('[data-order="' + (order + i) + '"]')
+                .after(addRow.find('[data-order="' + (order + i + 1) + '"]').clone());
+        }
+
+        for (i = 0; i < heigth - 1; i++) {
+            row = row.next();
+            for (var j = 0; j < width; j++) {
+                if (row.find('[data-order="' + (order + j) + '"]').length === 0) {
+                    row.prepend(addRow.find('[data-order="' + (order + j) + '"]').clone());
+                }
+            }
+
+            var elementos = row.find('td[data-order]').get();
+            row.find('td[data-order]').remove();
+
+            elementos.sort(function(a, b) {
+                var comp1 = $(a).attr('data-order');
+                var comp2 = $(b).attr('data-order');
+                return (comp1 < comp2) ? -1 : (comp1 > comp2) ? 1 : 0;
+            });
+
+            row.prepend(elementos);
+        }
+        return false;
+    }
+
+    function drop(ev) {
+        ev.preventDefault();
+        var element = box;
+        var width = element.find('[name="width"]').val() * 1;
+        var heigth = element.find('[name="heigth"]').val() * 1;
+        var order = $(ev.target).attr('data-order') * 1;
+        if (width === 3 && order !== 1) {
+            return false;
+        }
+
+        if (width === 2 && order === 3) {
+            return false;
+        }
+
+        if ($(ev.target).html().trim().length !== 0) {
+            return false;
+        }
+
+        var existSpace = true;
+        var i;
+        for (i = 0; i < width; i++) {
+
+            if ($($(ev.target).closest('tr').find('[data-order="' + (order + i) + '"]')).length === 0) {
+                existSpace = false;
+                break;
+            }
+
+            if ($($(ev.target).closest('tr').find('[data-order="' + (order + i) + '"]')).html().trim().length > 0) {
+                existSpace = false;
+                break;
+            }
+        }
+
+        if (!existSpace) {
+            return false;
+        }
+        var data2;
+        var nextRow;
+        if ($(ev.target).closest('tr').next().length === 0) {
+            data2 = addRow.clone();
+            $(data2).find('[data-order="' + order + '"]').remove();
+            if (width === 2) {
+                $(data2).find('[data-order="' + (order + 1) + '"]').remove();
+            }
+
+            if (width === 3) {
+                $(data2).find('[data-order="' + (order + 1) + '"]').remove();
+                $(data2).find('[data-order="' + (order + 2) + '"]').remove();
+            }
+
+            for (i = 0; i < heigth - 1; i++) {
+                $(ev.target).closest('table').find('tbody').append(data2.clone());
+            }
+        } else {
+            nextRow = $(ev.target).closest('tr').next();
+            for (i = 0; i < heigth - 1; i++) {
+                if (nextRow.length === 0) {
+                    data2 = addRow.clone();
+                    $(data2).find('[data-order="' + order + '"]').remove();
+                    $(ev.target).closest('table').find('tbody').append(data2);
+                }
+                if (nextRow.find('[data-order="' + order + '"]').text().trim().length > 0) {
+                    return false;
+                }
+
+                if (width === 2) {
+                    if (nextRow.find('[data-order="' + (order + 1) + '"]').text().trim().length > 0) {
+                        return false;
+                    }
+                }
+
+                if (width === 3) {
+                    if (nextRow.find('[data-order="' + (order + 1) + '"]').text().trim().length > 0) {
+                        return false;
+                    }
+                    if (nextRow.find('[data-order="' + (order + 2) + '"]').text().trim().length > 0) {
+                        return false;
+                    }
+                }
+
+                nextRow = nextRow.next();
+            }
+        }
+
+        $(ev.target).attr('colspan', width).attr('rowspan', heigth).html(element.clone());
+        nextRow = $(ev.target).closest('tr');
+        for (i = 0; i < heigth; i++) {
+            if (i > 0) {
+                $(nextRow).find('[data-order="' + (order) + '"]').remove();
+            }
+            if (width === 2) {
+                $(nextRow).find('[data-order="' + (order + 1) + '"]').remove();
+            }
+
+            if (width === 3) {
+                $(nextRow).find('[data-order="' + (order + 1) + '"]').remove();
+                $(nextRow).find('[data-order="' + (order + 2) + '"]').remove();
+            }
+            nextRow = nextRow.next();
+        }
+
+        var id = box.attr("id");
+        if (id === null) {
+            return false;
+        }
+        $('#attributesList #' + id + '.dragBoxes').addClass('hide');
+
+        $(ev.target).removeAttr('ondrop').removeAttr('ondragover');
+
+        if (origin !== null) {
+            dropDelete(ev);
+            element.addClass('hide');
+            $(ev.target).find('.hide').removeClass('hide');
+            origin.html('').attr('ondrop', 'drop(event)').attr('ondragover', 'allowDrop(event)');
+        }
+        return false;
+    }
+
+</script>
+}

@@ -1,0 +1,103 @@
+﻿@using System.Globalization
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@model IDB.MW.Application.OPUSModule.ViewModels.FinancialDataExecutionService.FundIncreasesViewModel
+
+<div class="col-md-12" id="ContentTableIncreases" data-parsley-validate="data-parsley-validate">
+    @{
+        var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+        var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+        var config = Html.RenderDataTable(Model.Increases);
+        config.Name("DataTableIncreases")
+        .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => Confluence.Label(""))
+                .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult>()
+                    {
+                       Confluence.InputHidden(row.RowId.ToString(), "hdIncreaseId"),
+                       Confluence.InputHidden(row.SapCode!=null?row.SapCode.ToString():"", "hdSapCode"),
+                       Confluence.InputHidden(row.IsOcSpecialProgram.ToString(), "hdOCSpecialProgram"),
+                       Confluence.InputHidden(row.FundId.ToString(), "hdFundId"),
+                       Confluence.InputHidden(row.ValidationStageId.ToString(),"hdValidationStageId"),
+                       Confluence.InputHidden(row.IsValidateInLMS.ToString(),"hdIsValidatedInLms"),
+                       row.IsValidateInLMS ?
+                        (Confluence.ListHelpers(new List<HelperResult>()
+                        {
+                            Confluence.InputHidden(row.ApprovalNumber.ToString(), "FinancingTypeId"),
+                            Confluence.InputHidden(row.FundCurrency,"fundCurrency"),
+                            Confluence.InputHidden(row.IncreaseAmount.ToString(), "Amount"),
+                            Confluence.InputHidden(row.EffectiveDate.ToString(), "EffectiveDate")
+                        }))
+                       : Confluence.InputHidden(row.FundCurrency,"fundCurrency"),
+                    })).Hidden(true);
+
+            columns.Bound(c => c.ApprovalNumber)
+                .EditableTemplate(row => row.IsValidateInLMS ?
+                      Confluence.Label(row.ApprovalNumber)
+                    : Confluence.InputDropDown(row.ApprovalNumber, "FinancingTypeId", ViewBag.OperationsList,
+                        dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlIncreaseFinType" } },width:"100%"))
+                    .CssClass("CurrentFinancingApproval")
+                .Header(Localization.GetText("OP.FD.TabIncreases.Increases.ApprovalNumber"));
+
+            columns.Bound(c => c.FundCurrency)
+                    .CssClass("CurrentFinancingFundCurrency")
+                .Header(Localization.GetText("OP.FD.TabIncreases.Increases.FundCurrency")).CssHeaderClass("w75 minw75").Persistent();
+
+            columns.Bound(c => FormatHelper.Format(c.IncreaseAmount, formatDecimal))
+                .EditableTemplate(row => (row.IsValidateInLMS) ?
+                      Confluence.LabelDecimal(row.IncreaseAmount)
+                    : Confluence.InputDecimal(row.IncreaseAmount, "Amount", true, minValue: "0.01", width: "100%",
+                        dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "txtIncreaseAmount" } }))
+                    .CssClass("CurrentFinancingAmount")
+                .Header(Localization.GetText("OP.FD.TabIncreases.Increases.IncreaseAmount")).Right().CssHeaderClass("w170 minw170");
+
+            columns.Bound(c => FormatHelper.Format(c.EquivalentIncreaseAmount, formatDecimal))
+                .CssClass("CurrentFinancingAmountUS")
+                .Header(Localization.GetText("OP.FD.TabIncreases.Increases.USEquivalentIncreaseAmount")).Persistent().Right().CssHeaderClass("w170 minw170");
+
+            columns.Bound(c => FormatHelper.Format(c.EffectiveDate, formatDate))
+                .EditableTemplate(row => (row.IsValidateInLMS) ?
+                    Confluence.LabelGetDate(row.EffectiveDate)
+                  : Confluence.InputDatePicker(row.EffectiveDate, "EffectiveDate", width: "100%",
+                        dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "dpkEffectiveDate" } }))
+                    .CssClass("CurrentFinancingEffective")
+                .Header(Localization.GetText("OP.FD.TabIncreases.Increases.EffectiveDate")).CssHeaderClass("w155 minw155");
+
+            columns.Bound(c => c.StageIncrease)
+                  .CssClass("CurrentFinancingStage")
+              .Header(Localization.GetText("Status")).CssHeaderClass("w75 minw75").Persistent();
+            
+            columns.Bound(c => string.Empty)
+                .EditableTemplate(row => (row.IsValidateInLMS) 
+                    ?
+                    Confluence.ListHelpers(new List<HelperResult>()
+                    {
+                        Confluence.ButtonBlue(Localization.GetText("Revoke"), "revokeIncrease", "revokeIncrease", width: "110px",
+                            dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnRevokeIncrease" } })
+                    }) 
+                    :
+                    Confluence.ListHelpers(new List<HelperResult>()
+                    {
+                        Confluence.ButtonBlue(Localization.GetText("OP.FD.TabIncreases.Increases.RegisterIncrease"), "btnRegiterIncrease", "registerRowIncreases", width: "110px",
+                            dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnRegisterIncrease"} }),
+                        Confluence.ButtonTrash(null, action: "removeRowIncreases",
+                            dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnDeleteIncrease"} })
+                    }))
+                    .CssClass("CurrentFinancingActions").Center()
+                .Header(Localization.GetText("OP.FD.TabIncreases.Increases.Action")).CssHeaderClass("w190 minw190");
+        });
+        config.TableClass = "tableNormal endSpacing";
+
+        @Html.Partial("Controls/DataTable", config)
+
+    }
+    <div class="col-md-12">
+        <div data-pagemode="edit" class="text-center">
+            @Confluence.ButtonAddNewRows(Localization.GetText("OP.FD.TabIncreases.Increases.AddIncrease"), "DataTableIncreases", "NewIncrease", "addNewRowIncreases",
+                    dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "BtnNewIncrease" } })
+        </div>
+    </div>
+</div>

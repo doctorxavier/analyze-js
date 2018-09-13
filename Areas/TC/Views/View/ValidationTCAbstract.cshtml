@@ -1,0 +1,283 @@
+﻿@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.TCAbstractModule.Enums;
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.ValidationTCAbstract.ValidationTCAbstractViewModel
+
+<div class="header">
+    @Html.Partial("Partials/Headers/ValidationTCTitle", Model.TCAbstract.Header)
+</div>
+<div class="page">
+    @if (ViewBag.ReadRole)
+    {
+        <div id="TCData"
+            class="row-body-40 returnTLReviewTCA"
+            data-parsley-validate="data-parsley-validate"
+            data-parsley-excluded="[disabled]"
+            data-ignore-nullable-values="true"
+            data-loadurl="@Url.Action("ValidationTCAbstractEdit", "View", new { area = "TC" })"
+            data-url="@Url.Action("ValidationTCAbstract", "Save", new { area = "TC" })">
+            @Html.Partial("Partials/ValidationTCValidation", Model)
+        </div>
+
+        <div id="saveAndSendValidateModal" class="hide modalBody">
+            @Localization.GetText("TC.ValidationTC.Validate.Message").HtmlEncode()
+        </div>
+
+        <div id="saveAndSendReturnTLModal" class="hide modalBody">
+            @Localization.GetText("TC.ValidationTC.ReturnTeamLeader.Message").HtmlEncode()
+        </div>
+
+        <div id="saveReturnTLModal" class="hide modalBody">
+            @Localization.GetText("TC.PriorityTC.SaveModal.Message").HtmlEncode()
+        </div>
+
+        <div id="ValidationTCData" class="tcCollapsibleMargin">
+            @Html.Partial("Partials/TCAbstract", Model.TCAbstract)
+        </div>
+
+        if (ViewBag.ReadRole)
+        {
+            @Html.Partial("Partials/Controls/TCAbstractWordExcelButtonsDownload")
+            <br />
+            <span class="text-right">
+                @Html.Partial("Partials/Controls/ValidationTCAbstractButtons")
+            </span>
+        }
+
+        <div id="dataMemberModal" class="hide">
+            @Html.Partial("Partials/Modals/TCMemberDataModal", Model.TCAbstract.MembersData)
+        </div>
+
+        <div data-id="ModalRegion" class="hide">
+            <div id="changeStatusModal" class="hide">
+            </div>
+        </div>
+        <div data-id="HiddenButtonRegion" class="hide">
+            @Display.AddModalButton(
+                new ModalViewModel(
+                    name: "buttonChangeStatusModal",
+                    allowClose: true,
+                    contentSelector: "#changeStatusModal",
+                    type: CssClass.ModalInformation,
+                    title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+                    validateForm: false))
+        </div>
+    }
+</div>
+
+@section scripts{
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.TCAbstractSetupState()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.K2UIIntegration()
+    @ModuleScripts.MinNumOfElementsFilled()
+
+    <script type="text/javascript">
+
+    setInitialButtons();
+
+    var containerTextArea = $('#TCComments3 [name="comment"]');
+
+    registerCallback(function () {
+        setInitialTCAbstractState();
+        setCommentsStatus();
+
+        $(document).on('click', '#validate', function () {
+            showValidateReview();
+        });
+
+        $(document).on('click', '#returnTeamLeader', function () {
+            showReturnTeamLeader();
+        });
+
+        $(document).on('change keyup paste', '#TCComments3 [name="comment"]:enabled', function () {
+            var conteiner = $('#TCComments3 [name="comment"]:enabled');
+            hasEnter = false;
+            var inputField = $(this).val().replace(/^\s+/, '').replace(/\s+$/, '');
+            if (inputField == "") {
+                $(document).contents().find('#TCComments3 ul').each(function (index, element) {
+                    var container = $('#commentsTeamLeader');
+                    $(container).find('ul.filled').each(function (index, Element) {
+                        if ($(Element).find('li.parsley-required').length == 0) {
+                            $(Element).addClass('parsley-errors-list').
+                                append('<li class="parsley-required">' +
+                                "@(Localization.GetText("TC.CommonMessages.FieldRequired"))" +
+                                ' </li>');
+                        }
+                    });
+                });
+            }
+
+        });
+    });
+
+    function showValidateReview() {
+        var container = $('#commentsTeamLeader');
+        container.addClass('hide');
+        disableContainer(container);
+        var btnSend = $('[name=SaveAndSendValidate]');
+        btnSend.removeClass('hide');
+        $('[name=SaveAndSendReturnToTLButton]').addClass('hide');
+        var btnSave = $('[name="SaveValidate"]');
+        btnSave.removeClass('hide');
+        $('[name="SaveReturnToTLButton"]').addClass('hide');
+        btnSend.attr('data-new-modal-button-send', '@Localization.GetText("TC.SaveAndValidate")');
+        btnSave.attr('data-new-modal-button-send', '@Localization.GetText("TC.Save")');
+        returnTLCommentValidate(false);
+    }
+
+    function showReturnTeamLeader() {
+        var container = $('#commentsTeamLeader');
+        container.removeClass('hide');
+        enableContainer(container);
+        $('#TCComments3 [name="comment"]').addClass('returnTLComment');
+        $('[name=SaveAndSendValidate]').addClass('hide');
+        var btnSend = $('[name=SaveAndSendReturnToTLButton]');
+        btnSend.removeClass('hide');
+        $('[name="SaveValidate"]').addClass('hide');
+        var btnSave = $('[name="SaveReturnToTLButton"]');
+        btnSave.removeClass('hide');
+        btnSend.attr('data-new-modal-button-send', '@Localization.GetText("TC.SaveAndSend")');
+        btnSave.attr('data-new-modal-button-send', '@Localization.GetText("TC.Save")');
+        returnTLCommentValidate(true);
+    }
+
+    function setInitialButtons() {
+        var saveValidateButton = $('[name="SaveValidate"]');
+        var saveReturnToTLButton = $('[name="SaveReturnToTLButton"]');
+        var saveAndSendValidateButton = $('[name="SaveAndSendValidate"]');
+        var saveAndSendReturnToTLButton = $('[name="SaveAndSendReturnToTLButton"]');
+
+        saveValidateButton.removeClass('hide');
+        saveReturnToTLButton.removeClass('hide');
+        saveAndSendValidateButton.removeClass('hide');
+        saveReturnToTLButton.addClass('hide');
+        saveAndSendReturnToTLButton.addClass('hide');
+        returnTLCommentValidate($('#returnTeamLeader').is(':checked'));
+    }
+
+    function editValidationTC(source) {
+        var sucess = enterEditMode(true, $('#TCData'), true);
+        if (sucess) {
+            setInitialTCAbstractState();
+            setCommentsStatus();
+            enterEditMode(false, $('.validationButtons'), false);
+        }
+    }
+
+    function cancelEditValidationTC(source) {
+        exitEditMode(true, $('#TCData'), true, true);
+        exitEditMode(false, $('.validationButtons'), false, false);
+        setInitialTCAbstractState();
+        setCommentsStatus();
+    }
+
+    function returnTLCommentValidate(required) {
+        var validator = $("[name=validatorMinTLComments]");
+        if (required === true) {
+            validator.attr('data-parsley-minElementsFilled', '1;.returnTLComment:enabled');
+        } else {
+            validator.removeAttr('data-parsley-minElementsFilled');
+            var sectionParsley = validator.closest('div').find('ul.parsley-errors-list');
+            if (sectionParsley.length > 0) {
+                sectionParsley.removeClass("filled");
+                sectionParsley.empty();
+            }
+        }
+    }
+
+    function saveValidationTC(source) {
+        $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.Save');
+        var resp = $.Deferred();
+        var response = saveContainer($('#TCData'), '#hidViewModel', true, $('.validationButtons'), $(source.target));
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                    showMessage(data.ErrorMessage);
+                }
+                resp.resolve();
+            }).always(function () {
+                setInitialTCAbstractState();
+                setCommentsStatus();
+            })
+        }
+        return resp;
+    }
+
+    function saveAndSend(source) {
+        $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+        var resp = $.Deferred();
+
+        var response = saveContainer(
+            $('#TCData'),
+            '#hidViewModel',
+            true,
+            $('.validationButtons'),
+            $(source.target));
+
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                    showMessage(data.ErrorMessage);
+                }
+                else if (data.IsValid) {
+                    if (data.ContentHTML != null) {
+                        addContentToModal(data.ContentHTML);
+                    }
+
+                    if (data.UrlRedirect != null) {
+                        setModalRedirectUrl(data.UrlRedirect);
+                    }
+                }
+
+                resp.resolve();
+            }).always(function () {
+                setInitialTCAbstractState();
+                setCommentsStatus();
+            });
+        }
+
+        return resp;
+    }
+
+    function setCommentsStatus() {
+        var isValidate = $('[name="validateDisabled"][value="@ViewBag.EnumMapping[ValidationTypeEnum.ReturnTeamLeader].ToString()"]:checked').val();
+        if (isValidate) {
+            showReturnTeamLeader();
+        }
+    }
+
+    function downloadWord(source) {
+        var url = '@Url.Action("TCAbstractExportToWord", "View", new { area = "TC" })';
+        window.open(url, '_blank');
+    }
+
+    function downloadPdf(source) {
+        var url = '@Url.Action("TCAbstractExportToPDF", "View", new { area = "TC" })';
+        window.open(url, '_blank');
+    }
+
+    function downloadXls(source) {
+        console.log('Download Xls');
+    }
+
+    function openModalReturnToTeamLeader(target) {
+        if (target === "ReturnToTeamLeader")
+            $("[name=buttonChangeStatusModal]").first().click();
+    }
+
+    function addContentToModal(content) {
+        $("#changeStatusModal").html(content);
+    }
+
+    function setModalRedirectUrl(url) {
+        $("#changeStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+    }
+
+    </script>
+}

@@ -1,0 +1,394 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Clauses
+
+@using IDB.MW.Domain.Models.Supervision.SupervisionPlan
+@using IDB.Presentation.MVC4.Areas.SupervisionPlan.Controllers
+@model List<SupervisionPlanModel>
+@{
+    Layout = "~/Areas/SupervisionPlan/Views/Shared/_Layout.cshtml";
+    var view = (SupervisionPlanView)ViewBag.EditableView;
+    var isInEdit = (bool)ViewBag.EditMode;
+    var selectedYear = (int)ViewBag.SelectedYear;
+    var spVersionId = 0;
+    var isEmpty = !(Model != null && Model.Count > 0);
+    var yearToCreate = isEmpty ? DateTime.Today.Year : (Model.First().Year <= DateTime.Today.Year ? Model.First().Year + 1 : 0);
+    var errorAddingDocument = ViewBag.UploadFileError != null ? (string)ViewBag.UploadFileError : string.Empty;
+    var actualVersionNvaOedit = isEmpty ? false : (Model.Last(p => p.Year == selectedYear).ActualVersion != null);
+    var seModifica = actualVersionNvaOedit && (Model.Last(p => p.Year == selectedYear).ActualVersion.SupervisionPlanVersionId == -1);
+
+    if (seModifica)
+    {
+        spVersionId = (Model.Count(p => p.Year == selectedYear) > 1) ? Model.First(p => p.Year == selectedYear && p.ActualVersion.ValidationStage.Code == "SP_APPR").ActualVersion.SupervisionPlanVersionId : 0;
+    }
+
+}
+
+@section CSS
+    {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/SupervisionPlan/module.css")" />
+    <style>
+        .plan-row {
+            background: #ffffff !important;
+        }
+
+        .selected {
+            background: #F6F7F9 !important;
+        }
+    </style>
+}
+
+
+<div id="divPriorVersion" hidden="hidden">
+    <button data-id="buttonPriorVersion" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="priorVersionModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("")"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="priorVersionModal" class="hide modalBody"></div>
+</div>
+
+<div id="divAddOutputMilestones" hidden="hidden">
+    <button data-id="buttonOutputMilestones" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="divAddOutputMilestonesModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("Add Project Output/Milestone")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["cancel","save"]'
+            data-custom-button-save-id="add"
+            data-custom-button-save="@Localization.GetText("Add")"
+            data-custom-button-save-style="buttonBlue "
+            data-custom-button-save-callback="AddOutputOrMilestones"
+            data-custom-button-save-closeatend="true"
+            data-custom-button-cancel-id="cancel"
+            data-custom-button-cancel="@Localization.GetText("SP.Administration.Cancel")"
+            data-custom-button-cancel-style="buttonWhite"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="divAddOutputMilestonesModal" class="hide modalBody"></div>
+</div>
+
+
+
+@section JS
+{
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/supervisionplan/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Document/addDocument.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/supervisionplan/BlockSaveSupervision.js")"></script>
+    <script type="text/javascript">
+    $(document).ready(function () {
+       var yearSelection = function () {
+            $(".yearSelector, #criticalProductsTab, #activitiesTab, #budgetTab").click(function (e) {
+                e.preventDefault();
+                $('html, body').stop().animate({
+                    scrollTop: $('#tabContain').offset().top
+                }, 'slow');
+            });
+         };
+        yearSelection();
+       });
+
+    function yearSelected() {
+        $('html, body').stop().animate({
+            scrollTop: $('#tabContain').offset().top
+        }, 'slow');
+    }
+
+    function ordertable() {
+       $('#supervisionPlanTable').sortableConfluense();
+        
+    }
+
+    function priorVersion() {
+        var idpVersion = $("input[name='piorVersion']").attr('data-id-plan');
+        var url = '@Url.Action("PriorPlanVersionPartial", "SupervisionPlanLegacy", new { area = "SupervisionPlan" })' + "?id="+ idpVersion;
+        postUrlWithOptions(url, { async: false })
+               .done(function (data) {
+                   $('#priorVersionModal').html(data);
+                   $('[data-id="buttonPriorVersion"]').click();
+               })
+               .fail(function (jqXhr, textStatus, errorThrown) {
+                   showMessage(errorThrown);
+               });
+    }
+
+        function OutputMilestonesAdd() {
+            var url = '@Url.Action("OutputMilestonesPartial", "SupervisionPlanLegacy", new { area = "SupervisionPlan" })';
+            postUrlWithOptions(url, { async: false })
+                   .done(function (data) {
+                       $('#divAddOutputMilestonesModal').html(data);
+                       $('[data-id="buttonOutputMilestones"]').click();
+                   })
+                   .fail(function (jqXhr, textStatus, errorThrown) {
+                       showMessage(errorThrown);
+                   });
+        }
+
+    </script>
+    @if (!string.IsNullOrWhiteSpace(errorAddingDocument))
+    {
+        <script type="text/javascript">
+            $(document).ready(function () {
+                function warningDocumentAddingError(event) {
+                    event.preventDefault();
+                    $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+                    $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+                    $("body").append('<div class="dinamicModal"></div>');
+                    $("#errorUploading").appendTo(".dinamicModal").removeClass("hide");
+                    var title = $("#errorUploading").data("title");
+                    var modal = $(".dinamicModal").kendoWindow({
+                        width: "800px",
+                        title: title,
+                        draggable: false,
+                        resizable: false,
+                        pinned: true,
+                        actions: [
+                            "Close"
+                        ],
+                        modal: true,
+                        visible: false,
+                        activate: function () {
+                            $("#ConfirmErrorWarning").click(functionCancel);
+                        },
+                        close: function () {
+                            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                            $("#errorUploading").appendTo("#ui_sp_001").addClass("hide");
+                            $("body").find(".ui-widget-overlay").remove();
+                            $(".ui-widget-overlay").remove();
+                            $(".k-window").remove();
+                        }
+                    }).data("kendoWindow");
+                    $(".k-window-titlebar").addClass("warning");
+                    $(".k-window-title").addClass("ico_warning");
+                    modal.center();
+                    modal.open();
+                };
+
+                functionCancel = function (event) {
+                    event.preventDefault();
+                    var modal = $(".dinamicModal").data("kendoWindow");
+                    modal.close();
+                    $(".ui-widget-overlay").remove();
+                };
+                warningDocumentAddingError();
+            });
+        </script>
+    }
+}
+
+
+<div id="ui_sp_001">
+    @using (Html.BeginForm("Summary", "SupervisionPlanLegacy", FormMethod.Post, new { area = "SupervisionPlan", id = "main-form" }))
+    {
+        <div class="row col-md-12 mb20">
+            @Confluence.LabelMainTitle(Localization.GetText("SP.Summary.TextTitle"))
+        </div>
+
+        @Html.Hidden("OperationNumber", !isEmpty ? Model.First(m => m.Year == selectedYear).OperationNumber : "")
+        @Html.Hidden("Year", selectedYear)
+        @Html.Hidden("View", view, new { @class = "view-selector" })
+        @Html.Hidden("SelectedPlanId", !isEmpty ? Model.First(m => m.Year == selectedYear).SupervisionPlanId : -1)
+        @Html.Hidden("IsInEdit", isInEdit, new { data_route_save_warning = Url.Action("_SaveFirstOnTabChange", "SupervisionPlanLegacy"), data_window_title = Localization.GetText("SP.Summary.Warning") })
+        @Html.Hidden("PlanVersionId", !isEmpty && Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.SupervisionPlanVersionId : -1)
+        @Html.Hidden("CreateNew", false)
+
+        <div class="col-md-12 mb20">
+            <table id="supervisionPlanTable" class="tableNormal mb20 sort">
+                <thead>
+                    <tr>
+                        <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.Year")</th>
+                        <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.Modality")</th>
+                        <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.Status")</th>
+                        <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.LastUpdated")</th>
+                        <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.CreationDate")</th>
+                        <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.ValidationDate")</th>
+                        <th>@Localization.GetText("SP.Summary.SupervisionPlanTable.Action")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var plan in Model)
+                    {
+                        if (plan.ActualVersion != null)
+                        {
+                            if (plan.ActualVersion.SupervisionPlanVersionId != spVersionId)
+                            {
+                                <tr data-id data-plan-id="@plan.SupervisionPlanId" data-year="@plan.Year" data-buttons-route="@Url.Action("_ActionButtons", "SupervisionPlanLegacy", new { area = "SupervisionPlan", id = plan.SupervisionPlanId })">
+                                    <td class="text-center hide"><a href="javascript:void(0)" class="yearSelector" style="font-weight: bold">@plan.Year</a></td>
+                                    <td>@Confluence.LabelLink(plan.Year.ToString(), action: "yearSelected", htmlClass: "yearSelector")</td>
+                                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.Modality != null ? plan.ActualVersion.Modality.GetLanguageCode(Localization.CurrentLanguage) : "Simplified")</td>
+                                    <td class="text-center">@(plan.ActualVersion != null ? plan.ActualVersion.ValidationStage.Name : (isInEdit && plan.ActualVersionIsNew ? Localization.GetText("SP.Summary.SupervisionPlanTable.Draft") : ""))</td>
+                                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.Modified.HasValue ? plan.ActualVersion.Modified.Value.ToString("dd MMM yyy") : "")</td>
+                                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.Created.HasValue ? plan.ActualVersion.Created.Value.ToString("dd MMM yyy") : "")</td>
+                                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.ValidationDate.HasValue ? plan.ActualVersion.ValidationDate.Value.ToString("dd MMM yyy") : "")</td>
+                                    <td>@Html.Partial("~/Areas/SupervisionPlan/Views/Shared/_RowActionButtons.cshtml", plan)</td>
+                                </tr>
+                            }
+                        }
+                    }
+                </tbody>
+            </table>
+
+            @if (yearToCreate != 0)
+            {
+                if (Html.HasPermission("Supervision Plan Write"))
+                {
+                    <div class="text-center mb20">
+                        <a href="javascript:void(0)" title="@Localization.GetText("SP.Summary.NewPlan")"
+                           data-year-to-create="@yearToCreate"
+                           data-route="@Url.Action("SummaryEdit", "SupervisionPlanLegacy")"
+                           class="newIndicator">
+                            <button class="addNewRow">
+                                <span>+</span>
+                                <span id="newPlanButton">@Localization.GetText("SP.Summary.NewPlan")</span>
+                                <span>+</span>
+                            </button>
+                        </a>
+                    </div>
+                }
+            }
+
+        </div>
+
+        if (!isEmpty)
+        {
+            <div class="row col-md-12 mb20 hide">
+                <h2 class="titlePrincipal">@Localization.GetText("SP.Summary.SupervisionPlan") <span id="TitleYear" class="bold">@selectedYear</span></h2>
+            </div>
+        }
+    }
+
+    @if (!isEmpty)
+    {
+        <!-- Tab menu -->
+        <div id="tabContain" class="tabsContainer verticalMargin20">
+            <div id="criticalProductsTab" class="inline-block tabItem@(view == SupervisionPlanView.CriticalProducts ? " active" : "")" data-id="@SupervisionPlanView.CriticalProducts" data-route="@Url.Action("CriticalProductsPartial", "SupervisionPlanLegacy")">@Localization.GetText("Critical products")</div>
+            <div id="activitiesTab" class="inline-block tabItem@(view == SupervisionPlanView.Activities ? " active" : "")" data-id="@SupervisionPlanView.Activities" data-route="@Url.Action("ActivitiesPartial", "SupervisionPlanLegacy")">@Localization.GetText("Activities")</div>
+            <div id="budgetTab" class="inline-block tabItem@(view == SupervisionPlanView.Budget ? " active" : "")" data-id="@SupervisionPlanView.Budget" data-route="@Url.Action("BudgetPartial", "SupervisionPlanLegacy")">@Localization.GetText("Budget")</div>
+        </div>
+        
+    }
+    <!-- End tab menu -->
+    <!-- Information container -->
+    @if (!isEmpty)
+    {
+        <div class="buttonsPanel verticalMargin20">
+            @Html.Partial("~/Areas/SupervisionPlan/Views/Shared/_ActionButtons.cshtml", Model.First(m => m.Year == selectedYear))
+        </div>
+        <div id="SupervisionPlanPanel">
+            @if (ViewBag.EditMode != null && ((bool)ViewBag.EditMode))
+            {
+                string action = null;
+                string controller = null;
+                var viewName = string.Empty;
+                object model = null;
+                switch (view)
+                {
+                    case SupervisionPlanView.CriticalProducts:
+                        action = "CriticalProductsSave";
+                        controller = "SupervisionPlanLegacy";
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/EditCriticalProductsPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.CriticalProducts : new List<CriticalProductModel>();
+                        break;
+                    case SupervisionPlanView.Activities:
+                        action = "ActivitiesSave";
+                        controller = "SupervisionPlanLegacy";
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/EditActivitiesPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.Activities : new List<ActivityModel>();
+                        break;
+                    case SupervisionPlanView.Budget:
+                        action = "BudgetSave";
+                        controller = "SupervisionPlanLegacy";
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/EditBudgetPartial.cshtml";
+                        if (!Model.First(m => m.Year == selectedYear).ActualVersionIsInDraftOrModified)
+                        {
+                            action = "Summary";
+                            controller = "SupervisionPlanLegacy";
+                            viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/BudgetPartial.cshtml";
+                        }
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.Costs : (List<CostModel>)ViewBag.EmptyCosts;
+                        break;
+                    case SupervisionPlanView.Comments:
+                        action = "CommentsSave";
+                        controller = "SupervisionPlanLegacy";
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/EditCommentsPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.UserComments : new List<UserCommentModel>();
+                        break;
+                }
+                using (Html.BeginForm(action, controller, FormMethod.Post, new { area = "SupervisionPlanLegacy", id = "save-form" }))
+                {
+                    @Html.Hidden("SupervisionPlanVersionId", actualVersionNvaOedit ? (seModifica ? -1 : Model.Last(p => p.Year == selectedYear).ActualVersion.SupervisionPlanVersionId) : -1)
+                    @Html.Hidden("ReturnToEdit", true)
+                    @Html.Hidden("IsNew", Model.Last(m => m.Year == selectedYear).ActualVersionIsNew)
+                    @Html.Hidden("OperationNumber", Model.First(m => m.Year == selectedYear).OperationNumber)
+                    @Html.Hidden("Year", (int)ViewBag.SelectedYear)
+                    @Html.Hidden("View", view, new { @class = "view-selector" })
+                    @Html.Hidden("RequestAfterSave", "false")
+                    if (ViewBag.PlanIsModified != null)
+                    {
+                        @Html.Hidden("IsModified", (bool)ViewBag.PlanIsModified)
+                    }
+                    @Html.Partial(viewName, model)
+                }
+            }
+            else
+            {
+                var viewName = string.Empty;
+                object model = null;
+                switch (view)
+                {
+                    case SupervisionPlanView.CriticalProducts:
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/CriticalProductsPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.CriticalProducts : new List<CriticalProductModel>();
+                        break;
+                    case SupervisionPlanView.Activities:
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/ActivitiesPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.Activities : new List<ActivityModel>();
+                        break;
+                    case SupervisionPlanView.Budget:
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/BudgetPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.Costs : (List<CostModel>)ViewBag.EmptyCosts;
+                        break;
+                    case SupervisionPlanView.Comments:
+                        viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/CommentsPartial.cshtml";
+                        model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.UserComments : new List<UserCommentModel>();
+                        break;
+                }
+                @Html.Partial(viewName, model)
+            }
+        </div>
+        <div class="buttonsPanel verticalMargin20">
+            @Html.Partial("~/Areas/SupervisionPlan/Views/Shared/_ActionButtons.cshtml", Model.First(m => m.Year == selectedYear))
+        </div>
+        <!-- End information container -->
+        <div class="hide" id="modalWindow">
+            @{
+                var priorVersionModel = new PriorVersionModel
+                {
+                    SupervisionPlanList = Model,
+                    SupervisionPlanVersionList = Model.First(m => m.Year == selectedYear).SupervisionPlanVersions
+                };
+            }
+            @Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/PriorPlanVersionPartial.cshtml", priorVersionModel)
+        </div>
+        if (!string.IsNullOrWhiteSpace(errorAddingDocument))
+        {
+            <div class="hide" id="errorUploading" data-title="@Localization.GetText("SP.Summary.Warning")">
+                <div class=" padding20 popupbody">
+                    <div class="marginBottom2">
+                        <div>
+                            @Localization.GetText("SP.Summary.ErrorUpload")
+                        </div>
+                        <div class="rightAlign absolute right1 verticalPadding10 w60">
+                            <input type="button" class="button blueButton" id="ConfirmErrorWarning" value="@Localization.GetText("OK")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    </div>

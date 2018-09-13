@@ -1,0 +1,133 @@
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Domain.EntityHelpers
+
+@model ContractModificationViewModel
+
+@{
+    if (ViewBag.FirmList == null)
+    {
+        ViewBag.FirmList = new List<SelectListItem>();
+    }
+    if (ViewBag.ModificationList == null)
+    {
+        ViewBag.ModificationList = new List<SelectListItem>();
+    }
+
+    var tableName = "ModificationDocs";
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    System.Data.DataTable modficationTable;
+
+    switch (Model.Modality)
+    {
+        case Modality.Framework:
+            modficationTable = Model.ContractModificationsViewModels.ModificationDocs
+                .Select(d => new ModificationDocumentRecordModel
+                {
+                    Author = d.User,
+                    CreationDate = d.Date,
+                    DocumentId = d.Id,
+                    DocumentName = d.Description,
+                    DocumentNumber = d.DocumentNumber,
+                    Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                    ContractId = d.ContractId,
+                    ModificationList = ColumnModificarion(d, ViewBag.ModificationFWList),
+                    EndDate = FormatHelper.Format(d.NewEndDate, formatDate)
+                }).ToList().PopulateDataTable();
+            break;
+        default:
+            modficationTable = Model.ContractModificationsViewModels.ModificationDocs
+                .Select(d => new ModificationDocumentAmountRecordModel
+                {
+                    Author = d.User,
+                    CreationDate = d.Date,
+                    DocumentId = d.Id,
+                    DocumentName = d.Description,
+                    DocumentNumber = d.DocumentNumber,
+                    Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                    ContractId = d.ContractId,
+                    ModificationList = ColumnModificarion(d, ViewBag.ModificationList),
+                    EndDate = FormatHelper.Format(d.NewEndDate, formatDate),
+                    ContractTotalAmount = AmountFormat(d.NewTotalAmount)
+                }).ToList().PopulateDataTable();
+            break;
+    }
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text protests-document">
+                @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ContractModifications"))
+                @(new HtmlString("&nbsp"))
+                @Confluence.Label(Localization.GetText("TCP.FirmProcurement.UploadDocuments.AnyContractModification"))
+            </td>
+            <td class="table-transparent-buttons">
+                @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+        name: "viewTemplatesLink",
+        url: AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+        htmlClass: "bold ml20")
+            </td>
+            <td class="table-transparent-buttons">
+                @(Html.CollapseAll("collapseAllContractDocsContractModificationCancellationRead")
+                .CollapseSingleSelector("tr:not(.template) [data-name=\"collapse-contract-modification-cancellation-detail-read\"]"))
+
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @DocumentManagement.DynamicTable(
+       tableName,
+       tableName,
+       modficationTable,
+       false,
+       false)
+    </div>
+</div>
+
+@helper ColumnModificarion(ModificationDocRowViewModel row, List<MultiDropDownItem> items)
+{
+    var listValues = items.GetSelectedText(row.Modifications);
+    foreach (var item in listValues)
+    {
+        @item
+        <br />
+    }
+}
+
+@helper Actions(ModificationDocRowViewModel row)
+{
+    @Confluence.ButtonDownload("", "DownLoadDoc")
+    @(Html.CollapseSingle("collapse-contract-modification-cancellation-detail-read")
+            .TargetRegionSelector(x => x.Closest("tr").Next())
+            .AsociatedCollapseAllSelector("[data-name=\"collapseAllContractDocsContractModificationCancellationRead\"]")
+            .HtmlClass("arrow")
+    )
+}
+
+@helper AmountFormat(decimal? amount)
+{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    if (amount.HasValue)
+    {
+        <div>$ @FormatHelper.Format(amount.Value, formatDecimal)</div>
+    }
+    else
+    {
+        <div> </div>
+    }
+}

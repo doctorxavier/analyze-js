@@ -1,0 +1,895 @@
+﻿@using IDB.MW.Domain.Entities;
+@using IDB.Architecture.Extensions;
+
+@model IDB.MW.Domain.Models.Global.CompleteTaskViewModel
+@{
+    ViewBag.Title = "Index";
+}
+
+@Styles.Render("~/Content/Confluence")
+
+@section CSS
+{
+
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/VerifyContent.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Globals/DetailsEditCustom.css")" />
+
+}
+
+@*/**
+    * Jira ID: CON-1237
+    * Attended by: Walkin Meza - Nicolas Castro
+    * Date: 17/12/2014
+    * Begin Fix
+    **/*@
+
+@Html.Hidden("hdnSaveChangesUrl", Url.Action("Message", "Tasks", new { area = "Global" }))
+
+@section JavaScript
+{
+
+    <script src="@Url.Content("~/Scripts/Modules/Task/AddCommentTask.js")"></script>
+    <script src="@Url.Content("~/Scripts/Modules/Task/TaskEditRequest.js")"></script>
+    <script src="@Url.Content("~/Scripts/Modules/Global/global.js")"></script>
+    <script type="text/javascript">
+    var load_=false;
+    var initialInterval = false;
+    $(function () {
+        $(document).tooltip({
+            items: ".input-validation-error",
+            content: function () {
+                if ($(this).attr('data-val-range'))
+                    return $(this).attr('data-val-range');
+                if ($(this).attr('data-val-required'))
+                    return $(this).attr('data-val-required');
+            }
+        });
+    });
+
+    function initializeSplitViewState(){
+        newButton = '<div class="col-md-3 text-right floatRight">';
+        newButton += '@Confluence.LabelLink(IDB.Architecture.Language.Localization.GetText("GLOBAL.K2.LINK.MaximizeTask"), name: "minMaxFloatTask", action: "minMaxFloatTask").ToString().Replace("\r\n", "").Replace("\n", "")';
+        newButton += '@Confluence.ButtonClose(name: "closeFloatTask", action: "closeFloatTask", clase: "pb5").ToString().Replace("\r\n", "").Replace("\n", "")';
+        newButton += '</div>';
+
+        newCommentButton = '@Confluence.ButtonWhite(IDB.Architecture.Language.Localization.GetText("Comments"), name: "newCommentFloatTask", action: "newCommentFloatTask").ToString().Replace("\r\n", "").Replace("\n", "").Replace("&#225;", "á")';
+
+        newInstruction = '<div class="col-sm-9 nopadding mt5 mb10" id="instructionFT">';
+        newInstruction += '<label class="labelnormal">@Html.Raw(ViewBag.instructionsFT)</label></div>';
+
+        $('#fullTaskContainer').prepend(newButton.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+        $(".box_subtitle").prepend(newInstruction.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+
+        $('#headerButtons').find('div[data-pagemode=edit]').append(newCommentButton.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+
+        $('#fullTaskContainer').find('.headingh2').eq(0).width("10%");
+
+        $('body').css('overflow','hidden');
+        $('body').css('-ms-scroll-limit-y-max','0');
+    }
+
+    function setSplitViewState(collapsed) {
+
+        if (collapsed) {
+            $('iframe[name="splitFrame"]').show();
+            $('.taskBodyContainer').hide();
+            $('#fullTaskContainer').addClass("floatBox");
+            $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Cancel"))').hide();
+            $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Edit"))').hide();
+            $('#fullTaskContainer').find('button').filter(function() {
+                return $(this).text().trim() === "@IDB.Architecture.Language.Localization.GetText("OP.MS.Save")";}).hide();
+            $('#instructionFT').show();
+            $('[name=minMaxFloatTask]').text("@IDB.Architecture.Language.Localization.GetText("GLOBAL.K2.LINK.MaximizeTask")");
+            $('[name=closeFloatTask]').show();
+            $('[name=newCommentFloatTask]').show();
+
+            $("div.inputComment").each(function () {
+                if ($(this).find('[name=newComment]').val() == "" && $(this).children('table[data-idb-fieldname=tblCommentInfo]').length === 0)
+                    $(this).parent().remove();
+                else if($(this).find('[name=newComment]').val() == "" && $(this).children('table[data-idb-fieldname=tblCommentInfo]').length > 0){
+                    $(this).children('table[data-idb-fieldname=tblCommentInfo]').remove();
+                    $(this).find(".buttonTrash").remove();
+                }
+            });
+
+            if ($('[name=newComment]').text().trim() == '')
+                $('[name=newComment]').siblings("div.inputComment").parent().remove();
+
+            $('[name=minMaxFloatTask]').removeClass("plus");
+            $('.tMissionCode').hide();
+
+            $('.title_tag').insertAfter($('#fullTaskContainer').find('.headingh2').eq(0)).addClass("pt5").addClass("pl5");
+            $('#fullTaskContainer').find('.headingh2').eq(0).hide();
+            $('.box_subtitle').addClass('mt10');
+
+            parent.parent.$(".lista_desplegable_b").find("a").not('.itemSlider').attr("target","splitFrame");
+            return;
+        }
+
+        $('iframe[name="splitFrame"]').hide();
+        $('.taskBodyContainer').show();
+        $('#fullTaskContainer').removeClass("floatBox");
+        $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Cancel"))').show();
+        $('#fullTaskContainer').find('button:contains(@IDB.Architecture.Language.Localization.GetText("OP.MS.Edit"))').show();
+        $('#fullTaskContainer').find('button').filter(function() {
+            return $(this).text().trim() === "@IDB.Architecture.Language.Localization.GetText("OP.MS.Save")";}).show();
+        $('#instructionFT').hide();
+        $('[name=minMaxFloatTask]').text("@IDB.Architecture.Language.Localization.GetText("GLOBAL.K2.LINK.MinimizeTask")");
+        $('[name=closeFloatTask]').hide();
+        $('[name=newCommentFloatTask]').hide();
+
+        $('[name=minMaxFloatTask]').addClass("plus");
+        $('.tMissionCode').show();
+
+        $('#fullTaskContainer').find('.headingh2').eq(0).show();
+        $('.box_subtitle').prepend($('.title_tag').removeClass("pt5").removeClass("pl5")).removeClass("mt10")
+
+        parent.parent.$(".lista_desplegable_b").find("a").not('.itemSlider').attr("target","someFrame");
+    }
+
+    function newCommentFloatTask(source){
+        minMaxFloatTask(source);
+        newComment(source);
+        $('[name=newComment]').focus();
+    }
+
+    function closeFloatTask(source){
+        parent.parent.$(".lista_desplegable_b").find("a").not('.itemSlider').attr("target","someFrame");
+        $('#fullTaskContainer').hide();
+    }
+
+    function minMaxFloatTask(source){
+        setSplitViewState (source.hasClass("plus"));      
+
+        $('#fullTaskContainer [name="minMaxFloatTask"]').text($('#fullTaskContainer [name="minMaxFloatTask"]').text().replace(/&#226;/, 'â').replace(/&#233;/, 'é'));
+    }
+
+    $(document).ready(function () {
+        $(".headingh2.title_tag").show();
+        @if (!string.IsNullOrWhiteSpace(Model.SplitViewUrl))
+        {
+            @:initializeSplitViewState();
+            @:setSplitViewState(@Model.OpenCollapsed.ToString().ToLower());
+        }
+
+        $('#fullTaskContainer [name="minMaxFloatTask"]').text($('#fullTaskContainer [name="minMaxFloatTask"]').text().replace(/&#226;/, 'â').replace(/&#233;/, 'é'));
+
+        parent.parent.$(".menu_max").click();
+
+        @if (Model.OpenCollapsed == true)
+        {
+            @:parent.parent.$(".lista_desplegable_b").find("a").not('.itemSlider').attr("target", "someFrame");
+        }
+
+        var newUrl = null;
+        var urlcasefinish = null;
+
+        var result =  @Html.Raw(Json.Encode(ViewBag.PMIFinishTask));
+        var counter =0
+        var Code = $("#Code").attr("value");
+        if (result == true)
+        {
+            newUrl = $("#UrlPMIFinishTask").attr("href");
+
+            $("#SaveButtonUp").addClass("caseFinish");
+            $("#SaveButtonDown").addClass("caseFinish");
+
+            var Code = $("#Code").attr("value");
+            if (Code == "WF-CL-001") {
+                urlcasefinish = $("#UrlPostClauseRevolving").attr("href");
+            }
+            else if (Code == "WF-CL-002") {
+                urlcasefinish = $("#UrlPostClauseEligibility").attr("href");
+            }
+            else if (Code == "WF-CL-003") {
+                urlcasefinish = $("#UrlPostClauseExtension").attr("href");
+            }
+            else if (Code == "WF-CL-004") {
+                urlcasefinish = $("#UrlPostClauseFinalStatus").attr("href");
+            }
+            else if (Code == "WF-SP-001") {
+                urlcasefinish = $("#UrlPostSupervisionPlan").attr("href");
+            }
+            else if (Code == "WF-PMI-001" || Code == "WF-PMI-004") {
+                urlcasefinish = $("#UrlPostMarch").attr("href");
+            }
+            else if (Code == "WF-PMI-002") {
+                urlcasefinish = $("#UrlPostSeptember").attr("href");
+            }
+            else if (Code == "WF-PMI-003") {
+                urlcasefinish = $("#UrlPostSeptember").attr("href");
+            }
+        }
+        else
+        {
+            var Code = $("#Code").attr("value");
+            if (Code == "WF-CL-001") {
+                newUrl = $("#UrlPostClauseRevolving").attr("href");
+            }
+            else if (Code == "WF-CL-002") {
+                newUrl = $("#UrlPostClauseEligibility").attr("href");
+            }
+            else if (Code == "WF-CL-003") {
+                if ($("#EntityType").attr("value") === "ConditionExtension")
+                    newUrl = $("#UrlPostConditionExtension").attr("href");
+                else
+                    newUrl = $("#UrlPostClauseExtension").attr("href");
+            }
+            else if (Code == "WF-CL-004") {
+                if ($("#EntityType").attr("value") === "ConditionIndividual")
+                    newUrl = $("#UrlPostConditionFinalStatus").attr("href");
+                else
+                    newUrl = $("#UrlPostClauseFinalStatus").attr("href");
+            }
+            else if (Code == "WF-SP-001") {
+                newUrl = $("#UrlPostSupervisionPlan").attr("href");
+            }
+            else if (Code == "WF-PMI-001" || Code == "WF-PMI-004") {
+                newUrl = $("#UrlPostMarch").attr("href");
+            }
+            else if (Code == "WF-PMI-002") {
+                newUrl = $("#UrlPostSeptember").attr("href");
+            }
+            else if (Code == "WF-PMI-003") {
+                newUrl = $("#UrlPostSeptember").attr("href");
+            }
+        }
+
+        $("#ConvergencePartialForm").attr("action", newUrl);
+
+
+        if (urlcasefinish != null)
+        {
+            $("#caseFinishRoute").attr("href", urlcasefinish );
+        }
+
+        function save() {
+            var nullTextAreas = 0;
+            var exitsRows = $("#commentTableUIRI002_edit tr").length;
+            var innerTaskDetailViewId = $("#innerTaskDetailViewId").val();
+
+            if (innerTaskDetailViewId != null) {
+                var commentTaskCount = 0;
+                var taskId = @Model.TaskId
+
+                $(".txtDescriptionComent").each(function () {
+                    if($(this).prev().val()== taskId ||
+                        $(this).prev().attr('name').indexOf('WorkflowInstanceTaskId')==-1){
+                        commentTaskCount++;
+                    }
+                    if ($(this).val().length <= 0) {
+                        nullTextAreas++;
+                    }
+                });
+
+                if($("#classification").length>0){
+                    var dropdownlistClass = $("#classification").data("kendoDropDownList");
+                    var ClassificationActual = "@Model.Classification";
+                    var partialClassification = dropdownlistClass.text().toUpperCase();
+
+                    if (ClassificationActual != partialClassification){
+                        if(commentTaskCount ==0 && nullTextAreas==0){
+                            if(isValidateTaskPMI001AndPMI004(Code)){
+                                showMessageValidationPermissionByRole(Code,6);
+                                return;
+                            }
+                            else{
+                                showMessageValidation(1);
+                                return;
+                            }
+                        }
+                        else if(nullTextAreas > 0)
+                        {
+                            if(isValidateTaskPMI001AndPMI004(Code)){
+                                saveTaskPMI001AndPMI004();
+                                return;
+                            }
+                            else{
+                                showMessageValidation(1);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                $(".txtDescriptionComent").each(function () {
+                    if ($(this).val().length <= 0) {
+                        nullTextAreas++;
+                    }
+                });
+
+                if (exitsRows <= 0) {
+                    if(isValidateTaskPMI001AndPMI004(Code)){
+                        saveTaskPMI001AndPMI004();
+                        return;
+                    }
+                    else{
+                        showSaveChangesWindow();
+                        return;
+                    }
+                } else if (exitsRows > 0 && nullTextAreas <= 0) {
+                    if(isValidateTaskPMI001AndPMI004(Code)){
+                        saveTaskPMI001AndPMI004();
+                        return;
+                    }
+                    else{
+                        if ($(this).hasClass("caseFinish")) {
+                            $("#ConvergencePartialForm").attr("action", $("#caseFinishRoute").attr("href"));
+                        }
+                        if (Code == 'WF-PMI-003' || Code == 'WF-PMI-002') {
+                            $("#ActionType").attr("value", "");
+                            $("#Reject_").val("0");
+                            ValidateConfirm(1);
+                        }
+                        else {
+                            $("#ConvergencePartialForm").submit();
+                        }
+                    }
+                }
+                if(isValidateTaskPMI001AndPMI004(Code)){
+                    saveTaskPMI001AndPMI004();
+                    return;
+                }
+            } else {
+                if(isValidateTaskPMI001AndPMI004(Code)){
+                    saveTaskPMI001AndPMI004();
+                    return;
+                }
+                else {
+                    if ($(this).hasClass("caseFinish")) {
+                        $("#ConvergencePartialForm").attr("action", $("#caseFinishRoute").attr("href"));
+                    }
+                    if (Code == 'WF-PMI-003' || Code == 'WF-PMI-002') {
+                        $("#ActionType").attr("value", "");
+                        $("#Reject_").val("0");
+                        ValidateConfirm(1);
+                    }
+                    else {
+                        $("#ConvergencePartialForm").submit();
+                    }
+                }
+            }
+        }
+
+        $("#SaveButtonUp").on("click", save);
+        $("#SaveButtonDown").on("click", save);
+
+        $(".Btn_RejectSave").on("click", function () {
+            var ClassificationActual = "";
+            var partialClassification = "";
+            var nullTextAreas = 0;
+            var exitsRows = $("#commentTableUIRI002_edit tr").length;
+
+            var innerTaskDetailViewId = $("#innerTaskDetailViewId").val();
+
+            var lastRowUserLogged = $("table#commentTableUIRI002_edit tbody tr:last")
+                .find(".lastRowCommentUserJS").text().toLowerCase();
+
+            if(lastRowUserLogged == "@IDBContext.Current.UserName.ToLower()")
+                $("#Reject_").val("1");
+
+            if (innerTaskDetailViewId != null) {
+
+                $(".txtDescriptionComent").each(function () {
+                    if ($(this).val().length <= 0) {
+                        nullTextAreas++;
+                        //$(this).addClass("input-validation-error");
+                    }
+                });
+
+                if($("#classification").length>0){
+                    var dropdownlistClass = $("#classification").data("kendoDropDownList");
+                    ClassificationActual = "@Model.Classification";
+                    partialClassification = dropdownlistClass.text().toUpperCase();
+
+
+                    $(".txtDescriptionComent").each(function () {
+                        if ($(this).val().length <= 0) {
+                            nullTextAreas++;
+                            //$(this).addClass("input-validation-error");
+                        }
+                    });
+                }
+
+                if (exitsRows <= 0) {
+                    //showSaveChangesWindow();
+                    ValidateConfirm(3);
+                } else if (exitsRows > 0 && nullTextAreas <= 0) {
+
+                    $("#ActionType").attr("value", "RejectTask");
+
+                    ValidateConfirm(3);
+                }
+                else if(exitsRows > 0 && nullTextAreas > 0)
+                {
+
+                    showMessageValidation(3);
+
+                }
+            }else{
+                ///////In StartUpPlan must display a warning
+                $(".txtDescriptionComent").each(function () {
+                    if ($(this).val().length <= 0) {
+                        nullTextAreas++;
+                    }
+                });
+
+                if(exitsRows > 0 && nullTextAreas > 0)
+                {
+                    showMessageValidation(3);
+                }
+                else
+                {
+                    $("#ActionType").attr("value", "RejectTask");
+                    ValidateConfirm(3);
+                }
+            }
+
+        });
+
+        $(".Btn_ValidateSave").on("click", function () {
+            var ClassificationActual = "";
+            var partialClassification = "";
+            var nullTextAreas = 0;
+            var divisionChief = "DCRole";
+            var exitsRows = $("#commentTableUIRI002_edit tr").length;
+
+            var innerTaskDetailViewId = $("#innerTaskDetailViewId").val();
+
+            if (innerTaskDetailViewId != null) {
+                var commentTaskCount = 0;
+                var taskId = @Model.TaskId
+
+                $(".txtDescriptionComent").each(function () {
+                    var lastComment = $(this).prev();
+                    if (lastComment.val() !== "" &&
+                        lastComment.attr('name').indexOf('WorkflowInstanceTaskId') == -1) {
+                        commentTaskCount++;
+                    }
+                    if ($(this).val().length <= 0) {
+                        nullTextAreas++;
+                    }
+                });
+
+                if($("#classification").length > 0){
+                    var dropdownlistClass = $("#classification").data("kendoDropDownList");
+                    ClassificationActual = "@Model.Classification";
+                    partialClassification = dropdownlistClass.text().toUpperCase();
+
+                    if (ClassificationActual != partialClassification) {
+                        if (commentTaskCount == 0 && nullTextAreas == 0) {
+                            if(isValidateTaskPMI001AndPMI004(Code)){
+                                showMessageValidationPermissionByRole(Code,6);
+                                return;
+                            }
+                            else{
+                                showMessageValidation(6);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                $(".txtDescriptionComent").each(function () {
+                    if ($(this).val().length <= 0) {
+                        nullTextAreas++;
+                        //$(this).addClass("input-validation-error");
+                    }
+                });
+
+                if (@ViewBag.IsPMITask.ToString().ToLower()) {
+                    if ("@ViewBag.Role" !== divisionChief ||
+                        ClassificationActual === partialClassification) {
+                        if (commentTaskCount > 0) {
+                            $("#ActionType").attr("value", "ValidateTask");
+                            $("#ConvergencePartialForm").submit();
+                            return;
+                        }
+                    }
+                    else {
+                        if(isValidateTaskPMI001AndPMI004(Code)) {
+                            showMessageValidationPermissionByRole(Code,2);
+                            return;
+                        }
+                        else {
+                            if (commentTaskCount > 0) {
+                                $("#ActionType").attr("value", "ValidateTask");
+                                $("#ConvergencePartialForm").submit();
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                if (exitsRows <= 0) {
+                    if(isValidateTaskPMI001AndPMI004(Code)) {
+                        validateTaskPMI001AndPMI004();
+                    }
+                    else {
+                        if ("@ViewBag.Role" == divisionChief) {
+                            $("#ActionType").attr("value", "ValidateTask");
+                            $("#ConvergencePartialForm").submit();
+                        }
+                    }
+                }
+                else if (exitsRows > 0 && nullTextAreas <= 0) {
+                    if(isValidateTaskPMI001AndPMI004(Code)) {
+                        validateTaskPMI001AndPMI004();
+                    }
+                    else {
+                        $("#ActionType").attr("value", "ValidateTask");
+                        ValidateConfirm(2);
+                    }
+                }
+                else if(exitsRows > 0 && nullTextAreas > 0) {
+                    if (ClassificationActual != partialClassification) {
+                        if(isValidateTaskPMI001AndPMI004(Code)) {
+                            showMessageValidationPermissionByRole(Code,2);
+                            return;
+                        }
+                        else {
+                            showMessageValidation(2);
+                        }
+                    }
+                    else {
+                        ValidateConfirm(2);
+                    }
+                }
+            }
+            else {
+                $("#ActionType").attr("value", "ValidateTask");
+                ValidateConfirm(2);
+            }
+        });
+
+        $(".FinishTask").on("click", function () {
+            var route = $("#ConvergencePartialForm").attr("action") + '?taskId=' + '@Model.TaskId';
+
+            window.location.replace(route);
+
+        });
+
+
+        $(".FinishTaskSave").on("click", function () {
+
+            $("#ConvergencePartialForm").attr("action",$("#UrlFinishPMITaskAndSave").attr("href"));
+
+            var route = $("#ConvergencePartialForm").attr("action");
+
+            $.ajax({
+                url: route,
+                data: $("#ConvergencePartialForm").serialize(),
+                type: 'Post',
+                success: function (resp)
+                {
+
+                    location.href = resp;
+                },
+                error: function (e, err, erro)
+                {
+                    alert('Error: ' + e + ' - ' + err + ' - ' + erro);
+                }
+            });
+
+        });
+
+    });
+
+    $("#classification").change(function(){
+        if($("#clasification_").val()==$("#classification").val()){
+            $("#Edit_").val("0");
+        }else{
+            $("#Edit_").val("1");
+        }
+    });
+
+
+
+    //$("#clasification_").val($("#classification").val());
+
+    function ValidateConfirm(condition) {
+        var Validator=false;
+        switch(condition){
+            case 1:/*Save*/
+                if($("#Edit_").val()=="1"){
+                    if($("#EditMessage_").val()=="1"){
+                        Validator=true;
+                    }
+                }else{
+                    Validator=true;
+                }
+                break;
+            case 2:/*Accept*/
+                if($("#Edit_").val()=="1"){
+                    if($("#Accept_").val()=="1"){Validator=true;}
+                }else{
+                    Validator=true;
+                }
+                break;
+            case 3:/*Reject*/
+                if($("#Reject_").val()=="1"){Validator=true;}
+                break;
+        }
+
+        if(Validator==true){
+            $("#ConvergencePartialForm").submit();
+        }else{
+            showMessageValidation(condition);
+        }
+    }
+
+    function showMessageValidation(messageCode)
+    {
+        var urlRoute = $("#hdnValidationMessagePath").val() + "?messageCode=" + messageCode;
+
+        $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+        $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+        $("body").append('<div class="dinamicModal"><div class="loadingdatawarning"><br>Loading...</div></div>');
+        $(".k-overlay").remove();
+
+        var title = "Warning";
+        var dialog = $(".dinamicModal").kendoWindow({
+            width: "800px",
+            title: title,
+            draggable: false,
+            resizable: false,
+            content: urlRoute,
+            pinned: true,
+            actions: [
+                "Close"
+            ],
+            modal: true,
+            visible: false,
+            close: function () {
+                $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                $(".ui-widget-overlay").remove();
+                $(".k-window").remove();
+            }
+        }).data("kendoWindow");
+
+        $(".k-window-titlebar").addClass("warning");
+        $(".k-window-title").addClass("ico_warning");
+        dialog.open();
+        $(".k-overlay").remove();
+    }
+    $(document).hover(function(){
+        if(load_==false){
+            $("#clasification_").val($("#classification").val());
+
+            load_=true;
+        }
+        $("#classification").change(function(){
+            if($("#clasification_").val()==$("#classification").val()){
+                $("#Edit_").val("0");
+            }else{
+                $("#Edit_").val("1");
+            }
+        });
+    });
+
+    function showMessageValidationPermissionByRole(code, typeMessage) {
+        if(code ==  "@WorkflowCodes.WF_PMI_001.GetStringValue()" ||
+            code == "@WorkflowCodes.WF_PMI_004.GetStringValue()") {
+
+            if ("@Model.UserProfile" == "@Role.CHIEF_OF_OPERATIONS" ||
+                "@Model.UserProfile" == "@Role.REPRESENTATIVE") {
+                showMessageValidation(typeMessage);
+            }
+        }
+    }
+
+    function isValidateTaskPMI001AndPMI004(code) {
+        if(code ==  "@WorkflowCodes.WF_PMI_001.GetStringValue()" ||
+            code == "@WorkflowCodes.WF_PMI_004.GetStringValue()") {
+            return true;
+        }
+    }
+
+    function validateTaskPMI001AndPMI004() {
+        $("#ActionType").attr("value", "ValidateTask");
+        $("#ConvergencePartialForm").submit();
+    }
+
+    function saveTaskPMI001AndPMI004() {
+        $("#ConvergencePartialForm").submit();
+    }
+
+    function resizeIframeTasks(framePartialHeight){
+        resizeIframeCloud(framePartialHeight)
+    } 
+    </script>
+}
+
+<input type="hidden" id="hdnValidationMessagePath" value="@Url.Action("ValidationMessage", "Tasks")" />
+<input type="hidden" id="clasification_" value="0" /><input type="hidden" id="Accept_" value="0" /><input type="hidden" id="Reject_" value="0" /><input type="hidden" id="Edit_" value="0" /><input type="hidden" id="EditMessage_" value="0" />
+
+<section class="central">
+    <div id="fullTaskContainer" class="mod_contenido_central generic_tasks">
+        <!--contracts_and_clauses-->
+        <h3 class="headingh2">
+            <a class="tipo1" href="javascript:void(0)" title="Tasks">@Localization.GetText("Tasks")</a>
+        </h3>
+
+        <!--Actions Save-->
+        <a id="UrlPostClauseExtension" href="@Url.Action("SaveExtensionClauseTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostClauseFinalStatus" href="@Url.Action("SaveFinalAprovalClauseTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostClauseEligibility" href="@Url.Action("SavePostEligibilityClause", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostClauseRevolving" href="@Url.Action("SavePostRevolvingClause", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostSeptember" href="@Url.Action("SaveTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostMarch" href="@Url.Action("SaveTask", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPostSupervisionPlan" href="@Url.Action("SaveSupervisionPlanVersionComments", "Tasks", new {area = "Global"})"></a>
+        <a id="UrlPMIFinishTask" href="@Url.Action("FinishPMITask", "Tasks")" hidden="hidden"></a>
+        <a id="UrlFinishPMITaskAndSave" href="@Url.Action("FinishPMITaskAndSave", "Tasks")" hidden="hidden"></a>
+
+
+
+        <a id="caseFinishRoute" href="javascript:void(0)" hidden="hidden"></a>
+
+
+        @Html.HiddenFor(x => x.Code)
+        @Html.HiddenFor(x => x.TaskId)
+        <div class="operationData">
+            <div class="box_subtitle">
+                <h4 class="headingh2 title_tag" style="display: none">@Model.TaskName</h4>
+                <div class="editingButtonsEdit up" id="phase1UICentralContentDetails" style="min-width:35%;">
+                    <div>
+                        <a href='@Url.Content("~/Global/Tasks/Index?operationNumber=")@Model.OperationNumber'
+                           class="verify" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+
+                        @if (ViewBag.PMIFinishTask)
+                        {
+                            <input type="button" class="btn-primary FinishTask" value="@Localization.GetText("OK")" title="@Localization.GetText("OK")" name="Finish" />
+                            <input type="button" class="btn-primary FinishTaskSave" value="@Localization.GetText("Save & OK")" title="@Localization.GetText("Save & OK")" name="Finish" />
+                        }
+                        else
+                        {
+                            <input type="button" class="btn-primary Btn_ValidateSave" value="@Localization.GetText("Save & Validate")" name="Validate" />
+                            if (ViewBag.IsPCRWorkFlow == false)
+                            {
+                                <input type="button" class="btn-primary Btn_RejectSave" value="@Localization.GetText("Save & Reject")" name="Reject" />
+                            }
+                        }
+
+                        <input type="submit" id="SaveButtonUp" class="btn-secondary" value="@Localization.GetText("Save")" />
+
+                        @if (ViewBag.IsPCRWorkFlow)
+                        {
+                            <input type="button" class="btn-primary Btn_RejectSavePCR hide"
+                                   value="@Localization.GetText("Save & Reject")" name="RejectPCR" />
+                        }
+
+                        @if (ViewBag.IsVisualizationFlow != null && ViewBag.IsVisualizationFlow)
+                        {
+                            <input type="button" class="btn-primary Btn_VisualizationSave" value="@Localization.GetText("Save")" name="Save" />
+                            <input type="button" class="btn-primary Btn_VisualizationSaveValidate" value="@Localization.GetText("Send to External Map")" name="Validate" />
+                            <input type="button" class="btn-primary_2 Btn_VisualizationReject" value="@Localization.GetText("Reject")" name="Reject" />
+                        }
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="taskBodyContainer">
+        <div class="operationData dataDetails marginTop2Bottom1">
+            <div class="data4">
+                <p class="dataTitle">@Localization.GetText("Creation on")</p>
+                <p>@(Model.Created.HasValue ? Model.Created.Value.Date.ToString("dd MMMM yyyy") : "-")</p>
+            </div>
+            <div class="data4">
+                <p class="dataTitle">@Localization.GetText("Due on") </p>
+                <p>@(Model.Due.HasValue ? Model.Due.Value.ToString("dd MMMM yyyy") : "-")</p>
+            </div>
+            <div class="data2">
+                <p class="dataTitle">@Localization.GetText("Workflow")</p>
+                <p class="icon workflow">@Localization.GetText(Model.TaskWorkflow)</p>
+            </div>
+
+            <div class="data4">
+                <p class="dataTitle">@Localization.GetText("Priority")</p>
+                @switch (@Model.TaskPriority)
+                {
+                        case 0:
+                            <p class="item icon low"></p>
+                            break;
+                        case 1:
+                        <p class="item icon medium"></p>
+                            break;
+                        case 2:
+                        <p class="item icon hight"></p>
+                            break;
+                }
+            </div>
+            <div class="data4">
+                <p class="dataTitle">@Localization.GetText("CL.FINALSTATUS.TAKS.K2SCREEN.STATUSREQUEST")</p>
+                <p>@Model.RequestNameType</p>
+            </div>
+        </div>
+
+        <div class="operationData dataDetails marginTop2Bottom1">
+            @{
+                if (ViewBag.ConvarIdbRequest != null)
+                {
+                    <div class="data4">
+                        <p class="dataTitle">@Localization.GetText("Requested months")</p>
+                        <p>@ViewBag.ConvarIdbRequest</p>
+                    </div>
+                    <div class="data4">
+                        <p class="dataTitle">@Localization.GetText("Executor Requested months")</p>
+                        <p>@ViewBag.ConvarExecutorRequest</p>
+            </div>
+                }
+                else
+                {
+                    <br>
+                    if (ViewBag.ConvarRequestedDate != null)
+                    {
+                        <div class="data4">
+                            <p class="dataTitle">@Localization.GetText("Requested date")</p>
+                            <p>@String.Format("{0:dd MMM yyy}", @ViewBag.ConvarRequestedDate.ToString())</p>
+        </div>
+                    }
+
+                }
+            }
+        </div>
+
+        <div class="taskBodyContainer">
+            <div>
+                <div>
+
+                    <div>
+                        @{ Html.RenderAction("TaskInnerDetail", new { model = Model, edit = true }); }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="operationData marginTop2Bottom1">
+
+            <div class="editingButtonsEdit marginRight2Con5" id="buttonsValidateEditDetails">
+                <div>
+                    <a href='@Url.Content("~/Global/Tasks/Index?operationNumber=")@Model.OperationNumber'
+                       class="verify" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+
+                    @if (ViewBag.PMIFinishTask)
+                    {
+                        <input type="button" class="btn-primary FinishTask" value="@Localization.GetText("OK")" title="@Localization.GetText("Finalize")" name="Finish" />
+                        <input type="button" class="btn-primary FinishTaskSave" value="@Localization.GetText("Save & OK")" title="@Localization.GetText("Save & Finalize")" name="Finish" />
+                    }
+                    else
+                    {
+                        <input type="button" class="btn-primary Btn_ValidateSave" value="@Localization.GetText("Save & Validate")" name="Validate" />
+                        if (ViewBag.IsPCRWorkFlow == false)
+                        {
+                            <input type="button" class="btn-primary Btn_RejectSave" value="@Localization.GetText("Save & Reject")" name="Reject" />
+                        }
+                    }
+
+                    <input type="button" id="SaveButtonDown" class="btn-secondary" value="@Localization.GetText("Save")" />
+                    @if (ViewBag.IsPCRWorkFlow)
+                    {
+                        <input type="button" class="btn-primary Btn_RejectSavePCR hide"
+                               value="@Localization.GetText("Save & Reject")" name="RejectPCR" />
+                    }
+
+                    @if (ViewBag.IsVisualizationFlow != null && ViewBag.IsVisualizationFlow)
+                    {
+                        <input type="button" class="btn-primary Btn_VisualizationSave" value="@Localization.GetText("Save")" name="Save" />
+                        <input type="button" class="btn-primary Btn_VisualizationSaveValidate" value="@Localization.GetText("Send to External Map")" name="Validate" />
+                        <input type="button" class="btn-primary_2 Btn_VisualizationReject" value="@Localization.GetText("Reject")" name="Reject" />
+                    }
+                </div>
+            </div>
+
+        </div>
+        </div>
+
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.SplitViewUrl))
+    {
+        <div class="splitView">
+            <iframe name="splitFrame" src="@Html.Raw(String.Format(IDB.Architecture.Globals.GetSetting("BasePath") + Model.SplitViewUrl, Model.OperationNumber, ViewBag.elementId))" seamless=" seamless" width="100%" scrolling="no" height="auto"></iframe>
+        </div>
+    }
+</section>

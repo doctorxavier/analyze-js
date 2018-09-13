@@ -1,0 +1,388 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.CPDModule.ViewModels.CountryProgram
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.Areas.CPD.Models
+@using IDB.Architecture.Language
+
+@model CountryProgramViewModel
+
+@Html.Partial("EditPartial/Modals/EditModals")
+
+
+@if (Model != null)
+{
+    <div class="row mb30">
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons")
+            @Confluence.LabelMainTitle(Localization.GetText("CPD.CountryProgram.Title"))
+        </div>
+    </div>
+    <div class="page" data-parsley-validate="true" name="submitForm" data-ignore-nullable-values="true">
+
+        @Confluence.Tabs(new Dictionary<string, string>()
+        {{NavigationAttributes.TAB_NAME_COUNTRYPROGRAM, Localization.GetText("CPD.CountryProgram.Navigation.CountryProgram") },
+        {NavigationAttributes.TAB_NAME_USEOFCS, Localization.GetText("CPD.CountryProgram.Navigation.UseOfCountrySystem") },
+        {NavigationAttributes.TAB_NAME_STRATEGICALIGNMENT, Localization.GetText("CPD.CountryProgram.Navigation.StrategicAlignment") }})
+
+        <div class="tab-content mt20">
+            @if (Model.CountryProgramTab != null && ViewBag.ActiveTab == NavigationAttributes.TAB_NAME_COUNTRYPROGRAM)
+            {
+                <div class="tab-pane pl30" id="@(NavigationAttributes.TAB_NAME_COUNTRYPROGRAM)"
+                     name="formCountryProgram"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveCountryProgram", "CountryProgram", new { area = "CPD" })">
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedViewModel" id="hideCountryProgramModel" name="hideCountryProgramModel" />
+                        @Html.Partial("EditPartial/EditCountryProgramPartial", Model.CountryProgramTab)
+                    </div>
+                </div>
+            }
+            @if (Model.UseOfCountrySystemTab != null && ViewBag.ActiveTab == NavigationAttributes.TAB_NAME_USEOFCS)
+            {
+                <div class="tab-pane pl30" id="@(NavigationAttributes.TAB_NAME_USEOFCS)"
+                     name="formUseOfCountrySystem"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveUseOfCountrySystem", "CountryProgram", new { area = "CPD" })">
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedViewModel" id="hideUseOfCountrySystemModel" name="hideUseOfCountrySystemModel" />
+                        @Html.Partial("EditPartial/EditUseOfCountrySystemPartial", Model.UseOfCountrySystemTab)
+                    </div>
+                </div>
+            }
+            @if (Model.StrategicAlignmentTab != null && ViewBag.ActiveTab == NavigationAttributes.TAB_NAME_STRATEGICALIGNMENT)
+            {
+                <div class="tab-pane pl30" id="@(NavigationAttributes.TAB_NAME_STRATEGICALIGNMENT)"
+                     name="formStrategicAlignment"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveStrategicAlignment", "CountryProgram", new { area = "CPD" })">
+                    <div data-fake-pagemode="edit">
+                        <input type="hidden" value="@ViewBag.SerializedViewModel" id="hideStrategicAlignmentModel" name="hideStrategicAlignmentModel" />
+                        @Html.Partial("EditPartial/EditStrategicAlignmentPartial", Model.StrategicAlignmentTab)
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons")
+        </div>
+    </div>
+}
+
+@section scripts{
+
+    @CPDCommon.ChangeFakePageModeToReal()
+
+    <script type="text/javascript">
+
+        /*--------------- Navigation Tabs --------------- */
+        registerCallback(function () {
+            $(document).ready(function () {
+                SelectTab('@ViewBag.ActiveTab');
+                $('[dd-tab]:not(.active)').addClass('disabled');
+            });
+
+            function SelectTab(tabName) {
+                switch (tabName) {
+                    case '@(NavigationAttributes.TAB_NAME_COUNTRYPROGRAM)':
+                        $('[dd-tab="#@(NavigationAttributes.TAB_NAME_COUNTRYPROGRAM)"]').click();
+                        break;
+                    case '@(NavigationAttributes.TAB_NAME_USEOFCS)':
+                        $('[dd-tab="#@(NavigationAttributes.TAB_NAME_USEOFCS)"]').click();
+                        break;
+                    case '@(NavigationAttributes.TAB_NAME_STRATEGICALIGNMENT)':
+                        $('[dd-tab="#@(NavigationAttributes.TAB_NAME_STRATEGICALIGNMENT)"]').click();
+                        break;
+                }
+            }
+        });
+
+        /*Use of Country Systems Country Program*/
+        registerCallback(function () {
+            function SetVisivilityFinancialManagmentYear() {
+                var source = $('[name="financialManagment"]');
+
+                var regions = $('[data-section-financial]');
+                var selected = source.val();
+                regions.addClass('hide');
+
+                var dropsValues = regions.find('[name="financialManagmentYear"]');
+                dropsValues.attr('disabled', 'disabled');
+
+                regions = regions.filter(function (item, key) {
+                    var region = $(this);
+                    var id = region.attr('data-section-financial');
+                    if (selected != null) {
+                        return selected.indexOf(id) >= 0;
+                    } else {
+                        return false;
+                    }
+                });
+                regions.removeClass('hide');
+                regions.find('[name="financialManagmentYear"]').removeAttr('disabled');
+
+                regions = $('[data-section-financial].hide');
+                var dropsValues = regions.find('[name="financialManagmentYear"]');
+                dropsValues.val('');
+
+                var drops = dropsValues.nextAll('ul.dropdown-menu');
+                var textSelectAnOption = drops.children(':first').find('a').text().trim();
+                regions.find('.valueText').html(textSelectAnOption);
+                regions.find('div.dropdown').addClass('placeholder');
+
+                drops.find('li').removeAttr('dd-selected');
+                drops.find('li:first').attr('dd-selected', '');
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            function SetVisivilityProcurementYear() {
+                var source = $('[name="Procurement"]');
+
+                var regions = $('[data-section-procurement]');
+                var selected = source.val();
+                regions.addClass('hide');
+
+                var dropsValues = regions.find('[name="procurementYear"]');
+                dropsValues.attr('disabled', 'disabled');
+
+                regions = regions.filter(function (item, key) {
+                    var region = $(this);
+                    var id = region.attr('data-section-procurement');
+                    if (selected != null) {
+                        return selected.indexOf(id) >= 0;
+                    } else {
+                        return false;
+                    }
+                });
+                regions.removeClass('hide');
+                regions.find('[name="procurementYear"]').removeAttr('disabled');
+
+
+                regions = $('[data-section-procurement].hide');
+                var dropsValues = regions.find('[name="procurementYear"]');
+                dropsValues.val('');
+
+                var drops = dropsValues.nextAll('ul.dropdown-menu');
+                var textSelectAnOption = drops.children(':first').find('a').text().trim();
+                regions.find('.valueText').html(textSelectAnOption);
+                regions.find('div.dropdown').addClass('placeholder');
+
+                drops.find('li').removeAttr('dd-selected');
+                drops.find('li:first').attr('dd-selected', '');
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            $(document).on('change', '[name="financialManagment"]', function (key, item) {
+                SetVisivilityFinancialManagmentYear();
+            });
+
+            $(document).on('change', '[name="Procurement"]', function (key, item) {
+                SetVisivilityProcurementYear();
+            });
+
+            SetVisivilityFinancialManagmentYear();
+            SetVisivilityProcurementYear();
+        });
+
+
+        /*--------------- Table Functions ---------------*/
+        $(document).ready(function () {
+            $(document).on('click', '[name="addNewRow"]', function () {
+                var source = $(this);
+                var tableName = source.attr('data-linked-table');
+                var table = $(String.format('#{0}', tableName));
+                var newId = table.GenerateNewId();
+
+                var template = table.find('tbody tr.template');
+                var newItem = template.clone();
+
+                table.find('tbody tr:last').after(newItem);
+                newItem.removeClass('template');
+                newItem.removeClass('hide');
+                newItem.attr('data-id', String.format('new-{0}', newId));
+
+                var inputs = newItem.find('input, select, textarea, div.inputSearch.ctlAsyncr > button, div.dropdown > button');
+                inputs.removeAttr('disabled');
+                inputs = newItem.find('td.operationNumberHidden input, td.totalFundsHidden input');
+                inputs.attr('disabled', 'disabled');
+
+                bindHandlers(newItem);
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+
+            $(document).on('click', '[name="removeRow"]', function () {
+                var source = $(this);
+                var button = $('[name="btn-open-popup-common-remove"]');
+                button.data('pressed-by', source);
+                button.click();
+            });
+        });
+
+        function RemoveRow(event, source) {
+            var promise = $.Deferred();
+            source.closest('tr').remove();
+            promise.resolve();
+            return promise;
+        }
+
+        /*--------------- Comments ---------------*/
+        registerCallback(function () {
+            $(document).on('click', '[name="saIndicators-AddComment"]', function () {
+                var buttonSection = $('[name="saIndicators-ButtonSection"]');
+                var regionToShow = $('div[name="saIndicators-TextSection"]');
+                regionToShow.removeClass('hide');
+                buttonSection.addClass('hide');
+                var textArea = regionToShow.find('textarea[name="saIndicators-CommentArea"]');
+                textArea.removeAttr('disabled');
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+
+            });
+
+            $(document).on('click', '[name="saIndicators-DeleteComment"]', function () {
+                var button = $('[name="btn-open-popup-comment-remove"]');
+                button.click();
+            });
+
+            $(document).on('click', '[name="expectedApproval-AddComment"]', function () {
+                var buttonSection = $('[name="expectedApproval-ButtonSection"]');
+                var regionToShow = $('div[name="expectedApproval-TextSection"]');
+                regionToShow.removeClass('hide');
+                buttonSection.addClass('hide');
+                var textArea = regionToShow.find('textarea[name="expectedApproval-CommentArea"]');
+                textArea.removeAttr('disabled');
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+
+            });
+
+            $(document).on('click', '[name="expectedApproval-DeleteComment"]', function () {
+                var button = $('[name="btn-open-popup-comment-expecAppr-remove"]');
+                button.click();
+            });
+        });
+
+        function RemoveComment(event, source) {
+            var promise = $.Deferred();
+            var regionToHide = $('div[name="saIndicators-TextSection"]');
+            regionToHide.addClass('hide');
+            var textArea = regionToHide.find('textarea[name="saIndicators-CommentArea"]');
+            textArea.attr('disabled', 'disabled');
+            textArea.val('@(string.Empty)');
+            var buttonSection = $('[name="saIndicators-ButtonSection"]');
+            buttonSection.removeClass('hide');
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+
+            promise.resolve();
+            return promise;
+        }
+
+        function RemoveCommentExpecAppr(event, source) {
+            var promise = $.Deferred();
+            var regionToHide = $('div[name="expectedApproval-TextSection"]');
+            regionToHide.addClass('hide');
+            var textArea = regionToHide.find('textarea[name="expectedApproval-CommentArea"]');
+            textArea.attr('disabled', 'disabled');
+            textArea.val('@(string.Empty)');
+            var buttonSection = $('[name="expectedApproval-ButtonSection"]');
+            buttonSection.removeClass('hide');
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+
+            promise.resolve();
+            return promise;
+        }
+
+        /*--------------- Save/Cancel Mode ---------------*/
+        registerCallback(function () {
+            $(document).on('click', '[name="cancel-CP"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+
+                modalBtn.click();
+            });
+
+            $(document).on('click', '[name="cancel-UseCS"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+            $(document).on('click', '[name="cancel-SA"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel"]');
+                modalBtn.click();
+            });
+
+            $(document).on('click', '[name="save-CP"]', function (e) {
+                var formSelector = '#@(NavigationAttributes.TAB_NAME_COUNTRYPROGRAM)';
+                var hiddenViewModelSelector = '#hideCountryProgramModel';
+                Save(formSelector, hiddenViewModelSelector);
+            });
+
+            $(document).on('click', '[name="save-UseCS"]', function (e) {
+                var formSelector = '#@(NavigationAttributes.TAB_NAME_USEOFCS)';
+                var hiddenViewModelSelector = '#hideUseOfCountrySystemModel';
+                Save(formSelector, hiddenViewModelSelector);
+            });
+
+            $(document).on('click', '[name="save-SA"]', function (e) {
+                var formSelector = '#@(NavigationAttributes.TAB_NAME_STRATEGICALIGNMENT)';
+                var hiddenViewModelSelector = '#hideStrategicAlignmentModel';
+                Save(formSelector, hiddenViewModelSelector);
+            });
+        });
+
+        function Save(formSelector, hiddenViewModelSelector) {
+            var response = saveContainer($(formSelector), hiddenViewModelSelector, false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        }
+        function CancelEditMode() {
+            var promise = $.Deferred();
+            var url = '@Url.Action("Cancel", "CountryProgram", new { area = "CPD"})';
+            var tabName = $('.tabs li.active').attr('dd-tab').substr(1);
+            url = url + '?tabName=' + tabName;
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+    </script>
+}

@@ -1,0 +1,150 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using System.Globalization
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.Star
+
+@model StarDashboardViewModel
+
+@{
+    int? lastStarId = null;
+    if (Model.StarHistory != null && Model.StarHistory.Any())
+    {
+        lastStarId = Model.StarHistory.OrderByDescending(x => x.CompletedOn).FirstOrDefault().RowId;
+    }
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="float-left">
+                    @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.StarDashboard.History.Title"))
+                </div>
+                <div class="float-right">
+                    @if (ViewBag.WriteRole)
+                    {
+                        if (Model.StarHistory.Count > 0) {
+                            @Confluence.ButtonBlue(
+                                Localization.GetText(Localization.GetText("MrBlue.StarDashboard.History.NewMostRecent")),
+                                action: "actionNewMostRecentHistory")
+                        }
+                        else
+                        {
+                            @Confluence.ButtonBlue(
+                                Localization.GetText(Localization.GetText("MrBlue.StarDashboard.History.NewMostRecent")),
+                                action: "actionNewMostRecentHistory",
+                                disabled: true)
+                        }
+                        
+                        @Confluence.ButtonBlue(
+                            Localization.GetText(Localization.GetText("MrBlue.StarDashboard.History.New")),
+                            action: "actionNewHistory")
+                    }
+                    else
+                    {
+                        @Confluence.ButtonBlue(
+                            Localization.GetText(Localization.GetText("MrBlue.StarDashboard.History.NewMostRecent")),
+                            action: "actionNewMostRecentHistory",
+                            disabled: true)
+                        
+                        @Confluence.ButtonBlue(
+                            Localization.GetText(Localization.GetText("MrBlue.StarDashboard.History.New")),
+                            action: "actionNewHistory",
+                            disabled: true)
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12 contextualHelp" style="margin-bottom:5px;">
+                <p>@MrBlue.LabelHelper(Localization.GetText("MrBlue.StarDashboard.History.InstructionClick"))</p>
+            </div>
+        </div>
+
+        @if (Model.StarHistory != null)
+        {
+            var configHistory = Html.RenderDataTable(Model.StarHistory);
+            configHistory.Name("historyTableStar")
+            .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+            .AddPrimaryKeyToName(false)
+            .RowAttributes("data-lastStarId", lastStarId.ToString())
+            .Columns(columns =>
+            {
+                columns.Bound(c => c.CreatedBy)
+               .Persistent()               
+               .Header(Localization.GetText("MrBlue.StarDashboard.History.CreatedBy"));
+
+                columns.Bound(c => c.CreatedOn)
+                .Persistent().CssClass("dateHistory")
+                .Header(Localization.GetText("MrBlue.StarDashboard.History.Date"));
+                               
+                columns.Template(columnAction)
+               .Persistent()
+               .Header(Localization.GetText("MrBlue.StarDashboard.History.Action"))
+               .Center();
+
+                columns.Template(columnExpandable)
+                .Persistent();
+
+                columns.Template(mostRecent).Persistent().Hidden(true);
+
+            })
+            .RowTemplates(rows => rows.Create(RowTemplateType.AllRows, item => ShowCommentStarHistoryRow(item)));
+
+            configHistory.TableClass = "tableNormal selectedRowTable";
+
+            @Html.Partial("Controls/DataTable", configHistory)
+        }
+    </div>
+</div>
+
+@helper ShowCommentStarHistoryRow(StarHistoryRowViewModel StarHistoryViewModel)
+{
+    <tr class="skip template dont-hide-at-edit own-hide"
+        data-name="detail-starHistory-@StarHistoryViewModel.RowId" row-detail="true">
+        <td colspan="4" style="padding-top:10px;">
+            @Confluence.Label(Localization.GetText("MrBlue.Star.HistoryCommentLabel"))
+            @Confluence.InputTextArea(StarHistoryViewModel.Comments.Comment,
+                name: "commentStarHistoryRow",
+                width: "100%",
+                height: "100px",
+                isReadOnly: true,
+                htmlClass: "width100")
+        </td>
+    </tr>
+}
+
+@helper columnAction(StarHistoryRowViewModel viewModel)
+{
+    @Confluence.ButtonPdf(
+        name: "downloadPDFHistoryRow",
+        action: "downloadReport",
+        dataAttributes: new Dictionary<string, string> { { "IDBDocNumber", viewModel.IDBDocNumber } })
+
+    
+    if (ViewBag.WriteRole) {
+        @MrBlue.TableButonTrash(Url.Action("StarDeleteReport", "Star", new { area = "MrBlue", versionId = viewModel.RowId }))
+    }
+}
+
+@helper columnExpandable(StarHistoryRowViewModel StarHistoryViewModel)
+{
+    @Display.ExpandableTriangleButton(string.Format("#historyTableStar [data-name='detail-starHistory-{0}']",
+            StarHistoryViewModel.RowId),
+            markTargetAsExpanded: false)
+}
+
+
+@helper mostRecent(StarHistoryRowViewModel StarHistoryViewModel)
+{
+    @Confluence.InputHidden(value : StarHistoryViewModel.RowId.ToString(),
+    name : "isMostRecent",
+    required : false,
+            dataAttributes : new Dictionary<string, string> 
+            { {"isMostRecent",StarHistoryViewModel.isMostRecent.ToString()}}
+    )
+}

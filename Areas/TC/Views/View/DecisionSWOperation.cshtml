@@ -1,0 +1,364 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Presentation.MVC4.Areas.TC.Enums;
+@using IDB.MW.Infrastructure.SecurityService.Enums;
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.SingleWindowOperationDecision.DecisionSWOperationViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode; 
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+
+    var fromDate = FormatHelper.Format( (DateTime?) ViewBag.SWDateFrom , formatDate );
+    var toDate = FormatHelper.Format( (DateTime?) ViewBag.SWDateTo , formatDate );
+    var typeDecisionId = (int) ViewBag.TypeDecision;
+}
+
+        @if (devMode)
+  {
+    <div class="header">
+        <div class="row row-header">
+            <div class="col-md-12">
+                <button class="btn btn-primary" data-action="setReadAccess">Single Window Operations Read Permission</button>
+                <button class="btn btn-warning" data-action="setWriteAccess">Single Window Operations Write Permission</button>
+                <button class="btn btn-primary" data-action="removePermission">Remove/Refresh Permissions</button>
+            </div>
+        </div>
+    </div>
+  }
+
+<div class="header">
+
+    <div class="row-body-40">
+        <h2 class="title-arrow leftmarginh2">
+            <a href="@Url.Action( "SingleWindowOperations" , "View" , new { area = "TC" , typeDecision = typeDecisionId , fromDate = fromDate , toDate = toDate } )">
+                <span>&nbsp;</span>
+            </a>
+            @Localization.GetText("TC.DecisionSWO.Title").HtmlEncode()
+        </h2>
+    </div>
+
+    <div class="row">
+            <div class="col-md-12">
+            @Html.Partial("Partials/Controls/DecisionSWOperationButtons")
+            <h3 class="leftmarginh3">@Localization.GetText("TC.DecisionSWO.TypeOperation.Title").HtmlEncode()</h3>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="page">
+        <div name="filterContainer">
+            <div data-pagemode="edit">
+                <input type="hidden" name="SWDateFrom" value="@FormatHelper.Format( (DateTime?) ViewBag.SWDateFrom , formatDate )"/>
+                <input type="hidden" name="SWDateTo" value="@FormatHelper.Format( (DateTime?) ViewBag.SWDateTo , formatDate )"/>
+                <input type="hidden" name="TypeDecision" value="@((int)ViewBag.TypeDecision)" />
+             </div>
+        </div>
+    @if ((ViewBag.ReadRole != null) && ViewBag.ReadRole)
+    {
+        <div id="dataForm"
+             data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-loadurl="@Url.Action("DecisionSWOperationEdit", "View", new { area = "TC" })"
+         data-url="@Url.Action("DecisionSWOperation", "Save", new { area = "TC" })">
+
+            @Html.Partial("Partials/DecisionSWOperationTCSWOperations", Model)
+
+        </div>
+
+        <div class="row">
+            @Html.Partial("Partials/Controls/DecisionSWOperationButtons")
+        </div>
+
+        <div id="sendAndSendModalFGapOperation" class="hide modalBody">
+            @Localization.GetText("TC.DecisionSWO.SendSingleWIndowMeeting").HtmlEncode()
+        </div>
+
+        <div id="sendAndSendModalFexOperation" class="hide modalBody">
+            @Localization.GetText("TC.DecisionSWO.SendFundingGap").HtmlEncode()
+        </div>
+
+        <div data-id="ModalRegion" class="hide">
+            <div id="changeStatusModal" class="hide">
+            </div>
+        </div>
+
+        <div data-id="HiddenButtonRegion" class="hide">
+
+            @Display.AddModalButton(new ModalViewModel(name: "buttonChangeStatusModal",
+                                                        allowClose: true,
+                                                        contentSelector: "#changeStatusModal",
+                                                        type: CssClass.ModalInformation,
+                                                        title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+                                                        validateForm: false
+                                                        )
+            )
+    </div>
+}
+    </div>
+
+
+@section scripts{
+
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AddAfterDate()
+    @if (k2Mode)
+    {
+        @ModuleScripts.K2UIIntegration()
+    }
+
+    <script type="text/javascript">
+
+    initialStatusButtons();
+
+    registerCallback(function () {
+        var leftMenu = $('.izquierda', window.parent.document);
+        leftMenu.hide();
+
+        configDatepicker();
+
+
+        if (($('#flexOperation').is(':checked')) && ($('#decisionFGapOperation').is(':checked'))) {
+            $('[name=SaveAndSendOperation]').addClass('hide');
+            $('[name=SaveAndSendFlexOperation]').removeClass('hide');
+            $('[name=SaveAndSendFGapOperation]').addClass('hide');
+            }
+
+        if (($('#fundingGapOperation').is(':checked')) && ($('#returnSWMeeting').is(':checked'))) {
+            $('[name=SaveAndSendOperation]').addClass('hide');
+            $('[name=SaveAndSendFGapOperation]').removeClass('hide');
+            $('[name=SaveAndSendFlexOperation]').addClass('hide');
+            }
+
+        $(document).on('click', '[name=operationType]', function (e) {
+                var allRegion = $("#flexOption, #fundingGapOption, #formDataMeeting");
+            var allButtons = $("[name=SaveAndSendOperation], [name=SaveAndSendFlexOperation], [name=SaveAndSendFGapOperation]");
+
+                disableContainer(allRegion);
+                allRegion.addClass("hide");
+                allButtons.addClass("hide");
+
+            if (e.currentTarget.value === "@(ViewBag.EnumMapping[ OperationTypeEnum.Flex ])") {
+                /*  $('#flexOption').removeClass('hide');
+                    enableContainer($('#flexOption'));
+
+                    var fundingGOperation = $('#decisionFGapOperation');
+                    if (fundingGOperation.is(':checked'))
+                    {
+                        $('[name=SaveAndSendFlexOperation]').removeClass('hide');
+                    }
+
+                    var awardEligibilityFlex = $('#awardEligibilityFlex');
+                    if (awardEligibilityFlex.is(':checked'))
+                    {
+                        $('[name=SaveAndSendOperation]').removeClass('hide');
+                  }*/
+                $('#flexOption').removeClass('hide');
+                var flexOperationDecision = $("[name=decisionFlex]:checked").val();
+
+                if (flexOperationDecision == "@(ViewBag.EnumMapping[ DecisionOperationTypeEnum.AwardFundEligibility ])") {
+                    enableContainer($('#flexOption'));
+                    $('[name=SaveAndSendOperation]').removeClass('hide');
+                } else if (flexOperationDecision == "@(ViewBag.EnumMapping[  DecisionOperationTypeEnum.FundingGapOperation ])") {
+                    enableContainer($('#flexOption'));
+                    $('[name=SaveAndSendFlexOperation]').removeClass('hide');
+                } else {
+                    enableContainer($('#flexOption'));
+                    $('[name=SaveAndSendOperation]').removeClass('hide');
+                    }
+                }
+            else if (e.currentTarget.value === "@(ViewBag.EnumMapping[OperationTypeEnum.FundingGap])") {
+                    $('#fundingGapOption').removeClass('hide');
+                    var fundGapDecision = $("[name=decision]:checked").val();
+
+                if (fundGapDecision == "@(ViewBag.EnumMapping[DecisionOperationTypeEnum.ReturnSingleWindowMeeting])") {
+                        enableContainer($('#fundingGapOption'));
+                    $('[name=SaveAndSendFGapOperation]').removeClass('hide');
+                        $('#formDataMeeting').removeClass('hide');
+                } else if (fundGapDecision == "@(ViewBag.EnumMapping[ DecisionOperationTypeEnum.AwardFundEligibility ])") {
+                        enableContainer($('#fundingGapOption'), "[name=dateMeeting]");
+                    $('[name=SaveAndSendOperation]').removeClass('hide');
+                } else {
+                        enableContainer($('#fundingGapOption'), "[name=dateMeeting]");
+                    $('[name=SaveAndSendOperation]').removeClass('hide');
+                    }
+                }
+            });
+
+        $(document).on('click', '[name=decision]', function (e) {
+                var allRegion = $("#formDataMeeting");
+            var allButtons = $("[name=SaveAndSendOperation], [name=SaveAndSendFlexOperation], [name=SaveAndSendFGapOperation]");
+
+                disableContainer(allRegion);
+                allRegion.addClass("hide");
+                allButtons.addClass("hide");
+
+            if (e.currentTarget.value === "@(ViewBag.EnumMapping[DecisionOperationTypeEnum.ReturnSingleWindowMeeting])") {
+                    enableContainer($("#formDataMeeting"));
+                    $('#formDataMeeting').removeClass('hide');
+                $('[name=SaveAndSendFGapOperation]').removeClass('hide');
+
+                    var statusText = $('[id="OperationModal"]').find("[data-id=modal-send-result-status-text]");
+                    statusText.html('@Localization.GetText("TC.DecisionSWO.StatusSWMeeting")');
+            } else if (e.currentTarget.value === "@(ViewBag.EnumMapping[ DecisionOperationTypeEnum.AwardFundEligibility ])") {
+                $('[name=SaveAndSendOperation]').removeClass('hide');
+                }
+            });
+
+        $(document).on('click', '[name=decisionFlex]', function (e) {
+            var allButtons = $("[name=SaveAndSendOperation], [name=SaveAndSendFlexOperation], [name=SaveAndSendFGapOperation]");
+                allButtons.addClass("hide");
+
+            if (e.currentTarget.value === "@(ViewBag.EnumMapping[DecisionOperationTypeEnum.FundingGapOperation] )") {
+                $('[name=SaveAndSendFlexOperation]').removeClass('hide');
+
+                    var statusText = $('[id="OperationModal"]').find("[data-id=modal-send-result-status-text]");
+                    statusText.html('@Localization.GetText("TC.DecisionSWO.StatusFundingGap")');
+            } else if (e.currentTarget.value === "@(ViewBag.EnumMapping[ DecisionOperationTypeEnum.AwardFundEligibility ])") {
+                $('[name=SaveAndSendOperation]').removeClass('hide');
+                }
+            });
+        $(document).on('paste', '[name=dateMeeting] ', function (e) {
+            e.preventDefault();
+        });
+        });
+
+    function initialStatusButtons() {
+        var saveAndSendFlex = $("[name='SaveAndSendFlexOperation']");
+        var saveAndSendFGap = $("[name='SaveAndSendFGapOperation']");
+
+        saveAndSendFlex.addClass('hide');
+        saveAndSendFGap.addClass('hide');
+    }
+
+    function configDatepicker() {
+            var today = new Date();
+            var tomorrow = new Date();
+            tomorrow.setDate(today.getDate() + 1);
+
+        var datePickerMeeting = $("[name=dateMeeting]");
+
+        if (datePickerMeeting.length) {
+            datePickerMeeting = $("[name=dateMeeting]").data("datepicker");
+            //datePickerMeeting.settings = $.extend(datePickerMeeting.settings, { minDate: tomorrow });
+        }
+        }
+
+    function initialStatusEditMode() {
+            var operationType = $("[name=operationType]:checked");
+            operationType.click();
+            configDatepicker();
+        }
+
+    function editDecisionSWO(source) {
+            var sucess = enterEditMode(true, $('#dataForm'), true);
+        if (sucess) {
+                enterEditMode(false, $('.dSWOButtons'), false);
+                initialStatusEditMode();
+            }
+
+        if ($('#flexOperation').is(':checked')) {
+                $("#flexOption").removeClass('hide');
+                $('#fundingGapOption').addClass('hide');
+            }
+
+        if (($('#fundingGapOperation').is(':checked'))) {
+                $("#flexOption").addClass('hide');
+                $('#fundingGapOption').removeClass('hide');
+            }
+        }
+
+    function cancelDecisionSWO(source) {
+            exitEditMode(true, $('#dataForm'), true, true);
+            exitEditMode(false, $('.dSWOButtons'), false, false);
+            configDatepicker();
+        }
+
+    function saveDecisionSWO(source) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.Save');
+            var resp = $.Deferred();
+            var response = saveContainer($('#dataForm'), '#hidViewModel', true, $('.dSWOButtons'), $(source.target));
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    resp.resolve();
+                });
+            }
+            configDatepicker();
+            return resp;
+        }
+
+    function sendDecisionSWO(source) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+
+            var resp = $.Deferred();
+            var response = saveContainer($('#dataForm'), '#hidViewModel', true, $('.dSWOButtons'), $(source.target), true, false, $('[name=filterContainer]'));
+
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                else if (data.IsValid) {
+
+                    if (data.ContentHTML != null) {
+                        addContentToChangeStatusModal(data.ContentHTML);
+                    }
+
+                    if (data.UrlRedirect != null) {
+                        setModalRedirectUrl(data.UrlRedirect);
+                    }
+
+                    }
+                    resp.resolve();
+                });
+            }
+
+            configDatepicker();
+            return resp;
+        }
+
+    function setModalRedirectUrl(url) {
+        $("#changeStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+    }
+
+
+    function addContentToChangeStatusModal(content) {
+            $("#changeStatusModal").html(content);
+        }
+
+    function openModalSendToOperation(target) {
+        if ((target === "Flex_Operation_SWO_SaveAndSend") || (target === "FGap_Operation_SWO_SaveAndSend")) {
+            $("[name=buttonChangeStatusModal]").first().click();
+            }
+        }
+
+    function setReadAccess(source) {
+        var response = postUrlWithOptions("@Url.Action("ChangeGlobalActionOrRole", "View", new { area = "TC", workspace = string.Empty, actionEnum = (int)ActionEnum.SingleWindowOperationsReadPermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+    function setWriteAccess(source) {
+        var response = postUrlWithOptions("@Url.Action("ChangeGlobalActionOrRole", "View", new { area = "TC", workspace = string.Empty, actionEnum = (int)ActionEnum.SingleWindowOperationsWritePermission })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+    function removePermission(source) {
+            var response = postUrlWithOptions("@Url.Action("RemovePermission", "View", new { area = "TC" })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+    </script>
+}

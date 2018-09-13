@@ -1,0 +1,174 @@
+﻿@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.General
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model ContractDetailsViewModel
+
+@{
+    var currencyAmountList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("CurrencyAmountList").ConvertToSelectListItems(code: true);
+    var buttonAddClass = Model.DetailsOriginal.CurrencyAmounts.Count >= 3 ? "hide" : "";
+    var buttonTrashClass = Model.DetailsOriginal.CurrencyAmounts.Count == 1 ? "hide" : "";
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDolar = appSettings.FormatIntegerDolar;
+    var showQuantity = Model.ViewContainer.GetValue<bool>("showQuantity");
+    var showLots = Model.ViewContainer.GetValue<bool>("showLots");
+}
+
+<div class="row mb10">
+    @if (Model.DetailsOriginal.SignatureDateVisible)
+    {
+        <div class="col-xs-4 pr0">
+            @Confluence.Label(Localization.GetText("SGP.Label.ContractSignatureDate"))
+        </div>
+    }
+    <div class="col-xs-4">
+        @Confluence.Label(Localization.GetText("SGP.Label.OriginalContractStartDate"))
+    </div>
+    <div class="col-xs-4">
+        @Confluence.Label(Localization.GetText("SGP.Label.OriginalContractEndDate"))
+    </div>
+</div>
+<div class="row mb35">
+    @if (Model.DetailsOriginal.SignatureDateVisible)
+    {
+        <div class="col-xs-4 pr0">
+            @Confluence.InputDatePicker(Model.DetailsOriginal.SignatureDate.Item1, name: "dateSignature-contracts", required: true, dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "false" }, { "parsley-signatureDateGreaterStartDate", "[name=\"dateStart-contracts\"]" }, { "parsley-endDateGreaterSignatureDate", "[name=\"dateEnd-contracts\"]" }, { "parsley-signatureDateGreaterStartProcurementDate", "true" } })
+        </div>
+    }
+    <div class="col-xs-4">
+        @Confluence.InputDatePicker(Model.DetailsOriginal.StartDate.Item1, name: "dateStart-contracts", required: true, dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "false" } })
+    </div>
+    <div class="col-xs-4">
+        @Confluence.InputDatePicker(Model.DetailsOriginal.EndDate.Item1, name: "dateEnd-contracts", required: true, dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "false" }, { "parsley-endDateGreaterEndProcurementDate", "true" } })
+    </div>
+</div>
+<div class="row mb10">
+    <div class="col-xs-2">
+        @Confluence.Label(Localization.GetText("COMMON.Currency"))
+    </div>
+    <div class="col-xs-4">
+        @Confluence.Label(Localization.GetText("SGP.Label.OriginalTotalContractAmount"))
+    </div>
+    <div class="col-xs-6">
+        @Confluence.Label(Localization.GetText("SGP.Label.ConvertedToUSDNoSystem"))
+        @Confluence.Label(Localization.GetText("SGP.Label.SystemUSDConversion"), htmlClass: "fontSize11px")
+    </div>
+</div>
+<div data-name="template-amount" class="hide">
+    <div data-name="amount-item" class="row mb10">
+        <div class="col-xs-2">
+            @Confluence.InputDropDown(string.Empty, name: "currencyType-Amount", elements: currencyAmountList, width: "100%", disabled: true, required: true, orderAsc: false, dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "true" }, { "parsley-notDuplicateCurrency", "input[name=\"currencyType-Amount\"]" } })
+        </div>
+        <div class="col-xs-3" style="padding-right:3px;">
+            @Confluence.InputDecimal(null, name: "total-Amount", width: "100%", disabled: true, required: true, maxValue: "999999999", dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "true" } })
+        </div>
+        <div class="col-xs-1 pl0" style="padding-top:5px;">
+            @Confluence.ButtonTrash("", "removeAmount")
+        </div>
+        <div class="col-xs-6">
+            <div data-name="converted">
+                @Confluence.LabelBold(String.Format(string.Empty, formatDolar))
+                @Confluence.InputText(null, name: "total-convertedUSD", required: false, htmlClass: "hide")
+            </div>
+        </div>
+    </div>
+</div>
+<div data-name="amount-container">
+    @foreach (var item in Model.DetailsOriginal.CurrencyAmounts)
+    {
+        <div data-name="amount-item" class="row mb10">
+            <div class="col-xs-2">
+                @Confluence.InputDropDown(item.CurrencyAmountTypeId.ToString(), name: "currencyType-Amount", elements: currencyAmountList, width: "100%", orderAsc: false, dataAttributes: new Dictionary<string, string> { { "id", item.Id.ToString() }, { "required-firm", "true" }, { "required-save", "true" }, { "parsley-notDuplicateCurrency", "input[name=\"currencyType-Amount\"]" } }, required: true)
+            </div>
+            <div class="col-xs-3" style="padding-right:3px;">
+                @Confluence.InputDecimal(item.TotalContractAmount.Item1, name: "total-Amount", width: "100%", maxValue: "999999999", dataAttributes: new Dictionary<string, string> { { "id", item.Id.ToString() }, { "required-firm", "true" }, { "required-save", "true" } }, required: true)
+            </div>
+            <div class="col-xs-1 pl0" style="padding-top:5px;">
+                @Confluence.ButtonTrash("", "removeAmount", htmlClass: buttonTrashClass)
+            </div>
+            <div class="col-xs-6">
+                <div data-name="converted">
+                   @Confluence.LabelBold(FormatHelper.Format(item.ConvertedUSDAmount.Item1, formatDolar), htmlClass: item.ConvertedUSDAmount.Item2)
+                   @Confluence.InputText(item.ConvertedUSDAmount.Item1.ToString(), name: "total-convertedUSD", htmlClass: "hide", required: false, dataAttributes: new Dictionary<string, string> { { "id", item.Id.ToString() } })
+                </div>
+            </div>
+        </div>
+    }
+</div>
+<div>
+    @Confluence.InputText("x", name: "validation-currency-amount", required: false, htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-amountRequired", "true" } })
+</div>
+<div class="mb35 mt20" style="text-align: center;">
+    @Confluence.ButtonAddNewRows(Localization.GetText("SGP.Label.NewCurrency"), tableid: string.Empty, name: "addNewCurrencyAmount", htmlClass: buttonAddClass)
+</div>
+
+@if (showLots)
+{
+    <div class="row mb10">
+        <div class="col-xs-5">
+            @Confluence.Label(Localization.GetText("SGP.Label.OriginalLotName"))
+        </div>
+        @if (showQuantity)
+        {
+            <div class="col-xs-2 pr0">
+                @Confluence.Label(Localization.GetText("SGP.Label.Quantity"))
+            </div>
+        }
+        <div class="col-xs-4 pl0">
+            @Confluence.Label(Localization.GetText("COMMON.Amount"))
+        </div>
+    </div>
+    <div data-name="lot-template" class="hide">
+        <div data-name="lot-item" class="row mb10">
+            <div class="col-xs-5">
+                @Confluence.InputText(string.Empty, name: "name-Lots", width: "100%", disabled: true, required: true, dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "true" }, { "parsley-notDuplicateLotName", "input[name=\"name-Lots\"]" } })
+            </div>
+            @if (showQuantity)
+            {
+                <div class="col-xs-2 pr0">
+                    @Confluence.InputNumber(null, name: "quantity-Lots", width: "60px", minValue: "1", disabled: true, required: true, dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "true" } })
+                </div>
+            }
+            <div class="col-xs-3 pl0" style="padding-right:3px;">
+                @Confluence.InputDecimal(null, name: "amount-Lots", width: "100%", disabled: true, required: true, maxValue: "999999999", dataAttributes: new Dictionary<string, string> { { "required-firm", "true" }, { "required-save", "true" } })
+            </div>
+            <div class="col-xs-1 pl0" style="padding-top:5px;">
+                @Confluence.ButtonTrash("", "removeLot")
+            </div>
+        </div>
+    </div>
+    <div data-name="lot-container">
+        @foreach (var item in Model.DetailsOriginal.Lots)
+        {
+            <div data-name="lot-item" class="row mb10">
+                <div class="col-xs-5">
+                    @Confluence.InputText(item.Name.Item1, name: "name-Lots", width: "100%", dataAttributes: new Dictionary<string, string> { { "id", item.Id.ToString() }, { "required-firm", "true" }, { "required-save", "true" }, { "parsley-notDuplicateLotName", "input[name=\"name-Lots\"]" } }, required: true)
+                </div>
+                @if (showQuantity)
+                {
+                    <div class="col-xs-2 pr0">
+                        @Confluence.InputNumber(item.Quantity.Item1, name: "quantity-Lots", width: "60px", minValue: "1", dataAttributes: new Dictionary<string, string> { { "id", item.Id.ToString() }, { "required-firm", "true" }, { "required-save", "true" } }, required: true)
+                    </div>
+                }
+                <div class="col-xs-3 pl0" style="padding-right:3px;">
+                    @Confluence.InputDecimal(item.Amount.Item1, name: "amount-Lots", width: "100%", maxValue: "999999999", dataAttributes: new Dictionary<string, string> { { "id", item.Id.ToString() }, { "required-firm", "true" }, { "required-save", "true" } }, required: true)
+                </div>
+                <div class="col-xs-1 pl0" style="padding-top:5px;">
+                    @Confluence.ButtonTrash("", "removeLot")
+                </div>
+            </div>
+        }
+    </div>
+    <div class="mt20" style="text-align: center;">
+        @Confluence.ButtonAddNewRows(Localization.GetText("SGP.Label.NewLot"), tableid: string.Empty, name: "addNewLot")
+    </div>
+}

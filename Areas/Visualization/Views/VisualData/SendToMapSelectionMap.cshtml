@@ -1,0 +1,294 @@
+﻿@using IDB.Architecture.ApplicationParameter;
+
+@{
+    Layout = "~/Views/Shared/_ClearLayout.cshtml";
+}
+@section css{
+    <link rel="stylesheet" type="text/css" href="~/Content/Modules/Visualization/modulos.css" />
+    <link rel="stylesheet" type="text/css" href="~/Content/Modules/Visualization/messi.min.css" />
+    <link rel="stylesheet" href="https://js.arcgis.com/3.7/js/esri/css/esri.css">
+}
+@section javascript{
+    <script>
+        //init variables form url get
+        var language = "@Request["language"]";
+        var visual_output_id = @Request["visualObjectId"];
+        var visual_output_version_id = @Request["visualObjectVersionId"];
+        var objectType = "@Request["objectType"]";
+        var edit = "@Request["edit"]";
+        var hostServicesUrl = "@Url.Action("grid", "visualData", new { area = "visualization" })/";
+        var scriptPathArcgis =  "@Url.Content("~/scripts/modules/visualization/geolocation/")";
+        var country="@Request["country"]";
+
+    </script>
+
+    <script type="text/javascript">
+        var hostEsriServicesUrl = "@Globals.GetSetting("EsriHost")";
+        var folderEsriServiceMaps = "@Globals.GetSetting("EsriService")";
+        var folderEsriServiceGeolocation = "@Globals.GetSetting("EsriService")";
+        var isESGEspecialist = true;
+        var hostUrl = location.href + ":" + location.port;
+        var arcgisProxy = '~/proxyArcgis/proxy.ashx';
+        var currentUser = "@IDBContext.Current.UserName";
+        var riverbedClientId = "@IDBContext.Current.HasPermission("RiverbedClientId")";
+        var riverbedAppId = "@IDBContext.Current.HasPermission("RiverbedAppId")";
+        var BingMapsKey = "@AppParameter.GetValue("BING_MAP_KEY")";
+
+    </script>
+
+    <script type="text/javascript" src="~/scripts/jquery-1.10.2.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/script/jquery-ui.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/jquery.block.UI.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/kendo/kendo.web.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/menuLateral/menuLateral.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/buscarFocus/buscarFocus.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/foundation/foundation.min.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/dropdown/dropdown.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/thumbnail/thumbnail.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/blockScroll/blockScroll.js"></script>
+    <script src="https://js.arcgis.com/3.8/"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/messi.min.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/language.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/components.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/functionality.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/stream.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/shapefile.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/geolocation/togeojson.js"></script>
+
+}
+
+<h1 class="hide">BID</h1>
+
+<!-- CONTENEDOR PRINCIPAL -->
+
+<div class="k-widget k-window geolocationTemplate" style="width: 240px; margin-left: -90px !important;height:@(string.IsNullOrEmpty(Request["height"])? "545" : Request["height"])px;">
+
+    <div class="window k-window-content k-content windowOpen"
+         id="window1" data-role="window" tabindex="0" role="dialog"
+         aria-labelledby="window1_wnd_title">
+        <p class="hide headerWindow" id="viewGeolocationP"></p>
+        <div class="body_location" style="background-color: #ffffff">
+            <div class="colLeft">
+                <div class="navegationBar edit hide">
+                    <form>
+                        <fieldset>
+                            <ul class="optionList">
+                                <li id="liBasemapSelect" class="element customDropdown">
+                                    <div id="SelectMapType"></div>
+                                    <!-- This div contains the select map type -->
+                                </li>
+
+                                <li>
+                                    <ul class="AMAP_toolbar">
+                                        <li id="aaa" class="element ">
+                                            <a href="#" id="puntoButton" class="btn_entypo AMAP_locateButton" title="Draw a point">
+                                                <img src='../../../Images/General/geolocation/punto.png'>
+                                            </a>
+                                        </li>
+                                        <li class="element" id="lineaButtonContainer">
+                                            <a href="javascript:void(0)" id="lineaButton" class="btn_entypo" title="Draw a line">
+                                                <img src='../../../Images/General/geolocation/linea.png'>
+                                            </a>
+                                        </li>
+                                        <li class="element">
+                                            <a href="javascript:void(0)" id="poligonoButton" class="btn_entypo" title="Draw a polygon">
+                                                <img src='../../../Images/General/geolocation/rectangulo.png'>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li class="element ftr">
+                                    <a id="clearMapId" title="clear map"
+                                       class="cancel" href="javascript:void(0)"></a>
+                                </li>
+                            </ul>
+                        </fieldset>
+                    </form>
+                </div>
+                <div id="map" class="map" style="height: @(string.IsNullOrEmpty(Request["height"])? "545" : Request["height"])px;"></div>
+                <div id="printerButton" style="display: none"></div>
+            </div>
+            <div class="colRight@(string.IsNullOrEmpty(Request["showRightBlock"])? "" : " hide")" )>
+                <div class="operationData">
+                    <fieldset>
+                        <ul class="optionList">
+                            <li class="edit hide">
+                                <span class="inputTitle" id="typeSelect"></span>
+                                <div id="SelectTypeDiv" style="width: 150px; margin-bottom:10px;"></div>
+                                <!-- This div contains the select type -->
+                            </li>
+
+                            <li>
+                                <ul class="coordinates hide">
+                                    <li>
+                                        <div class="custom operationData">
+                                            <label class="editLabel input" for="coordinates">
+                                                <input type="text" class="input normal" name="coordinates"
+                                                       id="coordinates">
+                                            </label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="botones">
+                                            <label for="Find">
+                                                <input type="button"
+                                                       value="Find" class="btn-primary" id="Find">
+                                            </label>
+                                        </div>
+                                    </li>
+                                </ul>
+                                <ul class="address_info hide">
+                                    <li>
+                                        <div id="idDivAddress" class="custom operationData">
+                                            <label class="editLabel input" for="address">
+                                                <input type="text" class="input normal" name="address"
+                                                       id="address" value="Address to show" placeholder="Enter an address">
+                                                <div id="addressSuggestion"></div>
+                                            </label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div id="FindAddressDiv" class="botones">
+                                            <label for="FindAddress">
+                                                <input type="button"
+                                                       value="Find" class="btn-primary" id="FindAddress">
+                                            </label>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </li>
+                            <li>
+                                <ul id="ulFile" class="file hide">
+                                    <li id="liFile1">
+                                        <div class="botones browser">
+                                            <br>
+                                            <br>
+                                            <label for="Browse">
+                                                <input type="button"
+                                                       value="Browse" class="btn-primary" id="Browse">
+                                            </label>
+                                            <label for="BrowseInput">
+                                                <input type="file"
+                                                       class="hide" id="BrowseInput">
+                                            </label>
+
+                                        </div>
+                                    </li>
+
+                                    <li id="liFile2">
+                                        <div class="data1">
+                                            <p class="dataTitle" id="fileUploadp"></p>
+                                            <p id="txtfileName" class="fileName"></p>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="divCarrusel" style="visibility: hidden" id="divCarrusel">
+                                            <div class="carrusel_location">
+                                                <a id="btnCarPrevious" class="button previous"></a>
+                                                <span class="text" id="idShowing">
+                                                    <span id="carPos" class="dest"></span><span id="ofId"></span><span id="carTam" class="dest"></span>
+                                                </span>
+                                                <a id="btnCarNext" class="button next"></a>
+                                            </div>
+                                            <div class="carrusel_item">
+                                                <div class="data1">
+                                                    <p class="dataTitle" id="geolocationCarrusel"></p>
+                                                    <p id="carCoordinate">x=; y=</p>
+                                                </div>
+                                                <label for="radio_administrationLavelName">
+                                                    <input id="radio_administrationLavelName" class="radio"
+                                                           type="radio" name="administrate_level"><span class="headingh" id="admLevelId"></span>
+                                                </label>
+                                                <div class="data1">
+                                                    <p class="dataTitle" id="thirdCarrusel"></p>
+                                                    <p id="thirdMunicipality"></p>
+                                                </div>
+                                                <div class="data1">
+                                                    <p class="dataTitle" id="secondCarrusel"></p>
+                                                    <p id="secondDistrict"></p>
+                                                </div>
+                                                <div class="data1">
+                                                    <p class="dataTitle" id="firstCarrusel"></p>
+                                                    <p id="firstCountry"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+
+                                </ul>
+                            </li>
+                        </ul>
+                    </fieldset>
+                    <div class="data">
+                        <div id="principal">
+                            <div class="data1">
+                                <p class="dataTitle" id="geolocationPrincipal"></p>
+                                <div id="geloLocationAddressScrollBar" class="geloLocationAddressScrollBarclass">
+                                    <p id="geoLocationAddress"></p>
+                                </div>
+                            </div>
+                            <span class="headingh" id="admPrincipal"></span>
+                            <div class="data1">
+                                <p class="dataTitle" id="thirdPrincipal"></p>
+                                <p id="thirdData"></p>
+                            </div>
+                            <div class="data1">
+                                <p class="dataTitle" id="secondPrincipal"></p>
+                                <p id="secondData"></p>
+                            </div>
+                            <div class="data1">
+                                <p class="dataTitle" id="firstPrincipal"></p>
+                                <p id="firstData"></p>
+                            </div>
+
+                        </div>
+
+                    </div>
+                    <div id="AddressIDDiv" class="data_address hide">
+                        <div class="data1">
+                            <p class="dataTitle" id="addressId"></p>
+                            <p>Address to show</p>
+                        </div>
+                        <span class="headingh" id="admAddress"></span>
+                        <div class="data1">
+                            <p class="dataTitle" id="thirdAddress"></p>
+                            <p id="thirdAddress"></p>
+                        </div>
+                        <div class="data1">
+                            <p class="dataTitle" id="secondAddress"></p>
+                            <p id="secondAddress"></p>
+                        </div>
+                        <div class="data1">
+                            <p class="dataTitle" id="firstAddress"></p>
+                            <p id="firstAddress"></p>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="pie view">
+                    <div class="botones">
+                        <label for="Edit">
+                            <input type="button" value=""
+                                   class="btn-primary" id="Edit">
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="searchDireccion"></div>
+    <div id="footer" class="roundedCorners"
+         data-dojo-type="dijit.layout.ContentPane"
+         data-dojo-props="region:'bottom'">
+        <div id="templatePickerDiv"></div>
+    </div>
+</div>
+<div class="ui-widget-overlay ui-front"></div>
+
+
+
+
+
+

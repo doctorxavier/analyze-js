@@ -1,0 +1,374 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.VERModule.ViewModels
+@using IDB.MW.Domain.Models.Security
+@using Areas.VerVmr
+
+@model VerDocumentViewModel
+
+@Confluence.InputHidden(ViewBag.SerializedDocumentViewModel, id: "documentsViewModel")
+
+<div data-pagemode="edit">
+    @Confluence.InputHidden("", "documentsListForDelete", id: "documentsListForDelete")
+</div>
+
+@{
+    var documentParticipant = (List<FieldAccessModel>)ViewBag.SecurityDocument;
+
+    var editButton = documentParticipant.FirstOrDefault(o => o.FieldName == "btnEditDocumentsTab");
+    editButton = editButton ?? new FieldAccessModel();
+    var btnNewDocument = documentParticipant.FirstOrDefault(o => o.FieldName == "btnNewDocument");
+    var btnDeleteDocument = documentParticipant.FirstOrDefault(o => o.FieldName == "btnDeleteDocument");
+    var chkPackage = documentParticipant.FirstOrDefault(o => o.FieldName == "chkPackage");
+    var btnGenerateMinute = documentParticipant.FirstOrDefault(o => o.FieldName == "btnGenerateMinute");
+}
+
+<div class="col-md-12">
+    <div class="pull-left">
+        @Confluence.Label(Localization.GetText("GLOBAL.RESUTLS.PER.PAGE"))
+        @Confluence.InputDropDown("999999", "ddlPaginationDocuments",
+            (List<SelectListItem>)ViewBag.ResultsPerPageList, placeholder: null, showEmptyOption: false,
+            orderAsc: false, required: false)
+    </div>
+    @if (Model.ActionType && btnGenerateMinute != null && btnGenerateMinute.IsVisible)
+    {
+        <div class="ml10 pull-right">
+            @Confluence.ButtonBlue(Localization.GetText("VMR.MM.MeetingRoom.GenerateMinute"),
+                "btnMinute",
+                action: "GenerateMinute")
+        </div>
+    }
+    <div class="pull-right">
+        <div data-id="headerButtons">
+            @Html.Partial("Partials/DataTables/Buttons/DocumentButtonsPartial", editButton)
+        </div>
+    </div>
+</div>
+
+<div class="col-md-12 mb20 mt10">
+    @{
+        var documentsTable = Html.RenderDataTable(Model.Documents);
+        documentsTable.Name("documentsTable")
+            .Columns(columns =>
+            {
+                columns.Template(c => Confluence.LabelInteger(c.SLno))
+                    .Center()
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.ID"))
+                    .CssHeaderClass("w80 sort")
+                    .HeaderAttribute("order-type", "numeric")
+                    .EditableTemplate(c => Confluence.LabelInteger(c.SLno));
+                columns.Template(c => Confluence.LabelGetDropDown(c.DocumentType, (List<SelectListItem>)ViewBag.DocumentTypeList))
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.DocumentType"))
+                    .CssHeaderClass("w180 sort")
+                    .HeaderAttribute("order-type", "text")
+                    .EditableTemplate(c => Confluence.LabelGetDropDown(c.DocumentType, (List<SelectListItem>)ViewBag.DocumentTypeList));
+                columns.Template(GetDocumentName)
+                    .Left()
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.DocumentName"))
+                    .EditableTemplate(GetDocumentName)
+                    .HeaderAttribute("order-type", "text")
+                    .CssHeaderClass("w800 sort");
+                columns.Template(c => Confluence.Label(c.PackageVersion))
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.Version"))
+                    .CssHeaderClass("w120")
+                    .EditableTemplate(c => Confluence.Label(c.PackageVersion))
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.Version"))
+                    .Center();
+                columns.Template(c => Confluence.LabelGetDate(c.LastUpdate))
+                    .CssClass("LastUpdated")
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.LastUpdated"))
+                    .CssHeaderClass("w170 sort")
+                    .HeaderAttribute("order-type", "date")
+                    .EditableTemplate(c => Confluence.LabelGetDate(c.LastUpdate))
+                    .Center();
+                columns.Template(c => GetCheckBoxButton(c, true, chkPackage))
+                    .Center()
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.Package"))
+                    .EditableTemplate(row => GetCheckBoxButton(row, false, chkPackage))
+                    .CssHeaderClass("w100 sort");
+                columns.Template(c => Confluence.Label(c.DocumentNumber))
+                    .CssHeaderClass("w150 sort")
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.DocNumber"))
+                    .EditableTemplate(row => Confluence.Label(row.DocumentNumber,
+                        new Dictionary<string, string> { { "DocumentNumberUpload", "documentsNumb" } }))
+                    .CssHeaderClass("w150 sort")
+                    .HeaderAttribute("order-type", "text");
+                columns.Template(c => GetDocumentButtons(c, true, btnDeleteDocument))
+                    .Right()
+                    .Header(Localization.GetText("VMR.MM.MeetingRoom.TabDocuments.Actions"))
+                    .EditableTemplate(row => GetDocumentButtons(row, false, btnDeleteDocument))
+                    .CssHeaderClass("w130 minw130")
+                    .Right();
+                columns.Bound(c => c.DocumentType)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentType.ToString(), "documentType"))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentNumber)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentNumber.ToString(), "documentNumber", required: false, dataAttributes:
+                        new Dictionary<string, string> { { "DocumentNumberHidden", "documentsNumbHidden" } }))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentId)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentId.ToString(), "documentId", dataAttributes:
+                        new Dictionary<string, string> { { "DocumentIdHidden", "documentsIdHidden" } }, required: false))
+                        .Hidden(true);
+                columns.Bound(c => c.VerDocumentId)
+                    .EditableTemplate(row => Confluence.InputText(row.VerDocumentId.ToString(), "verDocumentId", id: "RowData"))
+                    .Hidden(true);
+                columns.Bound(c => c.IsGenerated)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsGenerated, "isGenerated", id: "isGenerated"))
+                    .Hidden(true);
+                columns.Bound(c => c.IsRequired)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsRequired, "isRequired", id: "isRequired"))
+                    .Hidden(true);
+                columns.Bound(c => c.IsPrimary)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsPrimary, "isPrimary", id: "isPrimary"))
+                    .Hidden(true);
+                columns.Bound(c => c.ShpUrlDocument)
+                    .EditableTemplate(row => Confluence.InputText(row.ShpUrlDocument, "shpUrlDocument", id: "shpUrlDocument", required: false))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentName)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentName, "documentName", id: "documentName", required: false))
+                    .Hidden(true);
+                columns.Bound(c => c.IsVer)
+                     .EditableTemplate(row => Confluence.InputCheckbox(row.IsVer, "isVer", "isVer"))
+                     .Hidden(true);
+                columns.Bound(c => c.IsOther)
+                     .EditableTemplate(row => Confluence.InputCheckbox(row.IsOther, "isOther", "isOther"))
+                     .Hidden(true);
+                columns.Bound(c => c.IsVersionHistory)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsVersionHistory, "isVersionHistory", "isVersionHistory"))
+                    .Hidden(true);
+                columns.Bound(c => true)
+                    .EditableTemplate(row => Confluence.InputCheckbox(true, "isDocumentPackage", "isDocumentPackage"))
+                    .Hidden(true);
+                columns.Bound(c => false)
+                    .EditableTemplate(row => Confluence.InputCheckbox(false, "IsNewDocumentForSave", "IsNewDocumentForSave", dataAttributes:
+                        new Dictionary<string, string> { { "DocumentReference", row.DocumentNumber }, { "DocumentName", row.DocumentName }, { "DocumentNameTemp", row.DocumentNameTemp } }))
+                    .Hidden(true);
+                columns.Bound(c => c.IsNewDocument)
+                    .EditableTemplate(row => Confluence.InputCheckbox(row.IsNewDocument, "IsNewDocument", "IsNewDocument"))
+                    .Hidden(true);
+                columns.Bound(c => c.DocumentNameTemp)
+                    .EditableTemplate(row => Confluence.InputText(row.DocumentNameTemp, "DocumentNameTemp", id: "DocumentNameTemp", required: false))
+                    .Hidden(true);
+            });
+        documentsTable.TableClass = "tableNormal endSpacing";
+
+        @Html.Partial("Controls/DataTable", documentsTable)
+
+        if (btnNewDocument != null && btnNewDocument.IsVisible)
+        {
+            <div class="col-md-12" data-idb-fieldname="btnNewDocument">
+                <div data-pagemode="edit" class="text-center">
+                    @VerVmrHelpers.ButtonNewRowOffice365(Localization.GetText("VER.GLOBAL.Add"), "office365Button",
+                    Localization.GetText("Add document"), "modal365Add", null, ViewBag.OperationNumber, action: "AddDocumentRow")
+                </div>
+            </div>
+        }
+    }
+
+</div>
+<div class="col-md-12 mb20 mt30" data-id="headerButtons">
+    @Html.Partial("Partials/DataTables/Buttons/DocumentButtonsPartial", editButton)
+</div>
+
+@helper GetDocumentButtons(
+    VerDocumentRowViewModel row,
+    bool isRead,
+    FieldAccessModel btnDeleteDocument)
+{
+if (row.DocumentId == null)
+{
+    if (!isRead &&
+        !row.IsPrimary &&
+        !row.IsGenerated &&
+        (row.IsVer != null ? (bool)!row.IsVer : true))
+    {
+            @VerVmrHelpers.ButtonUploadOffice365(
+                string.Empty,
+                "office365Button",
+                Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                "modal365Upload",
+                ViewBag.FolderShp,
+                row.DocumentName,
+                ViewBag.OperationNumber,
+                action: "UploadDocumentRow",
+                htmlClass: "mr0")
+
+            @Confluence.ButtonDownload(
+                null,
+                null,
+                "downloadDocumentVmr",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        {"idb-fieldname", "btnDownloadDocument"},
+                        {"documentid", row.DocumentNumber}
+                    })
+
+            @Confluence.ButtonTrash(
+                string.Empty,
+                action: !row.IsOther
+                    ? "cleanMandatoryDocuments"
+                    : "removeRowDocument",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        {"DocumentRemove", "documentsRemoveHidden"},
+                        {"idb-fieldname", "btnDeleteDocument"},
+                        {"idDocument", row.VerDocumentId.ToString()},
+                        {"DocumentName" , row.DocumentName },
+                        {"DocumentNameTemp" , row.DocumentNameTemp },
+                        {"DocumentReference" , row.DocumentNumber },
+                        {"isDocumentTemp" , row.IsNewDocument.ToString() }
+                    })
+    }
+}
+else
+{
+    if (row.DocumentNumber != null)
+    {
+            @Confluence.ButtonDownload(
+                null,
+                null,
+                "downloadDocumentVmr",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        { "idb-fieldname", "btnDownloadDocument" },
+                        { "documentid", row.DocumentNumber },
+                        { "folder", ViewBag.FolderShp },
+                        { "urlFolder", ViewBag.Site }
+                    })
+    }
+    else
+    {
+            @Confluence.ButtonDownload(null, null, "downloadDocument")
+    }
+
+}
+if (row.DocumentId != null &&
+    (row.IsVer != null ? (bool)!row.IsVer : true) &&
+    !isRead &&
+    (btnDeleteDocument != null && btnDeleteDocument.IsVisible || row.IsAuthor) &&
+    row.IsOther)
+{
+        @Confluence.ButtonTrash(
+            string.Empty,
+            action: "removeRowDocument",
+            dataAttributes:
+                new Dictionary<string, string>
+                {
+                    {"DocumentRemove", "documentsRemoveHidden"},
+                    {"idDocument", row.VerDocumentId.ToString()},
+                    {"DocumentName" , row.DocumentName},
+                    {"DocumentNameTemp" , row.DocumentNameTemp},
+                    {"DocumentReference" , row.DocumentNumber},
+                    {"isDocumentTemp" , row.IsNewDocument.ToString()}
+                })
+}
+else
+{
+    if (!isRead && !row.IsPrimary && !row.IsOther)
+    {
+        if (!row.IsGenerated &&
+            (btnDeleteDocument != null && btnDeleteDocument.IsVisible || row.IsAuthor) &&
+            (row.IsVer != null ? (bool)!row.IsVer : true) &&
+            row.VerDocumentId != null)
+        {
+
+                @Confluence.ButtonTrash(
+                    string.Empty,
+                    action: "cleanMandatoryDocuments",
+                    dataAttributes:
+                        new Dictionary<string, string>
+                        {
+                            { "DocumentRemove", "documentsRemoveHidden" },
+                            { "idb-fieldname", "btnDeleteDocument" },
+                            { "idDocument", row.VerDocumentId.ToString() },
+                            { "DocumentName" , row.DocumentName },
+                            {"DocumentNameTemp" , row.DocumentNameTemp},
+                            { "DocumentReference" , row.DocumentNumber },
+                            { "isDocumentTemp" , row.IsNewDocument.ToString() }
+                        })
+
+                @VerVmrHelpers.ButtonUploadOffice365(
+                    string.Empty,
+                    "office365ButtonUpload",
+                    Localization.GetText("VER.Homepage.TabDocuments.AddDocumentTitle"),
+                    "modal365Upload",
+                    ViewBag.Folder,
+                    row.DocumentName,
+                    ViewBag.OperationNumber,
+                    action: "UploadDocumentRow",
+                    htmlClass: "mr0 hide")
+
+        }
+    }
+}
+}
+
+@helper GetCheckBoxButton(VerDocumentRowViewModel row, bool isRead, FieldAccessModel chkPackage)
+{
+if (isRead)
+{
+        @Confluence.InputCheckbox(row.IncInPackage, "packageDoc", disabled: true)
+}
+else
+{
+    if (row.IsVer != null && (!row.IsRequired && !row.IsPrimary && !((bool)row.IsVer)))
+    {
+            @Confluence.InputCheckbox(
+                row.IncInPackage,
+                "packageDoc",
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        { "DocPackageCheck", "DocPackageChecks" },
+                        { "idb-fieldname", "chkPackage" }
+                    },
+                disabled: chkPackage != null && chkPackage.IsReadOnly)
+    }
+    else
+    {
+            @Confluence.InputCheckbox(
+                row.IncInPackage,
+                "packageDoc",
+                disabled: true,
+                dataAttributes:
+                    new Dictionary<string, string>
+                    {
+                        { "DocPackageCheck", "DocPackageChecks" },
+                        { "idb-fieldname", "chkPackage" }
+                    })
+    }
+}
+}
+
+@helper GetDocumentName(VerDocumentRowViewModel row)
+{
+if (row.IsPrimary)
+{
+        @Confluence.ButtonLink(
+            row.DocumentName,
+            action: !string.IsNullOrEmpty(row.ShpUrlDocument) ? "officeOnlineMainDocument" : null,
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "url", row.ShpUrlDocument }
+            },
+            htmlClass: "text-left " + (string.IsNullOrEmpty(row.ShpUrlDocument) ? "unlinkedDocument" : string.Empty),
+            name: "urlPrimaryDocument")
+}
+else
+{
+        @Confluence.ButtonLink(
+            row.DocumentName,
+            action: !string.IsNullOrEmpty(row.ShpUrlDocument) ? "officeOnline" : null,
+            htmlClass: "text-left " + (string.IsNullOrEmpty(row.ShpUrlDocument) ? "unlinkedDocument" : string.Empty),
+            dataAttributes:
+                new Dictionary<string, string>
+                {
+                    { "url", string.IsNullOrEmpty(row.ShpUrlDocument) ? string.Empty : row.ShpUrlDocument },
+                    { "DocumentNameUpload", "documentsName" },
+                    { "idb-fieldname", "btnLinkName" }
+                })
+}
+}

@@ -1,0 +1,154 @@
+﻿@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+@using IDB.Presentation.MVC4.MVCCommon;
+@{
+	var outputs = Model.ResultsMatrixContext.Current.Components.SelectMany(cp => cp.Outputs);
+	var categories = outputs.Select(otp => otp.OutputCategory).Distinct();
+	var filterList = Model.ResultsMatrixContext.Current.Components
+		.Select(cp => new {
+			id = cp.ComponentId,
+			type = "component",
+			text = cp.Statement
+		}).ToList();
+	filterList.AddRange(outputs.Select(otp => new {
+		id=otp.OutputId,
+		type = "output",
+		text = HtmlFormat.SingleLineText(otp.Definition)
+	}).Distinct());
+}
+<script type="text/javascript">
+	var filterChanged = false;
+	var data = [
+		@foreach (var value in filterList) {
+			@Html.Raw(string.Format("{{type:'{0}',value:'{0} : {1}',id:'{2}'}},\n", value.type, value.text, value.id))
+  }
+	];
+
+	function onSelect(e) {
+		var dataItem = this.dataItem(e.item.index());
+		var divfilter = $('<div/>');
+		divfilter.text(dataItem.value);
+		divfilter.append($('<span/>'));
+		divfilter.data('type', dataItem.type);
+		divfilter.data('id', dataItem.id);
+		$('#filter-items').append(divfilter);
+		divfilter.click(function () {
+			$(this).remove();
+			filterChanged = true;
+			performFilter();
+		});
+		filterChanged = true;
+	}
+	function showFilteredElements(){
+		var elements = $('*[data-filter^="component"]');
+		elements.each(function (index, element) {
+			$(element).show();
+			$(element).prev().first().show();
+		});
+		elements = $('*[data-filter^="output"]');
+		elements.each(function (index, element) {
+			$(element).show();
+		});
+
+		setTimeout(function () { resizeIframeCloud(); }, 1000);
+	}
+	function performFilter() {
+		var autocomplete = $("#filter-input").data("kendoAutoComplete");
+		var filters = $('#filter-items div');
+		showFilteredElements();
+
+		if (filters.length == 0) {
+			autocomplete.setDataSource(data);
+		} else {
+			var copyData = data.slice(0,data.length-1);
+			filters.each(function (index, element) {
+				var filter = $(element);
+				i=0;
+				while (i < copyData.length) {
+					if (copyData[i].type == filter.data('type')) {
+						copyData.splice(i, 1);
+					} else {
+						i++;
+					}
+				}
+			});
+			
+
+			filters.each(function (index, element) {
+				var filter = $(element);
+				if (filter.data('type') == 'component') {
+					var components = $('*[data-filter^="component"]');
+					components.each(function (index, element) {
+						var id = $(element).data('filter');
+						if (id != 'component.'+ filter.data('id')) {
+							$(element).hide();
+							$(element).prev().first().hide();
+						}
+					});
+				}
+				if (filter.data('type') == 'output') {
+					var outputs = $('*[data-filter^="output"]');
+					outputs.each(function (index, element) {
+						var id = $(element).data('filter');
+						if (id != 'output.' + filter.data('id')) {
+							$(element).hide();
+						}
+					});
+				}
+				if (filter.data('type') == 'category') {
+					var catgories = $('*[data-filter^="category"]');
+					catgories.each(function (index, element) {
+						var id = $(element).data('filter');
+						if (id != 'category.' + filter.data('id')) {
+							$(element)
+								.parents('*[data-filter^="output"]')
+								.hide();
+						}
+					});
+				}
+			});
+			autocomplete.setDataSource(copyData);
+		}
+		
+	}
+
+	$(document).ready(function () {
+		$("#filter-input").kendoAutoComplete({
+			placeholder: 'Filter by component or output name',
+			dataSource: data,
+			filter: 'contains',
+			dataTextField: 'value',
+			select: onSelect,
+			separator: ', ',
+			close: function () {
+				if (filterChanged) {
+					$('#filter-input').val('');
+					filterChanged = false;
+				}
+				performFilter();
+			}
+		});
+	});
+</script>
+
+<div class="content-block">
+	<div class="right ">
+		<input type="button" class="button click-collapse" data-element="#visualization-filters" value="@Localization.GetText("Filter")">
+	</div>
+	<div class="right" style="margin-right:15px; padding-top:5px">
+		<div class="collapse-control">
+			<div class="slider">
+				<span></span>
+			</div>
+			<div class="text">
+				@Localization.GetText("Collapse all")
+			</div>
+		</div>
+	</div>
+
+	<div class="left clear filter-box" style="display: none" id="visualization-filters">
+		<div class="filter-input edit-form">
+			<input type="text" id="filter-input" />
+		</div>
+		<div id="filter-items"></div>
+	</div>
+</div>

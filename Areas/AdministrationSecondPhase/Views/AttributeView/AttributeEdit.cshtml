@@ -1,0 +1,220 @@
+﻿@using IDB.MW.Domain.Values
+@model IDB.MW.Application.AttributesModule.ViewModels.AttributesService.AttributeEditViewModel
+
+@if (ViewBag.Permission != false || ViewBag.AttributePermission != false)
+{
+    <div id="PageContentLocal">
+        <div class="header">
+            <div class="row">
+                <div class="col-md-12">
+                    @if (ViewBag.ID > 0)
+                    {
+                        <div class="titlePrincipal">
+                            @Confluence.Navigation(Confluence.LabelMainTitle(""),
+                        Url.Action(controllerName: "AttributeView", actionName: "AttributeList"))
+                            @Localization.GetText("OP.AM.Header.Tittle.AttributeDBOOK")
+                    </div>
+                    }
+                    else
+                    {
+                        <h3 class="titlePrincipal">@Localization.GetText("OP.AM.Header.Tittle.NewAttribute")</h3>
+                    }
+                    @Html.Partial("Controls/AttributeButtons")
+                </div>
+            </div>
+        </div>
+
+        <div class="page">
+            <div name="ContentEdit" id="ContentEdit" data-parsley-validate="data-parsley-validate"
+                 data-parsley-excluded="[disabled]"
+                 data-url="@Url.Action("AttributeEditSave", "AttributeSave", new {area = "AdministrationSecondPhase"})"
+                 data-loadurl="@Url.Action("AttributeEditReload", "AttributeView", new { area = "AdministrationSecondPhase" ,id= ViewBag.ID})">
+
+                @Html.Partial("Partials/FormAttributeEdit", Model)
+
+            </div>
+        </div>
+
+        <div class="col-md-12">
+            @Html.Partial("Controls/AttributeButtons")
+        </div>
+    </div>
+}
+@section scripts{
+    <script type="text/javascript">
+    $(document).ready(function() {
+
+        if (!(@ViewBag.ID > 0)) {
+            edit();
+        }
+
+        if ($("#newValidationMessage").is(':not(:checked)')) {
+            $('#validationMessage').attr('disabled', true);
+        }
+
+        var typeValue = $("[aria-labelledby='id-type'] li [dd-selected]").attr("dd-value");
+        $("#id-length").attr('disabled', typeValue !== "@ViewBag.IdTextarea" && typeValue !== "@ViewBag.IdTextbox");
+        $("[name='length']").attr("data-parsley-required", typeValue === "@ViewBag.IdTextarea" || typeValue === "@ViewBag.IdTextbox");
+        var validationValue = $("[aria-labelledby='id-validation'] li [dd-selected]").attr("dd-value");
+        $("#id-validationBRName").attr('disabled', validationValue !== "@ViewBag.IdBusinessRule");
+        $("[name='validationBRName']").attr("data-parsley-required", validationValue === "@ViewBag.IdBusinessRule");
+        bindHandlers();
+    });
+
+    $(document).on("click", "[aria-labelledby='id-type'] li", function() {
+        var typeValue = $("[aria-labelledby='id-type'] li [dd-selected]").attr("dd-value");
+        $("#id-length").attr('disabled', typeValue !== "@ViewBag.IdTextarea" && typeValue !== "@ViewBag.IdTextbox");
+        $("[name='length']").attr("data-parsley-required", typeValue === "@ViewBag.IdTextarea" || typeValue === "@ViewBag.IdTextbox");
+    });
+
+    $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-validation"] a', function() {
+        var nameValidation = $("[name='validation']").GetText();
+        $('[name="validationBRName"]').attr("data-parsley-required", nameValidation !== "Business Rule");
+        if (nameValidation === "Business Rule") {
+            $('#id-validationBRName').removeAttr("disabled");
+            $('input[name="validationBRName"]').attr("data-parsley-required",true);
+        } else {
+            $('#id-validationBRName').attr("disabled", "disabled");
+            $('input[name="validationBRName"]').attr("data-parsley-required",false);
+        }
+    });
+
+    $(document).on("click", "#newValidationMessage", function() {
+        var valMessage = $("#validationMessage");
+
+        if ($(this).prop("checked")) {
+            valMessage.attr('data-parsley-required',true);
+            valMessage.removeAttr("disabled");
+            valMessage.focus();
+            valMessage.closest("div.LabelsGroup").find("label.lgTit").append("<span class='asteriskColor'>*</span>");
+
+        } else {
+            valMessage.attr('data-parsley-required',false);
+            valMessage.attr("disabled","disabled");
+            valMessage.val("");
+            valMessage.closest("div.LabelsGroup").find("span.asteriskColor").remove();
+        }
+        destroyParsley();
+        destroyParsley();
+    });
+
+    function edit() {
+        var canEdit = true;
+         @if (Model.AttributeId > 0)
+         {
+        <text>
+        postUrlWithOptions('@Url.Action("LockRegister", "AttributeView", new {area = "AdministrationSecondPhase"})', { async: false }, { operationNumber: '@Model.AttributeId', url: '@OPUSGlobalValues.URL_ATTRIBUTE' })
+                    .done(function (data) {
+                        if (data.IsValid === false) {
+                            canEdit = false;
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+        </text>
+         }
+        if (canEdit) {
+            var success = enterEditMode(false, $("#ContentEdit"), false);
+            if (success) {
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+            }
+        }    
+    }
+
+    function exitAll() {
+        window.location.href = '@Url.Action(controllerName: "AttributeView", actionName: "AttributeList")';
+    }
+
+    function cancel() {
+        var msg = "@Localization.GetText("OP.AM.Message.CancelAttribute")";
+        confirmAction(msg).done(function(pressOk) {
+            if (pressOk) {
+                @if (Model.AttributeId>0){
+                <text>
+                postUrlWithOptions('@Url.Action("UnlockRegister", "AttributeView", new {area = "AdministrationSecondPhase"})', { async: true }, {operationNumber: '@Model.AttributeId', url: '@OPUSGlobalValues.URL_ATTRIBUTE' });
+                </text>
+                }
+                exitEditMode(true, $('#ContentEdit'), true, true);
+                exitEditMode(false, $('[data-id=headerButtons]'), false, false);   
+            }
+
+        });
+    }
+
+    function cancelNew() {
+        var msg = "@Localization.GetText("OP.AM.Message.CancelNewAttribute")";
+        confirmAction(msg).done(function(pressOk) {
+            if (pressOk) {
+                window.location.href = '@Url.Action(controllerName: "AttributeView", actionName: "AttributeList")';
+            }
+
+        });
+    }
+
+    $(document).on("change", "input[name='expirationDate']", function() {
+        var effectiveDate = $('input[name="effectiveDate"]').val();
+        var expirationDate = converToDate($(this).val());
+        effectiveDate = effectiveDate !== "" ? converToDate(effectiveDate) : "";
+        if (effectiveDate !== "" && effectiveDate > expirationDate) {
+            showMessage("@Localization.GetText("OP.AM.Message.Error.ExpirationDate")");
+                $('input[name="expirationDate"]').val("");
+                return false;
+            }
+            return true;
+    });
+
+    $(document).on("change", "input[name='effectiveDate']", function() {
+        var effectiveDate = converToDate($('input[name="effectiveDate"]').val());
+        var expirationDate = $('input[name="expirationDate"]').val();
+        expirationDate = expirationDate !== "" ? converToDate(expirationDate) : "";
+        if (expirationDate !== "" && effectiveDate > expirationDate) {
+            showMessage("@Localization.GetText("OP.AM.Message.Error.ExpirationDate")");
+            $('input[name="expirationDate"]').val("");
+            return false;
+        }
+        return true;
+    });
+        function saveAttribute() {
+            if (validateContainer($('#ContentEdit'))) {
+                if ($("[name='insModePag']").val() === "NEW") {
+                    var msg = "@Localization.GetText("OP.AM.Message.NewAttribute")";
+                confirmAction(msg)
+                    .done(function(pressOk) {
+                        if (pressOk) {
+                            saveAttributeInDb(false);
+                        }
+                    });
+            } else {
+                saveAttributeInDb(false);
+            }
+        }
+    }
+
+    function saveAttributeInDb() {
+        var modelSerialized = '#hidAttributeEditViewModel';
+        var response = saveContainer($('#ContentEdit'), modelSerialized, true, $('#headerButtons'), null, !($("[name='insModePag']").val() === "NEW"));
+        if (response !== false) {
+            response.done(function(data) {
+                if (data.ErrorMessage == null || data.ErrorMessage === "") {
+                    if ($("[name='insModePag']").val() != "NEW") {
+                        exitEditMode(true, $('#ContentEdit'), false, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+
+                    }
+
+                    if ($("[name='insModePag']").val() === "NEW") {
+                        var url = '@Url.Action(controllerName: "AttributeView", actionName: "AttributeEdit")' + "?id=" + data.AttributeId;
+                        showMessage("@Localization.GetText("OP.AM.Message.NewAttribute.Create")", true, url);
+                    } else {
+                        showMessage("@Localization.GetText("OP.AM.Message.NewAttribute.Success")");
+
+                    }
+                }
+            });
+        }
+    }
+
+    function backToSearch() {
+        window.location.href = '@Url.Action(controllerName: "AttributeView", actionName: "AttributeList")';
+    }
+    </script>
+}

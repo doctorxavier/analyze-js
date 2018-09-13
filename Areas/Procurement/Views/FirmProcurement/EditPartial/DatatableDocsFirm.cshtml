@@ -1,0 +1,263 @@
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Domain.EntityHelpers
+@using IDB.Presentation.MVC4.Areas.Procurement.Helper.ConstantHelper
+@using IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement
+@model FirmDocViewModel
+
+@{
+    const string COLUMN_WINNER = "TCP.FirmProcurement.TableHeader.FirmWinner";
+    const string COLUMN_SHORT = "TCP.FirmProcurement.TableHeader.FirmNameShortListed";
+    const string NONE = "None";
+
+    if (ViewBag.FirmListShortListed == null)
+    {
+        ViewBag.FirmListShortListed = new List<SelectListItem>();
+    }
+
+    if ((Model.FirmList == null) || !Model.FirmList.Any())
+    {
+        Model.FirmList = ViewBag.FirmListShortListed;
+    }
+
+    if (string.IsNullOrWhiteSpace(Model.FirmColumnName))
+    {
+        Model.FirmColumnName = Model.IsWinner ? COLUMN_WINNER : COLUMN_SHORT;
+
+    }
+
+    int index = default(int);
+    System.Data.DataTable proposalTable;
+    switch (Model.FirmColumnName)
+    {
+        case COLUMN_WINNER:
+            proposalTable = Model.Rows.Select(d =>
+            {
+                var record = new ProposalFirmWinnerDocumentRecordModel
+                {
+                    Author = d.User,
+                    CreationDate = d.Date,
+                    DocumentId = d.Id,
+                    DocumentName = d.Description,
+                    DocumentNumber = d.DocumentNumber,
+                    Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                    ProposalFirmWinnerGenericControl = GetFirms(
+                        ViewBag.FirmListWinner,
+                        Model.FirmList,
+                        d,
+                        Model.IsWinner,
+                        Model.IsHiddenFirm,
+                        index)
+                };
+
+                index++;
+                return record;
+            }).ToList().PopulateDataTable();
+            break;
+        case COLUMN_SHORT:
+            proposalTable = Model.Rows.Select(d =>
+            {
+                var record = new FirmNameDocumentRecordModel
+                {
+                    Author = d.User,
+                    CreationDate = d.Date,
+                    DocumentId = d.Id,
+                    DocumentName = d.Description,
+                    DocumentNumber = d.DocumentNumber,
+                    Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                    FirmProcurementGenericControl = GetFirms(
+                        ViewBag.FirmListWinner,
+                        Model.FirmList,
+                        d,
+                        Model.IsWinner,
+                        Model.IsHiddenFirm,
+                        index)
+                };
+
+                index++;
+                return record;
+            }).ToList().PopulateDataTable();
+            break;
+
+        case NONE: 
+            proposalTable = Model.Rows.Select(d =>
+            {
+                var record = new FirmDocExecutionViewModel
+                {
+                    Author = d.User,
+                    CreationDate = d.Date,
+                    DocumentId = d.Id,
+                    DocumentName = d.Description,
+                    DocumentNumber = d.DocumentNumber,
+                    Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                    FirmExecutionGenericControl = GetFirms(
+                        ViewBag.FirmListWinner,
+                        Model.FirmList,
+                        d,
+                        Model.IsWinner,
+                        Model.IsHiddenFirm,
+                        index)
+                };
+
+                index++;
+                return record;
+            }).ToList().PopulateDataTable();
+            break;
+        default:
+            proposalTable = Model.Rows.Select(d =>
+            {
+                var record = new ProposalDocumentRecordModel
+                {
+                    Author = d.User,
+                    CreationDate = d.Date,
+                    DocumentId = d.Id,
+                    DocumentName = d.Description,
+                    DocumentNumber = d.DocumentNumber,
+                    Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                    ProposalGenericControl = GetFirms(
+                        ViewBag.FirmListWinner,
+                        Model.FirmList,
+                        d,
+                        Model.IsWinner,
+                        Model.IsHiddenFirm,
+                        index)
+                };
+                index++;
+                return record;
+            }).ToList().PopulateDataTable();
+            break;
+    }
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text @(string.IsNullOrWhiteSpace(Model.Title) ? "protests-document" : string.Empty)">
+
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(Model.Title)
+                </div>
+                <div class="pr5">
+                    @Confluence.Label(Model.SubTitle)
+                </div>
+            </td>
+            @if (Model.HasLink && !string.IsNullOrWhiteSpace(Model.LinkURL))
+            {
+                <td class="table-transparent-buttons">
+                    @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+                                        name: "viewTemplatesLink",
+                                        url: Model.LinkURL,
+                                        htmlClass: "bold")
+                </td>
+            }
+
+            <td class="table-transparent-buttons">
+                <button class="buttonBlue pull-right" type="button"
+                onclick="showDocumentModalBEO(event)"
+                data-linked-table="@Model.TableName"
+                data-docs-firm="true">
+                @Localization.GetText("DM.Add.Document")
+                </button>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row@(Model.TableName != "BAFODocs" ? " mb20" : string.Empty)">
+    <div class="col-xs-12">
+        @DocumentManagement.DynamicTable(
+       Model.TableName,
+       Model.TableName,
+       proposalTable,
+       true,
+       false,
+       deleteTargetFunction: "deleteDocumentBEO",
+       loadDefaultModules: false)
+    </div>
+</div>
+
+<div class="hide" id="GetFirmsTemplate@(Model.TableName)">
+    @GetFirms(ViewBag.FirmListWinner, Model.FirmList, new DocumentFirmRowViewModel { OfferId = Model.DefaulOfferId },
+               Model.IsWinner, Model.IsHiddenFirm, 0)
+</div>
+
+@helper GetFirms(
+    List<SelectListItem> winnersFirmsList, List<SelectListItem> allFirmsList, DocumentFirmRowViewModel row, bool isWinner, bool isHiddenFirm, int index)
+{
+if (isHiddenFirm)
+{
+        @Confluence.InputText(
+            value: row.OfferId.ToString(),
+            name: Model.TableName + "[" + index + "].FirmId",
+            disabled: true,
+            dataAttributes: new Dictionary<string, string>() { { "keep-disabled", "true" } }
+        );
+    }
+    else
+    {
+        if (!isWinner)
+        {
+            @Confluence.InputDropDown(
+                        value: row.OfferId.ToString(),
+                        name: Model.TableName + "[" + index + "].FirmId",
+                        elements: allFirmsList,
+                        disabled: false,
+                        width: "100%", orderAsc: false);
+        }
+        else
+        {
+            var isInWinnerList = false;
+            var firmListToShow = winnersFirmsList.Select(x => new SelectListItem { Text = x.Text, Value = x.Value }).ToList();
+            if (Model.TableName == "Negotiations")
+            {
+                firmListToShow = ViewBag.FirmWinnersMinutes;
+
+                foreach (var item in ViewBag.FirmWinnersMinutes)
+                {
+                    if (item.Value == row.OfferId.ToString())
+                    {
+                        isInWinnerList = true;
+                    }
+                }
+
+                if (!isInWinnerList)
+                {
+                    var oldWinner = allFirmsList.Where(x => x.Value == row.OfferId.ToString()).FirstOrDefault();
+
+                    if (oldWinner != null)
+                    {
+                        firmListToShow.Add(oldWinner);
+                    }
+                }
+
+            }
+            else
+            {
+                foreach (var item in winnersFirmsList)
+                {
+                    if (item.Value == row.OfferId.ToString())
+                    {
+                        isInWinnerList = true;
+                    }
+                }
+
+                if (!isInWinnerList)
+                {
+                    var oldWinner = allFirmsList.Where(x => x.Value == row.OfferId.ToString()).FirstOrDefault();
+
+                    if (oldWinner != null)
+                    {
+                        firmListToShow.Add(oldWinner);
+                    }
+                }
+            }
+
+            @Confluence.InputDropDown(
+                        value: row.OfferId.ToString(),
+                        name: Model.TableName + "[" + index + "].FirmId",
+                        elements: firmListToShow,
+                        disabled: false,
+                        width: "100%");
+        }
+    }
+}

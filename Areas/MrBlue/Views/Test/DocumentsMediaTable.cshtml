@@ -1,0 +1,193 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Architecture.Language
+
+
+@model IDB.Presentation.MVC4.Areas.MrBlue.Models.DocumentMediaTableViewModel
+
+@{
+    var tableName = string.IsNullOrWhiteSpace(Model.DocumentTableName) ? "documentTable" : Model.DocumentTableName;
+    var addFunctionName = string.IsNullOrWhiteSpace(Model.AddFunctionName) ? "addDocumentMedia" : Model.AddFunctionName;
+    var dateFormat = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+
+<div class="row row-header">
+    <div class="col-md-12">
+        @Confluence.LabelTitleGroup(text: Localization.GetText("Media files"))
+    </div>
+</div>
+
+@if (Model.ShowAddButton)
+{
+    var modalName = string.Format("{0}-modal", tableName);
+    <div id="@modalName" class="hide">
+        @Html.Partial("Controls/IDBMedia/AddIDBMedia", new MediaFileModalViewModel { MediaFileModalId = "documentMediaTable", MultipleSelection = true, TargetFunction = addFunctionName })
+    </div>
+
+    <div class="row row-header text-right">
+        <div class="col-md-12">
+            <div data-pagemode="edit">
+                @Confluence.ButtonBlue(
+                "Documents.ADD",
+                name: "removeStarDraftRow",
+                dataAttributes: new Dictionary<string, string> {
+                 {"modal-allowclose","true"},
+                 {"custom-modal",@modalName},
+                 {"custom-modal-title",Localization.GetText("MediaFile.ModalTitle")},
+                 {"custom-modal-validate","false"},
+                 {"custom-modal-onclose",""},
+                 {"custom-modal-closeonoverlayclick","false"}
+                })
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mb20">
+    @{
+
+        var config = Html.RenderDataTable(Model.Documents);
+        config.Name(tableName)
+            .PrimaryKey(m => m.RowId.ToString())
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+                columns.Template(
+                    @<div data-pagemode="edit">
+                        <input type="hidden" name="@tableName-docNumber" value="@item.RowId" />
+                    </div>).Hidden(true).Persistent();
+
+                columns.Bound(c => c.Name).Header(@Localization.GetText("TC.Documents.User")).Persistent();
+
+                columns.Bound(c => c.FileDate).Header(@Localization.GetText("TC.Documents.Date")).Persistent();
+
+                //TODO: Pending to ask doubt the real bound is to c.Description but it doesn't exists,
+                //for now it's changed to c.Name
+                columns.Bound(c => c.Name).Header(@Localization.GetText("TC.Documents.Description")).Persistent();
+
+
+                if (Model.CanDelete)
+                {
+                    columns.Template(c => (
+
+                        Display.Button07_2(attributes:
+
+                        new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                            {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                            {"data-id",c.RowId.ToString()}})))
+
+                        .EditableTemplate(c => GroupButtonDocumentEdit(c.RowId.ToString())).Header(@Localization.GetText("TC.Documents.Actions"));
+                }
+                else
+                {
+                    columns.Template(c => (
+
+                      Display.Button07_2(attributes:
+
+                      new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                            {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                            {"data-id",c.RowId.ToString()}}))).Header(@Localization.GetText("TC.Documents.Actions")).Persistent();
+                }
+            });
+
+        config.TableClass = "table-default";
+
+        config.RowTemplates(x =>
+        {
+
+            if (Model.CanDelete)
+            {
+                x.Create(RowTemplateType.FirstRow,
+
+                    @<tr data-id="newDocument" role="row" class="hide">
+                        <td class="hide">
+                            <div data-pagemode="edit" class="">
+                                <input type="hidden" name="@tableName-RowId" value="">
+                            </div>
+                        </td>
+                        <td><span>@(((string)ViewBag.UserName).HtmlEncode())</span></td>
+                        <td data-name="idb-doc-date"><span></span></td>
+                        <td data-name="idb-doc-description"><span></span></td>
+                        <td>
+
+                            @Display.Button07_2(attributes:
+
+                                new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                                {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                                {"data-id",""}})
+
+                            @Display.Button07_4(attributes:
+                                new Dictionary<string, string> {{"data-action","DeleteDocumentGeneric"}
+                                , {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName }})
+
+                        </td>
+                    </tr>
+);
+            }
+            else
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="newDocument" role="row" class="hide">
+                        <td class="hide">
+                            <div data-pagemode="edit" class="">
+                                <input type="hidden" name="@tableName-docNumber" value="">
+                            </div>
+                        </td>
+                        <td><span></span></td>
+                        <td data-name="idb-doc-date"><span></span></td>
+                        <td data-name="idb-doc-number"><span></span></td>
+                        <td>
+                            <div data-pagemode="edit" class="">
+                                @Confluence.InputDropDown(
+                                String.Empty,
+                                "typeDocument",
+                                ViewBag.DocumentTypeList,
+                                required: false,
+                                disabled: true)
+                            </div>
+                        </td>
+                        <td>
+                            @Display.Button07_2(attributes:
+
+                                new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                                {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                                {"data-id",""}})
+
+                        </td>
+                    </tr>
+);
+            }
+        });
+    }
+    @Html.Partial("Controls/DataTable", config)
+</div>
+
+
+@helper GroupButtonDocumentEdit(string DocNumber)
+{
+
+    @Display.Button07_2(attributes: new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+      {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })}, {"data-id",DocNumber}})
+
+    @Display.Button07_4(attributes: new Dictionary<string, string> {{"data-action","DeleteDocumentGeneric"}
+      , {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName }})
+
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        $('#@tableName').data('autogenerate-id', 0);
+    </script>
+            )

@@ -1,0 +1,122 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.Star
+
+@model StarDashboardViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@Html.Partial("_MockReadWritePermissions", IDB.Presentation.MVC4.Models.Mock.MockReadWritePermissionsViewModel.Create(Permission.ESG_SPECIALIST_WRITE_PERMISSIONS))
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.Star.DashboardTitle"))
+    </div>
+</div>
+
+<div class="page">
+    @if(ViewBag.ReadRole ?? false)
+    {
+        <div id="Data" data-parsley-validate="data-parsley-validate" data-parsley-excluded="[disabled]">
+            @MrBlue.AlertDeleteQuestionnarieModal()
+
+            @if(Model != null)
+            {
+                @Html.Partial("Partials/StarDashboardPartial", Model)
+            }
+        </div>
+    }
+</div>
+
+@section scripts{
+
+    @ModuleScripts.TableFunctions()
+    @MrBlue.SelectRow()
+    @MrBlue.HistoryTablesCommon()
+    @MrBlue.RadioButtonFix()
+
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+            InitialStateCollapsableRows();
+
+            $(document).on('click', '#historyTableStar tbody tr td:not([row-detail="true"]):not(.dataTables_empty)', openReport);
+
+            if ('@ViewBag.WriteRole' == "True") {
+                $(document).on('click', '#draftTableStar tbody tr td:not(.dataTables_empty)', editReport);
+            } else {
+                $(document).on('click', '#draftTableStar tbody tr td:not(.dataTables_empty)', openReport);
+            }
+
+            $(document).on('click', '#historyTableStar tbody td label.expandable-triangle, #historyTableStar tbody td button', function (e) {
+                e.stopPropagation();
+            });
+
+            $(document).on('click', '#historyTableStar [name="removeStarDraftRow"]', function (source) {
+                var sourceTr = $(this).closest('tr');
+                setTextDeleteQuestionnarieStar(sourceTr, "textDeleteAlertStar");
+            });
+
+            $('#historyTableStar tr td:last-child').attr('row-detail', true);
+
+            var isDisabled = isDisabledMostRecentButton('historyTableStar');
+            if (isDisabled) {
+                $('button[data-action="actionNewMostRecentHistory"]').attr('disabled', 'disabled');
+            }
+        });
+
+        registerCallback(function () {
+            $('#draftTableStar thead tr th:eq(0)').removeClass('sorting_asc');
+            $('#draftTableStar thead tr th:eq(1)').click();
+            $('#draftTableStar thead tr th:eq(1)').click();
+        }, true);
+
+
+        //Open History report
+        function openReport(source) {
+            var versionId = $(source.currentTarget).closest('tr').attr('data-id');
+            var url = '@Url.Action("StarForm", "Star", new { area = "MrBlue", isEditable = false })&versionId=' + versionId;
+            window.location.assign(url);
+        }
+
+        //Edit Draft report
+        function editReport(source) {
+            var versionId = $(source.currentTarget).closest('tr').attr('data-id');
+            var url = '@Url.Action("StarForm", "Star", new { area = "MrBlue", isEditable = true })&versionId=' + versionId;
+            window.location.assign(url);
+        }
+
+        //New from most recent report
+        function actionNewMostRecentHistory() {
+            var versionId = getMostRecentByInputRowId('historyTableStar');
+            var url = ' @Html.Raw(Url.Action("StarForm", "Star", new { area = "MrBlue", isEditable = true, isNew = true }))&versionId=' + versionId;
+            window.location.assign(url);
+        }
+
+        //New
+        function actionNewHistory() {
+            var url = ' @Html.Raw(Url.Action("StarForm", "Star", new { area = "MrBlue", isEditable = true, isNew = true }))';
+            window.location.assign(url);
+        }
+
+        function downloadReport(source) {
+            var versionId = source.closest('tr').attr('data-id')
+
+
+
+            var fecha = source.closest('tr').find('.dateHistory').find('span').first().text()
+            var url = "@Url.Action("StarDownload", "Star", new { area = "MrBlue" })?versionId=" + versionId + "&fecha=" + fecha;
+            window.open(url, '_blank');
+        }
+
+    </script>
+}

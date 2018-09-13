@@ -1,0 +1,301 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@model IDB.MW.Application.PCRModule.ViewModels.WorkflowIntegrationService.PCRWorkflowTaskViewModel
+
+<div class="page" data-parsley-validate="data-parsley-validate" style="padding-left: 48px;">
+    <input type=hidden id="taskType" value="@Model.TaskTypeId" />
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            <p>Instructions</p>
+            <p style="font-size: 11.38px;"><b>@Localization.GetText(Model.Instructions)</b></p>
+        </div>
+    </div>
+    <div id="workflowComments">
+        <input type="hidden" class="hidViewModel" value="@ViewBag.SerializedViewModel" />
+        <div class="row">
+            <div class="col-md-11">
+                <h3>
+                    Comments <span data-pagemode="edit" class="pull-right" style="margin-top: -16px;">
+                            <button class="btn btn-primary width-auto" data-action="newComment" style="margin: 0;">
+                                @Localization.GetText("OP.OD.TabBasicData.RelatedOperations.NewComments")
+                            </button>
+                    </span>
+                </h3>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-11">
+                @(ControlTemplatesPCR.K2WorkflowComments(Model.UserComments, true, Model.UserName, Model.TaskTypeId))
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-11">
+                <div id="newCommentTemplate" data-pagemode="edit">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts
+{
+    <script type="text/javascript">
+
+        var pcrId;
+        var isUploadDoc = true;
+        var triggerOptions;
+        var triggerContainer;
+        var triggerClientData;
+        var triggerHiddenSelector;
+        var isCommentForReject = false;
+
+        registerCallback(function () {
+            enterEditMode(false, $('#workflowComments'));
+        var submitButton = $('.Btn_ValidateSave');
+            submitButton.insertAfter(submitButton.next());
+            $('.Btn_ValidateSave:eq(0)').remove();
+            $('.Btn_ValidateSave:eq(1)').remove();
+            $('.Btn_ValidateSave').val('Save & Submit').css('margin', '0 10px 0 14px');
+            $('#SaveButtonUp,#SaveButtonDown').css('margin-left', '14px');
+
+            if (@Model.IsSPDPermission.ToString().ToLower() && (@Model.TaskTypeId == 38 || @Model.TaskTypeId == 40)) {
+                $('.Btn_RejectSavePCR').removeClass("hide");
+                isUploadDoc = false;
+            }
+
+            $('input[name="Validate"],.Btn_ValidateSave').click(function () {
+                if (validateContainer($('.page'))) {
+                    postUrl('@Url.Action("ValidateTask")',
+        {
+                    operationNumber: '@Model.OperationNumber',
+                    workflowTaskId: '@Model.WorkflowInstanceTaskId',
+                    taskTypeId: '@Model.TaskTypeId',
+                    folioId: '@Model.FolioId'
+                }).done(function (data) {
+                    if (data.IsValid) {
+                        var post = function () {
+                            var container = $('#workflowComments');
+                            var hiddenSelector = '.hidViewModel';
+                            var options = options = { dataType: 'json' };
+                            var clientData = [];
+                            processContainer(container, clientData);
+
+                            var jsonText = JSON.stringify(
+                                {
+                                    ClientFieldData: clientData,
+                                    SerializedData: container.find(hiddenSelector).val()
+                                });
+
+                            $('#serializedDataContainer').text(jsonText);
+
+                            if (isUploadDoc) {
+                                pcrId = data.PCRId;
+                                triggerOptions = options;
+                                triggerContainer = container;
+                                triggerClientData = clientData;
+                                triggerHiddenSelector = hiddenSelector;
+                                $('#addDocumentValidation').trigger('click');
+                            }
+                            else {
+                                postUrlWithOptions('@Url.Action("SubmitTask")', options, JSON.stringify(
+                                {
+                                        ClientFieldData: clientData,
+                                        SerializedData: container.find(hiddenSelector).val()
+                                    })).done(function (data) {
+                                        if (data.IsValid) {
+                                            location.href = getHRefMessage();
+                                    $('#serializedDataContainer').remove();
+                                }
+                                else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+                            }
+                        };
+
+                        if ('@Model.TaskTypeId' == '37') {
+                            confirmAction('@Localization.GetText("PCR.K2.SubmitTask1Confirmation")')
+                                .done(function (value) {
+                                if (value) {
+                                    post();
+                                }
+                            });
+                        }
+                        else {
+                            post();
+                        }
+                    }
+                    else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        });
+
+            $('.Btn_RejectSavePCR').click(function () {
+                if(!isCommentForReject){
+                    confirmAction('@Localization.GetText("PCR.Task.Message.Comment.Rejected")').done(function (value) {
+                        if (value) {
+                            return;
+                        }
+                    });
+                }
+                else{
+                    if (validateContainer($('.page'))) {
+                        postUrl('@Url.Action("ValidateTask")',
+        {
+                                operationNumber: '@Model.OperationNumber',
+                                workflowTaskId: '@Model.WorkflowInstanceTaskId',
+                                taskTypeId: '@Model.TaskTypeId',
+                                folioId: '@Model.FolioId'
+                            }).done(function (data) {
+                                if (data.IsValid) {
+                                    var post = function () {
+                                        var container = $('#workflowComments');
+                                        var hiddenSelector = '.hidViewModel';
+                                        var options = options = { dataType: 'json' };
+                                        var clientData = [];
+                                        processContainer(container, clientData);
+
+                                        var jsonText = JSON.stringify(
+            {
+                                                ClientFieldData: clientData,
+                                                SerializedData: container.find(hiddenSelector).val()
+                                            });
+
+                                        $('#serializedDataContainer').text(jsonText);
+
+                                        postUrlWithOptions('@Url.Action("RejectChecklist")',
+                                            hiddenSelector, JSON.stringify(
+                                            {
+                                                ClientFieldData: clientData,
+                                                SerializedData: container.find(hiddenSelector).val()
+                                            })).done(function (data) {
+                                                if (data.IsValid) {
+                                                    location.href = getHRefMessage();
+                                                    $('#serializedDataContainer').remove();
+                                                }
+                                                else {
+                                                    showMessage(data.ErrorMessage);
+                                                }
+                                            });
+                                    };
+                                    if ('@Model.TaskTypeId' == '37') {
+                                        confirmAction('@Localization.GetText("PCR.K2.SubmitTask1Confirmation")')
+                                            .done(function (value) {
+                                                if (value) {
+                                                    post();
+                                                }
+                                            });
+                                    }
+                                    else {
+                                        post();
+                                    }
+                                }
+                                else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+                    }
+                }
+            });
+
+            $('#SaveButtonUp,#SaveButtonDown').click(function () {
+                if (validateContainer($('.page'))) {
+                var container = $('#workflowComments');
+                var hiddenSelector = '.hidViewModel';
+                var options = options = { dataType: 'json' };
+                var clientData = [];
+                processContainer(container, clientData);
+
+                var jsonText = JSON.stringify({ ClientFieldData: clientData, SerializedData: container.find(hiddenSelector).val() });
+
+                $('#serializedDataContainer').text(jsonText);
+
+                postUrlWithOptions('@Url.Action("SaveWorkflowComment")', options, JSON.stringify({ ClientFieldData: clientData, SerializedData: container.find(hiddenSelector).val() })).done(function (data) {
+                        if (data.IsValid) {
+                        location.href = getHRef();
+                        $('#serializedDataContainer').remove();
+                    }
+                    else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        });
+    });
+
+        function documentPCRValidation(documentSelected) {
+            var docNumber;
+            if (documentSelected.length > 0) {
+                docNumber = documentSelected[0].DocumentNumber;
+                var urlf = '@Url.Action("AddNewDocummentValidation", "Save")';
+                var result = postUrl(urlf,
+    {
+                        documentNumber: docNumber,
+                        PCRId: pcrId,
+                        operationNumber: '@Model.OperationNumber',
+                    });
+
+                if (result.responseJSON.IsValid) {
+                    postUrlWithOptions('@Url.Action("SubmitTask")', triggerOptions, JSON.stringify(
+                        {
+                            ClientFieldData: triggerClientData,
+                            SerializedData: triggerContainer.find(triggerHiddenSelector).val()
+                        })).done(function (data) {
+                            if (data.IsValid) {
+                                location.href = getHRefMessage();
+                                $('#serializedDataContainer').remove();
+                            }
+                            else {
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+                }
+                else {
+                    showMessage(result.responseJSON.ErrorMessage);
+                }
+            }
+        }
+
+        function newComment(source) {
+        var commentTitle = '<div class="row"><div class="col-md-3">' + '@FormatHelper.Format(DateTime.Now)' + '</div><div class="col-md-3">' + '@Model.UserName' + '</div></div>';
+        var comment = commentTitle + '<div class="row"><div class="col-md-12"><textarea name="txtFieldComment" id="newWorkFlowComment" data-persist-id="0" data-parsley-type="alphanum" data-parsley-maxlength="1000" data-parsley-required="true"></textarea>'
+                    + '<button id="btnClearWorkflowComment" class="btn btn-sm delete" data-action="clearComment"></button></div></div><br />';
+        $('#newCommentTemplate').append(comment);
+        $('#newWorkFlowComment').focus();
+            isCommentForReject = true;
+    }
+
+        function getHRef() {
+            return '@Url.Action("Index", "Tasks", new { area = "Global", operationNumber = Model.OperationNumber })';
+        }
+
+        function getHRefMessage() {
+            return '@Html.Raw(Url.Action("Index", "Tasks",
+            new
+    {           
+                area = "Global",
+                operationNumber = Model.OperationNumber,
+                state = 600
+            }))';
+    }        
+    </script>
+}
+<button id="addDocumentValidation"
+        class="hide"
+        data-modal-allowclose="true"
+        data-custom-modal-style=""
+        data-custom-modal-validate="false"
+        data-custom-modal-title="@Localization.GetText("PCR.FollowUp.Documents.PopUpTitle")"
+        data-custom-modal="searchIDBDocModal"></button>
+<div id="searchIDBDocModal" class="hide">
+    @Html.Partial("Controls/IDBDocs/SearchIDBDoc",
+    new SearchDocumentModalViewModel
+    {
+        SearchModalId = "SearchModal",
+        MultipleSelection = false,
+        TargetFunction = "documentPCRValidation"
+    })
+</div>

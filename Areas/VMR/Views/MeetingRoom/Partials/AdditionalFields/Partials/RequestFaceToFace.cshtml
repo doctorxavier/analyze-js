@@ -1,0 +1,198 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Business.VMRModule.DTOs
+@using IDB.MW.Domain.Values.Ver
+@model IDB.MW.Business.VMRModule.DTOs.AdditionalFieldsModels.FaceToFaceModel
+
+@if (Model != null)
+{
+    var isVisibleCheck = Model.Check != null && Model.Check.IsVisible;
+
+    <div class="mt15" data-action-parent="@Model.OptionParent">
+        @if (Model.Label != null && Model.FaceToFaceFieldsVisible)
+        {
+            @Confluence.Label(Model.Label)
+        }
+
+        @if (isVisibleCheck)
+        {
+            @Confluence.InputCheckbox(
+                Model.Check.BoolValue,
+                Model.Check.FieldName,
+                label: Model.Check.Label,
+                disabled: Model.Check.IsReadOnly)
+        }
+
+        <div class="@(isVisibleCheck ? "ml65 mt10" : null) @((isVisibleCheck && Model.Check.BoolValue.GetValueOrDefault()) ||
+                                                             Model.FaceToFaceFieldsVisible ? null : "hide")" data-parent="@(isVisibleCheck ? Model.Check.FieldName : null)">
+            @if (string.IsNullOrEmpty(Model.Type) == false)
+            {
+                if (Model.Type == VerGlobalValues.OPC_CON)
+                {
+                    @GetCoSection(Model.Date, Model.Time, Model.UnavailableDates)
+                }
+                else if (Model.Type == VerGlobalValues.OPC_NO)
+                {
+                    @GetNoSection(Model.Date, Model.Time, Model.Justification, Model.UnavailableDates)
+                }
+            }
+            else
+            {
+                @GetNormalSection(Model.Date, Model.Time, Model.MeetingRoom, Model.UnavailableDates)
+            }
+        </div>
+    </div>
+}
+
+@helper GetNormalSection(FieldModel date, FieldModel time, FieldModel meetingRoom, IList<DateTime> unavailableDates)
+{
+    @GetDateField(date, unavailableDates)
+    @GetTimeField(time, false)
+if (meetingRoom != null)
+{
+        @GetMeetingRoomField(meetingRoom)
+}
+}
+
+@helper GetNoSection(
+    FieldModel date, FieldModel time, FieldModel justification, IList<DateTime> unavailableDates)
+{
+    <div class="col-md-4">
+        <div class="row mb10">
+            @GetDateField(date, unavailableDates)
+        </div>
+        <div class="row">
+            @GetTimeField(time, true)
+        </div>
+    </div>
+    <div class="col-md-8">
+        @Confluence.LabelsGroup(justification.Label,
+            Confluence.InputTextArea(
+                justification.TextValue,
+                justification.FieldName,
+                width: "90%",
+                height: "60px",
+                maxLength: justification.MaxLength != 0 ?
+                    justification.MaxLength : (int?)null,
+                required: justification.IsRequired,
+                disabled: justification.IsReadOnly)
+            , false)
+    </div>
+}
+
+@helper GetCoSection(FieldModel date, FieldModel time, IList<DateTime> unavailableDates)
+{
+    <div class="w90" style="display: inline-block !important">
+        @Confluence.Label(date.Label)
+    </div>
+    <div class="w220" style="display: inline-block !important">
+        @Confluence.InputDatePicker(
+            date.DateTimeValue,
+            date.FieldName,
+            width: "160px",
+            required: date.IsRequired,
+            disabled: date.IsReadOnly,
+            minDate: date.DateTimeMin,
+            maxDate: date.DateTimeMax,
+            htmlClass: "ml20 mr30",
+            dataAttributes: new Dictionary<string, string>
+            {
+                {"last-value", FormatHelper.Format(date.DateTimeValue)},
+                {"holidays", string.Join("|", unavailableDates.Select(x => string.Format("{0:dd-MM-yyyy}", x)))},
+                {"is-editable", date.IsEdited.ToString().ToLower()}
+            })
+    </div>
+    <div class="w90" style="display: inline-block !important">
+        @Confluence.Label(time.Label)
+    </div>
+    <div class="w200" style="display: inline-block !important">
+
+        @Confluence.InputDropDown(
+            time.TextValue,
+            time.FieldName,
+            time.DropDownSource.Select(o => new SelectListItem
+            {
+                Value = o.Item1,
+                Text = o.Item2
+            }),
+            required: time.IsRequired,
+            disabled: time.IsReadOnly,
+            htmlClass: "ml20 mr30" + time.CssClass,
+            width: "160px",
+            orderAsc: false)
+    </div>
+}
+
+@helper GetDateField(FieldModel date, IList<DateTime> unavailableDates)
+{
+if (date != null)
+{
+        <div class="col-md-1">@Confluence.Label(date.Label)</div>
+        <div style="display: inline-block !important" class="col-md-2">
+            @Confluence.InputDatePicker(
+                date.DateTimeValue,
+                date.FieldName,
+                width: "160px",
+                required: date.IsRequired,
+                disabled: date.IsReadOnly,
+                minDate: date.DateTimeMin,
+                maxDate: date.DateTimeMax,
+                htmlClass: "ml20 mr30",
+                dataAttributes: new Dictionary<string, string>
+                {
+                    {"max-date-F2F", FormatHelper.Format(date.DateTimeMax)},
+                    {"last-value", FormatHelper.Format(date.DateTimeValue)},
+                    {"holidays", string.Join("|", unavailableDates.Select(x => string.Format("{0:dd-MM-yyyy}", x)))},
+                    {"is-editable", date.IsEdited.ToString().ToLower()},
+                    {"enabled-write-mode", date.EnabledInWriteMode.ToString()}
+                }
+                )
+        </div>
+}
+}
+
+@helper GetTimeField(FieldModel time, bool isOpc)
+{
+if (time != null)
+{
+        <div class="col-md-1@(isOpc ? null : " ml60")">@Confluence.Label(time.Label)</div>
+
+        <div style="display: inline-block !important" class="col-md-2">
+            @Confluence.InputDropDown(
+                time.TextValue,
+                time.FieldName,
+                time.DropDownSource.Select(o => new SelectListItem
+                {
+                    Value = o.Item1,
+                    Text = o.Item2
+                }),
+                required: time.IsRequired,
+                disabled: time.IsReadOnly,
+                htmlClass: "ml20 mr30" + time.CssClass,
+                width: "160px",
+                orderAsc: false,
+                dataAttributes: new Dictionary<string, string>
+                {
+                    {"enabled-write-mode", time.EnabledInWriteMode.ToString()}
+                })
+        </div>
+}
+}
+
+@helper GetMeetingRoomField(FieldModel meetingRoom)
+{
+if (meetingRoom != null)
+{
+        <div class="col-md-1 ml60">@Confluence.Label(meetingRoom.Label)</div>
+        <div style="display: inline-block !important" class="col-md-2">
+            @Confluence.InputText(
+                meetingRoom.TextValue,
+                meetingRoom.FieldName,
+                meetingRoom.MaxLength,
+                htmlClass: meetingRoom.CssClass,
+                required: meetingRoom.IsRequired,
+                isReadOnly: meetingRoom.IsReadOnly,
+                disabled: meetingRoom.IsReadOnly,
+                width: "160px")
+        </div>
+}
+}

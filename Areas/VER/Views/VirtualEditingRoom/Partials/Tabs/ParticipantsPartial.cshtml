@@ -1,0 +1,244 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.VERModule.ViewModels
+@using IDB.MW.Domain.Models.Security
+@using IDB.MW.Domain.Values.Ver
+@using Areas.VerVmr
+@model VerParticipantViewModel
+
+@{
+    var securityParticipant = (List<FieldAccessModel>)ViewBag.SecurityParticipant;
+
+    var editButton = securityParticipant.FirstOrDefault(o => o.FieldName == "btnEditParticipantsTab");
+    var btnAddParticipant = securityParticipant.FirstOrDefault(o => o.FieldName == "btnAddParticipant");
+    var btnDeleteParticipant = securityParticipant.FirstOrDefault(o => o.FieldName == "btnDeleteParticipant");
+    var ddlOffice365Permission = securityParticipant.FirstOrDefault(o => o.FieldName == "ddlOffice365Permission");
+    var instructionContainer = securityParticipant.FirstOrDefault(o => o.FieldName == "instructionContainer");
+    
+}
+
+@Confluence.InputHidden(ViewBag.SerializedParticipantViewModel, id: "participantsViewModel")
+
+@if (btnAddParticipant != null && btnAddParticipant.IsVisible)
+{
+    <div data-id="ModalNewParticipant">
+        <button data-id="newParticipant" class="hide"
+                data-modal-allowclose="true"
+                data-custom-modal="newParticipantContentModal"
+                data-custom-modal-title="@Localization.GetText("VMR.MM.MeetingRoom.TabParticipants.NewParticipantTitle")"
+                data-custom-modal-validate="false"
+                data-custom-buttons='["clear", "save"]'
+                data-custom-button-save-id="save"
+                data-custom-button-save="@Localization.GetText("VER.GLOBAL.Add")"
+                data-custom-button-save-style="buttonBlue"
+                data-custom-button-save-callback="addParticipantRow"
+                data-custom-button-save-closeatend="false"
+                data-custom-button-clear-id="clear"
+                data-custom-button-clear="@Localization.GetText("VER.GLOBAL.Clear")"
+                data-custom-button-clear-style="buttonBlue"
+                data-custom-button-clear-callback="resetFilter"></button>
+        <div id="newParticipantContentModal" class="hide modalBody"></div>
+    </div>
+}
+
+@if (instructionContainer != null && instructionContainer.IsVisible)
+{
+    <div class="mb15">
+        <div class=" col-md-8">
+            <div class="row">
+                <div class="col-md-8">
+                    @Confluence.Label(Localization.GetText("VER.GLOBAL.Instructions"))
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    @Html.Raw(Model.ParticipantsInstruction)
+                </div>
+            </div>
+        </div>
+    </div>
+}
+<div class="col-md-12 mt50">
+    <div class="pull-left">
+        @Confluence.Label(Localization.GetText("GLOBAL.RESUTLS.PER.PAGE"))
+        @Confluence.InputDropDown("999999", "ddlPaginationParticipant",
+            (List<SelectListItem>)ViewBag.ResultsPerPageList, placeholder: null, showEmptyOption: false,
+            orderAsc: false, required: false)
+    </div>
+    <div class="pull-right">
+        @if (editButton != null && editButton.IsVisible)
+        {
+            <div data-id="headerButtons" data-button-container="Participant">
+                @Html.Partial("Partials/DataTables/Buttons/ParticipantButtonsPartial")
+            </div>
+        }
+    </div>
+</div>
+<div class="col-md-12 mb20 mt10">
+    @{
+        var participantsTable = Html.RenderDataTable(Model.Participants);
+        participantsTable.Name("participantsTable")
+            .Columns(columns =>
+            {
+                columns.Template(c => GetParticipantType(c, true))
+                    .Header(Localization.GetText("VER.Homepage.TabParticipants.ParticipantsType")).CssHeaderClass("w200 sort")
+                    .HeaderAttribute("order-type", "text")
+                    .EditableTemplate(row => GetParticipantType(row, false));
+                columns.Template(c => GetRoleParticipant(c, true))
+                    .Header(Localization.GetText("VER.Homepage.TabParticipants.RoleTable")).CssHeaderClass("w300 sort")
+                    .HeaderAttribute("order-type", "text")
+                    .EditableTemplate(row => GetRoleParticipant(row, false));
+                columns.Template(c => Confluence.ListHelpers(new List<HelperResult>
+                {
+                    Confluence.Label(string.IsNullOrEmpty(c.FullName.Trim()) ?
+                    Localization.GetText("VER.Homepage.TabParticipant.NoUsersInRoles") :
+                    System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
+                        c.FullName.ToLower())),
+                    Confluence.Label(" / ", htmlClass: c.IsExternal ? "" : "hide"),
+                    Confluence.Label(c.Email, htmlClass: c.IsExternal ? "" : "hide")
+                }))
+                    .Header(Localization.GetText("VER.Homepage.TabParticipants.Name")).CssHeaderClass("w1000")
+                    .EditableTemplate(c => Confluence.ListHelpers(new List<HelperResult>
+                    {
+                        Confluence.Label(string.IsNullOrEmpty(c.FullName.Trim()) ? Localization.GetText("VER.Homepage.TabParticipant.NoUsersInRoles") : c.FullName),
+                        Confluence.Label(" / ", htmlClass: c.IsExternal ? "" : "hide"),
+                        Confluence.Label(c.Email, htmlClass: c.IsExternal ? "" : "hide"),
+                        Confluence.InputHidden(c.UserName, "username"),
+                        Confluence.InputHidden(c.Email, "email"),
+
+                    })).Attribute("participantsName", y => string.Empty);
+                columns.Template(c => GetOffice365Permission(c, true, ddlOffice365Permission))
+                    .Header(Localization.GetText("VER.Homepage.TabParticipants.Office365Permissions")).CssHeaderClass("w220")
+                    .EditableTemplate(c => GetOffice365Permission(c, false, ddlOffice365Permission));
+                columns.Bound(c => c.RowId)
+                    .EditableTemplate(c => Confluence.InputHidden(c.RowId.ToString(), "participantRowId")).Hidden(true);
+                columns.Bound(c => c.IsRequired)
+                    .EditableTemplate(c => Confluence.InputHidden(c.IsRequired.ToString(), "isRequired", dataAttributes: new Dictionary<string, string> { { "isRequired", "oldRequired" } })).Hidden(true);
+                columns.Bound(c => c.AccessLevelId)
+                  .EditableTemplate(c => Confluence.InputHidden(c.AccessLevelId.ToString(), "accessLevelId"))
+                  .Hidden(true);
+                columns.Bound(c => c.AccessLevelCode)
+                 .EditableTemplate(c => Confluence.InputHidden(c.AccessLevelCode, "accessLevelCode"))
+                 .Hidden(true);
+                columns.Template(c => Confluence.Label(""))
+                    .EditableTemplate(row => GetTrashButton(row, btnDeleteParticipant)).Right()
+                    .Header(Localization.GetText("VER.Homepage.TabPartcipants.Action")).CssHeaderClass("w100")
+                    .Attribute("data-pagemode", y => "edit").HeaderAttribute("data-pagemode", "edit");
+            });
+        participantsTable.TableClass = "tableNormal endSpacing";
+
+        @Html.Partial("Controls/DataTable", participantsTable)
+    }
+</div>
+@if (btnAddParticipant != null && btnAddParticipant.IsVisible)
+{
+    <div class="col-md-12" data-idb-fieldname="btnAddParticipant" data-pagemode="edit">
+        <div class="text-center">
+            @Confluence.ButtonAddNewRows(Localization.GetText("VER.GLOBAL.Add"), null, null, "showParticipantModal", false)
+        </div>
+    </div>
+}
+<div class="pull-right">
+    @if (editButton != null && editButton.IsVisible)
+    {
+        <div class="col-md-12 mb20 mt30" data-button-container="Participant">
+            @Html.Partial("Partials/DataTables/Buttons/ParticipantButtonsPartial")
+        </div>
+    }
+</div>
+@helper GetTrashButton(VerParticipantRowViewModel row, FieldAccessModel btnDeleteParticipant)
+{
+    if (!row.IsRequired && btnDeleteParticipant != null && btnDeleteParticipant.IsVisible)
+    {
+        @Confluence.ButtonTrash("", "trashParticipant", "removeRow", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnDeleteParticipant" } })
+    }
+}
+@helper GetParticipantType(VerParticipantRowViewModel row, bool isRead)
+{
+    if (isRead)
+    {
+        @Confluence.LabelGetDropDown(row.ParticipantTypeId, ViewBag.ParticipantsTypeList)
+    }
+    else
+    {
+        @Confluence.LabelGetDropDown(row.ParticipantTypeId, ViewBag.ParticipantsTypeList)
+        @Confluence.InputHidden(row.ParticipantTypeId.ToString(), "participantType")
+
+    }
+}
+@helper GetRoleParticipant(VerParticipantRowViewModel row, bool isRead)
+{
+    if (!isRead)
+    {
+        if (row.OrganizationalUnitId == null)
+        {
+            @Confluence.LabelGetDropDown(row.Role.ToString(), ViewBag.RoleListTable)
+
+        }
+        else
+        {
+            if (row.Role != null)
+            {
+                @Confluence.LabelGetDropDown(row.Role.ToString(), ViewBag.RoleListTable)
+                @Confluence.Label(" / ")
+                @Confluence.LabelGetDropDown(row.OrganizationalUnitId.ToString(), (List<SelectListItem>)ViewBag.OrganizationUnit)
+            }
+            else
+            {
+                @Confluence.LabelGetDropDown(row.OrganizationalUnitId.ToString(), (List<SelectListItem>)ViewBag.OrganizationUnit)
+            }
+        }
+
+        @Confluence.InputHidden(row.Role.ToString(), "role")
+        @Confluence.InputHidden(row.OrganizationalUnitId.ToString(), "organizationalUnitId")
+
+    }
+    else
+    {
+        if (row.OrganizationalUnitId == null)
+        {
+            @Confluence.LabelGetDropDown(row.Role.ToString(), ViewBag.RoleListTable)
+
+        }
+        else
+        {
+            if (row.Role != null)
+            {
+                @Confluence.LabelGetDropDown(row.Role.ToString(), ViewBag.RoleListTable)
+                @Confluence.Label(" / ")
+                @Confluence.LabelGetDropDown(row.OrganizationalUnitId.ToString(), (List<SelectListItem>)ViewBag.OrganizationUnit)
+            }
+            else
+            {
+                @Confluence.LabelGetDropDown(row.OrganizationalUnitId.ToString(), (List<SelectListItem>)ViewBag.OrganizationUnit)
+            }
+
+        }
+    }
+}
+@helper GetOffice365Permission(VerParticipantRowViewModel row, bool isRead, FieldAccessModel ddlOffice365Permission)
+{
+    if (isRead)
+    {
+        @Confluence.LabelGetDropDown(row.Office365.ToString(), ViewBag.Office365PermissionsList)
+}
+else
+{
+    if (string.IsNullOrEmpty(row.Email))
+    {
+        if ((!row.IsRequired && (row.ParticipantTypeCode == VerParticipantTypeCode.Participant || row.ParticipantTypeCode == VerParticipantTypeCode.Owner) || (row.IsRequired && row.ParticipantTypeCode == VerParticipantTypeCode.Participant)) && ddlOffice365Permission != null && ddlOffice365Permission.IsVisible)
+        {
+                @Confluence.InputDropDown(row.Office365.ToString(), "office365Permissions",
+                    (List<SelectListItem>)ViewBag.Office365PermissionsList, required: (!row.IsExternal) && ddlOffice365Permission.IsRequired, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlOffice365Permission" } })
+            }
+            else
+            {
+                @Confluence.LabelGetDropDown(row.Office365.ToString(), ViewBag.Office365PermissionsList)
+                @Confluence.InputHidden(row.Office365.ToString(), "office365Permissions", true)
+            }
+        }
+        else
+        {
+            @Confluence.InputHidden(string.Empty, "office365Permissions")
+        }
+    }
+}

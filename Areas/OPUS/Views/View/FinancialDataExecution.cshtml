@@ -1,0 +1,992 @@
+﻿@using IDB.MW.Domain.Values
+@model ICollection<IDB.MW.Application.OPUSModule.ViewModels.FinancialDataExecutionService.FinancialDataViewModel>
+@{
+    ViewBag.showLoader = true;
+    ViewBag.fixLoad = true;
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+    var modelCurrent = Model.SingleOrDefault(x => x.IsCurrent);
+}
+
+<link href="@Url.Content("~/Content/Reformulation/reformulation.css")" rel="stylesheet" />
+<script src="@Url.Content("~/Scripts/Graphics/accumulatedDisbursements.js")"></script>
+
+<input hidden data-idb-pagename="UI-FIN-002-Financial Data Execution - Operation Level" />
+<input hidden data-idb-pagename="UI-FIN-002-Financial Data Execution - Contract" />
+<input hidden data-idb-pagename="UI-FIN-002-Financial Data Execution - Increase" />
+<div class="header" atributo-test="@modelCurrent.AttributeExecutedby">
+    <div class="row mb1em">
+        <div class="col-md-12">
+            @Html.Partial("Partials/FinancialDataExecution/buttons")
+            @Confluence.LabelMainTitle(Localization.GetText("OP.FD.Header.Title"))
+        </div>
+    </div>
+
+    @if (Model != null && Model.Count > 1)
+    {
+        <div class="btn-group tabs-reformulation">
+
+            @foreach (var financialDataExecution in Model)
+            {
+                <button class="btn @(financialDataExecution.IsCurrent ? "active is-current" : "")"
+                        dd-tab="#activity-plan-@financialDataExecution.ActivityPlanId">
+                    @(financialDataExecution.Name ?? "Original Data")
+                </button>
+            }
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-12">
+            <div data-id="headerButtons" class="pull-right">
+                <div data-pagemode="edit">
+                    <div class="floatRight">
+                        @if (ViewBag.FinancialWritePermision && ViewBag.GCMWritePermission ?? false)
+                        {
+                            <div data-id="headerButtons" class="right-buttons">
+                                @Confluence.ButtonBlue(
+                                    Localization.GetText("OP.FD.Preparation.ChkFundAvailability"),
+                                    null,
+                                    "ChkFundAvailability",
+                                    dataAttributes: new Dictionary<string, string>() {
+                                        { "idb-fieldname", "btnChkFund" }
+                                    })
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page">
+
+    @if (Model != null && Model.Count > 1)
+    {
+        <div class="reformulation-group-content">
+
+            @foreach (var financialDataExecution in Model)
+            {
+                <div id="activity-plan-@financialDataExecution.ActivityPlanId"
+                        data-activity-plan-id="@financialDataExecution.ActivityPlanId"
+                        class="tab-pane financial-data-execution-content"
+                        data-parsley-validate="data-parsley-validate"
+                        data-parsley-excluded="[disabled]">
+                    @Html.Partial(
+                        "Partials/FinancialDataExecution/FinancialDataExecutionPartial",
+                        financialDataExecution)
+                </div>
+            }
+
+        </div>
+    }
+    else if (Model != null)
+    {
+        <div class="financial-data-execution-content"
+                data-activity-plan-id="@(
+                        modelCurrent.ActivityPlanId != null ?
+                            modelCurrent.ActivityPlanId : 0)">
+            @Html.Partial(
+                "Partials/FinancialDataExecution/FinancialDataExecutionPartial",
+                Model.First())
+        </div>
+    }
+
+</div>
+
+<div class="header">
+    <div class="row row-title">
+        <div class="col-md-12">
+            <span class="text-right">
+                @Html.Partial("Partials/FinancialDataExecution/buttons")
+            </span>
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+
+    <script src="~/Scripts/JQchartfx/jquery.mousewheel.js"></script>
+    <script src="~/Scripts/JQchartfx/jquery.jqChart.min.js"></script>
+    <script src="~/Scripts/JQchartfx/jquery.jqRangeSlider.min.js"></script>
+    <!--[if IE]><script src="~/Scripts/JQchartfx/excanvas.js"></script><![endif]-->
+
+
+    <script type="text/javascript">
+
+        var getValueAndPercentString = function(maxValue, currentValue) {
+            var percentage = (maxValue !== 0) ? (currentValue * 1) / (maxValue * 1) * 100 : 0;
+            percentage = percentage.toFixed(2) + "%";
+            return convertFloatToStringWithFormat(currentValue) + ' (' + percentage + ')';
+        }
+
+        var chartData = {};
+
+        @foreach (var financialDataExecution in Model)
+        {
+            <text>
+            chartData["@financialDataExecution.ActivityPlanId"] = {
+                "splineChartOriginal": @Html.Raw(Json.Encode(financialDataExecution.AccumulateDisbursementsGraphData)),
+                "jqChartOriginal": {
+                    'idb': parseFloat(
+                            @financialDataExecution.OperationLevel.FinancingSource.Original
+                        ),
+                    'counterpart': parseFloat(
+                            @financialDataExecution.OperationLevel.FinancingSource.CounterPartOriginal
+                        ),
+                    'cofinancing': parseFloat(
+                            @financialDataExecution.OperationLevel.FinancingSource.CoFinancingOriginal
+                        )
+                },
+                "jqChartCurrent": {
+                    'idb': parseFloat(
+                            @financialDataExecution.OperationLevel.FinancingSource.Current
+                        ),
+                    'counterpart': parseFloat(
+                            @financialDataExecution.OperationLevel.FinancingSource.CounterPartCurrent
+                        ),
+                    'cofinancing': parseFloat(
+                            @financialDataExecution.OperationLevel.FinancingSource.CoFinancingCurrent
+                        )
+                }
+            };
+
+        
+        @if (financialDataExecution.OperationLevel.Graph != null)
+        {
+            <text>
+                chartData["@financialDataExecution.ActivityPlanId"]['jqChartBar'] = {
+                    IDB: @(
+                            financialDataExecution.OperationLevel.Graph != null ? 
+                            financialDataExecution.OperationLevel.Graph.CurrentIDB : 0
+                        ),
+                legend: {visible: false,},
+                shadows: {enabled: true},
+                border: {strokeStyle: '#6ba851',visible: false},
+                tooltips: {disabled: true},
+
+                axes: [
+                    {
+                        strokeStyle: 'transparent',
+                        visible: false,
+                        majorGridLines: false,
+                        majorTickMarks: { visible: false },
+                        location: 'bottom',
+                        labels: {visible: false},
+                        plotLines: [
+                                @foreach (var plotLine in 
+                                    financialDataExecution.OperationLevel.Graph.PlotLines)
+                                {
+                                    <text>
+                                    {
+                                        lineWidth: 2,
+                                        strokeStyle: '@plotLine.StrokeStyle',
+                                        value: @plotLine.Value,
+                                        zIndex: 2, 
+                                        title: {
+                                            text: '@plotLine.Text',
+                                            vAlign: 'bottom',
+                                            fillStyle: 'black'
+                                        }
+                                    },
+                                    </text>
+                                }
+                            ]
+
+                    },
+                    {
+                        type: 'category',
+                        location: 'right',
+                        strokeStyle: 'transparent',
+                        majorGridLines: false,
+                        majorTickMarks: { visible: false },
+                        categories: [
+                            getValueAndPercentString(
+                                @financialDataExecution.OperationLevel.Graph.CurrentIDB, 
+                                @financialDataExecution.OperationLevel.Graph.YearProjection
+                            ),
+                            getValueAndPercentString(
+                                @financialDataExecution.OperationLevel.Graph.CurrentIDB, 
+                                @financialDataExecution.OperationLevel.Graph.YearDisbursed
+                            ),
+                            getValueAndPercentString(
+                                @financialDataExecution.OperationLevel.Graph.CurrentIDB, 
+                                @financialDataExecution.OperationLevel.Graph.LifeDisbursed
+                            ),
+                            getValueAndPercentString(
+                                @financialDataExecution.OperationLevel.Graph.CurrentIDB, 
+                                @financialDataExecution.OperationLevel.Graph.CurrentIDB
+                            )
+                        ]
+                    },
+                    {
+                        type: 'category',
+                        location: 'left',
+                        strokeStyle: 'transparent',
+                        majorGridLines: false,
+                        majorTickMarks: { visible: false },
+                        categories: [
+                            'Year Projection',
+                            'YTD Disbursed',
+                            'Life Disbursed',
+                            'Current IDB'
+                        ]
+            
+                    }
+                ],
+                series: [
+                    {
+                        type: 'rangeBar',
+                        title: 'Series 1',
+                        data: [
+                            ['Year Projection', @financialDataExecution.OperationLevel.Graph.CurrentYearValue, @financialDataExecution.OperationLevel.Graph.NextYearValue],
+                            ['YTD Disbursed', @financialDataExecution.OperationLevel.Graph.YTDDisbursedIniValue, @financialDataExecution.OperationLevel.Graph.YTDDisbursedFinValue],
+                            ['Life Disbursed', @financialDataExecution.OperationLevel.Graph.FirstDisbursementValue, @financialDataExecution.OperationLevel.Graph.LastDisbursementValue],
+                            ['Current IDB', 0, @financialDataExecution.OperationLevel.Graph.MaxValueData]
+                        ]
+                    }
+                ]
+            };
+            </text>
+            }
+
+        </text>
+        }
+
+        function drawGraphics(activityPlanId) {
+
+            var blockChartData = chartData[activityPlanId];
+            var contentBlock = $('[data-activity-plan-id="' + activityPlanId + '"]');
+            var background = '#FFFFFF';
+
+            var parametersJChartOriginal = {
+                legend: {
+                    visible: true,
+                    allowHideSeries: false,
+                    location: 'right',
+                    border: {
+                        visible: false
+                    },
+                    font: '12px OpenSans-Semibold',
+                    textFillStyle: '#333333',
+                    margin: 10,
+                    customItems: [
+                        {
+                            text: 'IDB',
+                            font: '12px OpenSans',
+                            marker: {
+                                type: 'rectangle',
+                                fillStyle: '#2f69b9'
+                            }
+                        },
+                        {
+                            text: '@Localization.GetText("OP.FD.TabOperationLevel.CounterFinancing")',
+                            font: '12px OpenSans',
+                            marker: {
+                                type: 'rectangle',
+                                fillStyle: '#ffa92d'
+                            }
+                        },
+                        {
+                            text: '@Localization.GetText("OP.FD.TabOperationLevel.CoFinancing")',
+                            font: '12px OpenSans',
+                            marker: {
+                                type: 'rectangle',
+                                fillStyle: '#703593'
+                            }
+                        }
+                    ]
+                },
+
+                border: {
+                    strokeStyle: '#6ba851',
+                    visible: false
+                },
+                background: background,
+                shadows: {
+                    enabled: false
+                },
+                tooltips: {
+                    disabled: false,
+                },
+                series: [
+                    {
+                        showInLegend: true,
+                        type: 'pie',
+                        labels: {
+                            stringFormat: '%.2f%%',
+                            valueType: 'percentage',
+                            font: '12px OpenSans',
+                            fillStyle: 'white'
+                        },
+                        data: [
+                            ['IDB', blockChartData['jqChartOriginal']['idb']],
+                            [
+                                '@Localization.GetText("OP.FD.TabOperationLevel.CounterFinancing")',
+                                blockChartData['jqChartOriginal']['counterpart']
+                            ],
+                            [
+                                '@Localization.GetText("OP.FD.TabOperationLevel.CoFinancing")',
+                                blockChartData['jqChartOriginal']['cofinancing']
+                            ]
+                        ]
+                    }
+                ]
+            };
+
+            parametersJChartOriginal = $.extend(parametersJChartOriginal, CustomChart);
+
+            contentBlock.find('.jqChartOriginal').jqChart(parametersJChartOriginal);
+
+            contentBlock.find('.jqChartOriginal').bind('tooltipFormat', function(e, data) {
+                var percentage = data.series.getPercentage(data.value);
+                percentage = data.chart.stringFormat(percentage, '%.2f%%');
+
+                return '<p style="color: white; font-weight: bold; font-size: 16px;text-shadow: black 0.1em 0.1em 0.2em;"><b>' + data.dataItem[0] + '</b><br />' +
+                    '<b>' + convertFloatToStringWithFormat(data.value.toFixed(2)) + ' (' + percentage + ')' + '</b></p>';
+            });
+
+
+            var parametersJQChartCurrent = {
+                legend: {
+                    visible: false,
+                    allowHideSeries: false,
+                    location: 'right',
+                    border: {
+                        visible: false
+                    },
+                    font: '12px OpenSans-Semibold'
+                },
+
+                border: {
+                    strokeStyle: '#6ba851',
+                    visible: false
+                },
+                background: background,
+                shadows: {
+                    enabled: false
+                },
+                tooltips: {
+                    disabled: false,
+                },
+                series: [
+                    {
+                        showInLegend: true,
+                        type: 'pie',
+                        labels: {
+                            stringFormat: '%.2f%%',
+                            valueType: 'percentage',
+                            font: '12px OpenSans',
+                            fillStyle: 'white'
+                        },
+                        data: [
+                            ['IDB', blockChartData['jqChartCurrent']['idb']],
+                            [
+                                '@Localization.GetText("OP.FD.TabOperationLevel.CounterFinancing")',
+                                blockChartData['jqChartCurrent']['counterpart']
+                            ],
+                            [
+                                '@Localization.GetText("OP.FD.TabOperationLevel.CoFinancing")',
+                                blockChartData['jqChartCurrent']['cofinancing']
+                            ]
+                        ],
+
+                    }
+                ]
+            };
+
+            parametersJQChartCurrent = $.extend(parametersJQChartCurrent, CustomChart);
+
+            contentBlock.find('.jqChartCurrent').jqChart(parametersJQChartCurrent);
+
+            contentBlock.find('.jqChartCurrent').bind('tooltipFormat', function(e, data) {
+                var percentage = data.series.getPercentage(data.value);
+                percentage = data.chart.stringFormat(percentage, '%.2f%%');
+
+                return '<p style="color: white; font-weight: bold; font-size: 16px;text-shadow: black 0.1em 0.1em 0.2em;"><b>' + data.dataItem[0] + '</b><br />' +
+                    '<b>' + convertFloatToStringWithFormat(data.value.toFixed(2)) + ' (' + percentage + ')' + '</b></p>';
+            });
+
+            render_Accumalte_Disbursements_Graph(blockChartData['splineChartOriginal'], contentBlock);
+
+
+            if(blockChartData['jqChartBar']) {
+
+                var parametersJQChartBar = $.extend(blockChartData['jqChartBar'], CustomChart);
+
+
+                contentBlock.find('.barChartCurrent').jqChart(parametersJQChartBar);
+
+                contentBlock.find('.barChartCurrent').bind('tooltipFormat', function(e, data) {
+
+                    var max = blockChartData['jqChartBar']['IDB'];
+                    var value = data.dataItem[2];
+                    var offset = data.dataItem[1];
+                    value = value - offset;
+                    var percentage = (max !== 0) ? value / max * 100 : 0;
+                    percentage = data.chart.stringFormat(percentage, '%.2f%%');
+
+
+                    return '<p style="color: white; font-weight: bold; font-size: 16px;text-shadow: black 0.1em 0.1em 0.2em;"><b>' + convertFloatToStringWithFormat(value) + ' (' + percentage + ')' + '</b></p>';
+                });
+            }
+        }
+
+    $(document).ready(function() {
+        initializeGlobalLoader();
+        changeAmount();
+        var permitsIncrease = @ViewBag.OperationTypeValid.ToString().ToLower();
+        if (!permitsIncrease) {
+            $(".tabs").find("[dd-tab='#tabIncreases']").hide();
+        }
+
+        if ($('#DataTableCurrentFunds tbody tr').length === 0) {
+            $('button[data-action="addNewRowIncreases"]').remove();
+        }
+
+        $('.tabs-reformulation button').on('click', function() {
+            var selector = $(this).attr('dd-tab');
+            var block = $(selector);
+  
+            block.find("ul.tabs li.active").trigger('click');
+            block.find(".btn-group .btn.active").trigger('click');
+        });
+
+        $('.historicalDataModal').each(function(index, item) {
+            if(index > 0) {
+                $(item).remove();
+            }
+        })
+
+    });
+
+    registerCallback(function() {
+
+        $('[data-id=headerButtons]').hide();
+        // $('[data-id=graphValuesButtons]').hide();
+        $('.tabs').on('click', function(e) {
+
+            var $this = $(this);
+            var target = $this.find("[class='active']").attr('dd-tab').replace(/\-\d+$/, '');
+            var block = $this.closest('.financial-data-execution-content');
+            
+            buttons = $('[data-id=headerButtons]');
+            graphvalues = block.find('[data-id=graphValuesButtons]');
+            buttons.hide();
+            graphvalues.hide();
+            block.find('.tabContratLevelDynamicContent').hide();
+            switch (target) {
+                case "#tabOperationLevel":
+                    graphvalues.show();
+                    block.find('.informationRow').show();
+                    break;
+                case "#tabContractLevel":
+                    block.find('.tabContratLevelDynamicContent').show();
+                    block.find('.informationRow').hide();
+                    break;
+                case "#tabIncreases":
+                    buttons.show();
+                    block.find('.informationRow').hide();
+                    break;
+                default:
+
+            }
+
+        });
+
+
+        $('[data-id=graphpanel]').on('click', function() {
+            var contentBlock = $(this).closest('.financial-data-execution-content');
+            drawGraphics(contentBlock.attr('data-activity-plan-id'));
+        });
+
+
+
+    });
+
+
+    //Increases
+    function edit(source) {
+        ReformulationTabs.DisableButtons();
+        postUrlWithOptions('@Url.Action("LockRegister", "View", new { area = "OPUS" })', { async: false }, { url: '@OPUSGlobalValues.URL_FINANCIAL_DATA_EXECUTION' })
+        .done(function(data) {
+            if (data.IsValid === true) {
+                var success = enterEditMode(false, $(".tab-pane.active"), false);
+                if (success) {
+                    enterEditMode(false, $('[data-id=headerButtons]'), false);
+                }
+            } else {
+                showMessage(data.ErrorMessage);
+            }
+        });
+    }
+
+
+    function contractLevelFunction(element) {
+
+        var blockContainer = $(element).closest('.financial-data-execution-content');
+        var activityPlanId = blockContainer.attr('data-activity-plan-id');
+
+        reloadContainerAsync(blockContainer.find('.tabContratLevelDynamicContent'), true, 'read', {
+            operationNumber: "@modelCurrent.OperationNumber",
+            approvalNumber: $(element).attr('dd-value'),
+            activityPlanId: activityPlanId
+        });
+        
+        blockContainer.find('.tabContratLevelDynamicContent').show();
+
+    }
+
+    function cancel(source) {
+        postUrlWithOptions('@Url.Action("UnlockRegister", "View", new { area = "OPUS" })', { async: true }, { url: '@OPUSGlobalValues.URL_FINANCIAL_DATA_EXECUTION' });
+        exitEditMode(true, $(".tab-pane.active"), false, false);
+        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+        ReformulationTabs.EnableButtons();
+    }
+
+    function save(source) {
+        var modelSerialized = '#hidViewModel';
+
+        if (!ValidateEffectiveDate()) {
+            //TODO:agregar literal
+        } else {
+            var response = saveContainer($(".tab-pane.active"), modelSerialized, true, $('[data-id=headerButtons]'));
+            if (response !== false) {
+                response.done(function(data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                        showMessage(data.ErrorMessage);
+                    } else {
+                        if (!response.IsValidSap) {
+                            showMessage(data.ErrorMessage);
+                        }
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    }
+                });
+            }
+        }
+        changeAmount();
+        ReformulationTabs.EnableButtons();
+    }
+
+    function registersIncreases() {
+        bool = false;
+
+        $('input[name="registerIncreases"]').each(function() {
+            if ($(this).val() == "0") {
+                bool = true;
+            }
+        });
+        return bool;
+    }
+
+    //$("td.CurrentFinancingAmount").find("[name='Amount']").change(function() {
+    function changeAmount() {
+        $("#ContentTableIncreases [name='Amount']").change(function() {
+            var row = $(this).closest('tr');
+            var currency = $(row).find('input[name="fundCurrency"]').val();
+            if (currency == "USD") {
+                $(row).find('input[name="AmountUS"]').val($("td.CurrentFinancingAmount").find("[name='Amount']").val());
+            } else {
+                $(row).find('input[name="AmountUS"]').val(0);
+            }
+        });
+    }
+
+
+    function addNewRowIncreases() {
+        if ($("#DataTableCurrentFunds").find('td.dataTables_empty').length === 0) {
+            $("#DataTableIncreases tbody td.dataTables_empty").closest("tr").remove();
+        }
+
+        var datos = "";
+
+        $('td.CurrentApprovalNumber').each(function() {
+            datos = datos + $(this).text() + ",";
+        });
+
+        $.post("@Url.Action("GetRowIncreases", "View", new { area = "OPUS" })", { data: datos }, function(data) {
+            $("#DataTableIncreases tbody").append(data);
+            enterEditMode(false, $("#DataTableIncreases tbody"), false);
+            bindHandlers();
+        });
+
+        $('[name="FinancingTypeId"]').change(function() {
+            var valor = $(this).val();
+            var rowNueva = $(this).closest('tr');
+            if (valor !== "") {
+                var rowOriginal = $('td.CurrentApprovalNumber[dd-value="' + valor + '"]').closest('tr');
+                var sapCode = $(rowOriginal).find('[name="SapCode"]').val();
+                var ocSecialProgram = $(rowOriginal).find('[name="OCSecialProgram"]').val();
+                var fundId = $(rowOriginal).find('[name="FundId"]').val();
+                var currentFinancingFund = $(rowOriginal).find('td.CurrentFinancingFund').text();
+                var currentFundCurrency = $(rowOriginal).find('[name="CurrentFinancingFundCurrency"]').val();
+                var currentFinancingType = $(rowOriginal).find('td.CurrentFinancingType').text();
+                $(rowNueva).find("[name='hdSapCode']").val(sapCode);
+                $(rowNueva).find("[name='hdOCSpecialProgram']").val(ocSecialProgram);
+                $(rowNueva).find("[name='hdFundId']").val(fundId);
+                $(rowNueva).find("[name='CurrentFinancingType']").val(currentFinancingType);
+                $(rowNueva).find("[name='CurrentFinancingFund']").val(currentFinancingFund);
+                $(rowNueva).find('td.CurrentFinancingFundCurrency').text(currentFundCurrency);
+            } else {
+                $(rowNueva).find("[name='hdSapCode']").val("");
+                $(rowNueva).find("[name='hdOCSpecialProgram']").val("");
+                $(rowNueva).find("[name='hdFundId']").val("");
+                $(rowNueva).find("[name='CurrentFinancingType']").val("");
+                $(rowNueva).find("[name='CurrentFinancingFund']").val("");
+                $(rowNueva).find('td.CurrentFinancingFundCurrency').text("");
+            }
+
+            $(rowNueva).find('input[name="Amount"]').val("0.00");
+            $(rowNueva).find('.CurrentFinancingAmountUS').html("0.00");
+            $(rowNueva).find('input[name="EffectiveDate"]').val("");
+        });
+        changeAmount();
+    }
+
+    function GetExchangeRate(row) {
+
+        var parametersExchange = [];
+
+        var fromDateParameter = {};
+
+        fromDateParameter.Name = "fromDate";
+        fromDateParameter.Value = $(row).find('input[name="EffectiveDate"]').val();
+
+        parametersExchange.push(fromDateParameter);
+
+        var toDateParameter = {};
+
+        toDateParameter.Name = "toDate";
+        toDateParameter.Value = $(row).find('input[name="EffectiveDate"]').val();
+
+        parametersExchange.push(toDateParameter);
+
+
+        var currencyParameter = {};
+
+        currencyParameter.Name = "currency";
+        currencyParameter.Value = $(row).find("td.CurrentFinancingFundCurrency").text();
+
+        parametersExchange.push(currencyParameter);
+
+        var amountParameter = {};
+
+        amountParameter.Name = "amount";
+        amountParameter.Value = $(row).find('input[name="Amount"]').val();
+
+        parametersExchange.push(amountParameter);
+
+
+        $.ajax({
+            type: 'POST',
+            url: "@Url.Action("ExchangeRate", "View", new { area = "OPUS" })",
+            datatype: "json",
+            data: JSON.stringify({ ClientFieldData: parametersExchange, SerializedData: "" }),
+
+            success: function(data) {
+                if (data != undefined && data != null &&  data.IsValid){
+                    $(row).find('td.CurrentFinancingAmountUS').text(convertFloatToStringWithFormat(data.Amount.toFixed(2)));
+                } else {
+                    showMessage(data.ErrorMessage);
+                }
+            }
+
+        });
+
+    }
+
+    function registerRowIncreases(element) {
+        var pendingRequired = false;
+        var row = $(element).closest('tr');
+        var sinError = true;
+
+        var msjError = "";
+
+        if ($(row).find('[name="FinancingTypeId"]').val() == "") {
+            //msjError = '@Localization.GetText("OP.FD.TabIncreases.Increases.FinancingType.MsgApprovNumber")';
+            sinError = false;
+        }
+
+        if ($(row).find('input[name="EffectiveDate"]').val().length != 11) {
+
+            //msjError = '@Localization.GetText("OP.FD.TabIncreases.Increases.EffectiveDate.Msg")';
+            sinError = false;
+        }
+
+        if (converToDate($(row).find('input[name="EffectiveDate"]').val()) && converToDate($(row).find('input[name="EffectiveDate"]').val()).getTime() > Date.now()) {
+            //msjError = '@Localization.GetText("Effective Date cannot be future date.")'; //TODO:agregar literal
+            if ($(row).find('input[name="EffectiveDate"]').closest('span').find('li').length == 0) {
+                $(row).find('input[name="EffectiveDate"]').closest('span').find('ul').length > 0 ?
+                    $(row).find('input[name="EffectiveDate"]').closest('span').find('ul').addClass("filled").append("<li>@Localization.GetText("Effective Date cannot be future date.")</li>") :
+                    $(row).find('input[name="EffectiveDate"]').closest('span').find('ul').append("<span></span>").addClass("filled").append("<li>@Localization.GetText("Effective Date cannot be future date.")</li>");
+            } else {
+                $(row).find('input[name="EffectiveDate"]').closest('span').find("li").remove();
+                $(row).find('input[name="EffectiveDate"]').closest('span').find('ul').addClass("filled").append("<li>@Localization.GetText("Effective Date cannot be future date.")</li>");
+            }
+
+            sinError = false;
+            pendingRequired = true;
+        } else {
+            if (converToDate($(row).find('input[name="EffectiveDate"]').val())) {
+                $(row).find('input[name="EffectiveDate"]').closest('span').find('ul').removeClass("filled").find("li").remove();
+            } else {
+                sinError = false;
+                pendingRequired = true;
+            }
+
+        }
+
+        if ($(row).find('input[name="Amount"]').val() * 1 == 0) {
+            sinError = false;
+        }
+
+        if (sinError) {
+            GetExchangeRate(row);
+            confirmAction("@Localization.GetText("OP.FD.TabIncreases.Increases.DeleteIncrease")").done(function(pressOk) {
+
+                if (pressOk) {
+                    showLoader();
+                    $.ajax({
+                        type: "POST",
+                        url: "@Url.Action("RegisterIncreases", "Save", new { area = "OPUS" })",
+                        async: true,
+                        data: {
+                            approvalNumber: $(row).find('[name="FinancingTypeId"]').val(),
+                            financingType: $(row).find('[name="CurrentFinancingType"]').val(),
+                            fund: $(row).find("[name='hdFundId']").val(),
+                            fundCurrency: $(row).find("[name='fundCurrency']").val(),
+                            increaseAmount: $(row).find('input[name="Amount"]').val(),
+                            increaseUsAmount: $(row).find(".CurrentFinancingAmountUS").text().trim(),
+                            effectiveDate: $(row).find('input[name="EffectiveDate"]').val(),
+                            rowid: $(row).attr("data-id")
+                        },
+                        success: function(data) {
+                            showLoader();
+                            if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                                showMessage(data.ErrorMessage);
+                            } else {
+
+                                var row = $("[data-id='" + data.rowID + "']");
+                                $(row).find('td.CurrentFinancingApproval').text($(row).find('[name="FinancingTypeId"]').val());
+                                $(row).find('td.CurrentFinancingAmount').text($(row).find('input[name="Amount"]').val());
+                                $(row).find('td.CurrentFinancingAmountUS').text($(row).find('input[name="AmountUS"]').val());
+                                $(row).find('td.CurrentFinancingEffective').text($(row).find('input[name="EffectiveDate"]').val());
+                                $(row).find('[name="hdIsValidatedInLms"]').val("True");
+                                $(row).find('td.CurrentFinancingStage').text(data.stageIncrease);
+                                $(row).find('td.CurrentFinancingActions').text("");
+                                $.post("@Url.Action("ButtonsIncrease", "View", new { area = "OPUS" })", {isSent : true  }, function(dataIncrease) {
+                                    $(row).find('td.CurrentFinancingActions').append(dataIncrease);
+                                });
+                                row.attr("data-id", data.trueRowId);
+                                if (!data.IsValidSap) {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            }
+                            bindHandlers();
+                        },
+                        dataType: 'json'
+                    })
+                        .always(function() {
+                            hideLoader();
+                        });
+                }
+            });
+        } else {
+            validateContainer($('#ContentTableIncreases'));
+        }
+    }
+
+    function revokeIncrease(element) {
+        var row = $(element).closest('tr');
+        var appNum;
+        if ($(row).find('.CurrentFinancingApproval').find('span').length > 0) {
+            appNum = $(row).find('.CurrentFinancingApproval').find('span').first().text();
+        } else {
+            appNum = $(row).find('.CurrentFinancingApproval').text().trim();
+        }
+
+        showLoader();
+        $.ajax({
+            type: "POST",
+            url: "@Url.Action("RevokeIncreases", "Save", new { area = "OPUS" })",
+            async: true,
+            data: {
+                approvalNumber: appNum,
+                rowid: $(row).attr("data-id")
+            },
+            success: function(data) {
+                showLoader();
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                    showMessage(data.ErrorMessage);
+                } else {
+
+                    row = $("[data-id='" + data.rowID + "']");
+                    $(row).find('td.CurrentFinancingApproval').text($(row).find('[name="FinancingTypeId"]').val());
+                    $(row).find('td.CurrentFinancingAmount').text($(row).find('input[name="Amount"]').val());
+                    $(row).find('input[name="EffectiveDate"]').size() === 1 ?
+                    $(row).find('td.CurrentFinancingEffective').text($(row).find('input[name="EffectiveDate"]').val()) :
+                    $(row).find('td.CurrentFinancingEffective').text($(row).find("td.CurrentFinancingEffective").text());
+                    $(row).find('[name="hdIsValidatedInLms"]').val("False");
+                    $(row).find('td.CurrentFinancingActions').text("");
+                    $.post("@Url.Action("ButtonsIncrease", "View", new { area = "OPUS" })", {isSent : false  }, function(dataIncrease) {
+                        $(row).find('td.CurrentFinancingActions').append(dataIncrease);
+                    });
+                    $(row).find('td.CurrentFinancingStage').text(data.stageIncrease);
+                    row.attr("data-id", "'" + data.trueRowId + "'");
+                    if (!data.IsValidSap) {
+                        showMessage(data.ErrorMessage);
+                    }
+                }
+                bindHandlers();
+            },
+            dataType: 'json'
+        }).always(function() {
+            hideLoader();
+        });
+    }
+
+    function removeRowIncreases(element) {
+
+        var msg = '@Localization.GetText("OP.FD.TabIncreases.Increases.DeleteIncrease")';
+        confirmAction(msg).done(function(pressOk) {
+            if (pressOk) {
+                var row = $(element).closest('tr');
+                var table = $(row).closest('tbody');
+                $(row).remove();
+                $(table).find('tr').removeClass('custom-even odd').removeClass('custom-odd even').each(function(i, element) {
+                    if (i % 2 === 0) {
+                        $(element).addClass('custom-even odd');
+                    } else {
+                        $(element).addClass('custom-odd even');
+                    }
+                });
+            }
+
+        });
+    }
+
+    function ChkFundAvailability() {
+        @*if ($("#DataTableIncreases tbody tr:not([class])").children().length > 0) {
+            $('.vex').remove();
+            showMessage('@Localization.GetText("OP.FD.Preparation.CheckFundAvailability.Msg")');
+            $(".vex-close").hide();
+            ChkFundAvailabilityData();
+        }*@
+
+        if ($("#DataTableIncreases tbody tr").find("input[name='hdIsValidatedInLms'][value='False']").length > 0) {
+            $('.vex').remove();
+            showMessage('@Localization.GetText("OP.FD.Preparation.CheckFundAvailability.Msg")');
+            $(".vex-close").hide();
+            ChkFundAvailabilityData();
+        }
+    }
+
+    function ChkFundAvailabilityData() {
+        var resultList = [];
+        $("#DataTableIncreases tbody tr").find("input[name='hdIsValidatedInLms'][value='False']").each(function() {
+            var paso = $(this).closest('tr');
+            var financingType = $(paso).find('[name="FinancingTypeId"]').val();
+            if (financingType !== "") {
+                if ($(paso).find("[name='hdFundId']").length > 0 && $(paso).find("[name='hdFundId']").val() !== "" && $(paso).find("[name='Amount']").val() != "") {
+
+                    var itemFund = {};
+                    itemFund.Name = "FundID";
+                    itemFund.Value = $(paso).find("[name='hdFundId']").val();
+                    resultList.push(itemFund);
+
+                    itemAmount = {};
+                    itemAmount.Name = "Amount";
+                    itemAmount.Value = $(paso).find("[name='Amount']").val();
+                    resultList.push(itemAmount);
+
+                    itemCurrency = {};
+                    itemCurrency.Name = "Currency";
+                    itemCurrency.Value = $(paso).find("td.CurrentFinancingFundCurrency").text();
+                    resultList.push(itemCurrency);
+
+                    itemEfectiveDate = {};
+                    itemEfectiveDate.Name = "EfectiveDate";
+                    itemEfectiveDate.Value = $(paso).find('input[name="EffectiveDate"]').val();
+                    resultList.push(itemEfectiveDate);
+
+                    itemSapCode = {};
+                    itemSapCode.name = "SapCode";
+                    itemSapCode.value = $(paso).find("td.hide").find("[name='hdSapCode']").val();
+                    resultList.push(itemSapCode);
+
+                    itemSpecialProgram = {};
+                    itemSpecialProgram.name = "OCSpecialProgram";
+                    itemSpecialProgram.value = $(paso).find("td.hide").find("[name='hdOCSpecialProgram']").val();
+                    resultList.push(itemSpecialProgram);
+                }
+            }
+        });
+
+        GetChkFundAvailabilityAjax(resultList);
+
+    }
+
+    function GetChkFundAvailabilityAjax(data) {
+        $.ajax({
+            type: 'POST',
+            url: "@Url.Action("ChkFundAvailabilityConvertoUSD", "View", new { area = "OPUS" })",
+            async: true,
+            datatype: "json",
+            data: JSON.stringify({ ClientFieldData: data, SerializedData: "" }),
+
+            success: function(data) {
+                if (data.ErrorMessage == undefined) {
+                    var messageContent = "";
+                    $.each(data, function(i, item) {
+                        messageContent = messageContent + data[i].Message;
+                    });
+                    if (messageContent != null && messageContent.toString() !== "") {
+                        $("[data-id='mainContainer']").show(100);
+                        $(".vex-close").show();
+                        $("[data-id='mainContainer']").find("[data-showmessage]").html(messageContent);
+                    }
+                } else {
+                    $("[data-id='mainContainer']").show(100);
+                    $(".vex-close").show();
+                    $("[data-id='mainContainer']").find("[data-showmessage]").html(data.ErrorMessage);
+                }
+            }
+        });
+    }
+
+    function ValidateEffectiveDate() {
+
+        var date = Date.now();
+        var isCorrect = true;
+        isCorrect = validateContainer($(".tab-pane.active"));
+
+        $("#DataTableIncreases tbody tr input[name='EffectiveDate']:not([type='hidden'])").each(function(i, element) {
+            if (converToDate($(element).val()) && converToDate($(element).val()).getTime() > date) {
+                isCorrect = false;
+                if ($(element).closest("span").find('li').length == 0) {
+                    $(element).closest("span").find('ul').length > 0 ?
+                        $(element).closest("span").find('ul').addClass("filled").append("<li class='futureDateTime'>@Localization.GetText("Effective Date cannot be future date.")</li>") :
+                        $(element).closest("span").find('ul').append("<span></span>").addClass("filled").append("<li class='futureDateTime'>@Localization.GetText("Effective Date cannot be future date.")</li>");
+                } else {
+                    $(element).closest("span").find('ul').addClass("filled").find("li").remove();
+                    $(element).closest("span").find('ul').append("<li class='futureDateTime'>@Localization.GetText("Effective Date cannot be future date.")</li>");
+                }
+            } else {
+                if (converToDate($(element).val())) {
+                    $(element).closest("span").find('ul').removeClass("filled").find("li").remove();
+                } else {
+                    $(element).closest("span").find('ul li.futureDateTime').remove();
+                }
+            }
+        });
+
+
+        return isCorrect;
+    }
+
+
+</script>
+}
+
+<script src="@Url.Content("~/Scripts/Reformulation/reformulation.js")"></script>

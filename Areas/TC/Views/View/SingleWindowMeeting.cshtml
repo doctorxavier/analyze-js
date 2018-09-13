@@ -1,0 +1,485 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using System.Configuration
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Models.Modal
+
+
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+
+    ViewBag.Subtitle = Localization.GetText("TC.SingleWindowMeeting.Title") + ": " + FormatHelper.Format(Model.DateMeeting, formatDate);
+}
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService.SingleWindowMeetingViewModel
+
+@if (devMode)
+{
+    <div class="header">
+        <div class="row row-header">
+            <div class="col-md-12">
+                @*<button class="btn btn-primary" data-action="setReadAccess">Read Access</button>*@
+                <button class="btn btn-warning" data-action="setWriteBasicAccess">
+                    My Meetings Write Permission
+                </button>
+                <button class="btn btn-primary" data-action="removePermission">Remove/Refresh Permissions</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ViewBag.ReadRole)
+{
+    @Html.Partial("Partials/Headers/SingleWindowMeetingTitle");
+}
+
+<div class="page">
+@if (ViewBag.ReadRole)
+{ 
+    <div id="meetingData">
+
+        <div id="dateReceived" class=" row row-body-50">
+            <div class="col-lg-12">
+                @Html.Partial("Partials/SingleWindowDateReceived", Model)
+            </div>
+        </div>
+
+        <div id="TCData" class="row-body-50" data-parsley-validate="data-parsley-validate" data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true" data-is-edit-mode="false"
+             data-loadurl="@Url.Action( "SingleWindowMeetingFilter" , "View" , new { area = "TC" } )"
+             data-url="@Url.Action("SWMeetingStdComment", "Save", new { area = "TC" })">
+            
+            @Html.Partial("Partials/DataTables/SingleWindowMeetingTable", Model)
+        </div>
+        
+        @Html.Partial( "Partials/Controls/SingleWindowMeetingDownload" )
+        <div class="clearfix"></div>
+        @Html.Partial( "Partials/Controls/SingleWindowMeetingButtons" )
+
+    </div>
+}
+</div>
+
+
+<div id="saveMeetingModal" class="hide modalBody">
+    @Localization.GetText("TC.SingleWindowMeeting.Save.Message")
+</div>
+
+<div id="createExternalMinutesModal" class="modalBody hide">
+    @Localization.GetText("TC.SingleWindowMeeting.CreateExternalInternalMinutes.Message")
+</div>
+
+<!-- Start Modal Donor / Esc Decision de la tabla Historical-->
+<div class="hide">
+    <div id="contentHistoricalDecisionEscDonor"></div>
+</div>
+
+@Display.AddModalButton(new ModalViewModel(name: "modalHistoricalDecisionEscDonor",
+         allowClose: true,
+         contentSelector: "#contentHistoricalDecisionEscDonor",
+         title: Localization.GetText("TC.SingleWindowMeeting.SubInfo.DonorESCDecision"),
+         validateForm: true,
+         type: CssClass.ModalInformation,
+         actionOnClose: "cleanContentHistoricalDecisionEscDonor",
+         closeOnOverlay: false)
+)
+
+<!-- End Modal Donor / Esc Decision de la tabla Historical-->
+
+@section scripts{
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AddCompareDatesValidator()
+    @ModuleScripts.SingleWindowCommon()
+    @if (k2Mode)
+    {
+        @ModuleScripts.K2UIIntegration()
+    }
+
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+            modifyVisibilitySC(false);
+        });
+
+        $(document).ajaxComplete(function () {
+            launchEventClickOfDateReceived();
+        });
+
+        registerCallback(function () {
+        $("body").css("min-height", "700px");
+
+        var fromDate = $('input[name="fromDateFilter"]').val();
+        var toDate = $('input[name="toDateFilter"]').val();
+        $('input[name="fromDateCurrent').val(fromDate);
+        $('input[name="toDateCurrent').val(toDate);
+
+        addOnClickEvent();
+		
+        $(document).on('click', '#buttonSingleWindowDateFilter', function () {
+            var dateFrom = $('input[name="fromDateFilter"]');
+            var dateTo = $('input[name="toDateFilter"]');
+
+            var fromDate = dateFrom.val();
+            var toDate = dateTo.val();
+
+            $('input[name="fromDateCurrent').val(fromDate);
+            $('input[name="toDateCurrent').val(toDate);
+
+            if (validateInputList(dateFrom, dateTo)) {
+                reloadContainer($('#TCData'), true, 'edit', { fromDate: fromDate, toDate: toDate });
+                InitialStateCollapsableRows();
+            }
+
+            var isEditMode = $('#TCData').attr('data-is-edit-mode') == "true";
+            if (isEditMode) {
+                enterEditMode(false, $('#TCData'), false);
+                modifyVisibilitySC(true);
+            } else {
+                exitEditMode(false, $('#TCData'), false);
+                modifyVisibilitySC(false);
+            }
+            
+        });
+
+        $(document).on('click', '[name=generalComments]', function () {
+            var source = $(this);
+            var tr = source.parents("tr").first();
+            var tcId = tr.attr("data-id");
+            var isWriteMode = source.parents("td").first().next().find("[data-pageMode=read]").hasClass("hide");
+
+            var url = '@Url.Action("SWMeetingGeneralComments", "View", new { area = "TC" })';
+            var response = postUrl(url, { tcAbstractId: tcId });
+            var container = source.next("[data-name=generalCommentsContainer]");
+            response.done(function (response, textStatus, jqXHR) {
+                if (response.IsValid == null) {
+                    var title = '@Localization.GetText("TC.SingleWindowMeeting.GeneralComment.Title")';
+                    container.html(response);
+                    if (isWriteMode) {
+                        enterEditMode(false, container, false);
+                    } else {
+                        exitEditMode(false, container, false);
+                    }
+                        showCustomOverlayControl(source, title, container, '@CssClass.OverlayBlue', null, true, true);
+                    updateRepeaterFields();
+                }
+                else {
+                    showMessage(response.ErrorMessage);
+                }
+            });
+        });
+
+        $(document).on('click', '[name=historical]', function () {
+
+            //Obtenemos el ID, de TCAbstract
+            var source = $(this);
+            var tr = source.closest("table").closest("tr").prev();
+            var tcId = tr.attr("data-id");
+
+            //LLamada Ajax
+            var url = '@Url.Action("SWMeetingHistoricalFunds", "View", new { area = "TC" })';
+            var response = postUrl(url, { tcAbstractId: tcId });
+            var container = source.next("[data-name=modal-historical]");
+            response.done(function (response, textStatus, jqXHR) {
+                if (response.IsValid == null) {
+                    var title = 'Historical';
+                    container.html(response);
+                    showCustomOverlayControl(source, title, container, '@CssClass.OverlayBlue', null, true, true);
+                    runCallbacks();
+                }
+                else {
+                    showMessage(response.ErrorMessage);
+                }
+            });
+
+        });
+
+        $(document).on('paste', '[name=fromDateFilter],[name=toDateFilter] ', function (e) {
+            e.preventDefault();
+        });
+
+
+        $(document).on('change', '[name="sf1Amount"]', resizeCellWithInputText);
+
+            InitialStateCollapsableRows();
+
+         });
+
+        $(document).on('click', '[data-name="eventDonorEscDecision"]', function () {
+            var source = $(this);
+            var containerEscDonorTableHistorical = source.next().clone(false);
+            var containerEscDonorModal = $('#contentHistoricalDecisionEscDonor');
+            if (containerEscDonorTableHistorical.length == 1) {
+                containerEscDonorTableHistorical.removeClass('hide');
+                containerEscDonorModal.empty();
+                containerEscDonorModal.html(containerEscDonorTableHistorical);
+                $('[name=modalHistoricalDecisionEscDonor]').click();
+            }
+        });
+
+        $(document).on('click', '.expandable-triangle', function () {
+            var id = $(this).closest('tr').data('id');
+            $('[data-name="detail-tcAbstract-'+ id +'"]').detach().insertAfter('[data-id="'+ id +'"]');
+        });
+
+        $(document).on('click', '.sorting_asc, .sorting_desc', function () {
+            var meetingTableColumn = $('#meetingTable > tbody > tr.skip');
+            meetingTableColumn.css('display', 'none');
+            meetingTableColumn.attr('data-last-detail', 'false');
+            $('#meetingTable > tbody > tr').not('.skip').attr('data-showing-detail', 'false');
+            $('.expandable-triangle input[type=checkbox]').prop("checked", true);
+        });
+		
+        function cleanContentHistoricalDecisionEscDonor() {
+            var containerEscDonorModal = $('#contentHistoricalDecisionEscDonor');
+            containerEscDonorModal.empty();
+        }
+
+        function InitialStateCollapsableRows() {
+            var listBtnCollapsable = $('.expandable-triangle');
+
+            listBtnCollapsable.each(function () {
+                var source = $(this);
+                var checkbox= source.find('input');
+                var auxExpandableProperty = source.data("btn-expandable");
+                auxExpandableProperty.Switch();
+    });
+
+        }
+
+
+    function resizeCellWithInputText(sender) {
+        //$this = $(sender.currentTarget);
+
+        //var fontSize = $this.style.fontsize;
+        //var txt = "H";
+        //ctx.fillText("width:" + ctx.measureText(txt).width, 10, 50);
+        //ctx.fillText(txt, 10, 100);
+    }
+
+    function closeAllOverlay() {
+            var otherOverlays = $(".overlay .overlay-close");
+        otherOverlays.click();
+    }
+
+    function editMeeting(source) {
+        //$("[name=fromDateFilter]").val("");
+        //$("[name=toDateFilter]").val("");
+        //$('[name="fromDateCurrent]').val("");
+        //$('[name="toDateCurrent]').val("");
+        //$("[name=fromDateFilter]").change();
+        //$("[name=toDateFilter]").change();
+        var success = enterEditMode(true, $('#TCData'), true, { fromDate: $('input[name="fromDateCurrent"]').val(), toDate: $('input[name="toDateCurrent"]').val() });
+        if (success) {
+            enterEditMode(false, $('#dateReceived'), false);
+            enterEditMode(false, $('[data-id=headerButtons]'), false);
+                InitialStateCollapsableRows();
+                configDatepicker();
+                $('#buttonSingleWindowDateFilter').click();
+                $('td:nth-child(13)').show();
+                $('th:nth-child(13)').show();
+                launchEventClickOfDateReceived();
+        }
+    }
+
+    function cancelMeeting(source) {
+        closeAllOverlay();
+        //deleteDateMeeting();
+        exitEditMode(false, $('#dateReceived'), false, false);
+        exitEditMode(true, $('#TCData'), true, true);
+        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+        InitialStateCollapsableRows();
+        launchEventClickOfDateReceived();
+    }
+
+    function modifyVisibilitySC(scshow) {
+        if (scshow) {
+            $('.StandarizedCommentsNoClassProperties').show();
+            $('#StandarizedCommentsHeaderMeetingTable').show();
+            return;
+          }
+        $('.StandarizedCommentsNoClassProperties').hide();
+        $('#StandarizedCommentsHeaderMeetingTable').hide();
+    }
+
+    function configDatepicker() {
+        var today = new Date();
+        var tomorrow = new Date();
+        tomorrow.setDate(today.getDate() + 1);
+
+        $(".datepciker-inline").each(function()
+        {
+            var dateP = $(this);
+            var datePHandler = dateP.data("datepicker");
+            if (datePHandler != null) {
+                datePHandler.settings = $.extend(datePHandler.settings, { minDate: null });
+            }
+        });
+
+    }
+
+    function saveMeeting(source) {
+
+        var resp = $.Deferred();
+        var response = saveContainer($('#TCData'), '[name=SWMeetingViewModel]', true, $('[data-id=headerButtons], #dateReceived'), $(source.target));
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                    showMessage(data.ErrorMessage);
+                }
+                resp.resolve(data);
+
+                $('#buttonSingleWindowDateFilter').click();
+            });
+        }
+        return resp;
+        closeAllOverlay();
+       // deleteDateMeeting();
+    }
+
+    function saveGeneralComments(source) {
+        var resp = $.Deferred();
+        var response = saveContainer($('#SWMeetingGeneralCommentData'), '[name=meetingGeneralCommetsVM]', false, null, source, false);
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                    showMessage(data.ErrorMessage);
+                }
+                else {
+                    closeAllOverlay();
+                }
+                resp.resolve(data);
+            });
+        }
+        return resp;
+    }
+
+    function deleteDateMeeting() {
+
+        //$('[name="fromDateCurrent"]').val("");
+        //$('[name="toDateCurrent"]').val("");
+    }
+
+    function launchEventClickOfDateReceived() {
+        $('.CustomOrderDate').click();
+    }
+
+    function createExternalMinutesWord(source) {
+
+        var resp = $.Deferred();
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+        var url = '@Url.Action("SWMeetingCreateExternalMinutesWord", "View", new { area = "TC"})' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+
+        resp.resolve();
+
+        closeAllOverlay();
+        
+        return resp;
+    }
+
+    function createExternalMinutesExcel(source) {
+        var resp = $.Deferred();
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+        var url = '@Url.Action("SWMeetingCreateExternalMinutesExcel", "View", new { area = "TC" })' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+        resp.resolve();
+
+        closeAllOverlay();
+
+        return resp;
+    }
+
+    function createInternalMinutesWord(source) {
+
+        var resp = $.Deferred();
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+        var url = '@Url.Action("SWMeetingCreateInternalMinutesWord", "View", new { area = "TC" })' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+        resp.resolve();
+
+        closeAllOverlay();
+
+        return resp;
+    }
+
+    function createInternalMinutesExcel(source) {
+
+        var resp = $.Deferred();
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+        var url = '@Url.Action("SWMeetingCreateInternalMinutesExcel", "View", new { area = "TC" })' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+        resp.resolve();
+
+        closeAllOverlay();
+
+        return resp;
+    }
+
+    function downloadWord(source) {
+
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+
+        var url = '@Url.Action("SingleWindowMeetingExportToWord", "View", new { area = "TC" })' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+
+        closeAllOverlay();
+
+
+    }
+
+    function downloadPdf(source) {
+
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+        var url = '@Url.Action("SingleWindowMeetingExportToPDF", "View", new { area = "TC" })' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+
+        closeAllOverlay();
+
+
+    }
+
+    function downloadXls(source) {
+
+        var fromDate = $('input[name="fromDateCurrent"]').val();
+        var toDate = $('input[name="toDateCurrent"]').val();
+        var url = '@Url.Action("SingleWindowMeetingExportToExcel", "View", new { area = "TC" })' + '?fromDate=' + fromDate + '&toDate=' + toDate;
+
+        window.open(url, '_blank');
+        closeAllOverlay();
+
+
+    }
+
+    function setReadAccess(source) {
+        var response = postUrlWithOptions("@Url.Action("ChangeGlobalActionOrRole", "View", new { area = "TC", workspace = string.Empty, actionEnum = (int)ActionEnum.MyMeetingsReadPermission })", { dataType: 'json' });
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+   function setWriteBasicAccess(source) {
+        var response = postUrlWithOptions("@Url.Action("ChangeGlobalActionOrRole", "View", new { area = "TC", workspace = string.Empty, actionEnum = (int)ActionEnum.MyMeetingsWritePermission })", { dataType: 'json' });
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+    function removePermission(source) {
+        var response = postUrlWithOptions("@Url.Action("RemovePermission", "View", new { area = "TC" })", { dataType: 'json' });
+        showMessage(response.responseJSON.ErrorMessage, true);
+    }
+
+</script>
+}

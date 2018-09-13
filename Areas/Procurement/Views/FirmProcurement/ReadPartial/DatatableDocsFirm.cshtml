@@ -1,0 +1,100 @@
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MW.Domain.EntityHelpers
+@using IDB.Presentation.MVC4.Areas.Procurement.Helper.ConstantHelper
+
+@model FirmDocViewModel
+
+@{
+    const string COLUMN_WINNER = "TCP.FirmProcurement.TableHeader.FirmWinner";
+    const string COLUMN_SHORT = "TCP.FirmProcurement.TableHeader.FirmNameShortListed";
+
+    if (ViewBag.FirmListShortListed == null)
+    {
+        ViewBag.FirmListShortListed = new List<SelectListItem>();
+    }
+
+    if ((Model.FirmList == null) || !Model.FirmList.Any())
+    {
+        Model.FirmList = ViewBag.FirmListShortListed;
+    }
+
+    if (string.IsNullOrWhiteSpace(Model.FirmColumnName))
+    {
+        Model.FirmColumnName = Model.IsWinner ? COLUMN_WINNER : COLUMN_SHORT;
+    }
+
+    System.Data.DataTable proposalTable;
+    switch (Model.FirmColumnName)
+    {
+        case COLUMN_WINNER:
+            proposalTable = Model.Rows.Select(d =>
+           new IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement.ProposalFirmWinnerDocumentRecordModel
+           {
+               Author = d.User,
+               CreationDate = d.Date,
+               DocumentId = d.Id,
+               DocumentName = d.Description,
+               DocumentNumber = d.DocumentNumber,
+               Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+               ProposalFirmWinnerGenericControl = Confluence.LabelGetDropDown(value: d.OfferId, optionList: Model.FirmList, bold: false)
+           }).ToList().PopulateDataTable();
+            break;
+        case COLUMN_SHORT:
+            proposalTable = Model.Rows.Select(d =>
+            new IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement.FirmNameDocumentRecordModel
+            {
+                Author = d.User,
+                CreationDate = d.Date,
+                DocumentId = d.Id,
+                DocumentName = d.Description,
+                DocumentNumber = d.DocumentNumber,
+                Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                FirmProcurementGenericControl = Confluence.LabelGetDropDown(value: d.OfferId, optionList: Model.FirmList, bold: false)
+            }).ToList().PopulateDataTable();
+            break;
+        default:
+            proposalTable = Model.Rows.Select(d =>
+            new IDB.MW.Application.ProcurementModule.ViewModels.FirmProcurement.ProposalDocumentRecordModel
+            {
+                Author = d.User,
+                CreationDate = d.Date,
+                DocumentId = d.Id,
+                DocumentName = d.Description,
+                DocumentNumber = d.DocumentNumber,
+                Link = DownloadDocumentHelper.GetDocumentLink(d.DocumentNumber),
+                ProposalGenericControl = Confluence.LabelGetDropDown(value: d.OfferId, optionList: Model.FirmList, bold: false)
+            }).ToList().PopulateDataTable();
+            break;
+    }
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                @if (!string.IsNullOrEmpty(Model.Title))
+                {
+                    <div class="mb5 aligment">
+                        @Confluence.LabelMainSubTitle(Model.Title)
+                    </div>
+                }
+                        @Confluence.Label(Model.SubTitle)
+            </td>
+            @if (Model.HasLink && !string.IsNullOrWhiteSpace(Model.LinkURL))
+            {
+                <td class="table-transparent-buttons">
+                            @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+                                            name: "viewTemplatesLink",
+                                            url: Model.LinkURL,
+                                            htmlClass: "bold")
+                </td>
+            }
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @DocumentManagement.DynamicTable(Model.TableName, Model.TableName, proposalTable, false, false)
+    </div>
+</div>

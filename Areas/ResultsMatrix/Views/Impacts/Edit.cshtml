@@ -1,0 +1,1382 @@
+﻿@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.LinkPredefinedIndicator
+@using IDB.MW.Application.OPUSModule.Enums
+@using IDB.MW.Domain.Values;
+@using IDB.MW.Domain.Models.Architecture.Enumerations;
+@using IDB.MW.Domain.Models.Architecture.ResultMatrix.Impacts
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Areas.ResultsMatrix.Business;
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model ResultsMatrixModel
+
+@{
+    Layout = "~/Areas/ResultsMatrix/Views/Shared/_LayoutRMIndicators.cshtml";
+    ViewBag.Title = "Edit";
+    string CRFTemplateName = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory
+        .Current.GetApplicationSettings().CRFTemplateName;
+}
+
+@section CSS
+{
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Impacts/Main.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/Common.css")" />
+}
+
+@section JavaScript
+{
+    <script type="text/javascript" src="@Url.Content("~/Scripts/botonActivo/Impacts/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Impacts/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Impacts/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/edit/editData.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/datepicker/datepicker.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/dropdown/dropdown.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/autoNumeric.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/modal/modal.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/VerifyContent/verifyInputFields.js")"></script>
+}
+
+@Confluence.ModalWarning(
+    Html.Partial("~/Areas/OPUS/Views/View/Partials/OperationData/StrategicAlignmentResultsMatrixPartial.cshtml"),
+    buttons: new List<ModalButtonsViewModel> { new ModalButtonsViewModel { Name = "save", Text = Localization.GetText("Save"), Type = "buttonBlue" } },
+    id: "checkRmIndicatorRelationsModal")
+
+<script type="text/javascript">
+    var titlePendingChanges = "@Html.Raw(string.Format(RMIndicatorValues.CONTENT_UNLINK_WARNING,
+        Localization.GetText("TCM.FR.FindingsAndRecommendations.Ms_Tab_Navigation")))";
+    var deleteYearPlanMessage = '@Localization.GetText("TCM.DYP.DeleteYearPlan.TexDeleteAllColumns")';
+    var errorMessage = '@Localization.GetText("COMMON.ApplicationMappingException.Message")';
+
+    $(function () {
+        $(document).tooltip({
+            items: ".input-validation-error",
+            content: function () {
+                if ($(this).attr('data-val-range'))
+                    return $(this).attr('data-val-range');
+                if ($(this).attr('data-val-required'))
+                    return $(this).attr('data-val-required');
+            }
+        });
+    });
+
+    $(document).ready(function () {
+        dropDownSelect();
+        $('.k-dropdown-wrap.k-state-default').addClass('btn');
+
+        fixDropdonwYears();
+    });
+</script>
+
+@Html.Partial("Partials/_EditImpactsHiddenPartial", Model)
+@Html.Partial("Controls/Indicators/LinkToPredefinedIndicator",
+    (LinkPredefinesIndicatorViewModel)ViewBag.ModelIndicators)
+
+@Html.Hidden("hdnDisaggCategLabel", Localization.GetText("Disaggregation categories"))
+@Html.Hidden("hdnDisaggCategTooltip", Localization.GetText("Same unit of measure as indicator / output"))
+@Html.Hidden("hdnTitleDeleteImpact", Localization.GetText("Delete Impact"))
+@Html.Hidden("hdnTitleDeleteImpactIndicator", Localization.GetText("Delete Impact Indicator"))
+@Html.Hidden("msgImpactField", Localization.GetText("RM.Message.PleaseEnterAStatementForTheImpact"))
+@Html.Hidden("hdnBeforeDeleteUrl", @Url.Action("CheckIndicatorSAClassificationDelete", "View", new { area = "OPUS" }))
+
+@using (Html.BeginForm("Edit", "Impacts", FormMethod.Post, new { id = "impactEditForm" }))
+{
+   @Html.HiddenFor(resultModel => resultModel.OperationId, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.ResultsMatrixId, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.Operation, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.PmrCycleId, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.ValidationStageId, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.Interval.IntervalId, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.Interval.CycleId, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.AccessedByAdministrator, new { data_val = "false" })
+   @Html.HiddenFor(resultModel => resultModel.IsThirdInterval, new { data_val = "false" })
+
+   @Html.Hidden("listBoxYearsPlan", Json.Encode(@ViewData["listBoxYearsPlan"]))
+   @Html.Hidden("currentYearsPlan", Json.Encode(@ViewData["currentYearsPlan"]))
+   @Html.Hidden("UsedForStrategicAlignmentMessage", Localization.GetText("PI.Message.Information.StrategicAlignmentIndicator"))
+   @Html.Hidden("hdnEOP", Model.EndProjectYear)
+   <input id="filter" name="filter" type="hidden" value="@ViewData["filter"]">
+        
+   <div class="mod_contenido_central impacts" id="autoCalEop">
+      <h3 class="headingh2">Impacts</h3>
+      <div class="editingButtonsEdit">
+         <a href="@(Url.Action("Index", "Impacts", new
+              {
+                  area = "ResultsMatrix",
+                  operationNumber = Model.Operation.OperationNumber
+              }))"
+          class="cancel link12" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+         <label for="btnSave">
+            <input type="submit" onmousedown="$('#autoCalEop').trigger('change')" class="btn-primary_2 btnSave" value="@Localization.GetText("Save")" id="btnSave" name="btnSaveMainImpact">
+         </label>
+      </div>
+
+      @Html.Partial("../Partials/_HeaderOperationDataPartial", Model.HeaderModel)
+
+      <div class="operationData">
+         <div class="listWrapper"> 
+            @if (!Model.IsThirdInterval && Model.Interval.IntervalId != ResultsMatrixCodes.ThirdInterval && Model.isElegible)
+            {
+               <dl class="ftl">
+                  <dt class="dataTitle">Days remaining to validate plan at start-up</dt>
+                  <dd class="dataText">@Model.DaysRemaining</dd>
+               </dl>                     
+            }
+         </div>
+      </div>
+
+
+       <div class="editingButtonsEdit editingBTN">
+           <table>
+               <tr>
+                   <td>
+                       <a href="javascript:void(0)" class="btn-primary nomargin" title="new impact"
+                          onclick="addNewImpact(impactsContainer)">@Localization.GetText("New impact")</a>
+                   </td>
+                   <td class="verticalAlignMiddle pl10">
+                       <label id="btnCRFInformation"
+                              class="ui-button ui-widget ui-state-default ui-button-text-only ui-corner-right"
+                              role="button" aria-disabled="false" aria-pressed="false">
+                           <span class="ui-button-text">@Localization.GetText("PI.BtnText.CRFInformation")</span>
+                       </label>
+                   </td>
+               </tr>
+           </table>
+       </div>
+
+      @* Inicio Grillas Impacts *@
+      <div id="impactsContainer" class="">
+
+         @{int impactTrackOrder = 1; }
+         @for (int i = 0; i < @Model.Impacts.Count(); i++)
+         {
+            // Sort impact Indicators
+            Model.Impacts[i].ImpactIndicators.Sort((x1, x2) => x1.OrderNumber.CompareTo(x2.OrderNumber));
+
+            int yearsPlanCount = (Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count() > 0) ? Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count() + 1 : 1;
+                
+            <div class="mod_tabla_impacts editable existing">
+               @Html.Hidden("yearsPlanImpact" + i.ToString(), Json.Encode(Model.Impacts[i].GetMaxIndicatorYearPlanRows()))
+               @Html.HiddenFor(resultModel => resultModel.Impacts[i].ResultsMatrixId)
+               @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactId)
+               @Html.HiddenFor(resultModel => resultModel.Impacts[i].OrderNumber)
+               @Html.Hidden("Impacts.Index", i)
+
+               <div class="minimizeTable">
+                  <div class="minimizeBar">
+                     <div class="trackOrder">@impactTrackOrder</div>
+                     @{ string tableOperator = ""; }
+                     @if (Model.Impacts[i].ImpactIndicators.Count() <= 0)
+                     {
+                        tableOperator = "display:none";
+                     }
+                     <div class="tableOperator" style="z-index:1;@tableOperator">Minimize/Maximize</div>
+                  </div>
+                  <div class="operatorBar" id="operatorBar_@impactTrackOrder" style="height: 415px;"></div>
+                  <!--&#f047;-->
+                  <div class="headingh3_editable">
+
+                     <label class="editLabel input" for="tituloTabla" onmouseover="showMainActionBar(this)" onmouseout="hideMainActionBar(this);">
+                        @Html.TextBoxFor(resultModel => resultModel.Impacts[i].Statement, new { @class = "input headingh4 existingStatement" })
+                        @Html.HiddenFor(resultModel => resultModel.Impacts[i].Statement)
+                        @{ Html.ValidateFor(resultModel => resultModel.Impacts[i].Statement); }
+
+                        @**
+                                * Jira ID: CON-126
+                                * Fix Description: Added hidden input to save order number of impact 
+                                * Attended by: Jhon Astaiza 
+                                * Date: 24/06/2014
+                                * Begin Fix
+                                **@
+                        <div class="actionbar main" style="display: none; width: 89%">
+
+                           <a class="btn_entypo first moveUp" title="@Localization.GetText("Move Up")" onclick="moveUpComponent(this)" href="javascript:void(0)">&#59231;</a>
+                           <a class="btn_entypo first moveDown" title="@Localization.GetText("Move Down")" onclick="moveDownComponent(this)" href="javascript:void(0)">&#59228;</a>
+
+                        </div>
+                        @**
+                                * End Fix
+                                **@
+
+                     </label>
+                     <a href="javascript:void(0)" class="btn_delete btn_square_min" title="@Localization.GetText("Delete")" onclick="deleteImpact(this, @Model.Interval.IntervalId);">@Localization.GetText("Delete")</a>
+                  </div>
+                  <div class="operationData dataDetails dataDetails_editable">
+                     <div class="data8">
+                        <label class="editLabel input" for="observaciones">
+                           <span class="dataTitle">Observations</span>
+                           @Html.TextBoxFor(resultModel => resultModel.Impacts[i].Observations, new { @class = "input" })
+                        </label>
+                     </div>
+                  </div>
+
+
+                  @* If dont exits impact indicator *@
+                  <div class="tableGrid" @*id="tblGrid__@i"*@ id="containerTblGrid__@i">
+                     @if (@Model.Impacts[i].ImpactIndicators.Count() > 0)
+                     {
+                        <table id="tblGrid_@impactTrackOrder" class="grid">
+                           <thead>
+                              <tr id="yearPlans_@i" style="padding:0" class="rowYearPlan">
+                                 <th class="btn_azul_oscuro dato00">Indicator</th>
+                                 <th class="btn_azul_oscuro dato06">Unit of measure</th>
+                                 <th class="btn_azul_oscuro dato06 thBaselineImpacts">Baseline</th>
+                                 <th class="btn_azul_oscuro dato06">Baseline year</th>
+                                 <th class="btn_azul_oscuro dato04"></th>
+                                 @{int paintedColumns = 0; }
+                                 @for (int m = 0; m < @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count() + 1; m++)
+                                 {
+                                    if (m < @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count())
+                                    {
+                                        var yearPlanTitle = Model.Impacts[i].GetMaxIndicatorYearPlanRows()[m].Item2 ? Localization.GetText("PI.Message.Information.YearCantBeModifiedCycle") : "";
+                                                    
+                                                    
+                                    <th class="btn_azul_oscuro selects years-impact">
+
+                                       <table>
+                                          <tbody style="border-width: 0px">
+                                             <tr>
+                                                <td>
+                                                   @{
+                                       var disabledSelect = Model.AccessedByAdministrator ? false : Model.Impacts[i].GetMaxIndicatorYearPlanRows()[m].Item2;
+                                                   }
+
+                                                   @Html.DropDownYearsPlan(ViewData["listBoxYearsPlan"], Model.Impacts[i].GetMaxIndicatorYearPlanRows()[m].Item1, i, disabledSelect)
+                                                </td>
+                                                <td>
+                                                   @if (!Model.Impacts[i].GetMaxIndicatorYearPlanRows()[m].Item2)
+                                                   {
+                                                      <div title="Delete Year" onclick="deleteYearColumn(this,  @Model.ResultsMatrixId,  @Model.Impacts[i].ImpactId);" class="deleteYear" >X</div>
+                                                   }
+                                                </td>
+                                             </tr>
+                                          </tbody>
+                                       </table>
+
+                                    </th>
+                                                   paintedColumns++;
+                                    }
+
+                                    if (m >= (@Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count()))
+                                    {                                                                                                             
+                                    <th id="lastCellHead" data-type="Impact" class="btn_azul_oscuro selects"
+                                        style="text-align:center;vertical-align:middle;width: 2em"
+                                        onclick="addNewYearPlanColumGlobal(bodyTable_@i, yearPlans_@i, 0, @i, 3)">
+                                       <label style="cursor: pointer; text-align: center;" onclick=""><b>+</b></label>
+                                    </th>
+                                    }
+                                 }
+                                 <th class="btn_azul_oscuro dato05 thEOPImpacts">EOP @Model.EndProjectYear</th>
+                              </tr>
+                           </thead>
+                           <tbody id="bodyTable_@i" style="overflow-x: scroll" class="indicatorParent">
+                              @{int indicatorTrackOrder = 1; }
+                              @for (int j = 0; j < @Model.Impacts[i].ImpactIndicators.Count(); j++)
+                              {
+                                  var isAutoCalcEOP = Model.Impacts[i].ImpactIndicators[j].IsAutoCalEop;
+                                  var isAutoCalculated = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations.Any(x => x.HasAutoCalculated);
+
+                                  string rowStyle = "nivel01";
+                                  if (Math.Pow(-1, j) < 0) { rowStyle = "nivel01 impar"; }
+                                 <tr class="trackOrderRow" id="impactIndicatorOrderRow_@j" >
+                                    <td class="displayTableCaption verticalAlignMiddle">
+                                        @impactTrackOrder.@indicatorTrackOrder
+                                        @if (Model.Impacts[i].ImpactIndicators[j].IsProgender)
+                                        {
+                                            <span class="ico_badge_flag purple"></span>
+                                        }
+                                        @if (Model.Impacts[i].ImpactIndicators[j].UsedForStrategicAlignment)
+                                        {
+                                            <span class="ico_badge_flag lime"></span>
+                                        }
+                                        @if (Model.Impacts[i].ImpactIndicators[j].IsProethnicity)
+                                        {
+                                            <span class="ico_badge_flag grey"></span>
+                                        }
+                                        @if (Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator != null)
+                                        {
+                                            <span class="@Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                        }
+                                    </td>
+                                 </tr>
+                                 <tr class="@rowStyle rowIndicator" id="impactIndicatorRow_@j">
+                                    <td class="verticalShadow">
+                                       @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactId)
+                                       @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorId)
+                                       @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].OrderNumber)
+                                       @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].UsedForStrategicAlignment, new { data_val = "false", @class = "UsedForStrategicAlignment" })
+                                       @* --- Start Test Hidden Index --- *@
+                                       @Html.Hidden("Impacts[" + i + "].ImpactIndicators.Index", j)
+                                       @* ---- End Test Hidden Index ---- *@
+
+                                        <div class="dato01">
+                                            <fieldset>
+                                                <legend class="hide">Indicator</legend>
+                                                @Html.TextAreaFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].Definition, new { @class = "dato01 existingDefinition", @cols = "55", @rows = "2" })
+                                                @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].Definition)
+                                                @{ Html.ValidateFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].Definition); }
+                                                @if (Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorPredefinedIndicators.Any())
+                                                {
+                                                    <div class="blockCRF displayNone">
+                                                        <div class="setTitleBlockCRF">@Localization.GetText("CRF:")</div>
+                                                        <div class="setTDBlockCRF">
+                                                            @foreach (var item in Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorPredefinedIndicators)
+                                                            {
+                                                                <p>
+                                                                    <span class="@item.PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                                    <span class="setTextCRF">
+                                                                        @(string.Format("{0} {1} {2}",
+                                                                        item.PredefinedIndicator.IndicatorNumber,
+                                                                        item.PredefinedIndicator.NameEn,
+                                                                        item.PredefinedIndicator.IsContribution == true ? " (C)" : ""))
+                                                                    </span>
+                                                                </p>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </fieldset>
+                                        </div>
+                                        <div class="actionbar marginTop20px" id="actionBar_@i">
+                                            <a class="btn_entypo first moveUp" title="@Localization.GetText("Move Up")" onclick="moveIndicator(this)" href="javascript:void(0)">&#59231;</a>
+                                            <a class="btn_entypo first moveDown" title="@Localization.GetText("Move Down")" onclick="moveIndicator(this)" href="javascript:void(0)">&#59228;</a>
+
+                                            <a class="btn_entypo first" title="@Localization.GetText("Reassign Indicator")" onclick="reassignIndicator(@Model.ResultsMatrixId, @Model.Impacts[i].ImpactId, @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId);" href="javascript:void(0)">🔙</a>
+                                            <a class="btn_entypo first" title="@Localization.GetText("TCM.EditIndicator.LinkToPredefinedIndicatorTooltip")"
+                                               onclick="showModalIndicators(@Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId, 'Impacts');"
+                                               href="javascript:void(0)">⚑</a>
+
+                                            @if (Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator != null)
+                                            {
+                                                <a class="btn_entypo first unLinkBtn"
+                                                   onclick="showWarningRemoveIndicators(@Model.ResultsMatrixId, @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId, 'impacts')"
+                                                   href="javascript:void(0)" title="@Localization.GetText("CS.ResultMatrix.Modal.UnlinkPI")"></a>
+                                            }
+                                            @{ string order = impactTrackOrder.ToString() + '.' + indicatorTrackOrder.ToString(); }
+                                            @{ string definition = @Model.Impacts[i].ImpactIndicators[j].Definition; }
+                                            <a class="btn_entypo first addDisBtn" title="@Localization.GetText("Add Disaggregation")" onclick="addNewDisaggregation(this, disaggregationBody_@i@j,@i,@j,@Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId, false, false, @isAutoCalcEOP.ToString().ToLower());" href="javascript:void(0)"></a>
+                                            <a class="btn_entypo first" title="@Localization.GetText("Delete Indicator")" 
+                                                href="javascript:void(0)"
+                                                onclick='deleteImpactIndicator("@order","@definition", @Model.ResultsMatrixId, @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId, this, "@Localization.GetText("TCM.SelectOptionParenthesis")", "@Url.Action(
+                                                    "CheckRmIndicatorRelationsToSAClassifications",
+                                                    "View",
+                                                    new
+                                                    {
+                                                        area = "OPUS",
+                                                        operationNumber = Model.Operation.OperationNumber,
+                                                        elementType = ResultsMatrixElementTypesEnum.ImpactIndicator,
+                                                        rmElementId = Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId
+                                                    })")'></a>
+                                        </div>
+                                    </td>
+                                    <td>
+                                       <fieldset>
+                                          <legend class="hide">Unit of measure</legend>
+                                          <label class="editLabel ici" for="unit01">
+                                             @{
+                                                object htmlUnitOfMeasurenProperties = null;
+                                                if (Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator != null)
+                                                {
+                                                   htmlUnitOfMeasurenProperties = new { @class = "input min_input disabled existingUnitOfMeasure", @disabled = "disabled" };
+                                                }
+                                                else
+                                                {
+                                                   htmlUnitOfMeasurenProperties = new { @class = "input min_input disabled existingUnitOfMeasure" };
+                                                }
+                                             }
+                                             @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].UnitOfMeasure, htmlUnitOfMeasurenProperties)
+                                             @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].UnitOfMeasure)
+                                          </label>
+                                       </fieldset>
+                                    </td>
+                                    <td>
+                                       <fieldset>
+                                          <legend class="hide">Baseline</legend>
+                                          <label class="editLabel" for="baseline01">
+                                             @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].Baseline, new Dictionary<string, Object> { { "class", "input min_input existingBaseline auto" }, { "data-a-sep", "," }, { "data-a-dec", "." }, { "data-v-min", "-9999999999999999.99" }, { "data-v-max", "9999999999999999.99" } })
+                                             @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].Baseline)
+
+                                          </label>
+                                       </fieldset>
+                                    </td>
+                                    <td class="dato02">
+                                       <fieldset>
+                                          <legend class="hide">Dropdown con opciones</legend>
+                                          <ul class="optionList">
+                                             <li class="small">
+                                                @{
+                                                var yearList = new List<SelectListItem>();
+
+                                                foreach (var item in (List<int>)ViewData["listBoxYearsPlan"])
+                                                {
+                                                   if (Model.Impacts[i].ImpactIndicators[j].BaselineYear == item)
+                                                   {
+                                                      yearList.Add(new SelectListItem() { Value = item.ToString(), Text = item.ToString(), Selected = true });
+                                                   }
+                                                   else
+                                                   {
+                                                      yearList.Add(new SelectListItem() { Value = item.ToString(), Text = item.ToString() });
+                                                   }
+                                                }           
+                                                }
+                                                @Html.DropDownListFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].BaselineYear, yearList, new { @class = "optionSelect optionSelectYearsPlan existingBaseLineYear" })
+                                             </li>
+                                          </ul>
+                                          @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].BaselineYear)
+                                       </fieldset>
+                                    </td>
+                                    <td class="verticalAlignMiddle">
+                                        <table class="ouputTable">
+                                            <tbody style="border-width: 0px">
+                                                <tr>
+                                                    <td class="rm_edit_rh">
+                                                        <label class="editLabel">@Localization.GetText("P")</label>
+                                                    </td>
+                                                </tr>
+                                                <tr class="">
+                                                    <td class="rm_edit_rh">
+                                                        <label class="editLabel">@Localization.GetText("P(a)")</label>
+                                                    </td>
+                                                </tr>
+                                                <tr class="">
+                                                    <td class="rm_edit_rh">
+                                                        <label class="editLabel">@Localization.GetText("A")</label>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </td>
+
+                                    @{ImpactIndicatorYearPlanModel endOfProject = null; }
+
+                                    @if (Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans.Count() > 0)
+                                    {
+                                        int columnas = 0;
+
+                                        endOfProject = Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans
+                                            .Where(oyp => oyp.Year == ResultsMatrixCodes.EndOfProjectYear).FirstOrDefault();
+
+                                        Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans.Remove(endOfProject);
+
+                                        foreach (var yearPlan in @Model.Impacts[i].GetMaxIndicatorYearPlanRows())
+                                        {
+                                            var cont = 0;
+
+                                            for (int k = 0; k < @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans.Count(); k++)
+                                            {
+                                                if (yearPlan.Item1 == @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].Year)
+                                                {
+                                                    ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                        new ResultsMatrixBusinessRulesPhysicalProgress(Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans);
+                                                    int referenceLastYearOutputProduct =
+                                                        rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                    int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                    int referenceYear =
+                                                        rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+
+                                       <td data-rowcolumnrelated="@(yearPlan.Item1)" class="dato07"
+                                           data-yearcolumnrelated="@(Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].Year)">
+                                           <input name="referenceYear" type="hidden" value="@referenceYear">
+                                           <input name="pmryear" type="hidden" value="@pmrYear">
+                                           <input name="isSpecialAutoCalculated" type="hidden" value="@isAutoCalculated.ToString()">
+                                           @Html.Hidden("Impacts[" + i + "].ImpactIndicators[" + j + "].ImpactIndicatorYearPlans[" + k + "].Year",
+                                                yearPlan.Item1, new { @class = "hiddenYear" })
+                                          <table class="ouputTable">
+                                             <tbody style="border-width: 0px">
+                                                <tr class="rm_p_row">
+                                                   <td class="rm_edit_rh">
+                                                      <label class="editLabel yearData_@columnas" seq="@k" for="">
+                                                         @{Dictionary<string, object> htmlStartUpPlanProperties = null; }
+                                                         @{Dictionary<string, object> htmlAnnualPlanProperties = null; }
+                                                         @{Dictionary<string, object> htmlActualPlanProperties = null; }
+
+                                                         @{ var isOriginalPlanEditable = Model.Impacts[i].ImpactIndicators[j]
+                                                                .ImpactIndicatorYearPlans[k].isOriginalPlanEditable; }
+
+                                                         @if (isOriginalPlanEditable && !isAutoCalculated)
+                                                         {
+                                                             htmlStartUpPlanProperties = new Dictionary<string, Object>
+                                                             {
+                                                                 { "class", "input min_input numberInput auto" },
+                                                                 { "data-referenceyear", @referenceYear },
+                                                                 { "data-pmryear", @pmrYear },
+                                                                 { "data-a-sep", "," },
+                                                                 { "data-a-dec", "." },
+                                                                 { "data-v-min", "-9999999999999999.99" },
+                                                                 { "data-v-max", "9999999999999999.99" },
+                                                                 { "data-section", "calc_p_row" }
+                                                             };
+                                                         }
+                                                         else
+                                                         {
+                                                             htmlStartUpPlanProperties = new Dictionary<string, Object>
+                                                             {
+                                                                 { "class", "input min_input numberInput auto bcGray" },
+                                                                 { "data-a-sep", "," },
+                                                                 { "data-a-dec", "." },
+                                                                 { "data-v-min", "-9999999999999999.99" },
+                                                                 { "data-v-max", "9999999999999999.99" },
+                                                                 { "readonly", "readonly" },
+                                                                 { "data-section", "calc_p_row" }
+                                                             };
+                                                         }
+
+                                                         @* --- Start Test Hidden Index --- *@
+                                                         @Html.Hidden("Impacts[" + i + "].ImpactIndicators[" + j + "].ImpactIndicatorYearPlans.Index", k)
+                                                         @* ---- End Test Hidden Index ---- *@
+
+                                                         @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].ImpactIndicatorId, new { data_val = "false" })
+                                                         @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].Year, new { data_val = "false" })
+                                                         @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].ImpactIndicatorYearPlanId, new { data_val = "false" })
+                                                         @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].OriginalPlan, htmlStartUpPlanProperties)
+                                                      </label>
+                                                   </td>
+                                                </tr>
+                                                <tr class="rm_pa_row">
+                                                   <td class="rm_edit_rh">
+                                                      <label class="editLabel" for="">
+                                                         @{ var isAnnualPlanEditable = Model.Impacts[i].ImpactIndicators[j]
+                                                                .ImpactIndicatorYearPlans[k].isAnnualPlanEditable; }
+
+                                                         @if (isAnnualPlanEditable && !isAutoCalculated)
+                                                         {
+                                                             htmlAnnualPlanProperties = new Dictionary<string, Object>
+                                                            {
+                                                                 { "class", "input min_input numberInput auto" },
+                                                                 { "data-referenceyear", @referenceYear },
+                                                                 { "data-pmryear", @pmrYear },
+                                                                 { "data-a-sep", "," },
+                                                                 { "data-a-dec", "." },
+                                                                 { "data-v-min", "-9999999999999999.99" },
+                                                                 { "data-v-max", "9999999999999999.99" },
+                                                                 { "data-section", "calc_pa_row" }
+                                                             };
+                                                         }
+                                                         else
+                                                         {
+                                                             htmlAnnualPlanProperties = new Dictionary<string, Object>
+                                                             {
+                                                                 { "class", "input min_input numberInput auto bcGray" },
+                                                                 { "data-a-sep", "," },
+                                                                 { "data-a-dec", "." },
+                                                                 { "data-v-min", "-9999999999999999.99" },
+                                                                 { "data-v-max", "9999999999999999.99" },
+                                                                 { "readonly", "readonly" },
+                                                                 { "data-section", "calc_pa_row" }
+                                                             };
+                                                         }
+
+                                                         @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].AnnualPlan, htmlAnnualPlanProperties)
+                                                      </label>
+                                                   </td>
+                                                </tr>
+                                                <tr class="rm_ac_row">
+                                                   <td class="rm_edit_rh">
+                                                      <label class="editLabel" for="">
+                                                         @{ var isActualValueEditable = Model.Impacts[i].ImpactIndicators[j]
+                                                                .ImpactIndicatorYearPlans[k].isActualValueEditable; }
+
+                                                         @if (isActualValueEditable && !isAutoCalculated)
+                                                         {
+                                                             htmlActualPlanProperties = new Dictionary<string, Object>
+                                                             {
+                                                                 { "class", "input min_input numberInput auto" },
+                                                                 { "data-referenceyear", @referenceYear },
+                                                                 { "data-pmryear", @pmrYear },
+                                                                 { "data-a-sep", "," },
+                                                                 { "data-a-dec", "." },
+                                                                 { "data-v-min", "-9999999999999999.99" },
+                                                                 { "data-v-max", "9999999999999999.99" },
+                                                                 { "data-section", "calc_a_row" }
+                                                             };
+                                                         }
+                                                         else
+                                                         {
+                                                             htmlActualPlanProperties = new Dictionary<string, Object>
+                                                             {
+                                                                 { "class", "input min_input numberInput auto bcGray" },
+                                                                 { "data-a-sep", "," },
+                                                                 { "data-a-dec", "." },
+                                                                 { "data-v-min", "-9999999999999999.99" },
+                                                                 { "data-v-max", "9999999999999999.99" },
+                                                                 { "readonly", "readonly" },
+                                                                 { "data-section", "calc_a_row" }
+                                                             };
+                                                         }
+
+                                                         @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].ActualValue, htmlActualPlanProperties)
+                                                      </label>
+                                                   </td>
+                                                </tr>
+                                             </tbody>
+                                          </table>
+                                       </td> 
+                                                cont++;
+                                             }
+                                          }
+
+                                          if (cont == 0)
+                                          {
+                                           <td class="dato07">
+                                              <table>
+                                                 <tbody style="border-width: 0px">
+                                                    <tr class="rm_p_row">
+                                                       <td>
+                                                          <label class="editLabel" for="">
+                                                             <input data-val="true" data-val-required="The ImpactIndicatorId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactIndicatorYearPlans_@(columnas)__ImpactIndicatorId" name="Impacts[@(i)].ImpactIndicators[@(j)].ImpactIndicatorYearPlans[@(columnas)].ImpactIndicatorId" type="hidden" value="@Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId" class="valid">
+                                                             <input data-val="true" data-val-required="The ImpactIndicatorYearPlanId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactIndicatorYearPlans_@(columnas)__ImpactIndicatorYearPlanId" name="Impacts[@(i)].ImpactIndicators[@(j)].ImpactIndicatorYearPlans[@(columnas)].ImpactIndicatorYearPlanId" type="hidden" value="">
+                                                             <input data-val="true" data-val-required="The Year field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactIndicatorYearPlans_@(columnas)__Year" name="Impacts[@(i)].ImpactIndicators[@(j)].ImpactIndicatorYearPlans[@(columnas)].Year" type="hidden" value="@(yearPlan)">
+
+                                                             <input class="input min_input"
+                                                                    data-val="true" data-val-required="The OriginalPlan field is required."
+                                                                    id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactIndicatorYearPlans_@(columnas)__OriginalPlan"
+                                                                    name="Impacts[@(i)].ImpactIndicators[@(j)].ImpactIndicatorYearPlans[@(columnas)].OriginalPlan"
+                                                                    type="text" value="0"
+                                                                    @(isAutoCalculated ? "readonly=readonly" : string.Empty)>
+                                                          </label>
+                                                       </td>
+                                                    </tr>
+                                                    <tr class="rm_pa_row">
+                                                       <td>
+                                                          <label class="editLabel" for="">
+                                                             <input class="input min_input"
+                                                                    data-val="true" data-val-required="The AnnualPlan field is required."
+                                                                    id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactIndicatorYearPlans_@(columnas)__AnnualPlan"
+                                                                    name="Impacts[@(i)].ImpactIndicators[@(j)].ImpactIndicatorYearPlans[@(columnas)].AnnualPlan"
+                                                                    type="text" value="0"
+                                                                    @(isAutoCalculated ? "readonly=readonly" : string.Empty)>
+                                                          </label>
+                                                       </td>
+                                                    </tr>
+                                                    <tr class="rm_ac_row">
+                                                       <td>
+                                                          <label class="editLabel" for="">
+                                                             <input class="input min_input"
+                                                                    data-val="true" data-val-required="The ActualValue field is required."
+                                                                    id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactIndicatorYearPlans_@(columnas)__ActualValue"
+                                                                    name="Impacts[@(i)].ImpactIndicators[@(j)].ImpactIndicatorYearPlans[@(columnas)].ActualValue"
+                                                                    type="text" value="0"
+                                                                    @(isAutoCalculated ? "readonly=readonly" : string.Empty)>
+                                                          </label>
+                                                       </td>
+                                                    </tr>
+                                                 </tbody>
+                                              </table>
+                                           </td>
+                                          }
+                                          cont++;
+                                          columnas++;
+                                       }
+
+                                    }
+
+                                     <td>
+                                         <table class="ouputTable">
+                                             <tbody style="border-width: 0px">
+                                                 <tr>
+                                                     <td></td>
+                                                 </tr>
+                                             </tbody>
+                                         </table>
+                                     </td>
+
+                                    @* ----------------------------------------------------------------------------------------------*@
+                                    @* ---------------------------------- START EOP INDICATOR EDITABLE ----------------------------  *@
+                                    <td id="lastCellContent" class="dato07 totalOutputYearPlan">
+                                       <table class="ouputTable">
+                                          <tbody style="border-width: 0px">
+                                             <tr class="rm_p_row">
+                                                <td class="rm_edit_rh">
+                                                   <label class="editLabel" for="">
+                                                      <input data-val="true" data-val-required="The ImpactIndicatorId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_ImpactIndicatorId" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.ImpactIndicatorId" type="hidden" value="@endOfProject.ImpactIndicatorId">
+                                                      <input data-val="true" data-val-required="The ImpactIndicatorYearPlanId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_ImpactIndicatorYearPlanId" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.ImpactIndicatorYearPlanId" type="hidden" value="@endOfProject.ImpactIndicatorYearPlanId">
+                                                      <input data-val="true" data-val-required="The Year field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_Year" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.Year" type="hidden" value="@endOfProject.Year">
+                                                      
+                                                       <input class="input min_input existingOriginalPlan auto
+                                                              @(isAutoCalcEOP || isAutoCalculated ? "bcGray" : null)"
+                                                              data-val="true"
+                                                              id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_OriginalPlan"
+                                                              name="Impacts[@i].ImpactIndicators[@j].EndOfProject.OriginalPlan"
+                                                              type="text" data-a-dec="." data-a-sep="," data-v-min="-9999999999999999.99" data-v-max="9999999999999999.99"
+                                                              value="@endOfProject.OriginalPlan" @( !endOfProject.isOriginalPlanEditable ? "disabled='disabled'" : "")
+                                                              data-section="@(isAutoCalculated ? "calc_p_row" : string.Empty)"
+                                                              @(isAutoCalcEOP || isAutoCalculated ? "readonly=readonly" : null)>
+                                                      
+                                                       <input id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_OriginalPlan" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.OriginalPlan" type="hidden" value="@endOfProject.OriginalPlan" >
+                                                   </label>
+                                                </td>
+                                             </tr>
+                                             <tr class="rm_pa_row">
+                                                <td class="rm_edit_rh">
+                                                   <label class="editLabel" for="">
+                                                      <input class="input min_input existingAnnualPlan auto
+                                                             @(endOfProject.isOldAnnualPlanExists ? "HasAnnualPreviousValue" : "")
+                                                             @(isAutoCalcEOP || isAutoCalculated ? "bcGray" : null)"
+                                                             data-val="true" id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_AnnualPlan"
+                                                             name="Impacts[@i].ImpactIndicators[@j].EndOfProject.AnnualPlan"
+                                                             type="text" data-a-dec="." data-a-sep="," data-v-min="-9999999999999999.99" data-v-max="9999999999999999.99"
+                                                             value="@endOfProject.AnnualPlan"
+                                                             @( !endOfProject.isAnnualPlanEditable ? "disabled='disabled'" : "")
+                                                             data-section="@(isAutoCalculated ? "calc_pa_row" : string.Empty)"
+                                                             @(isAutoCalcEOP || isAutoCalculated ? "readonly=readonly" : null)>
+
+                                                      <input id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_AnnualPlan" 
+                                                             name="Impacts[@i].ImpactIndicators[@j].EndOfProject.AnnualPlan" 
+                                                             type="hidden" 
+                                                             value="@endOfProject.OldAnnualPlan" >
+                                                   </label>
+                                                </td>
+                                             </tr>
+                                             <tr class="rm_ac_row">
+                                                <td class="rm_edit_rh">
+                                                   <label class="editLabel" for="">
+                                                      <input class="input min_input auto
+                                                             @(isAutoCalcEOP || isAutoCalculated ? "bcGray" : null)"
+                                                             data-val="true" id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_ActualValue"
+                                                             name="Impacts[@i].ImpactIndicators[@j].EndOfProject.ActualValue"
+                                                             type="text" data-a-dec="." data-a-sep="," data-v-min="-9999999999999999.99" data-v-max="9999999999999999.99"
+                                                             value="@endOfProject.ActualValue"
+                                                             @( !endOfProject.isActualValueEditable ? "disabled='disabled'" : "")
+                                                             data-section="@(isAutoCalculated ? "calc_a_row" : string.Empty)"
+                                                             @(isAutoCalcEOP || isAutoCalculated ? "readonly=readonly" : null)>
+                                                   </label>
+                                                </td>
+                                             </tr>
+                                          </tbody>
+                                       </table>
+                                    </td>
+                                    @* ----------------------------------------------------------------------------------------------*@
+                                 </tr>
+
+                                 <!-- Disaggregation start -->
+                                    if (Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations.Count() > 0)
+                                    {
+
+                                 <tr class="nivel02">
+                                    @{ int dissColSpan = (7 + @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count()); }
+                                    <td colspan="@dissColSpan" class="spanCell">
+                                       <div class="minimizeTable child">
+                                          <div class="minimizeBar">
+                                             <div class="tableOperator" style="top: 0px; z-index: 1">Minimize/Maximize</div>
+                                          </div>
+                                          <div class="operatorBar" style="height: 240px;"></div>
+                                          <div class="tableGrid" style="display: block;">
+                                             <table class="grid disagChildTable">
+                                                <thead class="disagChildHead">
+
+                                                   <tr class="headRowDisaggregationYears">
+                                                       <th class="btn_azul_oscuro dato00">
+                                                          <span>@Localization.GetText("Disaggregation categories")</span>
+                                                          <span class="glyphicon glyphicon-info-sign toolTipDisaggregation"
+                                                              title="@Localization.GetText("Same unit of measure as indicator/output")">
+                                                          </span>
+                                                      </th>
+                                                      <th class="btn_azul_oscuro dato04 colIni"></th>
+                                                      @for (int l = 0; l < @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count(); l++)
+                                                      {
+                                                         <th class="btn_azul_oscuro dato04 year">@Model.Impacts[i].GetMaxIndicatorYearPlanRows()[l].Item1</th>    
+                                                      }
+                                                      <th class="btn_azul_oscuro dato04"></th>
+                                                      <th class="btn_azul_oscuro dato05 thEOPImpacts" id="lastCellHeadChild">@Localization.GetText("EOP") @Model.EndProjectYear</th>
+                                                   </tr>
+                                                </thead>
+                                                <tbody id="disaggregationBody_@i@j" class="disagChild">
+                                                   @for (int m = 0; m < @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations.Count(); m++)
+                                                   {
+                                                       int columnasDis = 0;
+                                                       string rowDissagregationStyle = "nivel01";
+                                                       bool isCalculated = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsCalculated;
+                                                       bool isLinked = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsLinked;
+
+                                                       if (Math.Pow(-1, m) < 0)
+                                                       {
+                                                           rowDissagregationStyle = "nivel01 impar";
+                                                       }
+
+                                                    <tr class="@rowDissagregationStyle" id="impactDisaggregationRow_@m"
+                                                        data-milestoneindex="" onmouseover="showActionBar(this);" onmouseout="hideActionBar(this);">
+                                                        <td class="dato01">
+                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorId)
+                                                            @Html.Hidden("Impacts[" + i + "].ImpactIndicators[" + j + "].ImpactDisaggregations.Index", m)
+
+                                                            @{
+                                                       object htmlDissagNameProperties = null;
+                                                       if (Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator != null)
+                                                       {
+                                                           htmlDissagNameProperties = new { @class = "dato01", @cols = "55", @rows = "2", @disabled = "disabled" };
+                                                       }
+                                                       else
+                                                       {
+                                                           htmlDissagNameProperties = new { @class = "dato01", @cols = "55", @rows = "2" };
+                                                       }
+                                                            }
+
+                                                            <div>
+                                                                @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactIndicatorId)
+                                                                @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationId)
+
+                                                                @if (Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsCalculated ||
+                                                                    Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsLinked)
+                                                                {
+                                                                    <p class="txtAreaDisaggregation mb5 dato01" rows="2" cols="55">
+                                                                        @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].DisaggregationName
+                                                                        <span class="txtPredefined">@Localization.GetText("Predefined")</span>
+                                                                    </p>
+                                                                }
+                                                                else
+                                                                {
+                                                                    @Html.TextAreaFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].DisaggregationName, htmlDissagNameProperties)
+                                                                }
+                                                            </div>
+                                                        </td>
+                                                        <td class="verticalAlignMiddle">
+                                                            <table class="ouputTable">
+                                                                <tbody style="border-width: 0px">
+                                                                    <tr>
+                                                                        <td class="rm_edit_rh">
+                                                                            <label class="editLabel">@Localization.GetText("P")</label>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <td class="rm_edit_rh">
+                                                                            <label class="editLabel">@Localization.GetText("P(a)")</label>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <td class="rm_edit_rh">
+                                                                            <label class="editLabel">@Localization.GetText("A")</label>
+                                                                        </td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+
+                                                            @if (!Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsCalculated)
+                                                            {
+                                                                <div class="actionBarDisagg" id="actionBarDisagg_@j@m">
+                                                                    <a class="btn_entypo first" 
+                                                                       onclick="deleteDissagregation(this, @Model.ResultsMatrixId, @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationId,  impactDisaggregationRow_@m, false)"
+                                                                       title="@Localization.GetText("Delete disaggregation")" href="javascript:void(0);"></a>
+                                                                </div>
+                                                            }
+
+                                                        </td>
+
+                                                        @{Dictionary<string, object> htmlDissagStartUpPlanProperties = null; }
+                                                        @{Dictionary<string, object> htmlDissagAnnualPlanProperties = null; }
+                                                        @{Dictionary<string, object> htmlDissagActualPlanProperties = null; }
+
+
+                                                        @{
+
+                                                            bool isAutoCalc = Model.Impacts[i].ImpactIndicators[j].IsAutoCalEop;
+                                                            var dissagEndOfProject = Model.Impacts[i].ImpactIndicators[j]
+                                                                .ImpactDisaggregations[m].ImpactDisaggregationYearPlans
+                                                                    .Where(oyp => oyp.Year == -1)
+                                                                    .FirstOrDefault();
+
+                                                            Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Remove(dissagEndOfProject);
+                                                        }
+
+                                                        @foreach (var dissagregationPlan in @Model.Impacts[i].GetMaxIndicatorYearPlanRows())
+                                                        {
+                                                            for (int n = 0; n < @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Count(); n++)
+                                                            {
+                                                                htmlDissagStartUpPlanProperties = null;
+                                                                htmlDissagAnnualPlanProperties = null;
+                                                                htmlDissagActualPlanProperties = null;
+
+                                                                ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                                    new ResultsMatrixBusinessRulesPhysicalProgress(Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans);
+                                                                int referenceLastYearOutputProduct =
+                                                                    rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                                int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                                int referenceYear =
+                                                                    rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+
+                                                                if (@Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year == dissagregationPlan.Item1)
+                                                                {
+                                                                    <td class="dato07 disaggYear" data-rowcolumnrelated="@(dissagregationPlan.Item1)">
+                                                                       <input name="referenceYear" type="hidden" value="@referenceYear">
+                                                                        <input name="pmryear" type="hidden" value="@pmrYear">
+                                                                       @Html.Hidden("Impacts[" + i + "].ImpactIndicators[" + j + "].ImpactDisaggregationYearPlans[" + n + "].Year",
+                                                                            dissagregationPlan.Item1, new { @class = "hiddenYear" })
+                                                                        <table class="ouputTable styleTable">
+                                                                            <tbody style="border-width: 0px">
+                                                                                <tr class="rm_p_row"
+                                                                                    @(isCalculated ?
+                                                                                        string.Format("{0}{1}",
+                                                                                            "data-autocalculatedrelated=rm_p_row_",
+                                                                                            Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year) :
+                                                                                        string.Empty)>
+                                                                                    <td class="rm_edit_rh">
+                                                                                        <label class="editLabel yearDataDis_@columnasDis" seq="@n" for="">
+
+                                                                                            @{ bool isOriginalPlanEditable = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].isOriginalPlanEditable; }
+
+                                                                                            @if (!isOriginalPlanEditable)
+                                                                                            {
+                                                                                                htmlDissagStartUpPlanProperties = new Dictionary<string, Object>
+                                                                                                {
+                                                                                                    { "class", "input min_input numberInput auto bcGray" },
+                                                                                                    { "data-a-sep", "," },
+                                                                                                    { "data-a-dec", "." },
+                                                                                                    { "data-v-min", "-9999999999999999.99" },
+                                                                                                    { "data-v-max", "9999999999999999.99" },
+                                                                                                    { "readonly", "readonly" },
+                                                                                                    { "data-yearcolumn", dissagregationPlan.Item1}
+                                                                                                };
+                                                                                            }
+                                                                                            else
+                                                                                            {
+                                                                                                htmlDissagStartUpPlanProperties = new Dictionary<string, Object>
+                                                                                                {
+                                                                                                    { "class", "input min_input numberInput auto" },
+                                                                                                    { "data-a-sep", "," },
+                                                                                                    { "data-a-dec", "." },
+                                                                                                    { "data-v-min", "-9999999999999999.99" },
+                                                                                                    { "data-v-max", "9999999999999999.99" },
+                                                                                                    { "data-referenceyear", @referenceYear },
+                                                                                                    { "data-pmryear", @pmrYear },
+                                                                                                    { "data-yearcolumn", dissagregationPlan.Item1}
+                                                                                                };
+                                                                                            }
+
+                                                                                            @* --- Start Test Hidden Index --- *@
+                                                                                            @Html.Hidden("Impacts[" + i + "].ImpactIndicators[" + j + "].ImpactDisaggregations[" + m + "].ImpactDisaggregationYearPlans.Index", n)
+                                                                                            @* ---- End Test Hidden Index ---- *@
+
+                                                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactIndicatorId)
+                                                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationId)
+                                                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ImpactDisaggregationId)
+                                                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ImpactDisaggregationYearPlanId)
+                                                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year)
+                                                                                            @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].OriginalPlan, htmlDissagStartUpPlanProperties)
+                                                                                        </label>
+                                                                                    </td>
+                                                                                </tr>
+                                                                                <tr class="rm_pa_row"
+                                                                                    @(isCalculated ?
+                                                                                        string.Format("{0}{1}",
+                                                                                            "data-autocalculatedrelated=rm_pa_row_",
+                                                                                            Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year) :
+                                                                                        string.Empty)>
+                                                                                    <td class="rm_edit_rh">
+                                                                                        <label class="editLabel" for="">
+
+                                                                                            @{ bool isAnnualPlanEditable = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].isAnnualPlanEditable; }
+
+                                                                                            @if (!isAnnualPlanEditable)
+                                                                                            {
+                                                                                                htmlDissagAnnualPlanProperties = new Dictionary<string, Object>
+                                                                                                {
+                                                                                                    { "class", "input min_input numberInput auto bcGray" },
+                                                                                                    { "data-a-sep", "," },
+                                                                                                    { "data-a-dec", "." },
+                                                                                                    { "data-v-min", "-9999999999999999.99" },
+                                                                                                    { "data-v-max", "9999999999999999.99" },
+                                                                                                    { "readonly", "readonly" },
+                                                                                                    { "data-yearcolumn", dissagregationPlan.Item1}
+                                                                                                };
+                                                                                            }
+                                                                                            else
+                                                                                            {
+                                                                                                htmlDissagAnnualPlanProperties = new Dictionary<string, Object>
+                                                                                                {
+                                                                                                    { "class", "input min_input numberInput auto" },
+                                                                                                    { "data-a-sep", "," },
+                                                                                                    { "data-a-dec", "." },
+                                                                                                    { "data-v-min", "-9999999999999999.99" },
+                                                                                                    { "data-v-max", "9999999999999999.99" },
+                                                                                                    { "data-referenceyear", @referenceYear },
+                                                                                                    { "data-pmryear", @pmrYear },
+                                                                                                    { "data-yearcolumn", dissagregationPlan.Item1}
+                                                                                                };
+                                                                                            }
+
+                                                                                            @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].AnnualPlan, htmlDissagAnnualPlanProperties)
+                                                                                        </label>
+                                                                                    </td>
+                                                                                </tr>
+                                                                                <tr class="rm_ac_row"
+                                                                                    @(isCalculated ?
+                                                                                        string.Format("{0}{1}",
+                                                                                            "data-autocalculatedrelated=rm_ac_row_",
+                                                                                            Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year) :
+                                                                                        string.Empty)>
+                                                                                    <td class="rm_edit_rh">
+                                                                                        <label class="editLabel" for="">
+
+                                                                                            @{ bool isActualValueEditable = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].isActualValueEditable; }
+
+                                                                                            @if (!isActualValueEditable)
+                                                                                            {
+                                                                                                htmlDissagActualPlanProperties = new Dictionary<string, Object>
+                                                                                                {
+                                                                                                    { "class", "input min_input numberInput auto bcGray" },
+                                                                                                    { "data-a-sep", "," },
+                                                                                                    { "data-a-dec", "." },
+                                                                                                    { "data-v-min", "-9999999999999999.99" },
+                                                                                                    { "data-v-max", "9999999999999999.99" },
+                                                                                                    { "readonly", "readonly" },
+                                                                                                    { "data-yearcolumn", dissagregationPlan.Item1}
+                                                                                                };
+                                                                                            }
+                                                                                            else
+                                                                                            {
+                                                                                                htmlDissagActualPlanProperties = new Dictionary<string, Object>
+                                                                                                {
+                                                                                                    { "class", "input min_input numberInput auto" },
+                                                                                                    { "data-a-sep", "," },
+                                                                                                    { "data-a-dec", "." },
+                                                                                                    { "data-v-min", "-9999999999999999.99" },
+                                                                                                    { "data-v-max", "9999999999999999.99" },
+                                                                                                    { "data-referenceyear", @referenceYear },
+                                                                                                    { "data-pmryear", @pmrYear },
+                                                                                                    { "data-yearcolumn", dissagregationPlan.Item1}
+                                                                                                };
+                                                                                            }
+
+                                                                                            @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ActualValue, htmlDissagActualPlanProperties)
+                                                                                        </label>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </td>
+                                                                }
+                                                            }
+                                                            columnasDis++;
+                                                        }
+                                                        <td class="dato07 disaggYearEmpty">
+                                                            <table class="ouputTable">
+                                                                <tbody style="border-width: 0px">
+                                                                    <tr>
+                                                                        <td></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </td>
+                                                        <td id="lastCellContent" class="dato07 totalMilestoneYearPlan">
+                                                            <table class="ouputTable styleTable">
+                                                                <tbody style="border-width: 0px">
+                                                                    <tr class="rm_p_row">
+                                                                        <td class="rm_edit_rh">
+                                                                            <label class="editLabel" for="">
+                                                                                <input data-val="true" data-val-required="The ImpactDisaggregationId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactDisaggregations_@(m)__EndOfProject_ImpactDisaggregationId" name="Impacts[@i].ImpactIndicators[@j].ImpactDisaggregations[@m].EndOfProject.ImpactDisaggregationId" type="hidden" value="@dissagEndOfProject.ImpactDisaggregationId">
+                                                                                <input data-val="true" data-val-required="The ImpactDisaggregationYearPlanId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactDisaggregations_@(m)__EndOfProject_ImpactDisaggregationYearPlanId" name="Impacts[@i].ImpactIndicators[@j].ImpactDisaggregations[@m].EndOfProject.ImpactDisaggregationYearPlanId" type="hidden" value="@dissagEndOfProject.ImpactDisaggregationYearPlanId">
+                                                                                <input data-val="true" data-val-required="The Year field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactDisaggregations_@(m)__EndOfProject_Year" name="Impacts[@i].ImpactIndicators[@j].ImpactDisaggregations[@m].EndOfProject.Year" type="hidden" value="@dissagEndOfProject.Year">
+                                                                                <input class="input min_input numberInput auto @(isAutoCalc ? "bcGray" : "")" data-val="true"
+                                                                                       id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactDisaggregations_@(m)__EndOfProject_OriginalPlan"
+                                                                                       name="Impacts[@i].ImpactIndicators[@j].ImpactDisaggregations[@m].EndOfProject.OriginalPlan"
+                                                                                       type="text" data-a-dec="." data-a-sep="," data-v-min="-9999999999999999.99" data-v-max="9999999999999999.99"
+                                                                                       value="@dissagEndOfProject.OriginalPlan" @(isAutoCalc ? "readonly='readonly'" : "")
+                                                                                       data-section="@(isCalculated ? "calc_p_row" : string.Empty)">
+                                                                            </label>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr class="rm_pa_row">
+                                                                        <td class="rm_edit_rh">
+                                                                            <label class="editLabel" for="">
+                                                                                <input class="input min_input numberInput auto @(isAutoCalc ? "bcGray" : "")" data-val="true"
+                                                                                       id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactDisaggregations_@(m)__EndOfProject_AnnualPlan"
+                                                                                       name="Impacts[@i].ImpactIndicators[@j].ImpactDisaggregations[@m].EndOfProject.AnnualPlan"
+                                                                                       type="text" data-a-dec="." data-a-sep="," data-v-min="-9999999999999999.99" data-v-max="9999999999999999.99"
+                                                                                       value="@dissagEndOfProject.AnnualPlan" @(isAutoCalc ? "readonly='readonly'" : "")
+                                                                                       data-section="@(isCalculated ? "calc_pa_row" : string.Empty)">
+                                                                            </label>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr class="rm_ac_row">
+                                                                        <td class="rm_edit_rh">
+                                                                            <label class="editLabel" for="">
+                                                                                <input class="input min_input numberInput auto @(isAutoCalc ? "bcGray" : "")" data-val="true"
+                                                                                       id="Impacts_@(i)__ImpactIndicators_@(j)__ImpactDisaggregations_@(m)__EndOfProject_ActualValue"
+                                                                                       name="Impacts[@i].ImpactIndicators[@j].ImpactDisaggregations[@m].EndOfProject.ActualValue"
+                                                                                       type="text" data-a-dec="." data-a-sep="," data-v-min="-9999999999999999.99" data-v-max="9999999999999999.99"
+                                                                                       value="@dissagEndOfProject.ActualValue" @(isAutoCalc ? "readonly='readonly'" : "")
+                                                                                       data-section="@(isCalculated ? "calc_a_row" : string.Empty)">
+                                                                            </label>
+                                                                        </td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+
+                                                   }
+                                                </tbody>
+                                             </table>
+                                          </div>
+                                       </div>
+                                    </td>
+                                 </tr>
+                                    }
+                                    else
+                                    {
+                                                
+                                 <tr class="nivel02">
+                                    @{ int dissColSpan = (7 + @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count()); }
+                                    <td colspan="@dissColSpan" class="spanCell">
+                                       <div class="minimizeTable child">
+                                          <div class="minimizeBar" style="display: none">
+                                             <div class="tableOperator" style="top: 0px; z-index: 1">Minimize/Maximize</div>
+                                          </div>
+                                          <div class="operatorBar" style="height: 240px;"></div>
+                                          <div class="tableGrid" style="display: block;">
+                                             <table class="grid disagChildTable ouputTable" style="display: none">
+                                                <thead class="disagChildHead">
+                                                   <tr class="headRowDisaggregationYears">
+                                                      <th class="btn_azul_oscuro dato00">
+                                                          <span>@Localization.GetText("Disaggregation categories")</span>
+                                                          <span class="glyphicon glyphicon-info-sign toolTipDisaggregation"
+                                                              title="@Localization.GetText("Same unit of measure as indicator/output")">
+                                                          </span>
+                                                      </th>
+                                                      <th class="btn_azul_oscuro dato04 colIni"></th>
+                                                      @for (int l = 0; l < @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count(); l++)
+                                                      {
+                                                         <th class="btn_azul_oscuro dato04 year">@Model.Impacts[i].GetMaxIndicatorYearPlanRows()[l].Item1</th>    
+                                                      }
+                                                      <th class="btn_azul_oscuro dato04"></th>
+                                                      <th class="btn_azul_oscuro dato05 thEOPImpacts" id="lastCellHeadChild">EOP  @Model.EndProjectYear</th>
+                                                   </tr>
+                                                </thead>
+                                                <tbody id="disaggregationBody_@i@j" class="disagChild">
+                                                   @for (int m = 0; m < @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations.Count(); m++)
+                                                   {
+                                                      string rowDissagregationStyle = "nivel01";
+                                                      if (Math.Pow(-1, m) < 0) { rowDissagregationStyle = "nivel01 impar"; }
+                                                      <tr class="@rowDissagregationStyle" id="impactDisaggregationRow_@m" onmouseover="showActionBar(this);" onmouseout="hideActionBar(this);" >
+                                                         <td class="dato01">
+                                                            @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactIndicatorId)
+                                                            <div class="">
+                                                               @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactIndicatorId)
+                                                               @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationId)
+                                                               @Html.TextAreaFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].DisaggregationName, new { @class = "dato01", @cols = "55", @rows = "2" })
+                                                            </div>
+                                                         </td>
+                                                         <td class="dato07">
+                                                            <table class="ouputTable">
+                                                               <tbody style="border-width: 0px">
+                                                                  <tr class="rm_p_row">
+                                                                     <td class="rm_edit_rh">&nbsp;</td>
+                                                                  </tr>
+                                                                  <tr class="rm_pa_row">
+                                                                     <td class="rm_edit_rh">&nbsp;</td>
+                                                                  </tr>
+                                                                  <tr class="rm_ac_row">
+                                                                     <td class="rm_edit_rh">&nbsp;</td>
+                                                                  </tr>
+                                                               </tbody>
+                                                            </table>
+                                                            <div class="actionBarDisagg" id="actionBarDisagg_@j@m" >
+                                                               <a class="btn_entypo first" onclick="deleteDissagregation(@Model.ResultsMatrixId, @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationId,  impactDisaggregationRow_@m)" title="@Localization.GetText("Delete disaggregation")" href="#"></a>
+                                                            </div>
+                                                         </td>
+
+                                                         @{object htmlStartUpPlanProperties = null; }
+                                                         @{object htmlAnnualPlanProperties = null; }
+                                                         @{object htmlActualPlanProperties = null; }
+
+                                                         @{ 
+                                                           ImpactDisaggregationYearPlanModel disasagEndOfProject = null;
+
+                                                           disasagEndOfProject = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Where(oyp => oyp.Year == -1).FirstOrDefault();
+
+                                                           Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Remove(disasagEndOfProject);
+                                                         }
+
+                                                         @foreach (var dissagregationPlan in @Model.Impacts[i].ImpactIndicators[j].GetMaxDissagregationYearPlanRows())
+                                                         {
+                                                            for (int n = 0; n < @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Count(); n++)
+                                                            {
+                                                               htmlStartUpPlanProperties = null;
+                                                               htmlAnnualPlanProperties = null;
+                                                               htmlActualPlanProperties = null;
+
+                                                               if (@Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year == dissagregationPlan)
+                                                               {
+                                                            <td class="dato07 disaggYear">
+                                                               <table style="border-collapse: separate; border-spacing: 0.4em;">
+                                                                  <tbody style="border-width: 0px">
+                                                                     <tr class="rm_p_row">
+                                                                        <td style="padding-top: 5px">
+                                                                           <label class="editLabel" for="">
+
+                                                                              @{
+                                                                  bool isOriginalPlanEditable = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].isOriginalPlanEditable;
+
+                                                                  if (isOriginalPlanEditable)
+                                                                  {
+                                                                     htmlStartUpPlanProperties = new { @class = "input min_input" };
+                                                                  }
+                                                                  else
+                                                                  {
+                                                                     htmlStartUpPlanProperties = new { @class = "input min_input", @disabled = "disabled" };
+                                                                  }
+                                                                              }
+
+                                                                              }
+
+                                                                              @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactIndicatorId)
+                                                                              @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationId)
+                                                                              @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ImpactDisaggregationId)
+                                                                              @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ImpactDisaggregationYearPlanId)
+                                                                              @Html.HiddenFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year)
+                                                                              @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].OriginalPlan, htmlStartUpPlanProperties)
+
+                                                                           </label>
+                                                                        </td>
+                                                                     </tr>
+                                                                     <tr class="rm_pa_row">
+                                                                        <td style="padding-top: 5px">
+                                                                           <label class="editLabel" for="">
+                                                                              @{ 
+                                                                  bool isAnnualPlanEditable = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].isAnnualPlanEditable;
+
+                                                                  if (isAnnualPlanEditable)
+                                                                  {
+                                                                     htmlAnnualPlanProperties = new { @class = "input min_input" };
+                                                                  }
+                                                                  else
+                                                                  {
+                                                                     htmlAnnualPlanProperties = new { @class = "input min_input", @disabled = "disabled" };
+                                                                  }                                                                                                            
+                                                                              }
+
+                                                                              @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].AnnualPlan, htmlAnnualPlanProperties)
+
+                                                                           </label>
+                                                                        </td>
+                                                                     </tr>
+                                                                     <tr class="rm_ac_row">
+                                                                        <td style="padding-top: 5px">
+                                                                           <label class="editLabel" for="">
+                                                                              @{ 
+                                                                  bool isActualValueEditable = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].isActualValueEditable;
+
+                                                                  if (isActualValueEditable)
+                                                                  {
+                                                                     htmlActualPlanProperties = new { @class = "input min_input" };
+                                                                  }
+                                                                  else
+                                                                  {
+                                                                     htmlActualPlanProperties = new { @class = "input min_input", @disabled = "disabled" };
+                                                                  }
+                                                                              }
+
+                                                                              @Html.TextBoxFor(resultModel => resultModel.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ActualValue, htmlActualPlanProperties)
+
+                                                                           </label>
+                                                                        </td>
+                                                                     </tr>
+                                                                  </tbody>
+                                                               </table>
+                                                            </td> 
+                                                               }
+                                                            }
+                                                         }
+                                                         <td class="dato07  disaggYearEmpty">
+                                                            <table class="ouputTable">
+                                                               <tbody style="border-width: 0px">
+                                                                  <tr class="rm_p_row">
+                                                                     <td class="rm_edit_rh">&nbsp;</td>
+                                                                  </tr>
+                                                                  <tr class="rm_pa_row">
+                                                                     <td class="rm_edit_rh">&nbsp;</td>
+                                                                  </tr>
+                                                                  <tr class="rm_ac_row">
+                                                                     <td class="rm_edit_rh">&nbsp;</td>
+                                                                  </tr>
+                                                               </tbody>
+                                                            </table>
+                                                         </td>
+                                                         <td id="lastCellContent" class="dato07 totalMilestoneYearPlan">
+                                                            <table>
+                                                               <tbody style="border-width: 0px">
+                                                                  <tr class="rm_p_row">
+                                                                     <td>
+                                                                        <label class="editLabel" for="">
+                                                                           <input data-val="true" data-val-required="The ImpactIndicatorId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_ImpactIndicatorId" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.ImpactIndicatorId" type="hidden" value="@endOfProject.ImpactIndicatorId">
+                                                                           <input data-val="true" data-val-required="The ImpactIndicatorYearPlanId field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_ImpactIndicatorYearPlanId" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.ImpactIndicatorYearPlanId" type="hidden" value="@endOfProject.ImpactIndicatorYearPlanId">
+                                                                           <input data-val="true" data-val-required="The Year field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_Year" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.Year" type="hidden" value="@endOfProject.Year">
+                                                                           <input class="input min_input" data-val="true" data-val-range="The field OriginalPlan must be between 0.00 and 9999999999.99." data-val-range-max="9999999999.99" data-val-range-min="0.00" data-val-required="The OriginalPlan field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_OriginalPlan" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.OriginalPlan" type="text" value="@disasagEndOfProject.OriginalPlan" @( !disasagEndOfProject.isOriginalPlanEditable ? "disabled='disabled'" : "")>
+                                                                        </label>
+                                                                     </td>
+                                                                  </tr>
+                                                                  <tr class="rm_pa_row">
+                                                                     <td>
+                                                                        <label class="editLabel" for="">
+                                                                           <input class="input min_input" data-val="true" data-val-range="The field AnnualPlan must be between 0.00 and 9999999999.99." data-val-range-max="9999999999.99" data-val-range-min="0.00" data-val-required="The AnnualPlan field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_AnnualPlan" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.AnnualPlan" type="text" value="@disasagEndOfProject.AnnualPlan" @( !disasagEndOfProject.isAnnualPlanEditable ? "disabled='disabled'" : "")>
+                                                                        </label>
+                                                                     </td>
+                                                                  </tr>
+                                                                  <tr class="rm_ac_row">
+                                                                     <td>
+                                                                        <label class="editLabel" for="">
+                                                                           <input class="input min_input" data-val="true" data-val-range="The field ActualValue must be between 0.00 and 9999999999.99." data-val-range-max="9999999999.99" data-val-range-min="0.00" data-val-required="The ActualValue field is required." id="Impacts_@(i)__ImpactIndicators_@(j)__EndOfProject_ActualValue" name="Impacts[@i].ImpactIndicators[@j].EndOfProject.ActualValue" type="text" value="@disasagEndOfProject.ActualValue" @( !disasagEndOfProject.isActualValueEditable ? "disabled='disabled'" : "")>
+                                                                        </label>
+                                                                     </td>
+                                                                  </tr>
+                                                               </tbody>
+                                                            </table>
+                                                         </td>
+
+                                                         @*--------------------------- FIN  EOP -------------------------  *@
+                                                         @* -------------------------------------------------------------- *@
+
+                                                      </tr>
+                                                   }
+                                                </tbody>
+                                             </table>
+                                          </div>
+
+                                       </div>
+                                    </td>
+                                 </tr>
+                                 }
+                                 <tr class="spaceTableImpact">
+                                   <td></td>
+                                 </tr>
+                                 <!-- Disaggregation end -->
+
+                                    indicatorTrackOrder++;
+                              }
+                              <!-- FIN elemento a iterar -->
+                           </tbody>
+                        </table>
+                     }
+                  </div>
+
+
+
+
+                  @* If dont exits impact indicator *@
+
+                  <div class="k-toolbar">
+                     <a href="javascript:void(0);" title="New Indicator" class="k-button newIndicator" onclick="addNewImpactIndicatorExistingRow(containerTblGrid__@i, @i, @Model.Impacts[i].ImpactId);">
+                        <div class="k-button-">New Indicator</div>
+                     </a>
+                  </div>
+               </div>
+            </div>
+                     impactTrackOrder++;
+         }
+         @Html.Hidden("hdnImpactsCount", @Model.Impacts.Count)
+         @* Fin Grillas Impacts *@
+      </div>
+      <div class="plegableSeparator" style="text-indent: -100000px;">Borde de separacion</div>
+
+       <div class="operationData">
+           @Html.Partial("../Partials/_BadgeFlagPartial")
+       </div>
+
+      <div class="editingButtonsEdit">
+         <a href="@(Url.Action("Index", "Impacts", new { area = "ResultsMatrix", operationNumber = Model.Operation.OperationNumber }))" class="cancel link12" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+         <label for="btnSave">
+            <input type="submit" onmousedown="$('#autoCalEop').trigger('change')" class="btn-primary_2 btnSave" value="@Localization.GetText("Save")" id="btnSave" name="btnSaveMainImpact">
+         </label>
+      </div>
+      <!--END mod contenido central-->
+   </div>
+}
+

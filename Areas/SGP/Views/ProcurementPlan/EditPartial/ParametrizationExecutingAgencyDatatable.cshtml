@@ -1,0 +1,98 @@
+@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Architecture.DataTables.Common
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+
+@model ParameterizationViewModel
+
+@{
+    var appSetting = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSetting.FormatDate;
+}
+
+
+
+@foreach (var item in Model.ExecutingAgencys)
+{
+    var config = Html.RenderDataTable(item.ExecutingAgencyRows)
+        .Name("ExecutingAgency")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Group.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+
+            columns.Template(c => ColumnProcurementType(c))
+            .Orderable(false)
+            .CssClass("colParametrizationProcurementType")
+            .Header(Localization.GetText("SGP.Label.ProcurementType"))
+            .Hidden(false);
+
+            columns.Template(c => ColumnThreshold(c, item.ExecutingAgencyId))
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .Header(Localization.GetText("SGP.Label.ICBThreshold"))
+            .Hidden(false);
+
+        });
+
+    config.TableClass = "tableNormal";
+    
+    <div class="aligment mb10">
+        @(Html.CollapseSingle("collapseComponent")
+            .HtmlClass("")
+            .AsociatedCollapseAllSelector("[data-name=\"collapseAllParameterization\"]")
+            .TargetRegionSelector("#" + item.ExecutingAgencyId.ToString())
+        )
+
+        @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.ExecutingAgency") + " " + item.ExecutingAgencyName, htmlClass: "component-collapse-h3")
+    </div>
+
+    <div class="row" id="@item.ExecutingAgencyId.ToString()">
+        <div class="col-xs-12">
+            <div class="mb40">
+                @Html.Partial("Controls/DataTable", config)
+            </div>
+        </div>
+    </div>
+}
+
+@helper ColumnProcurementType(ExecutingAgencyRowViewModel row) 
+{
+    var procurementType = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementTypeParametrization").ConvertToSelectListItems();
+    
+    @(Html.MultiDropDown("procType-agency")
+      .Items(procurementType)
+      .SelectedItems(row.ProcurementTypeIds)
+      .DrawAsItemsSeparatedByCommas())
+
+}
+
+@helper ColumnThreshold(ExecutingAgencyRowViewModel row, int agencyId)
+{
+    var attributes = new Dictionary<string,string>()
+    {
+        { "persist-agency-id", agencyId.ToString() }
+    };
+    
+    @Confluence.InputDecimal(
+        row.ThresholdDecimal, 
+        "threshold", 
+        required: false, 
+        minValue: "0", 
+        maxValue: "9999999999.99", 
+        decimalPrecision: 2,
+        dataAttributes: attributes,
+        width: "100%")
+}

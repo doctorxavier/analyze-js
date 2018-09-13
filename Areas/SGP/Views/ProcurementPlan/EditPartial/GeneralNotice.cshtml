@@ -1,0 +1,190 @@
+﻿@using System.Globalization
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MVCControls.General.Helpers
+
+@model OperationLevelViewModel
+
+@{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var nonObjectionStatusList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("NonObjectionStatus").ConvertToSelectListItems();
+    var notStartedId = Model.ViewContainer.GetValue<int>("NonStartedId");
+
+    var userName = Model.ViewContainer.GetValue<string>("User");
+
+    var config = Html.RenderDataTable(Model.GeneralNotice)
+    .Name("GeneralNotice")
+    .AddPrimaryKeyToName(false)
+    .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.User)
+            .Orderable(false)
+            .CssClass("colDocumentUser textalign-center")
+            .CssHeaderClass("colDocumentUser")
+            .Header(Localization.GetText("COMMON.User"))
+            .Hidden(false);
+        columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+            .Orderable(false)
+            .CssClass("colDate textalign-center")
+            .CssHeaderClass("colDate")
+            .Header(Localization.GetText("COMMON.Date"))
+            .Hidden(false);
+        columns.Template(c => DocNumberColumn(c, false))
+            .Orderable(false)
+            .CssClass("document-number colDocumentNumber textalign-center")
+            .CssHeaderClass("colDocumentNumber")
+            .Header(Localization.GetText("COMMON.SVQ.DocNumber#"))
+            .Hidden(false);
+        columns.Template(c => DescriptionTemplate(c))
+            .Orderable(false)
+            .CssClass("")
+            .CssHeaderClass("")
+            .Header(Localization.GetText("COMMON.Description"))
+            .Hidden(false);
+        columns.Template(c => NonObjectionStatusColumn(c, false))
+            .Orderable(false)
+            .CssClass("colNonObjectionStatus")
+            .CssHeaderClass("colNonObjectionStatus")
+            .Header(Localization.GetText("SGP.Label.NonObjectionStatus"))
+            .Hidden(false);
+        columns.Template(c => Confluence.InputText(c.DocumentNumber, "GeneralNotice-DocumentIDBDoc", disabled: false, width: "100%", required: false))
+            .Orderable(false)
+            .Hidden(true);
+        columns.Template(c => ActionsTermsReference(c))
+            .Orderable(false)
+            .CssClass("textalign-center colAction140")
+            .CssHeaderClass("colAction140")
+            .Header(Localization.GetText("COMMON.Action"))
+            .Hidden(false);
+    })
+    .RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(new DocumentNoticeRowViewModel() { User = userName, Date = DateTime.Today }));
+    })
+;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tr>
+        <td class="table-transparent-text">
+            <div class="aligment">
+                @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.GeneralProcurementNotice"))
+            </div>
+        </td>
+        <td class="table-transparent-buttons">
+            @Confluence.LabelLinkBlank(
+                    text: Localization.GetText("SGP.COMMON.ViewTemplates"),
+                    url: "",
+                    name: "viewTemplatesLink",
+                    htmlClass: "bold hide")
+        </td>
+    </tr>
+</table>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="textalign-center @(Model.GeneralNotice.Count > 0 ? "hide" : string.Empty)">
+    @Confluence.ButtonAddNewRows(
+        Localization.GetText("SGP.Button.AddNotice"), "",
+        name: "addDocumentNotice",
+        dataAttributes: new Dictionary<string, string> { { "linked-table", "GeneralNotice" } })
+</div>
+
+@helper DocNumberColumn(DocumentNoticeRowViewModel row, bool isTemplate = false)
+{
+    <div class="document-number">
+        @Confluence.ButtonLink(row.DocumentNumber, "documentNumberLink", htmlClass: "bold")
+    </div>
+    @Confluence.InputText(row.DocumentNumber, "GeneralNotice-DocumentIDBDoc", disabled: isTemplate, required: true, htmlClass: "hide")
+}
+
+@helper ActionsTermsReference(DocumentNoticeRowViewModel row)
+{
+    var draftId = Model.ViewContainer.GetValue<int>("DraftId");
+
+    bool deleteButton = true;
+
+    if (Model.GeneralNotice != null && Model.GeneralNotice.Any())
+    {
+        var nonObjectionStatusDoc = Model.GeneralNotice.FirstOrDefault();
+
+        deleteButton = nonObjectionStatusDoc != null && nonObjectionStatusDoc.NonObjectionStatusId == draftId;
+    }
+    
+    @Confluence.ButtonTrash("", "RemoveRowGeneralNotice", htmlClass: deleteButton ? string.Empty : "hide")
+
+}
+
+
+@helper DescriptionTemplate(DocumentNoticeRowViewModel row)
+{
+    var draftId = Model.ViewContainer.GetValue<int>("DraftId");
+
+    if (row.NonObjectionStatusId != null && row.NonObjectionStatusId == draftId)
+    {
+        @Confluence.InputText(row.Description, "GeneralNotice-Description", disabled: false, width: "100%", required: false, maxLength: 200)
+    } 
+    else
+    {
+        @row.Description
+    }
+}
+
+@helper NonObjectionStatusColumn(DocumentNoticeRowViewModel row, bool isTemplate)
+{
+    var nonObjectionStatusList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("NonObjectionStatus").ConvertToSelectListItems();
+    var notStartedId = Model.ViewContainer.GetValue<int>("NonStartedId");
+    <div>
+        @Confluence.LabelGetDropDown(isTemplate ? notStartedId : row.NonObjectionStatusId, nonObjectionStatusList, false)
+    </div>
+    @Confluence.InputText(isTemplate ? notStartedId.ToString() : row.NonObjectionStatusId.ToString(), "GeneralNotice-NonObjStatus", disabled: false, width: "100%", required: false, htmlClass: "hide")
+}
+
+@helper DrawRowTemplate(DocumentNoticeRowViewModel c)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    var userName = Model.ViewContainer.GetValue<string>("User");
+
+
+    <tr class="template hide">
+        <td class="colDocumentUser textalign-center" name="documentUser">
+            @userName
+        </td>
+        <td class="colDate textalign-center" name="documentDate">
+            @FormatHelper.Format(c.Date, formatDate)
+        </td>
+        <td class="colDocumentNumber textalign-center">
+            @DocNumberColumn(c, true)
+        </td>
+        <td class="">
+            @Confluence.InputText(c.Description, "GeneralNotice-Description", disabled: true, maxLength: 500, required: false, width: "100%")
+        </td>
+        <td class="">
+            @NonObjectionStatusColumn(c, true)
+        </td>
+
+        <td class="colAction140 textalign-center">
+            @ActionsTermsReference(c)
+        </td>
+    </tr>
+}

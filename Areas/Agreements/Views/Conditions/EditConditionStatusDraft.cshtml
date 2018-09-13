@@ -1,0 +1,450 @@
+﻿@model IDB.MW.Application.Agreements.ViewModel.NewConditionViewModel
+@using IDB.MW.Domain.Values;
+
+@{
+    ViewBag.Title = "Edit Condition Draft";
+}
+
+@section CSS{
+    <link href="@Url.Content("~/Content/Modules/Agreements/agreement.css")" rel="stylesheet" />
+    @Styles.Render("~/Content/Confluence")
+}
+
+@section JavaScript {
+    @Scripts.Render("~/bundles/ModalConfluenceScripts")
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Agreements/Condition/saveOrRequest.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/concurrence.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/BlockDraft.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/moment-with-locales.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/moment.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Agreements/common.js")"></script>
+}
+
+<section class="central">
+    <h2 class="hide">Seccion central de Contenido</h2>
+    <div class="mod_contenido_central contracts_and_clauses">
+        @using (Html.BeginForm("EditConditionDraftPost", "Conditions", FormMethod.Post, new { area = "Agreements", id = "target" }))
+        { 
+            @Html.Hidden("dateForDependencyListforValidation", Json.Encode(@ViewData["dateForDependencyListforValidation"]))
+            @Html.Hidden("dependencyDirectionListValidation", Json.Encode(@ViewData["dependencyDirectionListValidation"]))
+            @Html.Hidden("AfterDirection",  @Localization.GetText("After"));
+            @Html.Hidden("BeforeDirection",  @Localization.GetText("Before"));
+            @Html.Hidden("ExpirationToDependencyId", Model.ExpirationToDependencyId)
+            @Html.Hidden("ExpirationFromDependencyId", Model.ExpirationFromDependencyId)
+
+            <fieldset>
+                <h3 class="headingh2">
+                    <a href="@(Url.Action("Index", "Agreements", new { area = "Agreements", operationNumber = Model.OperationNumber }))"
+                       title="@Localization.GetText("AG.AgreementsAndConditions.Text")" class="tipo1">
+                        @Localization.GetText("AG.AgreementsAndConditions.Text")
+                    </a>
+                </h3>
+                <div class="editingButtonsEdit up topMargin16px">
+                    <label for="cancel1">
+                        <a id="Details"
+                           class="btn-secondary"
+                           href="@(Url.Action("Details", "Conditions", new
+                            {
+                                area = "Agreements",
+                                operationId = Model.OperationId,
+                                agreementId = Model.AgreementId,
+                                conditionId = Model.ConditionId,
+                                conditionIndividualId = Model.ConditionIndividuals[0].ConditionIndividualId,
+                                mainOperationNumber = Model.OperationNumber
+                            }))" title="@Localization.GetText("Cancel")">
+                            <span>@Localization.GetText("Cancel")</span>
+                        </a>
+                    </label>
+
+                    @if (Model.CategoryCode != AgreementsAndConditionsConstants.DONOR_CONDITION_CATEGORY_CLOSE &&
+                        Html.HasPermission(Permission.PSG_GCM_ADMIN_WRITE))
+                    {
+                        <a onclick="deleteItem(this)" class="btn-secondary" title="@Localization.GetText("Delete")"
+                           data-route="@Url.Action("Delete", "Conditions", new
+                            {
+                                area = "Agreements",
+                                operationNumber = Model.OperationNumber,
+                                conditionId = Model.ConditionId,
+                                conditionIndividualId = Model.ConditionIndividuals[0].ConditionIndividualId
+                            })">@Localization.GetText("Delete")
+                        </a>
+                    }
+
+                    <label for="Save">
+                        <input type="submit" class="btn-primary_2 save" value="@Localization.GetText("Save")" id="Save">
+                    </label>
+                </div>
+
+                <h4 class="headingh3"> @Localization.GetText("Edit Condition Draft")</h4>
+
+                @Html.HiddenFor(x => x.AgreementId)
+                @Html.HiddenFor(x => x.ConditionId)
+                @Html.HiddenFor(x => x.StatusId)
+
+                <div class="operationData">
+                    <div class="custom operationData">
+                        <label class="editLabel input" for="number">
+                            <span class="dataTitle inputTitle">@Localization.GetText("Number")
+                                <span class="asteriscoRojo">*</span>
+                            </span>
+                            @Html.TextBoxFor(x => x.ConditionNumber, new Dictionary<string, Object>
+                            {
+                               { "class", "input inputNumber normal" },
+                               { "name", "ConditionNumber" },
+                               { "placeholder", Localization.GetText("AG.ConditionNumber.Text") },
+                               { "style", "width: 94%;" }
+                            })
+
+                            @{Html.ValidateFor(x => x.ConditionNumber);}
+                        </label>
+                    </div>
+                </div>
+
+                <div class="operationData">
+                    <div class="operationData dropDown" id="click_me">
+                        <span class="dataTitle inputTitle"> @Localization.GetText("Instances of the condition")</span>
+                        <ul class="optionList">
+                            <li class="small">
+                                <select class="optionSelect" name="@Localization.GetText("Instances of the condition")"
+                                        id="instancesOfClause" onchange="getvalue(this)">
+                                    <option value="Single" @(Model.FrecuencyEachMonths < 0 ? "selected=selected" : "")>
+                                        @Localization.GetText("Single")
+                                    </option>
+                                    <option value="Multiple" @(Model.FrecuencyEachMonths > 0 ? "selected=selected" : "")>
+                                        @Localization.GetText("Multiple")
+                                    </option>
+                                </select>
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <label id="labelForOtherDisbursement" class="normalText">
+                            @Localization.GetText("CL.OtherPrecedingFirstDisbursement")
+                        </label>
+                    </div>
+
+                    <div class="custom operationData months" id="div_x">
+                        <span class="normalText"> @Localization.GetText("each") </span>
+                        <label class=" editLabel input" for="eachMonths">
+                            @Html.TextBoxFor(x => x.FrecuencyEachMonths,
+                                new Dictionary<string, Object>
+                                {
+                                    { "class", "input normal numberOnlyAll" },
+                                    { "id", "eachMonths" },
+                                    { "name", "each Months" },
+                                    { "maxlength", "4" }
+                                })
+                            @{Html.ValidateFor(x => x.FrecuencyEachMonths);}
+                        </label>
+                        <span class="normalText">@Localization.GetText("Months").</span>
+                    </div>
+                </div>
+                <div class="operationData">
+                    <span class="expirationDate">@Localization.GetText("Expiration date")</span>
+                </div>
+                <div class="operationData fromDateDependency">
+                    <div class="custom operationData fromTo">
+                        <div class="fromToLeft">
+                            <span class="fromToText">@Localization.GetText("From")</span>
+                        </div>
+                        <div class="fromToRight">
+                            <label id="radioBtnFromDate" for="radio1" class="editLabel radioButton" onclick="getRa(this);">
+                                @Html.RadioButtonFor(x => x.IsFromDependencyDate,
+                                    "false",
+                                    new Dictionary<string, Object>
+                                    {
+                                        { "id", "radio1" },
+                                        { "style", "display:none;" },
+                                        { "name", "radio1" },
+                                        { "class", "hidden-field" }
+                                    })
+
+                                <span class="custom radio" id="getdate"> @Localization.GetText("Date")</span>
+                            </label>
+
+                            <label id="radioBtnFromDependency"
+                                   for="radio2"
+                                   class="editLabel radioButton"
+                                   onclick="getRadioValue(this);">
+
+                                @Html.RadioButtonFor(x => x.IsFromDependencyDate,
+                                    "true",
+                                    new Dictionary<string, Object>
+                                    {
+                                        { "id", "radio2" },
+                                        { "style", "display:none;" },
+                                        { "name", "radio2" },
+                                        { "class", "hidden-field" }
+                                    })
+
+                                <span class="custom radio" id="getDependency"> @Localization.GetText("Dependency")</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="operationData fromDateDependency" id="muestradate">
+                    <div class="fromToRight">
+                        <div class="operationData datePicker fromTo">
+                            <div class="dateSelect">
+                                <label for="datepicker09">
+                                    <span class="hide">Datepicker</span>
+                                    @Html.TextBoxFor(x => x.ExpirationFrom,
+                                        "{0:dd MMM yyyy}",
+                                        new Dictionary<string, Object>
+                                        {
+                                            { "id", "datePicker09" },
+                                            { "class", "datepicker" },
+                                            { "name", "datePicker09" },
+                                            { "placeholder", "DD MMM YYYY" },
+                                            { "style", "display:block;" }
+                                        })
+
+                                    @{Html.ValidateFor(x => x.ExpirationFrom);}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="operationData fromDateDependency" id="muestratodo">
+                    <div class="fromToRight">
+                        <div class="operationData dropDown fromTo">
+                            <div class="fromToRight">
+                                <ul class="optionList">
+                                    <li class="small">
+                                        @Html.DropDownListFor(x => x.ExpirationFromDependencyId,
+                                            new SelectList(Model.DatesForDependencyNames,
+                                                "Value",
+                                                "Text",
+                                                @Model.ExpirationFromDependencyId),
+                                            new Dictionary<string, Object>
+                                            {
+                                                { "class", "optionSelect" },
+                                                { "id", "expirationFromDependencyId" }
+                                            })
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="custom operationData monthsDirection">
+                            <span class="normalText"> @Localization.GetText("Month") </span>
+                            <label class="editLabel input"
+                                   for="monthsDirection">
+                                <span class="hide"> @Localization.GetText("each months")</span>
+                                @Html.TextBoxFor(x => x.FromShiftDependency,
+                                    new Dictionary<string, Object>
+                                    {   { "class", "input normal" },
+                                        { "name", "monthsDirection" },
+                                        { "id", "monthsDirectionFrom" }
+                                    })
+
+                                @{Html.ValidateFor(x => x.FromShiftDependency);}
+                            </label>
+                            <span class="normalText"> @Localization.GetText("Direction")</span>
+                        </div>
+
+                        <div class="operationData dropDown">
+                            <ul class="optionList">
+                                <li class="small">
+                                    <select id="fromDependencyDirection" class="optionSelect" name="fromDependencyDirection">
+                                        <option value="After" selected> @Localization.GetText("After")</option>
+                                        <option value="Before"> @Localization.GetText("Before")</option>
+                                    </select>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="operationData">
+                    <div class="custom operationData fromTo clDisburment">
+                        <div class="fromToLeft">
+                            <span class="fromToText fromToTextTo"> @Localization.GetText("To")</span>
+                        </div>
+                        <div class="fromToRight">
+                            <label id="radioBtnToDate" for="radio3" class="editLabel radioButton" onclick="getRe(this);">
+                                <span class="custom radio" id="getdatedown"> @Localization.GetText("Date")</span>
+                            </label>
+                            <label id="radioBtnToDependency"
+                                   for="radio4"
+                                   class="editLabel radioButton"
+                                   onclick="getRadioValue1(this);">
+                                <span class="custom radio" id="getDependencydown"> @Localization.GetText("Dependency")</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                @*div para el datepicker*@
+                <div class="operationData" id="muestratododown">
+                    <div class="fromToRight">
+                        <div class="operationData datePicker fromTo">
+                            <div class="dateSelect">
+                                <label class="input" for="datepicker09">
+                                    @Html.TextBoxFor(x => x.ExpirationTo,
+                                        "{0:dd MMM yyyy}",
+                                        new Dictionary<string, Object>
+                                        {
+                                            { "id", "datePicker10" },
+                                            { "class", "datepicker" },
+                                            { "name", "datePicker10" },
+                                            { "placeholder", "DD MMM YYYY" }
+                                        })
+                                    @{Html.ValidateFor(x => x.ExpirationTo);}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="operationData" id="muestradatedown">
+                    @*DIV para dependency*@
+                    <div class="fromToRight">
+                        <div class="operationData dropDown fromTo">
+                            <div class="fromToRight">
+                                <ul class="optionList">
+                                    <li class="small">
+                                        @Html.DropDownListFor(x => x.ExpirationToDependencyId,
+                                            new SelectList(Model.DatesForDependencyNames,
+                                                "Value",
+                                                "Text",
+                                                @Model.ExpirationToDependencyId),
+                                            new Dictionary<string, Object>
+                                            {
+                                                { "class", "optionSelect" },
+                                                { "id", "ExpirationToDependencyId" }
+                                            })
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="custom operationData monthsDirection">
+                            <span class="normalText"> @Localization.GetText("Month") </span>
+                            <label class=" editLabel input" for="monthsDirection">
+                                <span class="hide"> @Localization.GetText("each months")</span>
+                                @Html.TextBoxFor(x => x.ToShiftDependency,
+                                    new Dictionary<string, Object>
+                                    {
+                                        { "class", "input normal numberOnlyAll" },
+                                        { "name", "monthsDirection" },
+                                        { "id", "monthsDirectionTo" },
+                                        { "maxlength", "4" }
+                                    })
+                                @{Html.ValidateFor(x => x.ToShiftDependency);}
+                            </label>
+                            <span class="normalText"> @Localization.GetText("Direction")</span>
+                        </div>
+
+                        <div class="operationData dropDown">
+                            <ul class="optionList">
+                                <li class="small">
+                                    <select class="optionSelect" id="toDependencyDirection" name="toDependencyDirection">
+                                        <option value="After" selected> @Localization.GetText("After")</option>
+                                        <option value="Before"> @Localization.GetText("Before")</option>
+                                    </select>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <br>
+                <br>
+
+                <div class="operationData">
+                    <div class="operationData dropDown downPart"
+                         id="divCategory">
+                        <span class="dataTitle inputTitle">@Localization.GetText("Category")<span class="asteriscoRojo">*</span></span>
+                        <ul class="optionList">
+                            <li class="small">
+                                @Html.DropDownListFor(x => x.CategoryId,
+                                    new SelectList(Model.Categories,
+                                        "Value",
+                                        "Text",
+                                        Model.CategoryId),
+                                    new Dictionary<string, Object> { { "id", "dropdownForCategory" } })
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="operationData dropDown downPart">
+                        <span class="dataTitle inputTitle">@Localization.GetText("Type")<span class="asteriscoRojo">*</span></span>
+                        <ul class="optionList">
+                            <li class="small">
+                                @Html.DropDownListFor(x => x.TypeId,
+                                    new SelectList(Model.Type,
+                                        "Value",
+                                        "Text",
+                                        Model.TypeId),
+                                    new Dictionary<string, Object> { { "id", "dropdownForType" } })
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="operationData">
+                    <div class="custom">
+                        <div class="w470px">
+                            <label class="editLabel input" for="Desciption">
+                                <span class="dataTitle inputTitle">
+                                    @Localization.GetText("Description")
+                                    <span class="asteriscoRojo">*</span>
+                                </span>
+                                @Html.TextAreaFor(x => x.Description,
+                                    new Dictionary<string, Object>
+                                    {
+                                        { "class", "input inputDescription normal" },
+                                        { "name", "Description" },
+                                        { "id", "Description" },
+                                        { "cols", "59" },
+                                        { "rows", "5" },
+                                        { "placeholder", Localization.GetText("Condition Description") },
+                                    })
+                                    @{Html.ValidateFor(x => x.Description);}
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="editingButtonsEdit up topMargin16px">
+                    <label for="cancel1">
+                        <a id="Details"
+                           class="btn-secondary"
+                           href="@(Url.Action("Details", "Conditions", new
+                            {
+                                area = "Agreements",
+                                operationId = Model.OperationId,
+                                agreementId = Model.AgreementId,
+                                conditionId = Model.ConditionId,
+                                conditionIndividualId = Model.ConditionIndividuals[0].ConditionIndividualId,
+                                mainOperationNumber = Model.OperationNumber
+                            }))" title="@Localization.GetText("Cancel")">
+                            <span>@Localization.GetText("Cancel")</span>
+                        </a>
+                    </label>
+
+                    @if (Model.CategoryCode != AgreementsAndConditionsConstants.DONOR_CONDITION_CATEGORY_CLOSE &&
+                        Html.HasPermission(Permission.PSG_GCM_ADMIN_WRITE))
+                    {
+                        <a onclick="deleteItem(this)" class="btn-secondary" title="@Localization.GetText("Delete")"
+                           data-route="@Url.Action("Delete", "Conditions", new
+                            {
+                                area = "Agreements",
+                                operationNumber = Model.OperationNumber,
+                                conditionId = Model.ConditionId,
+                                conditionIndividualId = Model.ConditionIndividuals[0].ConditionIndividualId
+                            })">
+                            @Localization.GetText("Delete")
+                        </a>
+                    }
+
+                    <label for="Save2">
+                        <input type="submit" class="btn-primary_2 save" value="@Localization.GetText("Save")" id="Save2">
+                    </label>
+                </div>
+            </fieldset>
+        }
+
+    </div>
+</section>

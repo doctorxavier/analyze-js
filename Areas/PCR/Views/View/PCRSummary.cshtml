@@ -1,0 +1,137 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.DomainModel.Entities.PCRModule.Enums
+@model IDB.MW.Application.PCRModule.ViewModels.ChecklistService.PCRSummaryViewModel
+
+@{
+    var title = Localization.GetText("PCR.Summary.Title");
+    ViewBag.Title = title;
+}
+<div id="header-section" data-loadurl="@Url.Action("PCRHeader", "View", new { area = "PCR" })">
+    @Html.Partial("Partials/PCRHeader", (IDB.MW.Application.PCRModule.ViewModels.ChecklistService.HeaderViewModel)ViewBag.Header)
+</div>
+<div class="page">
+    <div id="Summary"
+         data-parsley-validate="data-parsley-validate"
+         @(HTMLEncodeHelper.GetPCREncodedDisplayStyle(ViewBag.IsPCRRequired))
+         data-loadurl="@Url.Action("PCRSummaryStrategicContribution", "View", 
+            new { area = "PCR" })"
+         data-url="@Url.Action("Summary", "Save", 
+            new { area = "PCR" })">
+         @Html.Partial("Partials/PCRSummary", Model)
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+
+        function editSummary(source)
+        {
+            enterEditMode(true, $('#Summary'), true);
+            reloadContainer($('#header-section'), false, 'read', { title: '@title' });
+            $('#txtCountryObjective,#txtProgramRelevance').change();
+        }
+
+        function cancelEditSummary(source)
+        {
+            exitEditMode(true, $('#Summary'), true, true);
+        }
+
+        function saveSummary(source)
+        {
+            var response = saveContainer($('#Summary'), '#hidViewModel');
+            if (response !== false)
+            {
+                response.done(function (data)
+                {
+                    reloadContainer($('#header-section'), false, 'read', { title: '@title' });
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '')
+                    {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        }
+
+        registerCallback(function ()
+        {
+            $('.tab-pane').removeClass('active');
+            $('.tab-pane:first-child').addClass('active');
+
+            @if (!string.IsNullOrWhiteSpace(ViewBag.ErrorMessage))
+            {
+                if (ViewBag.LockScreen)
+                {
+                    @:$('input, select, textarea, button').not('.vex-dialog-button').not('.header button').attr('disabled', 'disabled');
+                }
+                
+                if (ViewBag.No95)
+                {
+                    @:hideSummary(true);
+                }
+            }
+
+            @if (ViewBag.Header.IsPCRRequired != null && !ViewBag.Header.IsPCRRequired)
+            {
+                @:$('button[data-action^="edit"],button[data-action^="cancel"],button[data-action^="save"]').remove();
+            }
+
+
+            @if (ViewBag.LockScreenWorkflowValidation)
+            {
+                @:$('input, select, textarea, button').not('.vex-dialog-button').not('.header button').attr('disabled', 'disabled');
+                @:$('[data-toggle]').attr('data-toggle', null);
+
+                @:var msg = "@Localization.GetText("PCR.FollowUp.ModalOperationCancelled")";
+                @:showMessage(msg);
+            }
+
+            $('#txtCountryObjective,#txtProgramRelevance').change();
+
+        }, true);
+
+        function downloadReport(source)
+        {
+            var url = '@Url.Action("DownloadChecklistSummary", "View", new { area = "PCR" })';
+            window.open(url, '_blank');
+        }
+
+        $(document).on('change', '#txtCountryObjective,#txtProgramRelevance', function ()
+        {
+            var countryObjective = $('#txtCountryObjective');
+            var programRelevance = $('#txtProgramRelevance');
+
+            if (countryObjective.val() != '')
+            {
+                //Relevance Program Disabled
+                programRelevance.parents('div.row').find('textarea').attr('disabled', 'disabled').val('');
+                programRelevance.parents('div.row').find('button').attr('disabled', 'disabled');
+            }
+            else
+            {
+                if (programRelevance.val() != '')
+                {
+                    //Country Strategy Disabled
+                    countryObjective.parents('div.row').find('textarea').attr('disabled', 'disabled').val('');
+                    countryObjective.parents('div.row').find('button').attr('disabled', 'disabled');
+                }
+                else
+                {
+                    //Country Strategy and Relevance Program Enabled
+                    countryObjective.parents('div.row').find('textarea,button').removeAttr('disabled');
+                    programRelevance.parents('div.row').find('textarea,button').removeAttr('disabled');
+                }
+            }
+        });
+
+        function hideSummary(flag)
+        {
+            if(flag)
+            {
+                $('#Summary').addClass('hide');
+                $('#headerInnerSection').addClass('hide');
+                $('#95Error').removeClass('hide');
+            }            
+        }
+
+    </script>
+}

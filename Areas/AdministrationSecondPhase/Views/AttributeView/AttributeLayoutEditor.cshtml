@@ -1,0 +1,753 @@
+﻿@using IDB.MW.Domain.Contracts.ModelRepositories.Security
+@using IDB.MW.Domain.Session
+@using IDB.MW.Domain.Values
+@using IDB.MW.Infrastructure.Data.Optima.Repositories.Models
+@using IDB.Presentation.MVC4.Helpers
+
+@model IDB.MW.Application.AttributesModule.ViewModels.AttributesService.AttributeFormViewModel
+
+@{
+    //Layout = "_TestLayout.cshtml";
+    ViewBag.showLoader = true;
+    ViewBag.fixLoad = true;
+    //Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+}
+
+<div class="page">
+    <div id="RenderedForm" 
+         data-parsley-validate="data-parsley-validate"
+         data-loadurl="@Url.Action("AttributeLayoutEditorEdit", "AttributeView", 
+                        new
+                        {
+                            area = "AdministrationSecondPhase",
+                            operationTypeId = @Model.OperationTypeId,
+                            relationshipId = @Model.RelationTypeId,
+                            sectionId = @Model.SectionId
+                        })"
+         data-url="@Url.Action("SaveAttributeForm", "AttributeSave", new { area = "AdministrationSecondPhase", attributeFormId = Model.AttributeFormId })">
+     
+        @Html.Partial("Partials/_AttributeLayoutEditorPartial", Model)
+    
+    </div>
+</div>
+
+<style type="text/css">
+
+    .LendingChild {
+        padding-left: 10px;
+    }
+
+    #attributesList {
+        /*height: 450px;*/
+        width: 100%;
+        /*overflow-y: auto;
+        overflow-x: hidden;*/
+    }
+
+    .disposableElements {
+        padding: 20px;
+        border: solid 1px gray;
+        height: auto;
+        font-size: 16px !important;
+        text-align: left;
+    }
+
+
+    .section-group-label {
+        font-size: 14px;
+    }
+
+
+    #draggableAttributeHelper {
+        width: 180px;
+        height: 60px;
+        border: 2px solid green;
+    }
+    
+    .attributeHandle {
+        width: 10px;
+        height: 10px;
+        cursor: move;
+        float: right;
+    }
+
+    .deployedSection {
+        min-height: 180px !important;
+        width: 100% !important;
+        margin-bottom: 10px !important;
+    }
+
+    .deployedSection div.section-bordered {
+        min-height: 140px;
+    }
+    
+    .deployedLabel {
+        margin-bottom: 15px;    
+    } 
+    
+    .deployedLayout {
+        width: 100% !important;
+        clear: both;
+    }
+
+    .deployedLayout div.layout-bordered {
+        min-height: 70px !important;
+    }
+
+    #dragSection .section-bordered {
+        min-height: 20px;
+    }
+
+    .section-bordered {
+        border: blue dashed 1px;
+    }
+
+    .section-highlighted {
+        border: solid 1px red !important;
+    }
+
+    .layout-bordered {
+        border: gray dashed 1px;
+    }
+
+
+    .draggableLayout {
+        min-height: 30px;
+    }
+
+   .deployedAttribute {
+        width: 100% !important;
+        margin-bottom: 10px;
+    }
+
+    .mainContent {
+        min-height: 600px;
+    }
+
+    .layoutRow div {
+        min-height: 20px;
+    }
+    
+    .droppableAttribute {
+        padding: 0 15px 0 0 !important;
+        
+    } 
+    
+    .content {
+        padding: 15px;
+    }
+</style>
+
+
+
+@section scripts{
+    <script type="text/javascript">
+
+
+        function editForm(source) {
+            var canEdit = true;
+
+            @if (Model.AttributeFormId > 0)
+            {
+                <text>
+            postUrlWithOptions('@Url.Action("LockRegister", "AttributeView", new {area = "AdministrationSecondPhase"})', { async: false }, { operationNumber: '@Model.AttributeFormId', url: '@OPUSGlobalValues.URL_ATTRIBUTE_LAYOUT' })
+                        .done(function (data) {
+                            if (data.IsValid === false) {
+                                canEdit = false;
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+            </text>
+            }
+            
+            if (canEdit) {
+                enterEditMode(false, $('#RenderedForm'), false);
+                //$("[data-parsley-required='true']").attr('data-parsley-required', false);
+                InitHandlers();
+                LoadForm(JSON.parse($("#hidLayout").val()));
+                BREngine.Init();
+            }      
+        }
+
+        function cancelEditForm(source) {
+             @if (Model.AttributeFormId > 0)
+             {
+            <text>
+            postUrlWithOptions('@Url.Action("UnlockRegister", "AttributeView", new {area = "AdministrationSecondPhase"})', { async: true }, { operationNumber: '@Model.AttributeFormId', url: '@OPUSGlobalValues.URL_ATTRIBUTE_LAYOUT' });
+            </text>
+             }
+            exitEditMode(true, $('#RenderedForm'), true, true);
+            //InitHandlers();
+        }
+
+        function saveForm(source) {
+            $("[data-parsley-required='true']").attr('data-parsley-required', false);
+            $("#hidLayout").val(JSON.stringify(SerializeForm()));
+
+            var response = saveContainer($('#RenderedForm'), '#hidViewModel');
+
+            if (response !== false) {
+                response.done(function(data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        }
+
+        function deleteAll(source) {
+            $(".deployedSection").each(function(sectionIndex, sectionElement) {
+
+                form.RemoveSection($(sectionElement));
+            });
+        }
+    </script>
+
+    <script type="text/javascript">
+
+
+        //BusinessRule
+        var BR1 = new Object();
+        BR1.Init = function() {
+
+            //Check if Attributes exits
+            var allAttributesExists = Attributes_Exists("COUNTRIES") && Attributes_Exists("OPEDESC");
+
+            if (allAttributesExists) {
+                var countriesAttribute = Attributes_GetElementByAttributeCode("COUNTRIES");
+                var descriptionAttribute = Attributes_GetElementByAttributeCode("OPEDESC");
+
+                //Events
+                $(countriesAttribute).change(function() {
+                    //$(descriptionAttribute).val($(countriesAttribute).children("option:selected").text());
+                    var country = $(countriesAttribute).val();
+
+                    if (country === "652") {
+                        $(descriptionAttribute).attr("data-parsley-required", "true");
+                    } else {
+                        $(descriptionAttribute).attr("data-parsley-required", "false");
+                    }
+
+                    $('#RenderedForm').parsley().validate();
+                });
+            }
+        };
+
+        var BRHierachicalTextboxes = new Object();
+        BRHierachicalTextboxes.Register = function(parentCode, children) {
+            if (Attributes_Exists(parentCode)) {
+                var parent = Attributes_GetElementByAttributeCode(parentCode);
+                //Events
+                $(parent).change(function() {
+                    var isChecked = $(this).is(":checked");
+                    //Check/Uncheck all children
+                    for (var i = 0; i < children.length; i++) {
+                        var child = Attributes_GetElementByAttributeCode(children[i]);
+                        if (child != null) {
+                            $(child).prop('checked', isChecked);
+                        }
+                    }
+                });
+
+                for (var i = 0; i < children.length; i++) {
+                    var child = Attributes_GetElementByAttributeCode(children[i]);
+                    if (child != null) {
+                        $(child).change(function() {
+                            var isChecked = $(this).is(":checked");
+                            if (isChecked) {
+                                $(parent).prop('checked', isChecked);
+                            }
+                        });
+                    }
+                }
+
+            }
+        };
+
+        BRHierachicalTextboxes.Init = function() {
+            BRHierachicalTextboxes.Register("LPLendingSV", []);
+            BRHierachicalTextboxes.Register("LPPovertyEquityE", ["LPGeoClassif", "LPHeadcount", "LPHeadcount", "LPRatioNetIncome"]);
+            BRHierachicalTextboxes.Register("LPInitiativesEneEnv", ["LPMitigation", "LPAdaptation", "LPSustainableEnergy", "LPEnvSustainability"]);
+            BRHierachicalTextboxes.Register("LPRegCoopInt", ["LPInfrastructure", "LPInstStrDevelop", "LPPublicGoods"]);
+        };
+
+        //BusinessRuleEngine Responsability
+        var BREngine = new Object();
+        BREngine.Init = function() {
+            //alert("Initializing BREngine...");
+            $(document).ready(function() {
+                BR1.Init();
+                BRHierachicalTextboxes.Init();
+            });
+        };
+    </script>
+
+
+
+    <script>
+
+
+        var form = new Object({
+            Name: "ATTR_Classification",
+            Sections: [],
+
+            AddSection: function(section) {
+
+                var generatedId = this.Sections.length + 1;
+
+                if (!($(section).hasClass('deployedSection'))) {
+                    section.addClass('deployedSection')
+                        .addClass("removable")
+                        .removeClass("draggableSection");
+
+                    section.find("div").addClass("droppableLayout");
+                    makeLabelEditable(section.find("h4").addClass("editable")[0]);
+                    form.AddSection(section);
+
+
+                    //Make layouts sortables
+                    $(".droppableLayout").sortable({
+                        //hoverClass: "section-highlighted",
+                        placeholder: "section-highlighted",
+
+                        //forceHelperSize: true,
+                        //forcePlaceholderSize: true,
+                        greedy: true,
+                        stop: function(event, ui) {
+
+                            if (!($(ui.item).hasClass('deployedLayout'))) {
+
+                                var layout = $(ui.item);
+                                form.AddLayout(layout);
+
+
+                            }
+                        }
+                    });
+
+                    section.attr("data-sectionid", generatedId);
+                    section.attr("id", "sectionid_" + generatedId);
+                }
+                //showObject(this);
+            },
+            AddLayout: function(layout) {
+                $(layout).attr("data-layouttypeid", $(layout).attr("data-layouttype"))
+                    .addClass('deployedLayout')
+                    .addClass('removable')
+                    .removeClass("draggableLayout")
+                    .find("div :not(div.row)")
+                    .addClass("droppableAttribute");
+
+
+                $(layout).find(".droppableAttribute").sortable({
+                    //helper: "clone",
+                    connectWith: ".droppableAttribute",
+                    tolerance: "pointer",
+                    //cursorAt: { top:0, left: 0 },
+                    placeholder: "section-highlighted",
+
+                    //forceHelperSize: true,
+                    //forcePlaceholderSize: true,
+
+                    start: function(event, ui) {
+                        // Resize elements
+                        //$(this).sortable('refreshPositions');
+                        //ui.placeholder.height(ui.item.height());
+                        //ui.placeholder.width(ui.item.width());
+                        //alert("");
+                    },
+                    stop: function(event, ui) {
+
+                        $(ui.item).addClass("removable");
+
+                        if ($(ui.item).hasClass('draggableLabel')) {
+
+                            form.AddGroupLabel($(ui.item));
+                        }
+                        if ($(ui.item).hasClass("draggableAttribute")) {
+
+                            form.AddAttribute($(ui.item));
+
+                            //$(ui.item)
+                            //    .removeClass("draggableAttribute")
+                            //    .addClass("deployedAttribute");
+                            ////.addClass("removable");
+                            //$(ui.item).css('height', "60px;");
+                        }
+
+
+                    },
+                    receive: function(event, ui) {
+                        if (!$(ui.item).hasClass('deployedAttribute')
+                                && !$(ui.item).hasClass('deployedLabel')
+                                && !$(ui.item).hasClass('draggableLabel')
+                        ) {
+                            //$(ui.item).addClass("deployedAttribute");
+                            var id = $(ui.item).attr("data-attributecode");
+                            $("#attributesList").find("[data-attributecode='" + id + "']").hide();
+                        }
+                    }
+                });
+            },
+            AddAttribute: function(attributeElement) {
+                $(attributeElement).removeClass("draggableAttribute")
+                    .addClass("deployedAttribute")
+                    .addClass("removable");
+
+                $(attributeElement).css('width', "100%");
+                $(attributeElement).css('height', "60px;");
+            },
+            AddGroupLabel: function(groupLabelElement) {
+                $(groupLabelElement) //.clone()
+                    .removeClass("draggableLabel")
+                    .addClass("deployedLabel");
+
+                $(groupLabelElement).css('height', "40px;");
+
+                makeLabelEditable($(groupLabelElement).find("h4").addClass("editable")[0]);
+                $(groupLabelElement).css('width', "100%");
+            },
+            RemoveElement: function(draggable) {
+
+                if (draggable.hasClass("deployedSection")) {
+                    form.RemoveSection(draggable);
+                }
+
+                if (draggable.hasClass("deployedLayout")) {
+                    form.RemoveLayout(draggable);
+                }
+
+                if (draggable.hasClass("deployedAttribute")) {
+                    this.RemoveAttribute(draggable);
+                }
+
+                if (draggable.hasClass("deployedLabel")) {
+                    this.RemoveLabel(draggable);
+                }
+            },
+            RemoveAttribute: function(draggable) {
+                var attributeCode = draggable.attr("data-attributecode");
+                draggable.remove();
+                $("#attributesList").find("[data-attributecode='" + attributeCode + "']").show();
+            },
+            RemoveLayout: function(draggable) {
+                var obj = this;
+                //Remove Attributes
+                $.each(draggable.find("div.deployedAttribute"), function(index, attrElement) {
+                        obj.RemoveAttribute($(attrElement));
+                    }
+                );
+                draggable.remove();
+            },
+            RemoveSection: function(draggable) {
+                var obj = this;
+                //Remove Attributes
+                $.each(draggable.find("div.deployedLayout"), function(index, attrElement) {
+                        obj.RemoveLayout($(attrElement));
+                    }
+                );
+                draggable.remove();
+            },
+            RemoveLabel: function(draggable) {
+                draggable.remove();
+            }
+
+
+        });
+
+        function showObject(obj) {
+            $("#formObjectOutput").html(JSON.stringify(obj));
+        }
+
+        function makeLabelEditable(elem) {
+            //Reference the Label.
+            var label = $(elem);
+
+            //Add a TextBox next to the Label.
+            label.after("<input type = 'text' class='groupLabelAutocomplete' style = 'display:none' />");
+
+            //Reference the TextBox.
+            var textbox = $(elem).next();
+
+            //Set the name attribute of the TextBox.
+            textbox[0].name = elem.id.replace("lbl", "txt");
+
+            //Assign the value of Label to TextBox.
+            textbox.val(label.html());
+
+            //When Label is clicked, hide Label and show TextBox.
+            label.dblclick(function() {
+                $(elem).hide();
+                var txtBox = $(elem).next().show();
+
+                //$(txtBox).autocomplete({
+                //    appendTo: $(elem),
+                //    source: [
+                //        "ActionScript",
+                //        "AppleScript",
+                //        "Asp",
+                //        "BASIC",
+                //        "C",
+                //        "C++",
+                //        "Clojure",
+                //        "COBOL",
+                //        "ColdFusion",
+                //        "Erlang",
+                //        "Fortran",
+                //        "Groovy",
+                //        "Haskell",
+                //        "Java",
+                //        "JavaScript",
+                //        "Lisp",
+                //        "Perl",
+                //        "PHP",
+                //        "Python",
+                //        "Ruby",
+                //        "Scala",
+                //        "Scheme"
+                //    ]
+                //});
+
+
+                //$(txtBox).data('autocomplete')._resizeMenu = function () {
+                //    alert("_resizeMenu");
+                //    this.menu.element.outerWidth(100);
+                //};
+            });
+
+            //When focus is lost from TextBox, hide TextBox and show Label.
+            function hideTextBox(labelElem) {
+                $(labelElem).hide();
+                $(labelElem).prev().html($(labelElem).val());
+                $(labelElem).prev().show();
+            }
+
+            textbox.focusout(function() { hideTextBox(this); });
+            textbox.keypress(function(e) {
+                if (e.which === 13) {
+                    hideTextBox(this);
+                }
+            });
+        }
+
+        function SerializeForm() {
+            var root = {
+                Sections: []
+            };
+
+            var isEmpty = true;
+
+            //Sections
+            $(".deployedSection").each(function(sectionIndex, sectionElement) {
+                //console.log($(section).attr('data-sectionid'));
+
+                isEmpty = false;
+
+                var section = {
+                    Id: $(sectionElement).attr('data-sectionid'),
+                    GroupLabel: $(sectionElement).children('h4:first-child').text(),
+                    Layouts: []
+                };
+
+                //Layouts
+                $.each($(sectionElement).find('div.deployedLayout'),
+                    function(layoutIndex, layoutElement) {
+                        var layout =
+                        {
+                            Id: $(layoutElement).attr('data-layoutid'),
+                            Type: $(layoutElement).attr('data-layouttype'),
+                            Cells: []
+                        };
+
+                        //Cells
+                        $.each($(layoutElement).find('div.droppableAttribute'),
+                            function(cellIndex, cellElement) {
+
+                                var cell = {
+                                    Id: cellIndex,
+                                    Class: $(cellElement).attr("class").match(/col[\w-]*\b/)[0],
+                                    Elements: []
+                                };
+
+
+                                //Elements
+                                $.each($(cellElement).children('div'),
+                                    function(cellIndex, cellElement) {
+
+                                        var element = {};
+
+                                        if ($(cellElement).hasClass('deployedAttribute')) {
+                                            element = {
+                                                Type: "Attribute",
+                                                Code: $(cellElement).attr('data-attributecode')
+                                            };
+                                        }
+
+                                        if ($(cellElement).hasClass('deployedLabel')) {
+                                            element = {
+                                                Id: $(cellElement).children().first("h4").html(),
+                                                Type: "GroupLabel",
+                                                Code: $(cellElement).children().first("h4").html()
+                                            };
+                                        }
+                                        cell.Elements.push(element);
+                                    }
+                                );
+                                layout.Cells.push(cell);
+                            });
+
+
+                        section.Layouts.push(layout);
+                    });
+
+                root.Sections.push(section);
+            });
+
+            //showObject(root);
+            if (isEmpty) {
+                root = null;
+            }
+            return root;
+        }
+
+        function LoadForm(toLoadForm, target) {
+            
+            $.each(toLoadForm.Sections, function(sectionIndex, section) {
+
+                var sectionElement = $("#dragSection").children(".draggableSection").first().clone().detach();
+
+                $(sectionElement).find("h4").html(section.GroupLabel);
+
+                sectionElement.appendTo("#formContainer");
+                form.AddSection(sectionElement);
+
+                $.each(section.Layouts, function(layoutIndex, layout) {
+
+                    var layoutElement = $("#layoutList [data-layouttype='" + layout.Type + "']").clone().detach();
+
+                    layoutElement.appendTo($(sectionElement).children("div.droppableLayout").first());
+                    form.AddLayout(layoutElement);
+
+                    $.each(layout.Cells, function(cellIndex, cell) {
+
+                        var cellElement = $(layoutElement).find("div.droppableAttribute")[cellIndex];
+
+                        $.each(cell.Elements, function(elementIndex, elementElement) {
+
+                            if (elementElement.Type === "GroupLabel") {
+                                var groupLabelElement = $("#groupLabelList .draggableLabel").clone().detach();
+
+                                form.AddGroupLabel(groupLabelElement);
+
+                                $(groupLabelElement).find("h4").html(elementElement.Code);
+                                $(groupLabelElement).appendTo($(cellElement));
+                            }
+
+                            if (elementElement.Type === "Attribute") {
+
+                                var attributeElement = $("#attributesList").find("[data-attributecode='" + elementElement.Code + "']");
+
+                                if (attributeElement != null) {
+                                    var insertedElement = attributeElement.clone().detach();
+
+                                    form.AddAttribute(insertedElement);
+                                    $(insertedElement).appendTo($(cellElement));
+                                    attributeElement.hide();
+                                }
+                            }
+
+
+                        });
+                    });
+                });
+
+            });
+        }
+
+        function InitHandlers() {
+
+            //alert("InitHandlers");
+
+            // Sections
+            $(".draggableSection").draggable({
+                snap: ".droppableSection",
+                revert: 'invalid',
+                helper: "clone",
+                connectToSortable: ".droppableSection",
+                scroll: false
+                //containment: ".droppableSection"
+            }).on("dblclick", function() {
+
+                var sectionElement = $("#dragSection").children(".draggableSection").first().clone().detach();
+                sectionElement.appendTo("#formContainer");
+                form.AddSection(sectionElement);
+            });
+
+            ////Layout
+            $(".draggableLayout").draggable({
+                snap: true,
+                revert: "invalid",
+                helper: "clone",
+                connectToSortable: ".droppableLayout",
+                scroll: false
+                //containment: ".droppableLayout"
+                //refreshPositions: true
+                //containment: ".droppableLayout"
+            });
+
+            //Attributes
+            $(".draggableAttribute").draggable({
+                helper: "clone",
+                connectToSortable: ".droppableAttribute",
+                hoverClass: "section-highlighted",
+                opacity: 0.7,
+                scroll: false,
+                zIndex: 1000,
+                appendTo: 'body',
+                containment: 'window',
+                greedy: true,
+                refreshPositions: true
+            });
+
+            //Labels
+            $(".draggableLabel").draggable({
+                snap: true,
+                //revert: "invalid",
+                helper: "clone",
+                connectToSortable: ".droppableAttribute"
+            });
+
+            $("#attributesList").parent().disableSelection();
+
+
+            $(".droppableSection").sortable({
+                stop: function(event, ui) {
+                    var section = ui.item;
+
+                    form.AddSection(section);
+                }
+            }).disableSelection();
+
+
+            $('#trashAttribute').droppable({
+                hoverClass: "section-highlighted",
+                accept: ".removable",
+                tolerance: "pointer",
+                drop: function(event, ui) {
+                    form.RemoveElement($(ui.draggable));
+                }
+            });
+
+            //LoadForm();
+        }
+
+        //$(function() {
+        //    //InitHandlers();
+
+        //});
+
+
+    </script>
+
+
+}

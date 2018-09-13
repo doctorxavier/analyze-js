@@ -1,0 +1,92 @@
+﻿@model IDB.MW.Domain.Models.Disbursement.IProjectionViewModel
+
+@{
+    Layout = null;
+
+    var messages = (Dictionary<string, string>)Session["user_messages"];
+    var messages_class = string.Empty;
+    Session["user_messages"] = null;
+
+    var msgWarning = new List<KeyValuePair<string, string>>();
+    var msgs = new List<KeyValuePair<string, string>>();
+
+    if (messages != null)
+    {
+
+        foreach (var message in messages)
+        {
+            if (message.Key == "warning")
+            {
+                messages_class = message.Key;
+                msgWarning.Add(message);
+            }
+            else
+            {
+                msgs.Add(message);
+            }
+        }
+    }
+}
+@Html.Partial("~/Areas/Disbursement/Views/Shared/AlertModals.cshtml")
+
+@Confluence.InputHidden(Model.TotalProjectionFinancialPlan.ToString(), "TotalProjectionFinancialPlan")
+<div class="col-md-12 pr0 pl0">
+
+    <div class="messages @(messages_class != null ? string.Format("message-{0}", messages_class) : "")">
+        <ul>
+            @foreach (var message in msgWarning)
+            {
+                <li><span class="glyphicon glyphicon-remove mr15 pointer removeMsg"></span>@(string.IsNullOrEmpty(message.Value) ? "" : message.Value.Trim())</li>
+            }
+        </ul>
+    </div>
+</div>
+
+
+<script type="text/javascript">
+    jQuery(document).ready(function () {
+        var messages = [];
+        @{
+            string type = "notification";
+            foreach (var message in msgs) {
+                if (message.Key == "error" && type=="notification") {
+                    type = message.Key;
+                }
+                @Html.Raw(string.Format("messages.push('{0}');", message.Value.Replace("'","\\'")))
+            }
+        }
+
+        _mvcajax.set_message(messages, '@type', true);
+    });
+
+    function ValidateFinancialPlan() {
+        
+        if ($('#grid_projections,#grid_projections_edit').length > 0) {
+            var totalCurrentProjection = 0;
+            var totalProjectionFinancialPlan = $('[name="TotalProjectionFinancialPlan"]').val().trim().replaceAll(',', '') * 1;
+            /*logic for view mode*/
+            $('#grid_projections, tr').each(function () {
+                var $this = $(this);
+
+                if ($this.find('td.yellow').length > 6) {
+                    totalCurrentProjection = $this.find('td.total').text().trim().replaceAll(',', '') * 1;
+                }
+            });
+            /*logic for edit mode*/
+            $('#grid_projections_edit, tr').each(function () {
+                var $this = $(this);
+
+                if ($this.find('input.yellow').length > 6) {                    
+                    totalCurrentProjection = $this.find('td.total').text().trim().replaceAll(',', '') * 1;
+                }
+            });
+
+            var totalminor = totalCurrentProjection - totalCurrentProjection * 0.5;
+            var totalmajor = totalCurrentProjection + totalCurrentProjection * 0.5;
+            
+            if (totalminor < totalProjectionFinancialPlan || totalmajor > totalProjectionFinancialPlan) {
+                _mvcajax.add_message_page_notification(disbursmentLiterals.msgFinancialPlan, "warning", "FinancialPlan")
+            }
+        }
+    }
+</script>

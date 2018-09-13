@@ -1,0 +1,455 @@
+﻿@model IDB.Presentation.MVC4.Areas.Administration.Models.PredefinedIndicators.DefaultSearchModel
+@{
+    ViewBag.Title = "Link To-Predefined Indicator";
+}
+
+<link href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/ui_rm_024.css")" rel="stylesheet" />
+<link href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/ui_rm_023.css")" rel="stylesheet" />
+<link href="@Url.Content("~/Content/esmartGeneralScoped.css")" rel="stylesheet" />
+
+<script>
+    $(document).ready(function () {
+
+        $(".optionSelectTypeIndicators").kendoDropDownList();
+
+        $(".optionSelectPriorityAreas").kendoDropDownList();
+
+        // Show ajax spinner
+        $(document).ajaxStart(function (e) {
+            var senderObject = e.delegateTarget.activeElement;
+            if ($(senderObject).find("#typeIndicatorId") != null && $(senderObject).is("span")) {
+                $("#loadingAreasContainer").fadeIn();
+            }
+
+            if ($(senderObject).attr("id") != null && $(senderObject).attr("id") == "btnSearchIndicator") {
+                $("#loadingSearchContainer").fadeIn();
+            }
+        });
+
+        // Hide ajax spinner
+        $(document).ajaxStop(function (e) {
+            var senderObject = e.delegateTarget.activeElement
+
+            if ($(senderObject).find("#typeIndicatorId") != null && $(senderObject).is("span")) {
+                $("#loadingAreasContainer").delay(500).fadeOut();
+            }
+
+            if ($(senderObject).attr("id") != null && $(senderObject).attr("id") == "btnSearchIndicator") {
+                $("#loadingSearchContainer").delay(500).fadeOut();
+            }
+        });
+
+        $("#btnSearchIndicator").click(function (e) {
+            e.preventDefault();
+            $.ajax({
+                url: $(this).data("search-path"),
+                data: serializeFilters(this),
+                dataType: "json",
+                contentType: "application/json",
+                type: 'post',
+                success: function (data) {
+                    // Update PagingFooter Content
+                    updateGridRowsContent("predefinedIndicator-template", "grdPredefinedIndicator", data.Indicators);
+
+                    // Update PagingFooter Content
+                    updatePagingFooter(data.PageSettings);
+                }
+            });
+        });
+
+
+        $(".btnLinkToPredefinedIndicator").click(function (e) {
+            var predefinedIndicator = $("input[name=_predefinedToLink]:checked");
+
+            if (predefinedIndicator != null) {
+
+                var linkModel = {
+                    linkModel: {
+                        baseIndicatorId: $("#hdnPredfIndicatorCurrentIndicator").val(),
+                        predefinedIndicatorId: $(predefinedIndicator).val(),
+                        backUrl: $("#hdnPredefinedIndicatorBackUrl").val(),
+                        module: $("#hdnPredfIndicatorCurrentModule").val()
+                    },
+                    type: $("#hdnPredfIndicatorCurrentModule").val()
+                };
+
+                $.ajax({
+                    url: '@this.Url.Action("LinkPredefinedIndicators", "PredefinedIndicator", new { area = "ResultsMatrix" })',
+                    type: 'POST',
+                    dataType: "json",
+                    contentType: "application/json",
+                    data: JSON.stringify(
+                        linkModel
+                    ),
+                    success: function (data) {
+
+                        $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                        $(".ui-widget-overlay").remove();
+                        $(".k-window").remove();
+
+                        location.href = data.backUrl
+                    }
+                });
+
+            }
+        });
+
+
+    });
+
+    $(document).on("click", "a.gridPageNumber", function (e) {
+        event.preventDefault();
+
+        var filter = {
+            'IndicatorType': $("#typeIndicatorId").data("kendoDropDownList").value(),
+            'AreaId': $("#priorityArea").data("kendoDropDownList").value(),
+            'IndicatorNumber': $("#indicatorNumber").val(),
+            'IndicatorName': $("#indicatorName").val(),
+            'UnitOfMeasure': $("#unitOfMeasure").val(),
+            'Page': $(this).find("span").text()
+        };
+
+        $.ajax({
+            url: $(this).attr("href"),
+            data: JSON.stringify(filter),
+            dataType: "json",
+            contentType: "application/json",
+            type: 'post',
+            success: function (data) {
+
+                // Update PagingFooter Content
+                updateGridRowsContent("predefinedIndicator-template", "grdPredefinedIndicator", data.Indicators);
+
+                // Update PagingFooter Content
+                updatePagingFooter(data.PageSettings);
+            }
+        });
+
+    });
+
+    function showHideDisaggregations(btnSender) {
+        if ($(".predefToogleDissagContent").data("visible") == true) {
+            $(".predefToogleDissagContent").data("visible", false);
+            $(".predefToogleDissagContent").hide();
+        } else {
+            $(".predefToogleDissagContent").show();
+            $(".predefToogleDissagContent").data("visible", true);
+        }
+    }
+
+    function showHideTechnicalFields(btnSender) {
+        if ($(".predefToogleTechnicalContent").data("visible") == true) {
+            $(".predefToogleTechnicalContent").data("visible", false);
+            $(".predefToogleTechnicalContent").hide();
+        } else {
+            $(".predefToogleTechnicalContent").show();
+            $(".predefToogleTechnicalContent").data("visible", true);
+        }
+    }
+
+    function serializeFilters(lnkCurrentPage) {
+
+        var filter = {
+            'IndicatorType': $("#typeIndicatorId").data("kendoDropDownList").value(),
+            'AreaId': $("#priorityArea").data("kendoDropDownList").value(),
+            'IndicatorNumber': $("#indicatorNumber").val(),
+            'IndicatorName': $("#indicatorName").val(),
+            'UnitOfMeasure': $("#unitOfMeasure").val(),
+            'Page': $(lnkCurrentPage).find("span").text()
+        };
+
+        return JSON.stringify(filter);
+    }
+
+    function loadPriorityAreas(slctTypeIndicators) {
+
+        if ($(slctTypeIndicators).data("kendoDropDownList").value() != "") {
+
+            $.ajax({
+                url: $(slctTypeIndicators).data("areas-path"),
+                data: JSON.stringify({ "indicatorId": $("#typeIndicatorId").data("kendoDropDownList").value() }),
+                dataType: "json",
+                contentType: "application/json",
+                type: 'post',
+                success: function (data) {
+
+
+                    // Fill areas combo with response data
+                    var combobox = $("#priorityArea").data("kendoDropDownList");
+
+                    var updatedOptions = new Array();
+
+                    updatedOptions.push({ text: "All", value: "" });
+
+                    $.each(data.areas, function (index, area) {
+                        updatedOptions.push({ text: area.NameEn, value: area.Id });
+                    });
+
+                    combobox.dataSource.data(updatedOptions);
+
+                    //reevaluate the data
+                    combobox.dataSource.query();
+
+                    //clear combobox selection.
+                    combobox.value("");
+
+                }
+            });
+
+        } else {
+            // Fill areas combo with response data
+            var combobox = $("#priorityArea").data("kendoDropDownList");
+
+            var updatedOptions = new Array();
+
+            updatedOptions.push({ text: "All", value: "" });
+
+            combobox.dataSource.data(updatedOptions);
+
+            //reevaluate the data
+            combobox.dataSource.query();
+
+            //clear combobox selection.
+            combobox.value("");
+        }
+
+    }
+
+    function updateDetailContent(templateJSId, containerSelector, updatedData) {
+        // Load persons grid template
+        var fuente = $('#' + templateJSId).html();
+        // Compile template
+        var plantilla = Handlebars.compile(fuente);
+        // Get filled template
+        var html = plantilla(updatedData);
+
+        $("#" + containerSelector).html(html);
+
+        $("#searchAreaWrapper").hide();
+
+        $("#" + containerSelector).show();
+
+    }
+
+    function showDetail(predefinedIndicatorId) {
+        $.getJSON('@(Url.Action("GetDetailedIndicator", "PredefinedIndicator", new { area = "ResultsMatrix" }))', { predefinedIndicatorId: predefinedIndicatorId }, function (data) {
+
+            // Update PagingFooter Content
+            updateDetailContent("indicatorDetail-template", "detailAreaWrapper", data.indicator);
+        });
+    }
+
+    function backToSearch() {
+        $("#detailAreaWrapper").hide();
+        $("#searchAreaWrapper").show();
+    }
+
+</script>
+
+
+@Html.Hidden("hdnPredfIndicatorCurrentIndicator", Model.CurrentIndicatorid)
+@Html.Hidden("hdnPredfIndicatorCurrentModule", Model.Module)
+
+<div id="predifinedSearchWindow" class="scopepEsmart">
+    <!-- Search filter and results -->
+    <div id="searchAreaWrapper">
+        <div id="ui_rm_023" style="padding: 1em">
+            <!-- Filter container -->
+
+            <div id="searchBoxContainerUIRM023" class="grayBackground font08em" style="padding: 1em">
+
+                <table style="width: 100%">
+                    <tr>
+                        <td>
+                            <table style="width: 100%">
+                                <tr>
+                                    <td style="width: 15%"><span>Type of Indicator</span></td>
+                                    <td style="max-width: 6em">
+
+                                        <fieldset>
+                                            <legend class="hide">Dropdown con opciones</legend>
+                                            <ul class="optionList">
+                                                <li class="small">
+
+                                                    <span class="k-widget k-dropdown k-header optionSelect optionSelectYearsPlan" unselectable="on" role="listbox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-owns="" aria-disabled="false" aria-readonly="false" aria-busy="false" aria-activedescendant="" style="width: 40em; max-width: 40em;">
+                                                        <span unselectable="on" class="k-dropdown-wrap k-state-default">
+                                                            <span unselectable="on" class="k-input">All</span>
+                                                            <span unselectable="on" class="k-select">
+                                                                <span unselectable="on" class="k-icon k-i-arrow-s">select</span>
+                                                            </span>
+                                                        </span>
+                                                        <select class="optionSelect optionSelectTypeIndicators" data-areas-path="@Url.Action("GetIndicatorAreas", "PredefinedIndicator", new { area = "ResultsMatrix" })" data-val="true" data-val-required="" id="typeIndicatorId" data-role="dropdownlist" onchange="loadPriorityAreas(this);" style="display: none;">
+
+                                                            <option value='' selected='selected'>All</option>
+
+                                                            @foreach (var indicatorType in Model.IndicatorTypes)
+                                                            {
+                                                                <option value="@indicatorType.Id">@indicatorType.NameEn</option>
+                                                            }
+
+                                                        </select>
+                                                    </span>
+                                                </li>
+                                            </ul>
+                                        </fieldset>
+                                    </td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            </table>
+                            <br />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <table style="width: 100%">
+                                <tr>
+                                    <td style="width: 15%"><span>Priority Area</span></td>
+                                    <td style="max-width: 6em">
+
+                                        <fieldset>
+                                            <legend class="hide">Dropdown con opciones</legend>
+                                            <ul class="optionList">
+                                                <li class="small">
+
+                                                    <span class="k-widget k-dropdown k-header optionSelect optionSelectYearsPlan" unselectable="on" role="listbox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-owns="" aria-disabled="false" aria-readonly="false" aria-busy="false" aria-activedescendant="" style="width: 40em; max-width: 40em;">
+                                                        <span unselectable="on" class="k-dropdown-wrap k-state-default">
+                                                            <span unselectable="on" class="k-input">All</span>
+                                                            <span unselectable="on" class="k-select">
+                                                                <span unselectable="on" class="k-icon k-i-arrow-s">select</span>
+                                                            </span>
+                                                        </span>
+                                                        <select class="optionSelect optionSelectPriorityAreas" data-areas-path="@Url.Action("GetIndicatorAreas", "PredefinedIndicator", new { area = "ResultsMatrix" })" data-val="true" data-val-required="" id="priorityArea" data-role="dropdownlist" style="display: none;">
+
+                                                            <option value='' selected='selected'>All</option>
+
+                                                        </select>
+                                                    </span>
+                                                </li>
+                                            </ul>
+                                        </fieldset>
+
+                                    </td>
+                                    <td style="height: 19px; min-height: 19px; width: 9em;">
+                                        <div id="loadingAreasContainer" style="margin-left: 0.3em; display: none">
+                                            <img style="vertical-align: middle" src="~/Images/Modulos/ResultsMatrix/ajax-loader.gif" />
+                                            <span style="color: #2476CB">Loading</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                            <br />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <table style="width: 100%">
+                                <tr>
+                                    <td style="width: 15%"><span>Indicator Number</span></td>
+                                    <td>
+                                        <input id="indicatorNumber" type="text" class="grayBorder" placeholder="Indicator number" data-bind="" /></td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            </table>
+                            <br />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <table style="width: 100%">
+                                <tr>
+                                    <td style="width: 15%"><span>Indicator Name</span></td>
+                                    <td>
+                                        <input id="indicatorName" type="text" class="grayBorder w98" placeholder="Indicator name" data-bind="" /></td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            </table>
+                            <br />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <table style="width: 100%">
+                                <tr>
+                                    <td style="width: 15%"><span>Unit of Measure</span></td>
+                                    <td>
+                                        <input id="unitOfMeasure" type="text" class="grayBorder w98" placeholder="Unit of measure" data-bind="" /></td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            </table>
+                            <br />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="">
+                            <table style="width: 100%">
+                                <tr>
+                                    <td>
+                                        <div id="loadingSearchContainer" style="margin-left: 0.3em; display: none">
+                                            <img style="vertical-align: middle" src="~/Images/Modulos/ResultsMatrix/ajax-loader.gif" />
+                                            <span style="color: #2476CB">Searching</span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: right">
+                                        <input id="btnSearchIndicator" type="button" class="button blueButton" value="Filter" data-search-path="@Url.Action("Search", "PredefinedIndicator", new { area = "ResultsMatrix" })"></td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+
+
+
+
+            <!-- End filter container -->
+            <div class="verticalMargin20 rightAlign w100">
+                <input type="button" class="button blueButton btnLinkToPredefinedIndicator" value="Link" data-bind="">
+            </div>
+
+            <!-- Result Table -->
+            <div class="verticalMargin20">
+                <table class="grid w100">
+                    <thead>
+                        <tr>
+                            <th>
+                            <th>Indicator Number</th>
+                            <th>Indicator Name</th>
+                            <th>Unit Of Measure</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="grdPredefinedIndicator" class="grayColor alignLeft" data-role="listview">
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="customPaginator">
+            </div>
+
+            <!-- End result Table -->
+            <div class="verticalMargin20 rightAlign w100">
+                <input type="button" class="button blueButton btnLinkToPredefinedIndicator" value="Link" data-bind="">
+            </div>
+        </div>
+    </div>
+    <!-- END Search filter and results -->
+
+    <!-- BEGIN Detail -->
+    <div id="detailAreaWrapper" style="display: none">
+    </div>
+</div>
+
+
+@* Render pagingFooter HandleBar Template *@
+@Html.Partial("~/Views/Pagination/TemplatesJS/PagingFooterTemplate.cshtml")
+
+@* Render GridRows HandleBar Template *@
+@Html.Partial("~/Areas/ResultsMatrix/Views/PredefinedIndicator/TemplatesJS/PredefinedIndicatorTemplate.cshtml")
+
+
+
+
+
+
+

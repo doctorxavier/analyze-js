@@ -1,0 +1,178 @@
+﻿@using IDB.MW.Application.OpusMissionsModule.Enums
+@using IDB.Presentation.MVC4.Helpers
+
+@model IDB.MW.Application.MissionsModule.ViewModels.MissionHeaderViewModel
+
+
+@Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("OP.MS.MissionsTermsOfReference")), Url.Action("Missions", "View", new { area = "OpusMissions" }))
+
+<div class="row row-body-40">
+    <div class="pt20">
+        <div class="col-md-6">
+            @if (!ViewBag.New)
+            {
+                @Confluence.LabelTitleGroup(Model.MissionCode, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "lblMissionCode" } })
+            }
+            else
+            {
+                @Confluence.LabelTitleGroup(Localization.GetText("OP.MS.MissionContacts.NewMission"), dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "lblNewMission" } })
+            }
+        </div>
+        <div class="col-md-6">
+            @Html.Partial("Partials/MissionViewButtons", Model)
+        </div>
+    </div>
+</div>
+
+
+<div class="row row-body-40" id="headerInnerSection">
+    <div class="col-md-3">
+        @if (Model.MissionFieldsConfig.IsTypeEditable)
+        {
+            var missionTypes = Html.BuildSelectItemList(
+                Model.AvailableMissionType,
+                types => types.Text,
+                types => types.Value);
+
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("OP.MS.Type"),
+                contentRead: Confluence.LabelBold(Model.Type ?? ""),
+                contentEdit: Confluence.InputDropDown(
+                    value: Model.TypeId.ToString().Equals("0") ? "" : Model.TypeId.ToString(),
+                    name: "Type",
+                    elements: missionTypes,
+                    dataAttributes: new Dictionary<string, string>(){ { "idb-fieldname", "ddlType" } },
+                    orderAsc: false),
+                asterisk: true);
+        }
+        else
+        {
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("OP.MS.Type"),
+                contentAlways: Confluence.LabelBold(Model.Type),
+                asterisk: true);
+            <span data-pagemode="edit">
+                @Confluence.InputHidden(Model.TypeId.ToString(), "Type")
+            </span>
+        }
+    </div>
+
+    <div class="col-md-2">
+        @if (Model.MissionFieldsConfig.IsStartDateEditable)
+        {
+            @Confluence.LabelsGroup(title: Localization.GetText("OP.MS.StartDate"),
+                contentRead: Confluence.LabelGetDate(Model.StartDate, true),
+                contentEdit: Confluence.InputDatePicker(
+                    value: Model.StartDate, 
+                    name: "dtStartDate", 
+                    isReadOnly: true, 
+                    width: "84.3%", 
+                    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "dtpStartDate" } }),
+                asterisk: true)
+        }
+        else
+        {
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("OP.MS.StartDate"),
+                contentAlways: Confluence.LabelGetDate(Model.StartDate, true),
+                asterisk: true);
+            
+            <span data-pagemode="edit">
+                @Confluence.InputHidden(Model.StartDate.ToString(), "dtStartDate")
+            </span>
+        }
+    </div>
+
+    <div class="col-md-2">
+        @Confluence.LabelsGroup(title: Localization.GetText("OP.MS.EndDate"),
+            contentRead: Confluence.LabelGetDate(Model.EndDate, true),
+            contentEdit: Confluence.InputDatePicker(value: Model.EndDate, name: "dtEndDate", isReadOnly: true, width: "84.3%", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "dtpEndDate" } }),
+            asterisk: true)
+    </div>
+
+    <div class="col-md-2">
+        @Confluence.LabelsGroup(title: Localization.GetText("OP.MS.Status"),
+            contentRead: Model.Status ?? "",
+            contentEditList: new List<HelperResult> { (Confluence.LabelBold(Model.Status ?? Model.StatusDraf)), (Confluence.InputHidden(Model.Status, "status")) },
+            asterisk: true)
+    </div>
+
+    <div class="col-md-3">
+        @{
+            var countries = (List<SelectListItem>)ViewBag.Countries;
+            string title = Localization.GetText("OP.MS.TargetCountry");
+            
+            bool isEditable = !string.IsNullOrEmpty(Model.StatusCode) &&
+                (Model.StatusCode == MissionStatusCode.MISSION_STATUS_DRAFT ||
+                Model.StatusCode == MissionStatusCode.MISSION_STATUS_PENDING_APP ||
+                Model.StatusCode == MissionStatusCode.MISSION_STATUS_APPROVED ||
+                Model.StatusCode == MissionStatusCode.MISSION_STATUS_APPROVED_MOD ||
+                Model.StatusCode == MissionStatusCode.MISSION_STATUS_POSTPONED ||
+                Model.StatusCode == MissionStatusCode.MISSION_STATUS_PEND_APPR_MODIFICATION ||
+                Model.StatusCode == MissionStatusCode.MISSION_STATUS_REJECTED_MODIFICATION);
+
+            var selected = countries.FirstOrDefault(x => x.Selected) ?? countries.First(); // Selected is country admin by default
+
+            if (Model.MissionId != 0) //Editing
+            {
+                selected = countries.FirstOrDefault(x => x.Value == Model.CountryId.ToString())
+                    ?? countries.First();
+            }
+
+            if ((isEditable || Model.MissionId == 0) && countries.Count > 0)
+            {
+                @Confluence.LabelsGroup(title: title,
+                    contentRead: Confluence.LabelBold(Model.ValidatorCountry),
+                    contentEdit: Confluence.InputDropDown(
+                        value: selected.Value,
+                        name: "validatorCountry",
+                        elements: ViewBag.Countries,
+                        dataAttributes: new Dictionary<string, string>
+                        {
+                            {"idb-fieldname", "ddlValidatorCountry"}
+                        },
+                        orderAsc: false),
+                    asterisk: true)
+            }
+            else
+            {
+                @Confluence.LabelsGroup(
+                        title: title,
+                        contentAlways: Confluence.LabelBold(selected.Text))
+            }
+        }
+    </div>
+</div>
+
+<div class="informationplace hide" id="messageAnalysis">
+    <div class="icoInformation"></div>
+    <div class="information-text red"></div>
+</div>
+
+<div class="row row-body-40" id="headerInnerSection">
+    @if (!string.IsNullOrEmpty(Model.RegionalCountry))
+    {
+        <div class="col-md-3">
+            @Confluence.LabelsGroup(title: Localization.GetText("OP.MS.CountryAdmin"),
+            contentAlways: Confluence.LabelBold(Model.RegionalCountry),
+            asterisk: true)
+        </div>
+    }
+    @if (ViewBag.visible.Equals("visible"))
+    {
+        <div class="col-md-3">
+            @Confluence.LabelsGroup(title: Localization.GetText("OP.MS.CountryDepartment"),
+        contentRead: Confluence.LabelBold(Model.CountryDepartment ?? ""),
+           contentEdit: Confluence.InputDropDown(Model.CountryDepartmentId.ToString().Equals("0") ? "" : Model.CountryDepartmentId.ToString(), "countryDepartment", ViewBag.CountryDepartmentList, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlCountryDepartment02" } }),
+        asterisk: true)
+        </div>
+
+        <div class="col-md-3">
+            @Confluence.LabelsGroup(title: Localization.GetText("OP.MS.Country"),
+        contentRead: Confluence.LabelBold(Model.Country ?? ""),
+         contentEdit: Confluence.InputDropDown(Model.CountryId.ToString(), "country", ViewBag.CountryList, parentValue: true, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlCountry02" } }),
+        asterisk: true)
+
+        </div>
+    }
+</div>

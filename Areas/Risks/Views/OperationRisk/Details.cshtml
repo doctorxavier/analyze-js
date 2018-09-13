@@ -1,0 +1,487 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Risks;
+@model IDB.MW.Domain.Models.Risks.OperationRiskViewModel
+
+@{
+   ViewBag.Title = "Details";
+   var listRiskStatus = this.ViewBag.listRiskStatus;
+   var listRiskType = this.ViewBag.listRiskType;
+   var listRiskTargetAudience = this.ViewBag.listRiskTargetAudience;
+   List<Tuple<int, int, string>> listRiskProbability = this.ViewBag.listRiskProbability;
+   List<Tuple<int, int, string>> listRiskImpact = this.ViewBag.listRiskImpact;
+   List<Tuple<string, decimal, decimal>> listRangeRiskLevel = this.ViewBag.listRangeRiskLevel;
+   bool isLessTaskFive = ViewBag.isLessTaskFive ?? false;
+}
+
+@if (ViewData["Message"] != null)
+{
+   IDB.Presentation.MVC4.Helpers.HtmlHelpers.ShowNotificationMessage(null, (IDB.Presentation.MVC4.Helpers.MessageConfiguration)ViewData["Message"]);
+}
+
+@section CSS {
+    @Styles.Render("~/Content/Confluence")
+    @Styles.Render("~/Content/Risks")
+    @Styles.Render("~/Content/DocumentManagement")
+}
+
+@section JavaScript {
+
+   <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/OperationProfile/Loan/jquery.tablesorter.min.js")"></script>
+   <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+   <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Risks/main.js")"></script>
+   <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/foldingTable/tableFold.js")"></script>
+   <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/foldingTable/main.js")"></script>
+   <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/Filter/filter.js")"></script>
+   <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Contract/mainRisk.js")"></script>
+
+   <script type="text/javascript">
+       $(document).on("ready", function () {
+
+         $("#RiskOperationTable").on("click", function () {
+            initializeTableSorting();
+         });
+
+      });
+
+      function initializeTableSorting() {
+         $("#RiskOperationTable").tablesorter({
+            sortList: [[0, 0]],
+            headers: {
+               0: {
+                  sorter: "digit"
+               },
+               1: {
+                  sorter: "text"
+               },
+               2: {
+                  sorter: 'text'
+               },
+               3: {
+                  sorter: "text"
+               },
+               4: {
+                  sorter: "text"
+               }
+            }
+         });
+      }
+
+   </script>
+
+}
+
+@*Datos para filtro*@
+@Html.Hidden("FilterSelectedRiskType", (object)ViewData["SelectedRiskType"])
+@Html.Hidden("FilterDescription", (object)ViewData["DescriptionFilter"])
+@Html.Hidden("FilterRiskLevel", (object)ViewData["RiskLevelFilter"])
+@Html.Hidden("FilterRiskTarget", (object)ViewData["RiskTargetFilter"])
+@Html.Hidden("FilterRiskStatus", (object)ViewData["RiskStatusFilter"])
+@Html.Hidden("FilterOperationNumber", (object)ViewData["OperationNumberFilter"])
+
+<div id="ui_ri_001" class="mod_contenido_central risksList">
+   <h3 class="headingh2">@Localization.GetText("Risks")</h3>
+   @if (!Model.StateOperationRisk)
+   {
+      <div class="editingButtonsEdit">
+         <label for="Editar">
+           @if (ViewBag.RMAdministrator && Html.HasPermission("Risks Write"))
+           {
+                <input type="button" class="btn-primary edit" value="@Localization.GetText("Edit")" title="@Localization.GetText("Edit")" id="editBtn1" data-route="@(Url.Action("Edit", "OperationRisk", new { area = "Risks", operationNumber = Model.OperationNumber }))">
+           }
+           else if (isLessTaskFive && Html.HasPermission("Risks Write"))
+           {
+                <input type="button" class="btn-primary edit" value="@Localization.GetText("Edit")" title="@Localization.GetText("Edit")" id="editBtn1" data-route="@(Url.Action("Edit", "OperationRisk", new { area = "Risks", operationNumber = Model.OperationNumber }))">
+           }
+         </label>
+      </div>
+   }
+   <br>
+   <br>
+
+   <div class="verticalMargin20">
+      @if (!Model.isOperationTypeTC)
+      {
+         <div class="operationData dataDetails">
+            <div class="data4" style="width: 30%;">
+               <p class="dataTitle">@Localization.GetText("PMR Cycle")</p>
+               <p>@Model.PmrCycle</p>
+            </div>
+            <div class="data4" style="width: 65%;">
+               <p class="dataTitle">@Localization.GetText("PMR Validation Stage")</p>
+               <p>@String.Format("{0:dd MMM yyyy}", @Model.PmrValidationStage)</p>
+            </div>
+         </div>
+      }
+      <div class="operationData">
+         <div class="data4" style="width: 30%;">
+            <p class="dataTitle">@Localization.GetText("ESG classification value")</p>
+            <p>@Model.ESGClassification</p>
+         </div>
+         <div class="data4" style="width: 65%;">
+            <p class="dataTitle">@Localization.GetText("Risk Last Update")</p>
+            <p>@String.Format("{0:dd MMM yyyy}", @Model.LastUpdate)</p>
+         </div>
+      </div>
+   </div>
+
+   @Html.HiddenFor(x => x.OperationNumber, new Dictionary<string, Object> { { "id", "operationNumber" } })
+   <!-- Filter container -->
+   <div class="editingButtonsEdit">
+      <input id="showFilterButtonRisks" type="button" class="btn-primary edit" value="@Localization.GetText("Filter")">
+   </div>
+   <br />
+   <section id="SectionFilterContainer">
+      <div class="filter">
+         <div id="searchBoxContainerRisks" class="cajaGeneralFilter2">
+            @using (Html.BeginForm("FilterOperationRisk", "OperationRisk"))
+            {
+               @Html.HiddenFor(x => x.OperationId)
+               @Html.HiddenFor(x => x.OperationNumber)
+               @Html.HiddenFor(x => x.OperationParent)
+               <div class="contenidoFilter5">
+                  <ul class="optionList">
+                     <li class="smallFilter2 dataTitle">
+                        <select id="operationNumberFilterRisks" name="OperationNumberFilter" class="kendoDropDown">
+                           <option value="" selected>@Localization.GetText("Op. Number")</option>
+                           @foreach (string operatioNumber in @Model.OperationNumbers)
+                           {
+                              <option class="width100px" value="@operatioNumber">@operatioNumber</option>
+                           }
+                        </select>
+                     </li>
+                     <li class="smallFilter2 dataTitle">
+                        <select id="typeFilterRisks" name="RiskTypeFilter" class="kendoDropDown">
+                           <option value="" selected>@Localization.GetText("Type")</option>
+                           @foreach (Tuple<int, string> riskTypes in listRiskType)
+                           {
+                              <option class="width100px" value="@riskTypes.Item1">@riskTypes.Item2</option>
+                           }
+                        </select>
+                     </li>
+                     <li class="smallFilter2 dataTitle">
+                        <select id="riskLevelFilterRisks" name="RiskLevelFilter" class="kendoDropDown">
+                           <option value="" selected>@Localization.GetText("Risk Level")</option>
+                           @foreach (Tuple<string, decimal, decimal> listRiskLevel in listRangeRiskLevel)
+                           {
+                              <option class="width100px" value="@listRiskLevel.Item1">@listRiskLevel.Item1</option>
+                           }
+                        </select>
+                     </li>
+                     <li class="smallFilter2 dataTitle">
+                        <select id="targetAudienceFilterRisks" name="RiskTargetFilter" class="kendoDropDown">
+                           <option value="" selected>@Localization.GetText("Target audience for migration measure")
+                           </option>
+                           @foreach (Tuple<int, string> riskTarget in listRiskTargetAudience)
+                           {
+                              <option class="width100px" value="@riskTarget.Item1">@riskTarget.Item2</option>
+                           }
+                        </select>
+                     </li>
+                  </ul>
+                  <ul class="optionList w50">
+                     <li class="smallFilter2 smallDatepicker">
+                        <h1>
+                           <select id="statusFilterRisks" name="RiskStatusFilter" class="kendoDropDown">
+                              <option value="" selected>@Localization.GetText("Status")</option>
+                              @foreach (Tuple<int, string> riskStatus in listRiskStatus)
+                              {
+                                 <option class="width100px" value="@riskStatus.Item1">@riskStatus.Item2</option>
+                              }
+                           </select>
+                        </h1>
+                     </li>
+                     <li class="smallFilter2 smallDatepicker">
+                        <h1 style="width: 445%;">
+                           <input class="textoGrandeFilter2 no-margin" type="text" name="DescriptionFilter" style="margin-left: 1px; font-family: futura" id="DescriptionFilter" placeholder="@Localization.GetText("Description")" maxlength="300" />
+                        </h1>
+                     </li>
+                  </ul>
+                  <div class="custom operationData">
+                     <ul class="optionList">
+                        <li class="smallFilter2" style="position: relative; left: 70%;">
+                           <div class="pie">
+                              <label for="FilterForm" style="margin-right: 2%;">
+                                  <input type="button" data-route="/Clauses/Risks?@Model.OperationNumber" id="clearBtn" value="@Localization.GetText("Clear All")" class="btn-primary ftr marginRight3 w100"/>
+                              </label>
+                              <label for="FilterForm">
+                                 <input type="submit" id="BtnFilter" value="@Localization.GetText("Filter")" class="btn-primary ftr marginRight3"/>
+                              </label>
+                           </div>
+                        </li>
+                     </ul>
+                  </div>
+               </div>
+            }
+         </div>
+      </div>
+   </section>
+   <div id="ContentDataFilter_RiskDocumentsComments">
+      <div style="width: 92.5%; position: relative; left: 1%;" class="mod_tabla">
+         <div class="k-grid k-widget k-secondary">
+            <table class="grid2 k-selectable" data-role="grid" role="grid" id="RiskOperationTable">
+               <colgroup>
+                  <col>
+                  <col>
+                  <col>
+                  <col>
+                  <col>
+                  <col>
+                  <col>
+               </colgroup>
+               <thead class="k-grid-header">
+                  <tr>
+                     <th class="btn_azul_oscuro_flecha k-header" style="width: 67px" data-field="Identifier" data-role="sortable"><a class="k-header-column-menu" tabindex="-1" style="display: none;"><span class="k-icon k-i-arrowhead-s"></span></a><a class="k-link">@Localization.GetText("Identifier")</a></th>
+                     <th class="btn_azul_oscuro_flecha k-header" style="width: 272px" data-field="Operation" data-role="sortable"><a class="k-header-column-menu" tabindex="-1" style="display: none;"><span class="k-icon k-i-arrowhead-s"></span></a><a class="k-link">@Localization.GetText("Operation/Loan")</a></th>
+                     <th class="btn_azul_oscuro_flecha k-header" style="width: 270px" data-field="Description" data-role="sortable"><a class="k-header-column-menu" tabindex="-1" style="display: none;"><span class="k-icon k-i-arrowhead-s"></span></a><a class="k-link">@Localization.GetText("Description")</a></th>
+                     <th class="btn_azul_oscuro_flecha k-header" style="width: 174px" data-field="Type" data-role="sortable"><a class="k-header-column-menu" tabindex="-1" style="display: none;"><span class="k-icon k-i-arrowhead-s"></span></a><a class="k-link">@Localization.GetText("Type")</a></th>
+                     <th class="btn_azul_oscuro_flecha k-header" style="width: 135px;" data-field="Status" data-role="sortable"><a class="k-header-column-menu" tabindex="-1" style="display: none;"><span class="k-icon k-i-arrowhead-s"></span></a><a class="k-link">@Localization.GetText("Status")</a></th>
+                     <th class="btn_azul_oscuro_flecha k-header" style="width: 34px;" data-field="Details"><a class="k-header-column-menu" tabindex="-1" style="display: none;"><span class="k-icon k-i-arrowhead-s"></span></a><a class="k-link"></a></th>
+                  </tr>
+               </thead>
+               <tbody>
+                  @{int q = 0;
+                    foreach (RiskModel risk in @Model.Risks)
+                    {
+                       q = q + 1;
+                     <tr>
+                        <td colspan="6" class="noPadding">
+                           <table class="w100 innerGrid" id="RiskOperationTableConted">
+                              <tr role="row">
+                                 <td role="gridcell" style="width: 67px">
+                                    <div style="text-align: center"><a href="@(Url.Action("Details", "Risk", new { area = "Risks", operationNumber = Model.OperationNumber, riskId = risk.RiskId }))">@risk.RiskCode</a></div>
+                                 </td>
+                                 <td role="gridcell" style="width: 272px">
+                                    <div style="text-align: left">
+                                       <p style="margin-left: 3%;">
+                                           <div>
+                                               @risk.OperationNumberForRisk
+                                               @{
+                                                   int ActualOperationIndex = 0;
+                                                   string ActualOperation = string.Empty;
+                                                   if (Model.OperationLoadList != null)
+                                                   {
+                                                       if (Model.OperationLoadList.Count > 0)
+                                                       {
+                                                           foreach (var OperationLoan in Model.OperationLoadList)
+                                                           {
+                                                               if (OperationLoan.OperationNumber == risk.OperationNumberForRisk)
+                                                               {
+                                                                   <text> / </text>@OperationLoan.Loan
+                                                                   ActualOperation = Model.OperationLoadList[ActualOperationIndex].OperationNumber;
+                                                               }
+                                                               else
+                                                               {
+                                                                   break;
+                                                               }
+                                                           }
+                                                           ActualOperationIndex++;
+                                                       }
+                                                   }
+                                               }
+                                           </div>
+                                       </p>
+                                    </div>
+                                 </td>
+                                 <td role="gridcell" style="width: 270px">
+                                     <a href="@(Url.Action("Details", "Risk", new { area = "Risks", operationNumber = Model.OperationNumber, riskId = risk.RiskId }))" style="text-align: left">
+
+                                         @if (risk.Description.Length < 35)
+                                         {  @risk.Description }
+                                         else
+                                         {
+                                             @(risk.Description.Substring(0, 35) + "...")
+                                         }
+                                     </a>
+                                 </td>
+                                 <td role="gridcell" style="width: 174px">
+                                    <div style="text-align: left; padding-right: 5px">
+                                       @foreach (Tuple<int, string> riskTypes in listRiskType)
+                                       {
+                                          if (@riskTypes.Item1 == @risk.TypeId)
+                                          {
+                                          @Localization.GetText(riskTypes.Item2);
+                                                                     break;
+                                          }
+                                       }
+                                    </div>
+                                 </td>
+                                 <td role="gridcell" style="width: 135px">
+                                    <div style="text-align: left; padding-right: 5px">
+                                       @{
+                                       int riskStatusId = @risk.RiskStatus.OrderByDescending(rs => rs.ChangeStatusDate).Select(rs => rs.StatusId).FirstOrDefault();
+                                       }
+                                       @foreach (Tuple<int, string> riskStatus in listRiskStatus)
+                                       {
+                                          if (@riskStatus.Item1 == @riskStatusId)
+                                          {
+                                          @Localization.GetText(riskStatus.Item2);
+                                                                      break;
+                                          }
+                                       }
+                                    </div>
+                                 </td>
+                                 <td role="gridcell" style="width: 34px">
+                                    <div style="text-align: right; padding-right: 5px">
+                                       <input type="button" class="noBorder operationButton arrow cursorPointer" />
+                                    </div>
+                                 </td>
+
+                              </tr>
+                              <tr>
+                                 <td colspan="6">
+                                    <div class="padding10 leftAlign">
+                                       <div class="verticalMargin10 inline-block w33">
+                                          <h6 class="boldFont verticalMargin10">@Localization.GetText("Description")</h6>
+                                          <p class="verticalMargin10 grayColor">@risk.Description</p>
+                                       </div>
+
+                                       <div class="verticalMargin10 inline-block w18 marginLeft3">
+                                          <h6 class="boldFont verticalMargin10">@Localization.GetText("Risk level")</h6>
+                                          <h5 class="verticalMargin10 grayColor">
+                                             @{ 
+                                       int riskLevel = @listRiskProbability.Where(lrp => lrp.Item1 == @risk.ProbabilityId).Select(lrp => lrp.Item2).FirstOrDefault()
+                                           * @listRiskImpact.Where(lrp => lrp.Item1 == @risk.ImpactValueId).Select(lrp => lrp.Item2).FirstOrDefault();
+                                       string levelName = string.Empty;
+                                             }
+                                             @if (@listRangeRiskLevel.Count > 0)
+                                             {
+                                                if (riskLevel >= @listRangeRiskLevel[0].Item2 && riskLevel <= @listRangeRiskLevel[0].Item3)
+                                                {
+                                                   levelName = @listRangeRiskLevel[0].Item1;
+                                                }
+                                                if (riskLevel >= @listRangeRiskLevel[1].Item2 && riskLevel <= @listRangeRiskLevel[1].Item3)
+                                                {
+                                                   levelName = @listRangeRiskLevel[1].Item1;
+                                                }
+                                                if (riskLevel >= @listRangeRiskLevel[2].Item2 && riskLevel <= @listRangeRiskLevel[2].Item3)
+                                                {
+                                                   levelName = @listRangeRiskLevel[2].Item1;
+                                                }
+                                             }
+                                             @Localization.GetText(levelName)</h5>
+                                       </div>
+
+                                       <div class="verticalMargin10 inline-block w18 marginLeft3">
+                                          <h6 class="boldFont verticalMargin10">@Localization.GetText("Impact")</h6>
+                                          <p class="verticalMargin10 grayColor">
+                                             @foreach (Tuple<int, int, string> riskImpact in listRiskImpact)
+                                             {
+                                                if (@riskImpact.Item1 == @risk.ImpactValueId)
+                                                {
+                                                @Localization.GetText(riskImpact.Item3);
+                                                                            break;
+                                                }
+                                             }
+                                          </p>
+                                       </div>
+                                       <div class="verticalMargin10 inline-block w18 marginLeft3">
+                                          <h6 class="boldFont verticalMargin10">@Localization.GetText("Probability")</h6>
+                                          <p class="verticalMargin10 grayColor">
+                                             @foreach (Tuple<int, int, string> riskPrpbability in listRiskProbability)
+                                             {
+                                                if (@riskPrpbability.Item1 == @risk.ProbabilityId)
+                                                {
+                                                @Localization.GetText(riskPrpbability.Item3);
+                                                                                 break;
+                                                }
+                                             }
+                                          </p>
+                                       </div>
+                                    </div>
+                                 </td>
+                              </tr>
+                           </table>
+                        </td>
+                        <!--Necessary for Tablesorter, no delete-->
+                        <td style="display: none">
+                           <p>@risk.OperationNumberForRisk</p>
+                        </td>
+                        <td style="display: none">
+                           <p>@risk.Description           </p>
+                        </td>
+                        <td style="display: none">
+                           <p>@risk.TypeId                </p>
+                        </td>
+                        <td style="display: none">
+                           <p>@riskStatusId               </p>
+                        </td>
+                        <td style="display: none"></td>
+                     </tr>
+                    }}
+               </tbody>
+            </table>
+            <div class="k-toolbar">
+               @if (Html.HasPermission("Risks Write"))
+               {
+                  <a href="@(Url.Action("Create", "Risk", new { area = "Risks", operationNumber = Model.OperationNumber, operationId = Model.OperationId, OperationRiskId = Model.operationRisksId, riskModel = Model }))" class="k-button newIndicator"><span class="k-button-">@Localization.GetText("New Risk")</span></a>
+               }
+            </div>
+         </div>
+
+         <!-- TEST -->
+         <div class="verticalMargin20 rightAlign">
+            <ul class="pager">
+               <li class="pagerItem inline-block active">1</li>
+            </ul>
+         </div>
+
+         <div style="text-align: right;">
+            <a title="Export PDF" style="color:white;border-radius:4px;" class="exportdata pdf" href='@(Url.Action("DownloadReport", "OperationRisk", new { area = "Risks", format = "pdf", operationNumber = @Model.OperationNumber }))'></a>
+            <a title="Export Excel" style="color:white;border-radius:4px;" class="exportdata excel" href='@(Url.Action("DownloadReport", "OperationRisk", new { area = "Risks", format = "xls", operationNumber = @Model.OperationNumber }))'></a>
+         </div>
+      </div>
+      <!-- Comments grid -->
+      <p class="headingh3">@Localization.GetText("Comments")</p>
+      <table id="commentTableUIRI001" class="grid">
+
+         @for (int i = 0; i < @Model.UserComment.Count(); i++)
+         {
+            <tr>
+               <td>
+                  <div class="padding10 leftAlign">
+                     <div class="verticalMargin10 w100">
+                        <div class="verticalMargin10 inline-block">@Model.UserComment[i].Modified.Value.ToString("dd MMM yyyy")</div>
+                        <div class="verticalMargin10 inline-block bold marginLeft3" style="margin-left: 10px;">@Model.UserComment[i].CreatedBy</div>
+                     </div>
+                     <div class="verticalMargin10 w100">
+                        @Html.HiddenFor(x => x.UserComment[i].UserCommentId)
+                        @Html.HiddenFor(x => x.UserComment[i].ModifiedBy)
+                        @Html.HiddenFor(x => x.UserComment[i].Modified)
+                        @Html.HiddenFor(x => x.UserComment[i].Text)
+                        <p class="padding10">@Model.UserComment[i].Text</p>
+                     </div>
+                  </div>
+               </td>
+            </tr>
+         }
+      </table>
+      <!-- End comments grid -->
+      <!-- Documents grid -->
+      <p class="headingh3">@Localization.GetText("Documents")</p>
+      <div class="verticalMargin20">
+          @DocumentManagement.DynamicTable("docTableUIRI001", "DocumentsRecord", Model.TableDocumentsRisk, false, false)
+      </div>
+      <!-- End documents grid -->
+   </div>
+
+   @if (!Model.StateOperationRisk)
+   {
+      <div class="editingButtonsEdit">
+         <label for="Editar">
+            @if (ViewBag.RMAdministrator && Html.HasPermission("Risks Write"))
+            {
+               <input type="button" class="btn-primary edit" value="@Localization.GetText("Edit")" title="@Localization.GetText("Edit")" id="editBtn2" data-route="@(Url.Action("Edit", "OperationRisk", new { area = "Risks", operationNumber = Model.OperationNumber }))">
+            }
+            else if(isLessTaskFive && Html.HasPermission("Risks Write"))
+            {
+                <input type="button" class="btn-primary edit" value="@Localization.GetText("Edit")" title="@Localization.GetText("Edit")" id="editBtn2" data-route="@(Url.Action("Edit", "OperationRisk" , new { area="Risks" , operationnumber=Model.OperationNumber }))">
+             }
+         </label>
+      </div>
+   }
+</div>
+
+<script type="text/javascript">
+    $(document).on('click', '.noBorder.operationButton.arrow.cursorPointer', function () {
+        setTimeout(function () { resizeIframeCloud(); }, 500);
+    });
+</script>

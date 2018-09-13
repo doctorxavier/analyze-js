@@ -1,0 +1,287 @@
+﻿@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Components
+@using IDB.MW.Domain.Values
+@using IDB.Presentation.MVC4.Helpers
+@model PhysicalProgressViewModel
+
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery-1.10.2.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/angular/1.6/angular.js")"></script>
+<script src="~/Scripts/Mainframe/fixIframe.js"></script>
+<script type="text/javascript" src="@Url.Content("~/app/app.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/dirPagination.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/dialog.directive.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/services/common.service.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/components/physicalprogress.controller.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/valid.number.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/valid.number.negative.js")"></script>
+
+<script>
+
+    var physicalProgressData = @Html.Raw(Json.Encode(Model));
+
+    $(document).ready(function () {
+
+        $(".btn-action-group").click(function (e) {
+            $(this).hasClass("activo")
+            ? $(this).removeClass("activo")
+            : $(this).addClass("activo");
+
+            var collapsableClass = $(this).data("collapsable-element");
+
+            $(this).find(".btn-action").html($(this).hasClass("activo")?$(this).data("collapsable-title"):$(this).data("expandable-title"));
+
+            var spanIcons = $("." + collapsableClass + ".icon");
+            $.each(spanIcons, function (index, spanIcon) {
+                CollapseTable(spanIcon);
+            });
+        });
+
+        $(".physical-filters").click(function (e) {
+            
+            var physicalScope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+            var button = $(this).data("collapsable-element");
+            var expanded = $(this).data("expanded");
+
+            if ($(this).hasClass("row-inactive-output")) {
+                if ($(this).hasClass("expanded")) {
+                    $("tr.inactive-output").hide();
+                    $(this).removeClass("pressed");
+                    $(this).removeClass("expanded");
+                    $("tr.inactive-output").each(function(index, inactiveOutput){
+                        var trClass = $(this).attr("class").split(" ");
+                        var trOutputClass = null;
+                        $.each(trClass, function(){
+                            if (this.indexOf("outputRowTitle") > -1) {
+                                trOutputClass = this;
+                            }
+                        });
+                        
+                        $("tr."+trOutputClass).hide();
+                    });
+                    physicalScope.$apply(function() {
+                        angular.forEach(physicalScope.PhysicalProgress.Components, function (component) {
+                            angular.forEach(component.Outputs, function (output) {
+                                if (output.IsDeactivated && output.IsVisible) {
+                                    output.IsVisible = false;
+                                }
+                            });                            
+                        });
+                    });
+                }else {
+                    $(this).addClass("pressed");
+                    $(this).addClass("expanded");
+                    $("tr.inactive-output").show();
+                    physicalScope.$apply(function() {
+                        angular.forEach(physicalScope.PhysicalProgress.Components, function (component) {
+                            angular.forEach(component.Outputs, function (output) {
+                                if (output.IsDeactivated && !output.IsVisible) {
+                                    output.IsVisible = true;
+                                }
+                            });                            
+                        });
+                    });
+                }
+            }else {
+                if ($(this).hasClass("row-milestone")) {
+                    if ($(this).hasClass("expanded")) {
+                        $(this).removeClass("pressed");
+                        $(this).removeClass("expanded");
+                        $('tr.tr-milestone').hide();
+                        physicalScope.$apply(function() {
+                            physicalScope.PhysicalProgress.IsMilestonesEnabled = false;
+                        });
+                    }else {
+                        $(this).addClass("pressed");
+                        $(this).addClass("expanded");
+                        $(".row-disaggregation").removeClass("pressed");
+                        $(".row-disaggregation").removeClass("expanded");
+                        $("tr.tr-disagg").hide();
+                        $("tr.tr-milestone").each(function(index, trMilestone){
+                            var trClass = $(this).attr("class").split(" ");
+                            var trMilestoneClass = null;
+                            $.each(trClass, function(){
+                                if (this.indexOf("outputRowTitle") > -1) {
+                                    trMilestoneClass = this;
+                                }
+                            });
+                            
+                            var parentIsActive = $("tr."+trMilestoneClass).is(":visible")
+
+                            if(parentIsActive){
+                                $(this).show();
+                            }
+                        });
+
+
+                        physicalScope.$apply(function() {
+                            physicalScope.PhysicalProgress.IsMilestonesEnabled = true;
+                            physicalScope.PhysicalProgress.IsDisaggregationsEnabled = false;
+                        });
+                    }
+                }
+
+                if ($(this).hasClass("row-disaggregation")) {
+                    if ($(this).hasClass("expanded")) {
+                        $(this).removeClass("pressed");
+                        $(this).removeClass("expanded");
+                        $('tr.tr-disagg').hide();
+                        physicalScope.$apply(function() {
+                            physicalScope.PhysicalProgress.IsDisaggregationsEnabled = false;
+                        });
+                    }else {
+                        $(this).addClass("pressed");
+                        $(this).addClass("expanded");
+                        $(".row-milestone").removeClass("pressed");
+                        $(".row-milestone").removeClass("expanded");
+                        $('tr.tr-milestone').hide();
+                        $("tr.tr-disagg").each(function(index, trDisagg){
+                            var trClass = $(this).attr("class").split(" ");
+                            var trDisaggClass = null;
+                            $.each(trClass, function(){
+                                if (this.indexOf("outputRowTitle") > -1) {
+                                    trDisaggClass = this;
+                                }
+                            });
+                            
+                            var parentIsActive = $("tr."+trDisaggClass).is(":visible")
+
+                            if(parentIsActive){
+                                $(this).show();
+                            }
+                        });
+
+
+                        physicalScope.$apply(function() {
+                            physicalScope.PhysicalProgress.IsDisaggregationsEnabled = true;
+                            physicalScope.PhysicalProgress.IsMilestonesEnabled = false;
+                        });
+                    }
+                }
+            }
+        });
+    });
+
+    function showActionBar(row) {
+        $(row).find("div.action-bar").show();
+    }
+
+    function hideActionBar(row) {
+        $(row).find("div.action-bar").hide();
+    }
+
+    function validate() {
+
+        $('.inputText').off('keyup').keyup(function () {
+            if ($(this).next().is('[ng-show*="' + $(this).attr('name') + '.$invalid"]')) {
+                if (!$(this).next().is('.ng-hide')) {
+                    $(this).addClass('parsley-error');
+                } else {
+                    $(this).removeClass('parsley-error');
+                }
+            }
+        });
+
+        $('.inputTextarea').off('keyup').keyup(function () {
+            if ($(this).next().is('[ng-show*="' + $(this).attr('name') + '.$invalid"]')) {
+                if (!$(this).next().is('.ng-hide')) {
+                    $(this).addClass('parsley-error');
+                } else {
+                    $(this).removeClass('parsley-error');
+                }
+            }
+        });
+    }
+
+    function onEnd() {
+        $('.tab-pane').each(function() {
+            $(this).find('.tablePrincipal').each(function(i) {
+                $(this).find('th.tree.icon div.number').text(i + 1);
+                var x = 1;
+
+                for (var j = 0; j < $(this).find('td.tree').length; j++) {
+                    var element = $($(this).find('td.tree')[j]);
+                    if (element.find('div.number').length === 0 && !element.is('.noCreateNumber')) {
+                        element.append('<div class="number"></div>');
+                    }
+                    if (element.closest('tr').find('th').length === 0) {
+                        if (element.find('div.number').length === 1 && !element.is('.noNumber')) {
+                            element.find('div.number').text((i + 1) + '.' + x);
+                            x++;
+                        }
+                    }
+                }
+                i++;
+            }).TableNumber();
+        });
+        validate();
+    }
+
+    function downloadPhysicalProgressDocument(source) {
+        var inactiveO = false;
+        var milestonesO = false;
+        var disaggregationO = false;
+        var inputMilestones = $('input.row-milestone');
+        var intputInactive = $('input.row-inactive-output');
+        var intputDissaggregation = $('input.row-disaggregation');
+
+        if ($(intputInactive).hasClass('pressed')) {
+            inactiveO = true;
+        }
+        if ($(inputMilestones).hasClass('pressed')) {
+            milestonesO = true;
+        }
+        if ($(intputDissaggregation).hasClass('pressed')) {
+            disaggregationO = true;
+        }
+
+        var formatDoc = source.attr('name');
+        var url = '@Url.Action("DownloadFilePhysicalProgress", "Components", new { area = "TCM" })' + "?formatType=" + formatDoc + "&inactiveOutput=" + inactiveO + "&milestones=" + milestonesO + "&disaggregation=" + disaggregationO;
+        var data = { formatType: formatDoc, inactiveOutput: inactiveO, milestones: milestonesO, disaggregation: disaggregationO};
+        postUrlWithOptions(url, null, data).done(function() {
+            window.open(url, '_blank');
+        });
+    }
+
+</script>
+
+@{
+    var ouputsIndexPath = Url.Action("Index", "Components", new { area = "TCM" });
+    var indexPath = Url.Action("IndexPhysicalProgress", "Components", new { area = "TCM" });
+    var savePath = Url.Action("PhysicalProgressSave", "ComponentsSave", new { area = "TCM" });
+    var deleteComponentPath = Url.Action("DeleteComponent", "ComponentsSave", new { area = "TCM" });
+    var deleteOuputPath = Url.Action("DeleteOutput", "ComponentsSave", new { area = "TCM" });
+    var deletePlannedYearPath = Url.Action("DeletePlannedYear", "ComponentsSave", new { area = "TCM" });
+    var reassignOutputPath = Url.Action("ReassignOutput", "ComponentsSave", new { area = "TCM" });
+    var deleteMilestonePath = Url.Action("DeleteMilestone", "ComponentsSave", new { area = "TCM" });
+    var deleteDisaggregationPath = Url.Action("DeleteDisaggregation", "ComponentsSave", new { area = "TCM" });
+    var addNewOutputIndicatorPath = Url.Action("GetIndicator", "ComponentsSave", new { area = "TCM" });
+    var filterStandardOutputsPath = Url.Action("FilterStandarOutputs", "ComponentsSave", new { area = "TCM" });
+    var assignStandarOutputIndicatorPath = Url.Action("CreateNewOutputIndicator", "ComponentsSave", new { area = "TCM" });
+    var getFundIndicatorsByThemePath = Url.Action("GetFundIndicatorsByTheme", "Components", new { area = "TCM" });
+    var getValidationElementToDeletePath = Url.Action("GetValidationElementToDelete", "Components", new {area = "TCM"});
+    var linkToPredefinedIndicatorPath = Url.Action("LinkToPredefinedIndicator", "ComponentsSave", new { area = "TCM" });
+    var unlinkPredefinedIndicatorPath = Url.Action("UnlinkPredefinedIndicator", "ComponentsSave", new { area = "TCM" });
+    var getStandardOutputDetailPath = Url.Action("GetStandardOutputDetail", "Components", new { area = "TCM" });
+    var getLinkedProcurementProcessPath = Url.Action("GetLinkedProcurementProcesses", "Components", new { area = "TCM" });
+}
+
+<span id="outcomes-container"
+      class="physical-progress-controller"
+      ng-app="resultsMatrixApp"
+      ng-cloak
+      ng-controller="PhysicalProgressController"
+      ng-init="OuputsIndexPath = '@ouputsIndexPath'; IndexPath='@indexPath'; SavePath = '@savePath'; DeleteComponentPath = '@deleteComponentPath'; DeletePlannedYearPath = '@deletePlannedYearPath'; DeleteOutputPath = '@deleteOuputPath'; ReassignOutputPath='@reassignOutputPath'; deleteMilestonePath = '@deleteMilestonePath'; deleteDisaggregationPath='@deleteDisaggregationPath'; AddNewOutputIndicatorPath='@addNewOutputIndicatorPath'; FilterStandardOutputsPath='@filterStandardOutputsPath'; AssignStandarOutputIndicatorPath='@assignStandarOutputIndicatorPath'; GetFundIndicatorsByThemePath='@getFundIndicatorsByThemePath'; LinkToPredefinedIndicatorPath='@linkToPredefinedIndicatorPath';GetValidationElementToDeletePath='@getValidationElementToDeletePath'; UnlinkPredefinedIndicatorPath='@unlinkPredefinedIndicatorPath'; GetStandardOutputDetailPath='@getStandardOutputDetailPath'; GetLinkedProcurementProcessPath='@getLinkedProcurementProcessPath';">
+    @Confluence.Loader(dataAttributes: new Dictionary<string, string> { { "data-loading-bar", "true" } })
+    @Html.Partial("~/Areas/TCM/Views/Components/Partial/IndexPhysicalProgress.cshtml")
+
+    @Html.Partial("~/Areas/TCM/Views/Components/Partial/EditPhysicalProgress.cshtml", Model.FieldAccessList)
+</span>
+
+@Html.Partial("~/Areas/TCM/Views/Components/Partial/IndicatorFlagLegend.cshtml")
+
+@Html.Partial("~/Areas/TCM/Views/Components/Partial/Messages.cshtml")
+@Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/SharedMessages.cshtml")
+@Html.Partial("~/Areas/TCM/Views/Components/Partial/StandardOutputs/AddNewOutputIndicator.cshtml")
+@Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/UnLinkIndicator.cshtml", new ViewDataDictionary { 
+    { "parentTitle", Localization.GetText("Component") }
+    , { "childTitle", Localization.GetText("Output") } 
+})

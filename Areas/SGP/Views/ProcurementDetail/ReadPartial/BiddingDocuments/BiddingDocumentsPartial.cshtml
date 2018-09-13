@@ -1,0 +1,465 @@
+﻿@using System.Web.Mvc
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Business.DocumentManagement.Enums
+
+@model ProcurementDetailViewModel
+
+@{
+    var declareInegibility = Model.Header.DeclareIneligibility;
+    var cancelProcess = Model.Header.CancelProcess;
+    bool hasDeclareWfLaunched = false;
+    bool hasCancelWfLaunched = false;
+
+    if (declareInegibility != null)
+    {
+        hasDeclareWfLaunched = Model.Header.DeclareIneligibility.HasWfLaunched.HasValue && Model.Header.DeclareIneligibility.HasWfLaunched.Value;
+    }
+
+    if (cancelProcess != null)
+    {
+        hasCancelWfLaunched = Model.Header.CancelProcess.HasWfLaunched.HasValue && Model.Header.CancelProcess.HasWfLaunched.Value;
+    }
+
+    var hasWfLaunched = (hasDeclareWfLaunched || hasCancelWfLaunched) ? "hide" : "";
+}
+
+@if (Model.BiddingDocTab != null)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    
+    var requestForPublisingMessage = string.Empty;
+    int? typePublishing = null;
+    var workflowSPNPublishingTypeId = Model.BiddingDocTab.PackageSelected.ViewContainer.GetValue<int>("WorkflowSPNPublishingTypeId");
+    var workflowEOIPublishingTypeId = Model.BiddingDocTab.PackageSelected.ViewContainer.GetValue<int>("WorkflowEOIPublishingTypeId");
+    var workflowNOAPublishingTypeId = Model.BiddingDocTab.PackageSelected.ViewContainer.GetValue<int>("WorkflowNOAPublishingTypeId");
+    
+    var SPNTextMessage = Localization.GetText("SGP.Message.SPNPublishing");
+    var EOITextMessage = Localization.GetText("SGP.Message.EOIPublishing");
+    var NOATextMessage = Localization.GetText("SGP.Message.NOAPublishing");
+        
+    if (Model.BiddingDocTab.PackageSelected != null)
+    {
+     typePublishing = Model.BiddingDocTab.PackageSelected.RequestForPublisingTypeId;
+
+     if (typePublishing == workflowSPNPublishingTypeId)
+     {
+         requestForPublisingMessage = SPNTextMessage;
+     } else if (typePublishing == workflowEOIPublishingTypeId)
+     {
+         requestForPublisingMessage = EOITextMessage;
+     } else if (typePublishing == workflowNOAPublishingTypeId)
+     {
+         requestForPublisingMessage = NOATextMessage;
+     }
+    }
+
+    <div class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"add-response-document\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-add-response-doc",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "add-response-document",
+            CanMultiSelect = false,
+            TargetFunction = "AddResponseDoc",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"bidding-request-for-publishing\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-request-for-publishing",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-cancel-cancel",
+                            text: Localization.GetText("Common.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+                .AddButton(name: "btn-cancel-ok",
+                            text: Localization.GetText("Common.Ok"),
+                            type: CssClass.Button05,
+                             callback: "WorkflowRequestForPublishing",
+                            closeAtEnd: true))
+        <div data-name="bidding-request-for-publishing" class="hide modalBody">
+            @requestForPublisingMessage
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"add-response-warning\"]",
+                title: Localization.GetText("Common.Warning"),
+                type: CssClass.ModalWarningNoIcon,
+                moveOriginalContent: true,
+                name: "btn-open-popup-add-response-warning",
+                closeOnOverlay: false,
+                allowClose: true,
+                actionOnClose: "")
+                .AddButton(name: "btn-cancel-cancel",
+                            text: Localization.GetText("Common.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+                .AddButton(name: "btn-cancel-ok",
+                            text: Localization.GetText("COMMON.SVQ.Send"),
+                            type: CssClass.Button01,
+                             callback: "SendAddResponseDoc",
+                            closeAtEnd: true))
+        <div data-name="add-response-warning" class="hide modalBody">
+            <div class="row mb10">
+                <div class="col-xs-12 font14">
+                    @string.Format(Localization.GetText("SGP.Message.AddResponseDoc.ExecutingAgency"), Model.ExecutingAgencyName)
+                </div>
+            </div>
+
+            <div class="row mb10">
+                <div class="col-xs-12 font14">
+                    @Localization.GetText("SGP.Message.AddResponseDoc.BeAbleToCome")
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-xs-12 font14 bold">
+                    @Localization.GetText("SGP.Message.ThisActionCannotBeUndone")
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            <div class="@(hasWfLaunched)">
+                @Html.Partial("ReadPartial/BiddingDocuments/Buttons", Model)
+            </div>
+            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.BidPackages"), htmlClass: "subTitleSG mb10")
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="col-xs-4">
+            @Confluence.Label(Localization.GetText("SGP.Label.ClickAnyBidPackage"))
+        </div>
+        <div class="col-xs-8">
+            @Confluence.LabelLinkBlank(Localization.GetText("SGP.Label.AccesSanctionList"), url: AppParameter.GetText("Template.Site.Url.SGP.Templates.Sanction.List"))
+        </div>
+    </div>
+    <div class="row mb40">
+        <div class="col-xs-12">
+            @Html.Partial("ReadPartial/BiddingDocuments/BiddingPackageTable", Model.BiddingDocTab)
+        </div>
+    </div>
+    <div class="row mb30 tabs"></div>
+    <div class="mb40" data-section="packageDetail">
+        @if (Model.BiddingDocTab.PackageSelected != null)
+        {
+            if (Model.BiddingDocTab.PackageSelected.CanModifyPackage)
+            {
+                @Html.Partial("ReadPartial/BiddingDocuments/BiddingDocPartial", Model.BiddingDocTab.PackageSelected)
+            }
+            else
+            {
+                @Html.Partial("ReadPartial/BiddingDocuments/BiddingDocReadPartial", Model.BiddingDocTab.PackageSelected)
+            }
+        }
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            <div class="@(hasWfLaunched)">
+                @Html.Partial("ReadPartial/BiddingDocuments/Buttons", Model)
+            </div>
+        </div>
+    </div>
+
+    @Html.ScriptBlock(
+    @<script type="text/javascript">
+        var razorBiddingDocuments = {
+            ProcurementId: '@Model.ProcurementId',
+            PackageId: '@(Model.BiddingDocTab.PackageSelected != null ? Model.BiddingDocTab.PackageSelected.PackageId : 0)',
+            PackageIdChange: '',
+            PackageIdSelected: '',
+            URLs: {
+                GetPackageDetail: '@Url.Action("GetPackageDetail", "ProcurementDetail", new { area = "SGP" })',
+                ProcurementId: '@Model.ProcurementId.ToString()',
+                InitBiddingWorkflow: '@Url.Action("InitBiddingWorkflow", "ProcurementDetail", new { area = "SGP" })',
+                InitRequestForPublishing: '@Url.Action("InitRequestForPublishing", "ProcurementDetail", new { area = "SGP" })',
+            },
+            UrlChange: '@Url.Action("ChangeStatusDoc", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS })',
+            UrlAddResponse: '@Url.Action("AddResponseBankDoc", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS })',
+            Publishing: {
+                PublishingTypeId : @(Model.BiddingDocTab.PackageSelected != null ? Model.BiddingDocTab.PackageSelected.RequestForPublisingTypeId : Int32.MinValue),
+                SPNMessageText : '@SPNTextMessage',
+                EOIMessageText : '@EOITextMessage',
+                NOAMessageText : '@NOATextMessage',
+                SPNTypeId : @(workflowSPNPublishingTypeId),
+                EOITypeId :@(workflowEOIPublishingTypeId),
+                NOATypeId :@(workflowNOAPublishingTypeId),
+            },
+            @if (Model.Header.DeclareIneligibility != null
+                && (Model.Header.DeclareIneligibility.HasWfLaunched.HasValue
+                && Model.Header.DeclareIneligibility.HasWfLaunched.Value))
+            {
+                @:HasDeclareWfLaunched: 'True',
+            }
+            else
+            {
+                @:HasDeclareWfLaunched: 'False',
+            }
+
+            @if (Model.Header.CancelProcess != null
+                && (Model.Header.CancelProcess.HasWfLaunched.HasValue
+                && Model.Header.CancelProcess.HasWfLaunched.Value))
+            {
+                @:HasCancelWfLaunched: 'True',
+            }
+            else
+            {
+                @:HasCancelWfLaunched: 'False',
+            }
+        }
+
+        function ChangeStatusDoc() {
+            var promise = $.Deferred();
+            var containerPackageDetail = $('div[data-section="packageDetail"]');
+
+            if (razorBiddingDocuments.PackageIdChange != "") {
+                razorBiddingDocuments.PackageIdSelected = razorBiddingDocuments.PackageIdChange;
+            } else {
+                razorBiddingDocuments.PackageIdSelected = razorBiddingDocuments.PackageId;
+            }
+
+            showLoader();
+            $.ajax({
+                url: razorBiddingDocuments.UrlChange,
+                data: {
+                    procurementId: razorBiddingDocuments.ProcurementId,
+                    SGPBidPackageConfProcId: razorBiddingDocuments.PackageIdSelected,
+                },
+                cache: false,
+                type: 'POST',
+            }).done(function (data) {
+
+                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                    showMessage(data.ErrorMessage);
+                }
+
+                if (data.IsValid && (data.UrlRedirect != null) && (data.UrlRedirect != '')) {
+                    LocationAssign(data.UrlRedirect);
+                }
+
+            });
+            promise.resolve();
+            return promise;
+        }
+
+        function AddResponseDoc(items, type, filenames, source) {
+            if (items.length > 0) {
+                var table = source.closest('div[data-section="packageDetail"]');
+
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+
+                var documentNumber = docs[0].DocumentNumber;
+                var documentDescription = docs[0].Description;
+
+                var inputDocumentNumber = $('input[name="DocumentIDBDoc-addResponse"]');
+                var inputDocumentDescription = $('input[name="DesciptionIDBDoc-addResponse"]');
+
+                inputDocumentNumber.val(documentNumber);
+                inputDocumentDescription.val(documentDescription);
+
+                var modalBtn = $('[name="btn-open-popup-add-response-warning"]');
+                modalBtn.click();
+            }
+        }
+
+        function SendAddResponseDoc() {
+            var promise = $.Deferred();
+
+
+            var inputDocumentNumber = $('input[name="DocumentIDBDoc-addResponse"]');
+            var inputDocumentDescription = $('input[name="DesciptionIDBDoc-addResponse"]');
+            var inputPackedId = $('input[name="packageId-addResponse"]');
+
+            var documentNumber = inputDocumentNumber.val();
+            var documentDescription = inputDocumentDescription.val();
+            var packageId = inputPackedId.val();
+
+            showLoader();
+
+            $.ajax({
+                url: razorBiddingDocuments.UrlAddResponse,
+                data: {
+                    procurementId: razorBiddingDocuments.ProcurementId,
+                    sgpBidPackageConfProcId: packageId,
+                    documenNumber: documentNumber,
+                    descriptionDoc: documentDescription
+                },
+                cache: false,
+                type: 'POST',
+            }).done(function (data) {
+
+                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                    showMessage(data.ErrorMessage);
+                }
+
+                if (data.IsValid && (data.UrlRedirect != null) && (data.UrlRedirect != '')) {
+                    LocationAssign(data.UrlRedirect);
+                }
+
+            });
+
+            promise.resolve();
+            return promise;
+        }
+
+        function WorkflowRequestForPublishing(event, source) {
+            var promise = $.Deferred();
+
+            var entityType = source.attr("data-entitytype");
+            var entityId = source.attr("data-entityid");
+            var publishingTypeId = source.attr("data-publishtypeId");
+
+            var url = razorBiddingDocuments.URLs.InitRequestForPublishing;
+            url = url
+                + '?procurementId=' + razorBiddingDocuments.ProcurementId
+                + '&entityType=' + entityType
+                + '&entityId=' + entityId
+                + '&publishtypeId=' + publishingTypeId;
+
+            LocationAssign(url);
+
+            promise.resolve();
+            return promise;
+        }
+
+        registerCallback(function () {
+
+            $(document).on('click', '[name="EditBidding"]', function () {
+                var modalBtn;
+
+                var hasDeclareLaunchedWF = razorBiddingDocuments.HasDeclareWfLaunched != '' && razorBiddingDocuments.HasDeclareWfLaunched == 'True';
+                var hasCancelLaunchedWF = razorBiddingDocuments.HasCancelWfLaunched != '' && razorBiddingDocuments.HasCancelWfLaunched == 'True';
+
+                if (hasDeclareLaunchedWF || hasCancelLaunchedWF) {
+                    modalBtn = $('[name="btn-open-popup-has-inegible-wf-launched"]');
+                    modalBtn.click();
+                } else {
+                    var entityType = $(this).attr("data-entitytype");
+                    var entityId = $(this).attr("data-entityid");
+                    var url = razorBiddingDocuments.URLs.InitBiddingWorkflow;
+                    url = url
+                        + '?procurementId=' + razorBiddingDocuments.ProcurementId
+                        + '&entityType=' + entityType
+                        + '&entityId=' + entityId;
+
+                    LocationAssign(url);
+                }
+            });
+
+            $(document).on('click', '[name="link-bidPackage"]', function () {
+
+                var source = $(this);
+                var bidPackageConfProcId = source.attr('data-id-package');
+                razorBiddingDocuments.PackageIdChange = bidPackageConfProcId;
+                var containerPackageDetail = $('div[data-section="packageDetail"]');
+
+                var inputPackedId = $('input[name="packageId-addResponse"]');
+                inputPackedId.val(bidPackageConfProcId);
+
+                $.ajax({
+                    url: razorBiddingDocuments.URLs.GetPackageDetail,
+                    data: {
+                        "procurementId": razorBiddingDocuments.URLs.ProcurementId,
+                        "bidPackageConfProcId": bidPackageConfProcId,
+                        "isEditMode": false,
+                    },
+                    cache: false,
+                    type: 'POST',
+                }).done(function (data) {
+                    containerPackageDetail.html(data.ContentHTML);
+                    bindHandlers(containerPackageDetail);
+                    $('[name="BiddingIdHidden"]').val(bidPackageConfProcId);
+                });
+            });
+
+            $(document).on('click', '[name="publishButton"]', function () {
+                var modalBtn = $('[name="btn-open-popup-publish"]');
+                modalBtn.click();
+            });
+            
+            $(document).on('click', '[name="addResponseBank"]', function () {
+                var source = $(this);
+                var modalButton = $('[name="btn-open-add-response-doc"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+
+                var modalSelector = modalButton.attr('data-new-modal');
+                var modal = $(modalSelector);
+                var tab = modal.find('[data-tab-id="add"]');
+                tab.click();
+
+            });
+
+            $(document).on('click', '[name="requestFoPublishing-button"]', function () {
+                var modalBtn;
+
+                var hasDeclareLaunchedWF = razorBiddingDocuments.HasDeclareWfLaunched != '' && razorBiddingDocuments.HasDeclareWfLaunched == 'True';
+                var hasCancelLaunchedWF = razorBiddingDocuments.HasCancelWfLaunched != '' && razorBiddingDocuments.HasCancelWfLaunched == 'True';
+
+                if (hasDeclareLaunchedWF || hasCancelLaunchedWF) {
+                    modalBtn = $('[name="btn-open-popup-has-inegible-wf-launched"]');
+                    modalBtn.click();
+                } else {
+                    var spnTypeId = razorBiddingDocuments.Publishing.SPNTypeId;
+                    var source = $(this);
+                    var currentPublishingTypeId = parseInt(source.attr("data-publishtypeId"));
+
+                    var divTextMessage = $('[data-name="bidding-request-for-publishing"]');
+
+                    switch(currentPublishingTypeId)
+                    {
+                        case razorBiddingDocuments.Publishing.SPNTypeId:
+                            divTextMessage.html(razorBiddingDocuments.Publishing.SPNMessageText);
+                            break;
+                        case razorBiddingDocuments.Publishing.EOITypeId:
+                            divTextMessage.html(razorBiddingDocuments.Publishing.EOIMessageText);
+                            break;
+                        case razorBiddingDocuments.Publishing.NOATypeId :
+                            divTextMessage.html(razorBiddingDocuments.Publishing.NOAMessageText);
+                            break;
+                    }
+
+                    var modalBtn = $('[name="btn-open-popup-request-for-publishing"]');
+                    modalBtn.data('pressed-by', source);
+                    modalBtn.click();
+                }
+            });
+
+        });
+    </script>
+            )
+}
+

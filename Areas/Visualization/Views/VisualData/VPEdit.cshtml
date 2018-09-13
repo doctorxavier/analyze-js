@@ -1,0 +1,783 @@
+﻿@using IDB.Architecture.Extensions;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+
+@{
+    Layout = "~/Views/Shared/_ClearLayout.cshtml";
+    var vp = Model.VisualProject;
+    var vpv = Model.VisualProject.VisualProjectVersionsData;
+    var operation = Model.OperationContext;
+    var year = DateTime.Now.AddYears(-15).Year;
+    var yearOptions = new List<SelectListItem>();
+    while (year < DateTime.Now.AddYears(15).Year)
+    {
+        yearOptions.Add(new SelectListItem()
+        {
+            Text = year.ToString(),
+            Selected = year == DateTime.Now.Year
+        });
+        year++;
+    }
+
+}
+
+@section javascript {
+    <script type="text/javascript" src="~/scripts/jqplugins/jquery.autosize.js"></script>
+    <script type="text/javascript" src="~/scripts/jqplugins/kendo.web.js"></script>
+    <script type="text/javascript" src="~/scripts/jqplugins/jquery.validate.js"></script>
+    <script type="text/javascript" src="~/scripts/jqplugins/jquery-ui-1.11.3.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/common.js"></script>
+    <script type="text/javascript" src="~/Scripts/concurrence.js"></script>
+}
+@section css{
+    <style type="text/css">
+        .white-bg {
+            background-color: #fff;
+        }
+
+        .gray-bg {
+            background-color: #F7F7F7;
+        }
+
+        .content-item {
+            margin-left: 60px;
+        }
+
+        .documentSupportDownloadIcon {
+            background: #ffffff url("../../../Images/icons/downloadSupportDocumentIcon.png") no-repeat center center;
+        }
+
+        .operationButton {
+            width: 30px;
+            height: 25px;
+            background-color: transparent;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid #cbdcf2;
+        }
+    </style>
+}
+@section scripts {
+    <script>
+        var recordsCount = @((Model.VisualProject.VisualProjectDocument != null) ? Model.VisualProject.VisualProjectDocument.Count() : 0);
+
+		$(document).ready(function () {
+		    $('.show-details').click(function () {
+		        var btn = $(this).children('i');
+		        if (btn.hasClass('fa-caret-square-o-down')) {
+		            btn.parentsUntil('tr').parent().next().show();
+		            btn.removeClass('fa-caret-square-o-down');
+		            btn.addClass('fa-caret-square-o-up');
+
+		        } else {
+		            btn.parentsUntil('tr').parent().next().hide();
+		            btn.addClass('fa-caret-square-o-down');
+		            btn.removeClass('fa-caret-square-o-up');
+		        }
+		    });
+		    $('textarea').autosize();
+		    $('.visualization-table tbody').sortable({
+		        handle: '.drag-element',
+		        update: function () {
+		            var index = 0;
+		            $('.visualization-table tbody tr').each(function (i, e) {
+		                var row = $(e);
+		                if (row.attr('id').indexOf('child') == -1) {
+		                    var childRow = $('#' +
+								row.attr('id').substring(0,
+								row.attr('id').indexOf('parent')) + 'child');
+		                    childRow.insertAfter(row);
+		                    row.find('.MediaOrder').val(index);
+		                    index++;
+		                }
+		            });
+		            $('.row-child').show();
+		        },
+		        activate: function () {
+		            $('.row-child').hide(400);
+		        }
+		    });
+
+
+		});
+    function deleteMedia(mediaId) {
+        var input = $('#media-row-' + mediaId);
+        input.val('True');
+        input
+            .parent()
+            .parent()
+            .hide()
+            .next()
+            .hide();
+    }
+
+
+    function mediaAddWindow() {
+        idbKendoWindow({
+            content: '@Url.Action("MediaAdd")',
+            title: 'Add media'
+        });
+    }
+
+    var currentMedia;
+    function documentAddWindow(url, row) {
+        currentMedia = $(row).parent()
+        idbKendoWindow({
+            content: url,
+            title: 'Add document'
+        });
+    }
+
+    function closeWindow() {
+        $.get('@Url.Action("VPVJDetails", new { visualProjectVersionId = vpv.VisualProjectVersionId })',
+            null, function (data) {
+                $('longitude').text(data.Longitude);
+                $('latitude').text(data.Latitude);
+                $('level1').text(data.Level1);
+                $('level2').text(data.Level2);
+                $('level3').text(data.Level3);
+            });
+        $("#kendo-dialog").data("kendoWindow").close();
+    }
+    function addMediaRow(data) {
+        var index = $(".visualization-table > tbody")
+            .children('tr').length / 2;
+        $.map(data, function (row) {
+            if (!row.mediaId) {
+                row.mediaId = -1;
+            }
+            row.id = index;
+            index++;
+        });
+        var templateHtml = $("#addMediaTemplate").html();
+        templateHtml = templateHtml.replace(/(&)(?:#)([0-9]{3};)/g, '$1\\\\#$2');
+        templateHtml = templateHtml.replace(new RegExp('MediaSourceId', 'g'),
+            'VisualProjectMedia[#= data[i].id #].MediaSourceId');
+        templateHtml = templateHtml.replace(new RegExp('MediaYear', 'g'),
+            'VisualProjectMedia[#= data[i].id #].Year');
+        var javascriptTemplate = kendo.template(templateHtml);
+        $('.visualization-table > tbody').append(javascriptTemplate(data));
+
+        
+
+        $('.new-kendo-dropdown').kendoDropDownList({
+            dataTextField: "text",
+            dataValueField: "value",
+            width: '250px'
+        });
+        $('.new-kendo-dropdown').removeClass('.new-kendo-dropdown');
+        imageLoaderStart();
+        idbCloseKendoWindow();
+    }
+
+    function deleteDocumentView(documentId, mediaId, confirmation){
+        kendoConfirm({
+            message: confirmation,
+            data: 'javascript:deleteDocument('+documentId+', '+mediaId+')',
+            title: 'Dialog',
+            onConfirm: function (data)
+            {
+                if ($(this).data('close-confirm') != false)
+                {
+                    $("#kendo-dialog").data('kendoWindow').close();
+                }
+
+                document.location.href = data;
+            },
+            closeConfirm: $(this).data('close-confirm')
+        });
+    }
+
+    function deleteDocument(documentId, mediaId) {
+        $.ajax('@Url.Action("DocumentDelete")', {
+            async: false,
+            data: {
+                documentId: documentId,
+                mediaId: mediaId
+            },
+            success: function () {
+                $('#doc-' + documentId + '-' + mediaId).remove();
+            }
+        });
+    }
+    function showTooltips() {
+        $(document).tooltip({
+            items: ".invalid",
+            content: function () {
+                if ($(this).data('val-required'))
+                    return $(this).data('val-required');
+
+            }
+        });
+    }
+
+    function saveVp() {
+        var form = $('form').first();
+        var vpId = $('#VisualProjectId').val();
+        var mapFrame = $('#map')[0].contentWindow;
+        var postData = form.serializeArray();
+
+        if (!form.valid()) {
+            showTooltips();
+            return;
+        }
+
+        if (!mapFrame.validateForm()) {
+            return;
+        }
+        if (vpId == '-1') {
+            $.ajax({
+                url: form.attr('action'),
+                type: 'POST',
+                data: postData,
+                success: function (data) {
+                    mapFrame.visual_output_id = data.VisualProjectId;
+                    mapFrame.visual_output_version_id = data.VisualProjectVersionId;
+                    idbg.lockUi(null, true, 'Saving map data');
+                    mapFrame.add_click();
+
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    alert(errorThrown);
+                }
+            });
+        } else {
+            idbg.lockUi(null, true, 'Saving map data');
+            var result = document.getElementById('map').contentWindow.add_click();
+            if (result == false) {
+                idbg.lockUi(null, false);
+                return;
+            }
+        }
+    }
+
+    function saveMap_callback() {
+        var form = $('form').first();
+        var vpId = $('#VisualProjectId').val();
+
+        if (vpId == '-1') {
+            document.location.href = '@Url.Action("vpdetails")';
+            } else {
+                form.submit();
+            }
+        }
+
+        function deleteNewDocument(e, confirmation) {
+            kendoConfirm({
+                message: confirmation,
+                title: 'Dialog',
+                onConfirm: function ()
+                {
+                    if ($(this).data('close-confirm') != false)
+                    {
+                        $("#kendo-dialog").data('kendoWindow').close();
+                    }
+
+                    $(e).parents('.media-document').remove();
+                },
+                closeConfirm: $(this).data('close-confirm')
+            });
+        }
+
+        function documentAdd(id, number, name, isSearch) {
+            idbCloseKendoWindow();
+
+            var row = currentMedia.parents('tr');
+            var templateHtml = "";
+            var data = {};
+
+            if (row.is('[new-media-child]') || isSearch) {
+                templateHtml = $("#addDocumentTemplate").html();
+            } else {
+                templateHtml = $("#addDocumentTemplateView").html();
+                data.mediaNum = row.attr("media-id");
+            }
+
+            data.docId = (id != null) ? id : "";
+            data.docNum = number;
+            data.docName = name;
+            data.documentIndex = currentMedia.children('.media-document').length;
+            var parent = row.first().prev().find('td').get(2);
+            data.mediaIndex = $(parent).children('.MediaOrder').val();
+            var javascriptTemplate = kendo.template(templateHtml);
+            currentMedia.children().last().before(javascriptTemplate(data));
+        }
+
+        function deleteDocumentNewSection(registerId) {
+            var input = $('#document-row-' + registerId);
+            input.val('True');
+            input.parent().parent().hide();
+        }
+
+        function newSectionDocumentAddWindow(url) {
+            idbKendoWindow({
+                content: url,
+                title: '@Localization.GetText("TCM.Visualizacion.VisualData.Documents.AddDocument")'
+            });
+        }
+
+        function addDocumentNewSectionDocumentVP(documentId, userCreated, dateCreated, idbdocNumber,description) {
+
+            if(documentId != "0")
+            {
+                var templateHtml = $("#newSectionDocumentTemplate").html();
+                var data = {};
+                data.DocumentId = documentId;
+                data.User = userCreated;
+                data.Date = dateCreated;
+                data.DocNumber = idbdocNumber;
+                data.Description = description;
+                data.DocumentIndex = recordsCount++;
+
+                var javascriptTemplate = kendo.template(templateHtml);
+                $('#SectionDocumentsTable tbody').append(javascriptTemplate(data));
+            }
+            idbCloseKendoWindow();
+        }
+
+        function downloadDocumentNewSection(register) {
+            var docNumber = $(register.closest('tr')).find('td:nth-child(3)')[0].outerText;
+            var url = '@Url.Action("GetDocument", "Document", new { area = string.Empty})'+'?docNum=' + docNumber;
+        window.open(url, '_blank');
+    }
+
+    </script>
+}
+@section contentheader{
+    @{Html.BeginForm("vpsave", "visualdata", FormMethod.Post);}
+    <input type="hidden" name="VisualProjectId" value="@vp.VisualProjectId" id="VisualProjectId" />
+    <input type="hidden" name="VisualProjectVersionId" value="@vpv.VisualProjectVersionId" />
+    <div class="content-block">
+        <div class="left">
+            <h1>@Localization.GetText("Map Operation")</h1>
+        </div>
+        <div class="right">
+            @RenderActionLinks(vpv)
+        </div>
+    </div>
+}
+<div id="kendo-dialog" style="height: 100%"></div>
+<script id="addDocumentTemplate" type="text/x-kendo-template">
+    <div class="single-line media-document">
+        <input type="hidden" value="#= data.docId #"
+               name="VisualProjectMedia[#= data.mediaIndex #].DocumentId[#= data.documentIndex #]" />
+        <input type="hidden" value="#= data.docNum #"
+               name="VisualProjectMedia[#= data.mediaIndex #].DocNumber[#= data.documentIndex #]" />
+        <input type="hidden" value="#= data.docName #"
+               name="VisualProjectMedia[#= data.mediaIndex #].DocumentName[#= data.documentIndex #]" />
+        <a href="@Url.Action("GetDocument", "Document", new {area = string.Empty})?docNum=#= data.docNum #">
+            #= data.docName #
+        </a>
+        <a href="javascript:void(0)"
+           onclick="javascript:deleteNewDocument(this, '@Localization.GetText("VIS.delete.vp.warning")')">
+            <i class="fa fa-trash" style="font-size: 14px"></i>
+        </a>
+    </div>
+</script>
+
+<script id="addDocumentTemplateView" type="text/x-kendo-template">
+    <div class="single-line media-document-view" id="doc-#= data.docId #-#= data.mediaNum #">
+        <a href="@Url.Action("GetDocument", "Document", new {area = string.Empty})?docNum=#= data.docNum #">
+            #= data.docName #
+        </a>
+        <a href="javascript:void(0)"
+            onclick="javascript:deleteDocumentView(#= data.docId #, #= data.mediaNum #, '@Localization.GetText("VIS.delete.vp.warning")')">
+            <i class="fa fa-trash" style="font-size: 14px"></i></a>
+        </a>
+    </div>
+</script>
+
+<script id="newSectionDocumentTemplate" type="text/x-kendo-template">
+    <tr id="row-index-#= data.DocumentIndex #" class="row-child">
+        <td>
+            <input type="hidden" value="#= data.DocumentId #"
+                   name="VisualProjectDocument[#= data.DocumentIndex #].DocumentId" />
+            <input type="hidden" value="#= data.User #"
+                   name="VisualProjectDocument[#= data.DocumentIndex #].User" />
+            <input type="hidden" value="#= data.Date #"
+                   name="VisualProjectDocument[#= data.DocumentIndex #].Date" />
+            <input type="hidden" value="#= data.DocNumber #"
+                   name="VisualProjectDocument[#= data.DocumentIndex #].DocNumber" />
+            <input type="hidden" value="#= data.Description #"
+                   name="VisualProjectDocument[#= data.DocumentIndex #].Description" />
+            <input type="hidden" value="False" id="document-row-#= data.DocumentIndex #"
+                   name="VisualProjectDocument[#= data.DocumentIndex #].IsDeleted" />
+            #= data.User #
+        </td>
+        <td>#= data.Date #</td>
+        <td>#= data.DocNumber #</td>
+        <td>#= data.Description #</td>
+        <td style="display:flex; flex-direction: row; justify-content: flex-start; align-items: center; display: -webkit-box; display: -ms-flexbox; display: -webkit-flex; -ms-flex-align: center;">
+            <input type="button"
+                   class="operationButton documentSupportDownloadIcon cursorPointer"
+                   onclick="downloadDocumentNewSection(this)" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <a href="javascript:void(0)"
+               class="click-action"
+               onclick="javascript:deleteDocumentNewSection(#= data.DocumentIndex #)"
+               title="@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Delete")"
+               data-confirmation="@Localization.GetText("TCM.Visualizacion.VisualData.Documents.DeleteWarningDocument")">
+                <i class="fa fa-trash-o"></i>
+            </a>
+        </td>
+    </tr>
+</script>
+
+<script id="addMediaTemplate" type="text/x-kendo-template">
+    # for (var i = 0; i < data.length; i++) { #
+    <tr id="row-index-#= data[i].id #-parent" new-media-parent>
+        <td>
+            <span class="drag-hover drag-element"></span>
+        </td>
+        <td>
+            @Html.DropDownList("MediaYear",
+                            yearOptions, new { @class = "kendo-dropdown new-kendo-dropdown", style = "width:60px" })
+        </td>
+        <td>
+            <input type="hidden" value="#= data[i].mediaId #" name="VisualProjectMedia[#= data[i].id #].MediaId" />
+            <input type="hidden" value="#= data[i].mediaTypeId #" name="VisualProjectMedia[#= data[i].id #].MediaTypeId" />
+            <input type="hidden" id="media-row-#= data[i].id #" name="VisualProjectMedia[#= data[i].id #].IsDeleted" value="false" />
+            <input type="hidden" name="VisualProjectMedia[#= data[i].id #].MediaUrl" value="#= data[i].url #" />
+            <input type="hidden" name="VisualProjectMedia[#= data[i].id #].MediaOrder" value="#= data[i].id #" class="MediaOrder" />
+            <div class="image-loader" data-url="#= data[i].turl #" style="width:96px; height:60px;"></div>
+            <div class="image-type" style="text-align: center">#= data[i].type #</div>
+        </td>
+        <td>
+            <textarea style="width: 100%" required name="VisualProjectMedia[#= data[i].id #].Name"
+                      data-val-name="media name">
+                #= data[i].name #
+            </textarea>
+        </td>
+        <td>
+            @Html.DropDownList("MediaSourceId",
+                                            new SelectList(Model.MediaSourceTypes, "MasterId", "Name",
+                                                0), new { @class = "kendo-dropdown new-kendo-dropdown" })
+        </td>
+        <td>
+            <a href="javascript:void(0)"
+               onclick="javascript:deleteMedia(#= data[i].id #)"
+               title="@Localization.GetText("Delete")"><i class="fa fa-trash-o"></i></a>
+
+        </td>
+    </tr>
+    <tr id="row-index-#= data[i].id #-child" class="row-child" new-media-child>
+        <td></td>
+        <td colspan="6">
+            <ul class="content-list two">
+                <li>
+                    <div class="title">Content</div>
+                    <div class="content">
+                        <textarea style="width: 95%" name="VisualProjectMedia[#= data[i].id #].Content"></textarea>
+                    </div>
+                </li>
+                <li>
+                    <div class="title">@Localization.GetText("Support documentation")</div>
+                    <a href="javascript:void(0)"
+                       style="margin-top:10px"
+                       class="click-action button white small"
+                       onclick="javascript:documentAddWindow('@Url.Action("DocumentAdd", new {
+	                        operationId = Model.OperationContext.OperationId,
+	                        mainOperationNumber = Model.OperationContext.OperationNumber,
+	                        entityRelated = "VISUAL_PROJECT_MEDIA",
+	                        isFirstTime = true,
+	                        parentEntityId = 0,
+	                        subParentEntityId = 0,
+	                        subsubParentEntityId = 0,
+	                        entityRegisterId = 0,
+                        })',this)"
+                       title="@Localization.GetText("Add a document")">
+                        <i class="fa fa-upload" style="font-size: 13px"></i>@Localization.GetText("Add")
+                    </a>
+                </li>
+            </ul>
+        </td>
+    </tr>
+    # } #
+</script>
+<div class="content-block">
+    <ul class="content-block content-list three">
+        <li>
+            <div class="title">@Localization.GetText("Last update")</div>
+            <div class="content">@vpv.Modified.Value.ToString("dd MMM yyyy")</div>
+        </li>
+        <li>
+            <div class="title">@Localization.GetText("Validation status")</div>
+            <div class="content">@Model.GetVisualDataValidationStageName(vpv.ValidationStageId.Value, vpv.IsValidated)</div>
+        </li>
+        <li></li>
+    </ul>
+    <div>
+        <div class="title">@Localization.GetText("Operation objective")</div>
+        <div class="content">@operation.CurrentOperationData.Objective</div>
+    </div>
+</div>
+<div class="content-block">
+    <h2>@Localization.GetText("Location data")</h2>
+    <div style="width: 100%; border: solid 2px #ccc; height: 590px">
+        <iframe id="map" style="width:100%;height:590px"
+                src="@Url.Action("MapSelection", new {
+	   language = IDBContext.Current.CurrentLanguage,
+	   visualObjectId = vp.VisualProjectId,
+       visualObjectVersionId = Model.VisualProject.VisualProjectVersionsData.VisualProjectVersionId,
+	   objectType = "vp",
+	   edit = 1,
+	   country = MasterDefinitions.GetMaster(Model.OperationContext.CurrentOperationData.CountryId).Name
+   })"></iframe>
+    </div>
+</div>
+
+
+<div class="content-block">
+    <h2>@Localization.GetText("Media")</h2>
+    <div class="content-separator"></div>
+    <table class="grid visualization-table td-middle">
+        <thead>
+            <tr>
+                <th style="width: 18px;"></th>
+                <th style="width: 90px">@Localization.GetText("Year")</th>
+                <th style="width: 90px">@Localization.GetText("Media file")</th>
+                <th>@Localization.GetText("Name")</th>
+                <th style="width: 90px">@Localization.GetText("Source")</th>
+                <th style="width: 60px">@Localization.GetText("Actions")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int index = 0; index < vpv.VisualProjectMedia.Count(); index++)
+            {
+                var media = vpv.VisualProjectMedia[index];
+                var curretYear = media.Media.Year == null ? DateTime.Now.Year : media.Media.Year.Value;
+                var selected = yearOptions.FirstOrDefault(y => y.Text == curretYear.ToString());
+                var addDocumentUrl = Url.Action("DocumentAdd", new
+                {
+                    operationId = Model.OperationContext.OperationId,
+                    mainOperationNumber = Model.OperationContext.OperationNumber,
+                    parentEntityId = Model.VisualProject.VisualProjectId,
+                    subParentEntityId = Model.VisualProject.VisualProjectVersionsData.VisualProjectVersionId,
+                    subsubParentEntityId = Model.VisualProject.VisualProjectVersionsData.VisualProjectVersionId,
+                    entityRelated = "VISUAL_PROJECT_MEDIA",
+                    entityRegisterId = media.MediaId,
+                    isFirstTime = true
+                });
+                if (selected != null)
+                {
+                    selected.Selected = true;
+                }
+                <tr id="row-index-@media.MediaId-parent">
+                    <td>
+                        <span class="drag-hover drag-element"></span>
+                    </td>
+                    <td>
+                        @Html.DropDownList("VisualProjectMedia[" + index + "].Year",
+                            yearOptions, new { @class = "kendo-dropdown", style = "width:60px" })
+                    </td>
+                    <td>
+                        <img class='image-loader' src='@media.Media.MediaUrl' style='width:96px; height:60px;' />
+                        <div class="image-type" style="text-align: center">@media.Media.MediaType</div>
+                        <input type="hidden" value="@media.MediaId" name="VisualProjectMedia[@index].MediaId" />
+                        <input type="hidden" value="@media.MediaOrder" name="VisualProjectMedia[@index].MediaOrder" class="MediaOrder" />
+                        <input type="hidden"
+                               id="media-row-@media.MediaId"
+                               value="@(media.IsDeleted.IsTrue() ? "True" : "False")"
+                               name="VisualProjectMedia[@index].IsDeleted" />
+                    </td>
+                    <td>
+                        <textarea style="width: 100%" required name="VisualProjectMedia[@index].Name"
+                                  data-val-name="media name">
+                            @media.Media.Name
+                        </textarea>
+                    </td>
+                    <td>
+                        @Html.DropDownList(string.Format("VisualProjectMedia[{0}].MediaSourceId", index),
+                                            new SelectList(Model.MediaSourceTypes, "MasterId", "Name",
+                                                media.Media.MediaSourceId), new { @class = "kendo-dropdown" })
+                    </td>
+
+                    <td>
+                        <a href="javascript:void(0)" class="show-details" title="@Localization.GetText("View details")">
+                            <i class="fa fa-caret-square-o-up"></i>
+                        </a>
+
+                        <a href="javascript:void(0)"
+                           class="click-action"
+                           data-route="javascript:deleteMedia(@media.MediaId)"
+                           title="@Localization.GetText("Delete")"
+                           data-confirmation="@Localization.GetText("VIS.delete.vp.warning")">
+                            <i class="fa fa-trash-o"></i>
+                        </a>
+
+                    </td>
+                </tr>
+                <tr id="row-index-@media.MediaId-child" class="row-child" media-id="@media.MediaId">
+                        <td></td>
+                        <td colspan="6" style="background-color: #F7F7F7;">
+
+
+                            <ul class="content-list two">
+                                <li>
+                                    <div class="title">Content</div>
+                                    <div class="content">
+                                        <textarea style="width: 95%" name="VisualProjectMedia[@index].Content">@media.Media.Content</textarea>
+                                    </div>
+                                </li>
+                                <li>
+                                    <div class="title">@Localization.GetText("Support documentation")</div>
+                                    @foreach (var document in media.Media.DocumentMedias)
+                                    {
+                                        var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocumentReference);
+                                        <div class="single-line" id="doc-@document.DocumentId-@media.MediaId">
+                                            <a href=@secureUrl target="_blank">
+                                                @document.Description
+                                            </a>
+                                            <a href="javascript:void(0)"
+                                               data-route="javascript:deleteDocument(@document.DocumentId,@media.MediaId)"
+                                               data-confirmation="@Localization.GetText("VIS.delete.vp.warning")"
+                                               class="click-action"><i class="fa fa-trash" style="font-size: 14px"></i></a>
+                                        </div>
+                                    } <a href="javascript:void(0)"
+                                         style="margin-top:10px"
+                                         class="click-action button white small"
+                                         onclick="javascript:documentAddWindow('@addDocumentUrl', this)"
+                                         @*onclick="javascript:documentAddWindowParent(this)"*@
+                                         title="@Localization.GetText("Add a document")">
+                                        <i class="fa fa-upload" style="font-size: 13px"></i>@Localization.GetText("Add")
+                                    </a>
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+            }
+
+        </tbody>
+    </table>
+</div>
+<div class="content-block">
+    <div class="center" style="width: 250px">
+        <a href="javascript:void(0)"
+           class="button white click-action"
+           data-route="javascript:mediaAddWindow()"
+           style="width: 100%"><i class="fa fa-plus fa-fw" style="float: left; margin-top: 10px; color: #264A7F"></i>@Localization.GetText("Add media")</a>
+    </div>
+</div>
+
+<!--  Section Documents - Initial -->
+@if (ViewBag.CycleTypeOperation == "TCM")
+{
+    <div class="content-block" id="documentsSection">
+        <h2>@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Documents")</h2>
+        <div class="content-separator"></div>
+        <table align="center" id="SectionDocumentsTable" class="grid visualizationDoc-table td-middle">
+            <thead>
+                <tr>
+                    <th style="text-align: center; width:15%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.User")</th>
+                    <th style="text-align: center; width:10%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Date")</th>
+                    <th style="text-align: center; width:15%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.IDBDocNumber")</th>
+                    <th style="text-align: center; width:50%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Description")</th>
+                    <th style="text-align: center; width:10%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Action")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int index = 0; (Model.VisualProject.VisualProjectDocument != null) && (index < Model.VisualProject.VisualProjectDocument.Count()); index++)
+                {
+                    var document = Model.VisualProject.VisualProjectDocument[index];
+                    <tr id="row-index-@document.Document.DocumentId" class="row-child">
+                        <td>
+                            <input type="hidden" value="@document.Document.DocumentId"
+                                   name="VisualProjectDocument[@index].DocumentId" />
+                            <input type="hidden" value="@document.Document.CreatedBy"
+                                   name="VisualProjectDocument[@index].User" />
+                            <input type="hidden" value="@String.Format("{0:dd MMM yyyy}", document.Document.Created)"
+                                   name="VisualProjectDocument[@index].Date" />
+                            <input type="hidden" value="@document.Document.DocumentReference"
+                                   name="VisualProjectDocument[@index].DocNumber" />
+                            <input type="hidden" value="@document.Document.Description"
+                                   name="VisualProjectDocument[@index].Description" />
+                            <input type="hidden" value="False" id="document-row-@document.DocumentId"
+                                   name="VisualProjectDocument[@index].IsDeleted" />
+
+                            @document.Document.CreatedBy
+                        </td>
+                        <td>@String.Format("{0:dd MMM yyyy}", document.Document.Created)</td>
+                        <td>@document.Document.DocumentReference</td>
+                        <td>@document.Document.Description</td>
+                        <td style="display:flex; flex-direction: row; justify-content: flex-start; align-items: center; display: -webkit-box; display: -ms-flexbox; display: -webkit-flex; -ms-flex-align: center;">
+                            <input type="button" class="operationButton documentSupportDownloadIcon cursorPointer" onclick="downloadDocumentNewSection(this)" />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                            <a href="javascript:void(0)"
+                               class="click-action"
+                               data-route="javascript:deleteDocumentNewSection(@document.DocumentId)"
+                               title="@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Delete")"
+                               data-confirmation="@Localization.GetText("TCM.Visualizacion.VisualData.Documents.DeleteWarningDocument")">
+                                <i class="fa fa-trash-o"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+    </div>
+
+    <div class="content-block">
+        <div class="center" style="width: 250px">
+            <a href="javascript:void(0)"
+               class="button white click-action"
+               data-route="javascript:newSectionDocumentAddWindow('@Url.Action("DocumentAddSectionDocument", new
+                                                          {
+                                                              operationId = Model.OperationContext.OperationId,
+                                                              mainOperationNumber = Model.OperationContext.OperationNumber,
+                                                              entityRelated = "VISUAL_PROJECT_DOCUMENT",
+                                                              isFirstTime = true,
+                                                              parentEntityId = 0,
+                                                              subParentEntityId = 0,
+                                                              subsubParentEntityId = 0,
+                                                              entityRegisterId = 0,
+                                                              businessAreaCode = "BA_MAP_OPERATION"
+                                                          })')"
+               title="@Localization.GetText("TCM.Visualizacion.VisualData.Documents.AddADocument")"
+               style="width: 100%">
+                <i class="fa fa-plus fa-fw" style="float: left; margin-top: 10px; color: #264A7F"></i>@Localization.GetText("TCM.Visualizacion.VisualData.Documents.AddADocument")
+            </a>
+        </div>
+    </div>
+}
+<!-- Section Documents - Final -->
+
+<div class="content-block">
+    <div class="right">
+        @RenderActionLinks(vpv)
+    </div>
+</div>
+@{Html.EndForm();}
+
+@helper RenderActionLinks(IDB.MW.Domain.Models.Architecture.Visualization.VisualProjectVersionModel vpv)
+{
+if (vpv.VisualProjectVersionId <= 0 ||
+    (!Model.ShowWarningMessageOnCancelEdition.HasValue || !Model.ShowWarningMessageOnCancelEdition.Value))
+{
+        <input type="button" value="@Localization.GetText("Cancel")" class="button white click-action"
+               onclick="setPageFree()"
+               data-route="@Url.Action("vpdetails", new { visualprojectid = Request["visualprojectid"] })" />
+}
+else
+{
+        <input type="button" value="@Localization.GetText("Cancel")" class="button white click-action"
+               onclick="setPageFree()"
+               data-confirmation="@string.Format(Localization.GetText("IDB.VO-MP.Text.Edit.Message.Cancel"),
+                Localization.GetText("Map Operation"))"
+               data-route="@Url.Action("vpdetails", new { visualprojectid = Request["visualprojectid"] }) " />
+}
+
+if (vpv.VisualProjectVersionId > 0)
+{
+        <input type="button" value="@Localization.GetText("Delete")"
+               data-confirmation="@string.Format(Localization.GetText("IDB.VO-MP.Text.Edit.Message.Delete"),
+                Localization.GetText("Map Operation"))"
+               data-route="@Url.Action("vpvdelete", new {
+                    visualProjectVersionId = vpv.VisualProjectVersionId,
+                    includeValidated = false})"
+               class="button white click-action" />
+}
+    <input type="button"
+           value="@Localization.GetText("Save")"
+           data-route="javascript:saveVp()"
+           class="button yellow click-action" />
+}

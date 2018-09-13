@@ -1,0 +1,104 @@
+﻿@using IDB.Presentation.MVC4.Areas.OPUS.Models
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.Language
+
+@model IDB.MW.Application.OPUSModule.ViewModels.ApprovalOperationService.FinancingViewModel
+@{
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+}
+    <div class="col-md-12">
+        <div data-id="container-Financing-@Model.FinancingId">
+            @{
+
+                var config = Html.RenderDataTable(Model.FinancingRows);
+                config.Name("Financing")
+                .PrimaryKey(m => m.FinancingRowId.ToString())
+                .AddPrimaryKeyToName(true)
+                .NewHeader(GenerateMainTableHeaders(Model.FinancingId))
+                .Columns(columns =>
+                {
+                    columns.Bound(c => "").CssClass("bordernone").Persistent();
+                    columns.Bound(c => c.FinancingType).CssClass("verticalBarTree verticalBarTree-approval").Persistent();
+                    columns.Bound(c => c.FundName).Persistent();
+                    columns.Bound(c => FormatHelper.Format(c.USFundAmount, formatDecimal)).Persistent();
+                    columns.Bound(c => FormatHelper.Format(c.FundAmount, formatDecimal)).Persistent();
+                    columns.Bound(c => ControlTemplates.DropDownGetSelectedString(c.FundCurrency, ViewBag.FundCurrencyList))
+                        .EditableTemplate(row => ControlTemplates.DropDownExtend(row.FundCurrency.ToString(), "fundCurrency", ViewBag.FundCurrencyList));
+                    columns.Bound(c => "").EditableTemplate(row => Display.Button07_4());
+                });
+                config.TableClass = "Financing bordernone" + config.DefaultTableClass + "double-striped";
+                //config.UseCustomHeader = true;
+                //config.CustomHeader = GenerateMainTableHeaders;
+                config.RowTemplates(x =>
+                {
+                    x.Create(RowTemplateType.AllRows, GenerateSubtable);
+                });
+
+
+                @Html.Partial("Controls/DataTable", config)
+            }
+        </div>
+    </div>
+
+@helper GenerateMainTableHeaders(int financingId)
+{
+    <thead>
+        <tr>
+            <th class="text-center" style="background-color: #fff; border: none; width: 20px; min-width: 20px; max-width: 20px;">
+                <span class="numbered-expandible numbered-expandible-approval" style="color:#666666">@(ViewBag.actualRow).</span>
+                <span>@Display.ExpandableButton("[data-id=container-Financing-" + financingId + "] table:first > tbody > tr:not(:first)", htmlClass: "expandible-approval", linkedExpandAllSelector: "[data-name=collapse-all-financing]", attributes: new Dictionary<string, string>() { { "idb-fieldname", "btnExpandable" },{ "data-name", "financing" } })</span>
+            </th>
+            <th>
+                @Localization.GetText("OP.AP.FinancingType").HtmlEncode()
+            </th>
+            <th>@Localization.GetText("OP.AP.FundName").HtmlEncode()</th>
+            <th>@Localization.GetText("OP.AP.USFundAmount").HtmlEncode()</th>
+            <th>@Localization.GetText("OP.AP.FundAmount").HtmlEncode()</th>
+            <th>@Localization.GetText("OP.AP.FundCurrency").HtmlEncode()</th>
+            <th></th>
+        </tr>
+
+    </thead>
+}
+@helper GenerateSubtable(IDB.MW.Application.OPUSModule.ViewModels.ApprovalOperationService.FinancingRowViewModel item)
+{
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+
+    <tr class="template dont-hide-at-edit" data-persist="true">
+        <td class="bordernone"></td>
+        <td colspan="5" class="verticalBarTree verticalBarTree-approval verticalBarTree-approval-fillPadding bordernone">
+            @if (item.FinancingDetails != null)
+            {
+                var configDetail = Html.RenderDataTable(item.FinancingDetails);
+                configDetail.Name("FinancingDetail")
+                .PrimaryKey(m => m.FinancingDetailId.ToString())
+                .AddPrimaryKeyToName(true)
+                .Columns(columns =>
+                {
+                    columns.Bound(c => c.ApprovalNumber).CssHeaderClass("verticalBarTree verticalBarTree-approval-subtalbe")
+                        .Header(Localization.GetText("OP.AP.ApprovalNumber"))
+                        .CssClass("verticalBarTree verticalBarTree-approval-subtalbe horizontalBarTree horizontalBarTree-approval-subtalbe")
+                        .Persistent();
+                    columns.Bound(c => c.Suffix).Header(Localization.GetText("OP.AP.Suffix")).Persistent();
+                    columns.Bound(c => c.ResolutionNumber).Header(Localization.GetText("OP.AP.Resolution Number")).Persistent();
+                    columns.Bound(c => FormatHelper.Format(c.USApprovedAmount, formatDecimal)).Header(Localization.GetText("OP.AP.USEquivalentApprovedAmount"))
+                        .EditableTemplate(row => ControlTemplates.InputDecimal(row.USApprovedAmount, "USApprovedAmount", minValue: "0.00", maxValue: "999999999999.99", numberSeparator: ",", decimalSeparator: ".", expReg: expRegDecimal));
+                    columns.Bound(c => FormatHelper.Format(c.IDBApprovedAmount, formatDecimal)).Header(Localization.GetText("OP.AP.IDBApprovedAmount")).Persistent();
+                    columns.Bound(c => ControlTemplates.DropDownGetSelectedString(c.Executor, ViewBag.ExecutorList)).Header(Localization.GetText("OP.AP.LoanExecutingAgency"))
+                        .EditableTemplate(row => ControlTemplates.DropDownExtend(row.Executor.ToString(), "Executor", ViewBag.ExecutorList));
+                    columns.Bound(c => c.Status).Header(Localization.GetText("OP.AP.Status")).Persistent();
+                });
+                configDetail.TableClass = configDetail.DefaultTableClass + "gray-header";
+                @Html.Partial("Controls/DataTable", configDetail)
+            }
+        </td>
+
+    </tr>
+}

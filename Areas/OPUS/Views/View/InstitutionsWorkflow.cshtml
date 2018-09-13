@@ -1,0 +1,255 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.OPUSModule.ViewModels.Institutions.InstitutionsWorkflowViewModels
+@{
+
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+}
+
+<input hidden data-idb-pagename="WUI-INS-001" />
+
+@if (Model.ErrorMessage != null)
+{
+    <div class="operationData dataDetails marginTop2Bottom1">@Model.ErrorMessage</div>
+    @section scripts
+    {
+        <script type="text/javascript">
+        $(document).ready(function () {
+            $('.editingButtonsEdit').hide();
+        });
+        </script>
+    }
+}
+else
+{
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl="@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })"
+     data-url="@Url.Action("InstitutionWorkFlow", "Save", new { area = "OPUS" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit"><input type="hidden" name="changeStatus" value="none" /></span>
+
+    <span class=" text-right">
+        @Html.Partial("Partials/Institution/InstitutionWorkflowButtons")
+    </span>
+
+
+    <div class="row row-body-40" id="workflowValidators">
+        @Html.Partial("Partials/Institution/InstitutionWorkflowValidators", Model)
+    </div>
+
+    <div class="row row-body-40">
+        @Confluence.LabelSubTitleGroup(text:Localization.GetText("Instructions"), htmlClass: "bold" )
+       <p class="mt10 mb20">@Model.Instructions</p>
+    </div>
+
+    <div class="row row-body-40" id="workflowComments">
+        @Html.Partial("Partials/Institution/InstitutionWorkflowComments", Model)
+    </div>
+
+    <div class="row row-body-40" id="workflowDocuments">
+        @Html.Partial("Partials/Institution/InstitutionWorkflowDocuments", Model)
+    </div>
+
+    <div class="row" id="footer-section">
+        <span class="text-right">@Html.Partial("Partials/Institution/InstitutionWorkflowButtons")</span>
+    </div>
+</div>
+
+@section scripts
+{
+    @if (k2Mode)
+    {
+
+        @ModuleScripts.K2UIIntegration()
+
+    }
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+            @if (k2Mode)
+        {
+            @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+                                @:$(".operationData").css("padding-left", "0")
+                                @:$("#headerButtons").css("margin-right", "-12%")
+                                @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                            }
+            enterEditMode(false, $('#workflowComments'), true);
+            enterEditMode(false, $('#headerButtons'), true);
+            enterEditMode(false, $('#footer-section'), true);
+        });
+
+
+        function cancelInstitutionWF(source) {
+            window.location.href = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+        }
+
+        function confirmModal(source) {
+            confirmAction(source.attr("data-modal-message")).done(function (selectionOk) {
+                if (selectionOk)
+                    if (source.attr("data-action-ok") != null) eval(source.attr("data-action-ok") + "()");
+                    else
+                        if (source.attr("data-action-Nok") != null) eval(source.attr("data-action-Nok") + "()");
+            });
+        }
+
+        function saveApproveInstitution() {
+            $("[name=changeStatus]").val("ApproveWorkflow");
+            var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+            saveInstitution(url);
+            closeModal();
+        }
+
+        function saveRejectInstitution() {
+            $("[name=changeStatus]").val("RejectWorkflow");
+            var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+            saveInstitution(url);
+            closeModal();
+        }
+        function saveOnly() {
+            $("[name=changeStatus]").val("none");
+            var url = '@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })';
+            saveInstitution(url);
+        }
+
+        function saveInstitution(url) {
+
+            var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+            if (response !== false) {
+                response.done(function (data) {
+
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null || data.ErrorMessage != '')
+                            showMessage("Error when saving the institution!");
+                        else
+                            showMessage(data.ErrorMessage);
+                    }
+                    else {
+                        window.open(url, "_self");
+                    }
+                });
+
+            }
+
+        }
+
+
+
+        function closeModal() {
+            var vexModal = $('.institutionsModal').parents('.vex');
+            vex.closeByID(vexModal.data().vex.id);
+        }
+
+
+        function newComment(source) {
+            var newBlock = '<div data-pagemode="edit"  class="pb20">' +
+                '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+            section2: Confluence.Label(Model.UserName), section3: null, value: "", name: "newComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")'+
+            '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+
+            $("#divWorkflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+            enterEditMode(false, $("#divWorkflowComments"), false);
+            bindHandlers($("#divWorkflowComments"));
+        }
+
+        function deleteComment(source) {
+            if (source.attr("data-commentId")) {
+                $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+            }
+
+            source.siblings("div.inputComment").parent().remove();
+        }
+
+    function downloadDocument(source) {
+        var docNumber = source.attr('data-DocNumber');
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+        window.open(url, '_blank');
+
+    }
+
+        function renderizeRow(documentList, sourceType) {
+            var docNumber;
+            if (sourceType === "selected") {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0].DocumentNumber;
+                }
+            }
+            else {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0];
+                }
+            }
+
+            var urlf = '@Url.Action("AddNewDocument", "Save")';
+            var result = postUrl(urlf, { documentNumber: docNumber });
+            var newRow = '<tr role="row" data-id="">' +
+                        '<td>' + result.responseJSON.data.User + '</td>' +
+                        '<td>' + result.responseJSON.data.Date + '</td>' +
+                        '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+                        '<td> <span data-pagemode="edit">' +
+                        '@Confluence.InputText(value: "", name: "documentDescription", maxLength: 250, width: "100%", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtDocumentDescription01" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                        '@Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "")' +
+                       '</span></td><td>' +
+                       '<a href=' + result.responseJSON.data.Url + ' target="_blank">' +
+                        '<button class="buttonDownload">' +
+                        '<span class="icon"></span>' +
+                        '<span></span>' +
+                        '</button>' +
+                        '</a>' +
+                       '</td></tr>';
+
+
+            $('#tableDocuments').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber));
+            $('#tableDocuments tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+
+        }
+
+        function renderizeRow(documentList, sourceType) {
+            var docNumber;
+            if (sourceType === "selected") {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0].DocumentNumber;
+                }
+            }
+            else {
+                if (documentList.length > 0) {
+                    docNumber = documentList[0];
+                }
+            }
+
+            var urlf = '@Url.Action("AddNewDocument", "Save")';
+            var result = postUrl(urlf, { documentNumber: docNumber });
+            var newRow = '<tr role="row" data-id="">' +
+                        '<td>' + result.responseJSON.data.User + '</td>' +
+                        '<td>' + result.responseJSON.data.Date + '</td>' +
+                        '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+                        '<td> <span data-pagemode="edit">' +
+                        '@Confluence.InputText(value: "", name: "documentDescription", maxLength: 250, width: "100%", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtDocumentDescription02" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                        '@Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "")' +
+                       '</span></td><td>' +
+                       '<a href=' + result.responseJSON.data.Url + ' target="_blank">' +
+                        '<button class="buttonDownload">' +
+                        '<span class="icon"></span>' +
+                        '<span></span>' +
+                        '</button>' +
+                        '</a>' +
+                       '</td></tr>';
+
+
+            $('#tableDocuments').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber));
+            $('#tableDocuments tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+
+        }
+
+
+</script>
+}
+
+}

@@ -1,0 +1,232 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.TCM.ViewModels.K2Workflow.WorkflowViewModels
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    Layout = "~/Areas/TCM/Views/Shared/_Layout.cshtml";
+}
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl=""
+     data-url="@Url.Action("SaveWorkFlowTCM", "WorkflowK2", new { area = "TCM" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit"><input type="hidden" name="changeStatus" value="none" /></span>
+    <span data-pagemode="edit"><input type="hidden" name="ResultMatrixId" value="@Model.ResultMatrixId" /></span>
+
+    @if (Model.TaskDataModel != null)
+    {
+
+        <span class="text-right">
+            @Html.Partial("Partials/WorkflowButtons")
+        </span>
+
+    }
+    else
+    {
+      @Html.Partial("Partials/WorkFlowHeader", Model)
+    }
+
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            @Confluence.LabelSubTitleGroup(text: Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Instructions"), htmlClass: "bold")
+            <p class="mt20 mb10">@Html.Raw(Model.Instructions)</p>
+        </div>
+    </div>
+
+    <div class="row row-body-40" id="workflowComments">
+        <div class="col-md-12">
+            @Html.Partial("Partials/WorkflowComments", Model)
+        </div>
+    </div>
+
+    <div class="row" id="footer-section">
+        <span class="text-right">@Html.Partial("Partials/WorkflowButtons")</span>
+    </div>
+</div>
+
+<div data-id="ModalRegionTwo" class="hide">
+    <button data-id="buttonModaReject" class="buttonBlue"
+            data-idb-fieldname="btnSaveAndReject"
+            data-modal-allowclose="true"
+            data-custom-modal="saveRejectModal"
+            data-custom-modal-style="vex-theme"
+            data-custom-modal-title="@Localization.GetText("GLOBAL.K2.BUTTON.SaveReject")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["save", "cancel"]'
+            data-custom-button-save-id="send"
+            data-custom-button-save="@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Message.SaveReject")"
+            data-custom-button-save-style="buttonBlue"
+            data-custom-button-save-callback="saveRejectWorkflowTCMSave"
+            data-custom-button-save-closeatend="true"
+            data-custom-button-cancel-id="cancel"
+            data-custom-button-cancel="@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Cancel")"
+            data-custom-button-cancel-style="buttonLink"
+            data-custom-button-cancel-callback=""
+            data-custom-modal-onclose=""
+            data-custom-modal-closeonoverlayclick="false">
+        @Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Reject")
+    </button>
+    <div data-id="ModalRegion" class="">
+        <div id="saveRejectModal" class="hide modalBody institutionsModal"> @Localization.GetText("GLOBAL.K2.MODAL.SaveRejectTask")</div>
+    </div>
+</div>
+
+@section scripts
+{
+    @if (k2Mode)
+    {
+        @ModuleScripts.K2UIIntegration()
+    }
+    <script type="text/javascript">
+    $(document).ready(function () {
+        @if (k2Mode)
+             {
+            @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+                                                                                                                                                                                                                                @:$(".operationData").css("padding", "0 15px 0 15px")
+                                                                                                                                                                                                                                @:$("#headerButtons").css("margin-right", "-17%")
+                                                                                                                                                                                                                                @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                                                                                                                                                                                                                            }
+        if ("@Model.IsFinalReport.Value" === "True")
+            $(".title_tag").text("@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.IsFinalRepositoryText")");
+
+        enterEditMode(false, $('#workflowComments'), true);
+        enterEditMode(false, $('#headerButtons'), true);
+        enterEditMode(false, $('#footer-section'), true);
+    });
+
+    function newComment(source) {
+        var newBlock = '<br><div data-pagemode="edit"  class="pb20">' +
+            '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+            section2: Confluence.Label(Model.UserName), section3: null, value: "", name: "newComment", required: false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+        '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+
+        $("#divWorkflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+        enterEditMode(false, $("#divWorkflowComments"), false);
+        bindHandlers($("#divWorkflowComments"));
+    }
+
+    function deleteCommentConfirm(source) {
+        if (source.attr("data-commentId")) {
+            $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+        }
+        source.parent().remove();
+    }
+
+    function deleteComment(source) {
+        var msjValidation = '@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Warning.DeleteComment")';
+        confirmAction(msjValidation).done(function (selectionOk) {
+            if (selectionOk) {
+                deleteCommentConfirm(source);
+            }
+        });
+    }
+
+    function cancelWorkflowTCM(source) {
+        @if (Model.TaskDataModel != null) {
+        @:window.location.href = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+                                                                                                                                                        }
+        else {
+        @:window.location.href = '@Url.Action("Index", "ValidationProcess", new {area = "TCM"})';
+                                                                                                                                }
+    }
+
+    function acceptApproveTCM() {
+        $("[name=changeStatus]").val("AcceptWorkflow");
+        var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber =  Model.TaskDataModel != null ? Model.TaskDataModel.OperationNumber : "" })';
+        saveWorkflowTCM(url);
+    }
+
+    function saveRejectWorkflowTCM() {
+        if ((($('#divWorkflowComments').find('[name=newComment]').length <= 0)
+                    && ($('#divWorkflowComments').find('[name=textComment]').length <= 0))
+                || ($('#divWorkflowComments').find('[name=newComment]').first().val() == "")
+                || ($('#divWorkflowComments').find('.buttonTrash').length <= 0)
+            ) {
+            showMessage('@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.RejectComment")');
+        }
+        else {
+            $('[data-id="buttonModaReject"]').click();
+        }
+    }
+
+    function saveRejectWorkflowTCMSave() {
+        $("[name=changeStatus]").val("RejectWorkflow");
+        var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel != null ? Model.TaskDataModel.OperationNumber : "" })';
+        saveWorkflowTCM(url);
+    }
+
+    function saveOnly() {
+        $("[name=changeStatus]").val("none");
+        @if (Model.TaskDataModel != null)
+        {
+        @:var url = '@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })';
+                                                                                                                    }
+        else {
+            @:var param = "?resultMatrixId=" + $("[name = ResultMatrixId]").val() + "&isMap=false" + "&isFinalReport=" + '@Model.IsFinalReport';
+                                                                                     @:var url = "@Url.Action("SubmitWorkflow", "WorkflowK2", new { area = "TCM" })" + param;
+                                                                                        }
+        saveWorkflowTCM(url);
+    }
+
+        function startWorkflowRequest() {         
+        $('.buttonBlue').last().prop("disabled", "true");
+        showLoader();
+        var param = "?resultMatrixId=" + $('[name=ResultMatrixId]').val()
+            + "&isMap=false" + "&isFinalReport="
+            + '@Model.IsFinalReport'
+
+        urlSC = "@Url.Action("StartWorkflowTCM", "WorkflowK2", new { area = "TCM"})" + param;
+
+        $('#pageContent').attr('data-url', urlSC);
+
+        var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+
+        if (response !== false) {
+            response.done(function (data) {
+
+                if (!data.IsValid) {
+                    if (data.ErrorMessage != null || data.ErrorMessage != '')
+                        showMessage('@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Message.Save")');
+                    else
+                        showMessage(data.ErrorMessage);
+                }
+                else {
+                    showLoader();
+                    window.setTimeout(function () {
+                        window.location.href = '@Url.Action("Index", "ValidationProcess", new {area = "TCM"})';
+                    }, 5000);
+
+                }
+            });
+        }
+
+    }
+
+    function saveWorkflowTCM(url) {
+        var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+        if (response !== false) {
+            response.done(function (data) {
+
+                if (!data.IsValid) {
+                    if (data.ErrorMessage != null || data.ErrorMessage != '')
+                        showMessage('@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Message.Save")');
+                    else
+                        showMessage(data.ErrorMessage);
+                }
+                else {
+                    window.open(url, "_self");
+                }
+            });
+        }
+    }
+
+    </script>
+}
+
+

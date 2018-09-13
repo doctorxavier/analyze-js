@@ -1,0 +1,256 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+
+@model IDB.Presentation.MVC4.Models.Documents.SearchDocumentModalViewModel
+
+<div class="container-fluid" data-id="@Model.SearchModalId">
+    <div class="row">
+        <div class="col-md-12">
+            <ul class="nav nav-tabs" role="tablist" data-id="tabContainer">
+                <li class="active"><a href="#" role="tab" data-toggle="tab" data-tab-action="@Model.SearchModalId" data-tab-id="add">@Localization.GetText("Add")</a></li>
+                <li><a href="#" role="tab" data-toggle="tab" data-tab-action="@Model.SearchModalId" data-tab-id="search">@Localization.GetText("Search")</a></li>
+            </ul>
+            <div class="modalContent" data-id="modalContent">
+                <div data-id-selector="tabContainer">
+                    @Html.Partial("Controls/IDBDocs/AddIDBDocForm")
+                </div>
+                <div data-id="modalButtonsContainer" class="vex-modalFooter">
+                    <button type="button" data-id="performButton" id="performButton" class="btn btn-primary">@Localization.GetText("Document.Button.Add")</button>
+                    <button type="button" data-id="cancelButton" class="btn btn-link">@Localization.GetText("Document.Button.Cancel")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        registerCallback(function ()
+        {
+            $(document).on("click", "[data-tab-action=@Model.SearchModalId]", function ()
+            {
+                var source = $(this);
+                var tabId = source.attr("data-tab-id");
+
+                var modalContent = source.parents("[data-id=tabContainer]").siblings("[data-id=modalContent]");
+                var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+                var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+                var actionButtonText = '';
+
+                switch (tabId) {
+                    case "add":
+                        actionButtonText = '@Localization.GetText("Document.Button.Add")';
+                        tabContainer.load('@Url.Action("AddIDBDocForm", "DocumentModal", new { area = ""})?New=yes');
+                        break;
+                    case "search":
+                        actionButtonText = '@Localization.GetText("Document.Button.Search")';
+                        tabContainer.load('@Url.Action("SearchIDBDocSearchForm", "DocumentModal", new { area = "" })?New=yes');
+                        bindHandlersDocs();
+                        break;
+                }
+                button.html(actionButtonText);
+            });
+
+			$(document).on("click", "[data-id=@Model.SearchModalId] [name=chkInputCorrespondence]", function ()
+            {
+                var source = $(this);
+                var parent = source.parents(".field").first();
+                parent.children("[data-id-selector=inputCorrespondenceContainer]").toggleClass('hide');
+            });
+
+        	$(document).on("click", "[data-id=@Model.SearchModalId] [name=chkOutputCorrespondence]", function ()
+            {
+                var source = $(this);
+                var parent = source.parents(".field").first();
+                parent.children("[data-id-selector=outputCorrespondenceContainer]").toggleClass('hide');
+        	});
+
+        	$(document).on("click", "[data-id=@Model.SearchModalId] [data-id=performButton]", function ()
+            {
+        	    var button = $(this);
+                var modalContent = button.parents("[data-id=modalContent]");
+                var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+        	    var isSearchForm = tabContainer.find("[data-id-selector=search-form]").length != 0;
+        	    var isSearchFormResults = tabContainer.find("[data-id-selector=search-form-results]").length != 0;
+        	    var isAddDocForm = tabContainer.find("[data-id-selector=add-form]").length != 0;
+
+        	    if (isSearchForm)
+        	    {
+                    executeSearch(tabContainer, button, '@Localization.GetText("Document.Button.Send")');
+	            } else if (isSearchFormResults) {
+	                executeSendSelected(tabContainer, button);
+	            } else if (isAddDocForm)
+	            {
+	                var form = tabContainer.find('form');
+	                var inputFile = form.find("input[type=file]")[0];
+
+	                button.attr('disabled', 'disabled');
+
+	                var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+	                var vexModal = modalContainer.parents(".vex");
+
+	                if (inputFile.files.length == 0)
+	                {
+	                    var errorRegion = $(inputFile).siblings("[data-name=file-empty]");
+	                    errorRegion.removeClass("hide");
+	                    setTimeout(
+                            function ()
+                            {
+                                button.removeAttr('disabled');
+                                errorRegion.addClass("hide");
+                            }
+                               , 600)
+	                    return false;
+	                }
+
+	                var validExtensions = true;
+	                var extensions = ['.pdf', '.xls', '.xlsx', '.pst', '.ppt', '.pptx', '.mpp', '.pub', '.vsd', '.vss', '.vst', '.vdx', '.vsx', '.vtx', '.doc', '.docx', '.wpd', '.msg'];
+
+	                var dataForm = new FormData();
+	                var fileNames = [];
+	                jQuery.each(inputFile.files, function (i, file)
+	                {
+	                    var index = file.name.lastIndexOf(".");
+	                    if (index >= 0)
+	                    {
+	                        fileName = file.name.substring(0, file.name.lastIndexOf("."));
+	                        fileNames.push(fileName);
+	                        var extension = file.name.substr(index);
+	                        if ($.inArray(extension, extensions) < 0)
+	                        {
+	                            validExtensions = false;
+	                        }
+	                        dataForm.append('files', file);
+	                    }
+	                });
+
+	                if (validExtensions)
+	                {
+	                    $.ajax({
+	                        url: '@Url.Action("IDBDocUploadDocument", "DocumentModal", new {area = "", businessAreaCode = Model.BusinessAreaCode})',
+	                        data: dataForm,
+	                        cache: false,
+	                        contentType: false,
+	                        processData: false,
+	                        type: 'POST'
+	                    }).done(function(data) {
+
+	                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+	                            showMessage(data.ErrorMessage);
+	                        } else if (data.IsValid) {
+	                            @if (!string.IsNullOrEmpty(Model.TargetFunction))
+	                            {
+	                                @:window["@Model.TargetFunction"](data.DocumentNumbers, 'added', fileNames);
+	                            }
+	                            vex.closeByID(vexModal.data().vex.id);
+	                        }
+	                    });
+	                } else {
+	                    var errorRegion = $(inputFile).siblings("[data-name=file-error]");
+	                    errorRegion.removeClass("hide");
+	                }
+
+	                $('input[name="file"]').val("")
+	            }
+            });
+
+            function executeSearch(tabContainer, button, actionButtonText)
+            {
+                postUrl('@Url.Action("SearchIDBDocuments", "DocumentModal", new {area = ""})', serializeContainer(tabContainer))
+                    .done(function(data) {
+                        tabContainer.html(data);
+                        button.html(actionButtonText);
+                    });
+            }
+
+            function executeSendSelected(tabContainer, button)
+            {
+
+                var documentContainer = tabContainer.find("[data-id-selector=documents-container]");
+                var documentList = documentContainer.children(".document-box").children(".selected").parent();
+
+                var documentsObject = [];
+                documentList.each(function (index, element)
+                {
+                    documentsObject.push($.parseJSON($(element).attr('data-json')));
+                });
+
+                @if (!string.IsNullOrEmpty(Model.TargetFunction))
+                {
+                    @:window["@Model.TargetFunction"](documentsObject, 'selected');
+                }
+
+                var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+                var vexModal = modalContainer.parents(".vex");
+                vex.closeByID(vexModal.data().vex.id);
+            }
+
+            $(document).on("click", "[data-id=@Model.SearchModalId] [data-id=cancelButton]", function() {
+                var button = $(this);
+                var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+                var vexModal = modalContainer.parents(".vex");
+                vex.closeByID(vexModal.data().vex.id);
+            });
+
+        	$(document).on("click", "[data-id=@Model.SearchModalId] [data-id=clearFilters]", function ()
+            {
+                var source = $(this);
+                var modalContent = source.parents("[data-id=modalContent]");
+                var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+                var buttonSearchFormText = '@Localization.GetText("Document.Button.Search")';
+                button.html(buttonSearchFormText);
+
+                var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+                tabContainer.load('@Url.Action("SearchIDBDocSearchForm", "DocumentModal", new { area = "" })');
+            });
+
+
+        	$(document).on("click", "[data-id=@Model.SearchModalId] [data-id=selectableDocument]", function ()
+            {
+                var source = $(this);
+                var document = source.children(".documentLabel");
+
+                @if (!Model.MultipleSelection)
+                {
+                    @:source.siblings(".document-box").find(".documentLabel").removeClass("selected");
+                }
+
+                document.toggleClass('selected');
+
+                var preview = source.parents("[data-id-selector=result-container-main]").children(".documentPreview");
+
+                if (document.hasClass('selected'))
+                {
+                    try
+                    {
+                        var documentData = $.parseJSON(source.attr('data-json'));
+                        preview.find('[data-id-selector=documentName]').text(documentData.DocumentName != null ? documentData.DocumentName : '');
+                        preview.find('[data-id-selector=documentDate]').text(documentData.CreationDate != null ? documentData.CreationDate : '');
+                        preview.find('[data-id-selector=idbNumber]').text(documentData.DocumentNumber != null ? documentData.DocumentNumber : '');
+                        preview.find('[data-id-selector=docDescription]').text(documentData.Description != null ? documentData.Description : '');
+                        preview.find('[data-id-selector=docAuthor]').text(documentData.FullName != null ? documentData.FullName : '');
+                        preview.find('[data-id-selector=operationNumber]').text(documentData.MultiLoans != null ? documentData.MultiLoans : '');
+                        preview.find('[data-id-selector=contractNumber]').text(documentData.MultiLoans != null ? documentData.MultiLoans : '');
+                    }
+                    catch (e)
+                    {
+                    }
+                }
+                else
+                {
+                    preview.find('[data-id-selector=documentName]').text('');
+                    preview.find('[data-id-selector=documentDate]').text('');
+                    preview.find('[data-id-selector=idbNumber]').text('');
+                    preview.find('[data-id-selector=docDescription]').text('');
+                    preview.find('[data-id-selector=docAuthor]').text('');
+                    preview.find('[data-id-selector=operationNumber]').text('');
+                    preview.find('[data-id-selector=contractNumber]').text('');
+                }
+            });
+        });
+
+	</script>)

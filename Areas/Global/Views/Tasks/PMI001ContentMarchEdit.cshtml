@@ -1,0 +1,256 @@
+﻿@using IDB.MW.Domain.Models.Global
+@using IDB.Presentation.MVC4.Areas.PMI.Controllers;
+
+@model IDB.MW.Domain.Models.Supervision.Workflow.BasicPMIWorkflowIds
+
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo/kendo.common.min.css")" />
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/kendo.everis.css")" />
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Risks/esmartGeneral.css")"/>
+
+<script type="text/javascript" src="@Url.Content("~/Scripts/correctBackground/correctBackground.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Index/Index.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/kendo/kendo.web.min.js")"></script>
+
+@{
+    ViewBag.Title = "title";
+    Layout = null;
+
+    string instructions = "";
+    string actualClassification = "";
+
+    int resultsMatrixId = Model.ResultsMatrixId;
+    int intervalId = Model.interval.IntervalId;
+    int cycleId = Model.interval.CycleId;
+    string operationNumber = Model.OperationNumber;
+
+    if (ViewBag.Description != null) {
+        instructions = ViewBag.Description;
+    }
+    if (ViewBag.Classification != null) {
+        actualClassification = ViewBag.Classification;
+    }
+}
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        
+
+        $("#classification").kendoDropDownList({
+            dataTextField: "text",
+            dataValueField: "value",
+            height: 100
+        });
+    });
+</script>
+@{
+    var tasks = (List<MyTasksViewModel>)ViewBag.tasks;
+    tasks = tasks.OrderBy(task => task.WorkflowInstanceTaskId).ToList();
+    MyTasksViewModel previous = null;
+    var nc_coo_index = tasks.FindIndex(task => task.Status.Contains('-') &&
+        task.Status.Split('-')[1] == "PMI_NC_COO");
+    var currentTask = tasks.First(task
+        => task.WorkflowInstanceTaskId == Model.CompleteTaskView.TaskId);
+
+    if (nc_coo_index != -1) {
+        previous = tasks[nc_coo_index - 1];
+    } else {
+        var taskIndex = tasks.FindIndex(task => task.WorkflowInstanceTaskId ==
+            Model.CompleteTaskView.TaskId);
+        previous = tasks[taskIndex - 1];
+    }
+    string classification = tasks.First().clasification;
+    bool isSpecialOperation = StageController.IsSpecialOperationOrSUPWithoutRelation(
+        Model.OperationId);
+}
+
+
+<section class="central">
+    <h2 class="hide">Seccion central de Contenido</h2>
+    @using (Html.BeginForm("", "", FormMethod.Post, new { @id = "ConvergencePartialForm" })) {    
+        @Html.HiddenFor(x => x.OperationId, new { data_val = "false" })
+        @Html.HiddenFor(x => x.OperationNumber, new { data_val = "false" })
+        @Html.HiddenFor(x => x.PMRCycleId, new { data_val = "false" })
+        @Html.HiddenFor(x => x.ResultsMatrixId, new { data_val = "false" })
+        @Html.HiddenFor(x => x.UserName, new { data_val = "false" })
+
+        @Html.HiddenFor(x => x.CompleteTaskView.TaskId)
+        @Html.HiddenFor(x => x.CompleteTaskView.TaskStatus)
+        @Html.HiddenFor(x => x.CompleteTaskView.Code)
+        @Html.HiddenFor(x => x.ActionType)
+
+        <input hidden="hidden"  id="taskId" value="@Model.CompleteTaskView.TaskId"/>
+        <input hidden="hidden" id="innerTaskDetailViewId" value="itdPMI" />
+        <input hidden="hidden" id="ActualClassification" value="@currentTask.clasification" />
+       
+            
+        @Html.Hidden("UserName", @Model.UserName)
+        <div class="mod_contenido_central modEditingBasicData">
+            @{Html.RenderAction("AdditionalValidators", "Tasks", new {
+         area = "Global",
+         Code = "WF-PMI-001",
+         Editable = false,
+         TaskId = Model.CompleteTaskView.TaskId
+     });
+            }
+            <div class="operationData dataDetails marginTop2Bottom1">
+                <div class="operationData min_padding_left dataSocial">
+                    <div class="data6">
+                        <p class="dataTitle" style="height: 33px">@Localization.GetText("Instructions")</p>
+                        <p>@instructions</p>
+                    </div>
+                    <div class="data6">
+                    @if (!isSpecialOperation)
+                    {
+                        <div class="data" style="margin-right: 15px">
+                            <p class="dataTitle" style="height: 33px">@Localization.GetText("Draft classification")</p>
+                            <p>@tasks.First().clasification</p>
+                        </div>
+                        foreach (var task in tasks)
+                        {
+                            if (classification != task.clasification &&
+                               Model.CompleteTaskView.TaskId != task.WorkflowInstanceTaskId)
+                            {
+                                classification = task.clasification;
+                                                <div class="data" style="margin-right: 15px">
+                                                    <p class="dataTitle" style="height: 33px">@Localization.GetText("New Classification proposed by")<br /> @task.Username</p>
+                                                    <p>@task.clasification</p>
+                                                </div>
+                            }
+                        }
+                        if (ViewBag.Role != string.Empty)
+                        {
+                            if (ViewBag.Role == Role.DIVISION_CHIEF)
+                            {
+                                <div class="data">
+                                <p class="dataTitle" style="height: 33px">@Localization.GetText("Proposed classification")</p>
+                                @Html.DropDownListFor(x => x.Clasification, 
+                                    new SelectList(ViewBag.ClassificationList,"Code","NameEn", currentTask.clasification), 
+                                    new { @class = "kendoDropDown k-state-disabled", @id = "classification", @name = "classification", @disabled = "disabled", 
+                                        @style = "filter: alpha(opacity=70)!important; opacity: .7;" })
+                                </div>
+                            }
+                            else
+                            { 
+                                <div class="data">
+                                    <p class="dataTitle" style="height: 33px">@Localization.GetText("Proposed classification")</p>
+                                    @Html.DropDownListFor(x => x.Clasification, 
+                                        new SelectList(ViewBag.ClassificationList, "Code", "NameEn", currentTask.clasification), 
+                                        new { @class = "kendoDropDown", @id = "classification", @name = "classification" })
+                                </div>
+                            }
+                        } else {
+                            Model.Clasification = currentTask.clasification; 
+                            @Html.HiddenFor(x => x.Clasification);
+                        }
+                    }
+                    </div>
+
+                    @{
+                        Html.RenderAction("VerifyContent", "VerifyContent", new { area = "ResultsMatrix", resultsMatrixId, intervalId, cycleId });
+                        var operationContext = (IDB.MW.Domain.Models.Supervision.PMI.PMIOperation)Session["OperationContext"];
+                        var currentStage = operationContext.StageValue;
+                        switch (currentStage) {
+                            case 1:
+                                Html.RenderAction("RenderSummaryTable", "StageOne", new { area = "PMI", operationNumber, isLive = false });
+                                break;
+                            case 2:
+                                Html.RenderAction("RenderSummaryTable", "StageTwo", new { area = "PMI", operationNumber, isLive = false });
+                                break;
+                            case 3:
+                                Html.RenderAction("RenderSummaryTable", "StageThree", new { area = "PMI", operationNumber, isLive = false });
+                                break;
+                            case 4:
+                                break;
+
+                        }
+                    }
+                </div>
+            </div>
+            <div class="operationData marginTop2Bottom1" style="padding-left: 40px;">
+                <!--Colocar en css aparte-->
+                <div class="operationData width_Off min_padding_left dataSocial" style="width: 30%;">
+                    <h4 class="headingh3 cero_left">@Localization.GetText("Comments") </h4>
+                </div>
+
+                <div id="commentslistdinamic">
+                    <table id="commentTableUIRI002_edit" class="w100 grid">
+                        <tbody id="comentContainer">
+                            @for (int i = 0; i < Model.UserComments.Count(); i++) {
+           if (Model.UserComments[i].CreatedBy == IDBContext.Current.UserName && Model.UserComments[i].IsEditable) {
+                                <tr>
+                                    <td>
+                                        <div class="padding10 leftAlign" style="width: 98%">
+                                            <div class="verticalMargin10 w100 relative h50px" style="height: 0%;">
+                                                <input type="button" value="@Localization.GetText("Delete")"  data-itemDeleted="@Model.UserComments[i].UserCommentId" 
+                                       class="deleteTextButton verticalAlignTop controlDelete absolute absRight DeletePMIRequest">
+                                            </div>
+                                            <div class="verticalMargin10 w100">
+                                                <div class="verticalMargin10 inline-block" style="padding-right: 10px;">@(Model.UserComments[i].Modified == null ? "" : Model.UserComments[i].Modified.Value.ToString("dd MMM yyyy"))</div>
+                                                <div class="verticalMargin10 inline-block bold marginLeft3 lastRowCommentUserJS">@Model.UserComments[i].ModifiedBy</div>
+                                            </div>
+                                            <div class="verticalMargin10 w100">
+                                                <div class="padding10">
+                                                    @Html.HiddenFor(x => x.UserComments[i].UserCommentId)
+                                                    @Html.HiddenFor(x => x.UserComments[i].Text)
+                                                    @Html.HiddenFor(x => x.UserComments[i].ModifiedBy)
+                                                    @Html.HiddenFor(x => x.UserComments[i].Modified)
+                                                    @Html.HiddenFor(x => x.UserComments[i].Created)
+                                                    @Html.HiddenFor(x => x.UserComments[i].CreatedBy)
+                                                    @Html.HiddenFor(x => x.UserComments[i].WorkflowInstanceTaskId)
+                                                    @Html.TextAreaFor(x => x.UserComments[i].Text, new Dictionary<string, Object> { { "class", "txtDescriptionComent" }, { "data-val", "true;" }, { "data-val-required", "Please, complete the mandatory fields" }, { "cols", "300" }, { "rows", "5" }, { "maxlength", "1000" } })
+                                                    @{Html.ValidateFor(x => x.UserComments[i].Text);}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+           } else {
+                                <tr>
+                                    <td>
+                                        <div class="padding10 leftAlign">
+                                            <div class="verticalMargin10 w100">
+                                                <div class="verticalMargin10 inline-block" style="padding-right: 10px;">@(Model.UserComments[i].Modified == null ? "" : Model.UserComments[i].Modified.Value.ToString("dd MMM yy"))</div>
+                                                <div class="verticalMargin10 inline-block bold marginLeft3 lastRowCommentUserJS">@Model.UserComments[i].ModifiedBy</div>
+                                            </div>
+                                            <div class="verticalMargin10 w100">
+                                                <div class="padding10">
+                                                    @Html.HiddenFor(x => x.UserComments[i].UserCommentId)
+                                                    @Html.HiddenFor(x => x.UserComments[i].ModifiedBy)
+                                                    @Html.HiddenFor(x => x.UserComments[i].Modified)
+                                                    @Html.HiddenFor(x => x.UserComments[i].Created)
+                                                    @Html.HiddenFor(x => x.UserComments[i].CreatedBy)
+                                                    @Html.HiddenFor(x => x.UserComments[i].Text)
+                                                    <div class="verticalMargin10 inline-block bold marginLeft3">@Model.UserComments[i].Text</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr> 
+           }
+       }
+                        </tbody>
+                    </table>
+                </div>
+                @*/**
+            * Jira ID: CON-1237
+            * Attended by: Walkin Meza - Nicolas Castro
+            * Date: 17/12/2014
+            * Begin Fix
+            **/*@
+                <div class="editingButtonsEdit" style="width: 30%; position: relative; right: 1%;">
+                    <a id="newCommentPMIRequestEdit" 
+                       href="javascript:void(0)" 
+                       class="btn-primary marginOff" 
+                       title="@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.NewComments")">
+                    @Localization.GetText("OP.OD.TabBasicData.RelatedOperations.NewComments")</a>
+                </div>
+                @*/**
+            * End Fix
+            **/*@
+            </div>
+        </div>
+ }
+</section>

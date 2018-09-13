@@ -1,0 +1,111 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.TCM.ViewModels.FindingAndRecommendation
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Areas.TCM.Values;
+
+@model ExecutingAgenciesViewModel
+@if (Model != null)
+{
+    var dropDownQualityAssessment = @Html
+        .BuildSelectItemList(
+            dataSource: Model.AvailableQualityAssessments,
+            textExpression: qa => qa.GetLocalizedName(),
+            valueExpression: qa => qa.MasterId.ToString())
+        .ToList();
+
+    <div class="row row-header mb30">
+        <div class="col-md-12">
+            <div class="mb10">
+                @Confluence.LabelMainSubTitle(Localization.GetText("TCM.FR.Agencies.Title"))
+            </div>
+            @Confluence.Label(Localization.GetText("TCM.FR.Agencies.Information"))
+        </div>
+    </div>
+    <div class="row row-body-20">
+        <div class="col-md-12">
+            @{
+                var config = Html.RenderDataTable(Model.Institutions);
+                config.Name("agenciesTable")
+                    .PrimaryKey(p => p.IsEditable ? p.RowId.ToString() : string.Empty)
+                    .AddPrimaryKeyToName(false)
+
+                    .Columns(columns =>
+                    {
+                        columns.Bound(c => c.RowId)
+                            .EditableTemplate(c => ColumnId(c))
+                            .Hidden(true);
+                        columns.Template(c => ColumnExecutingAgency(c, false))
+                            .Header(Localization.GetText("TC.TCAbstract.BasicData.ExecutingAgency"))
+                            .EditableTemplate(c => ColumnExecutingAgency(c, true))
+                            .CssHeaderClass("col-md-4");
+                        columns.Template(c => ColumnComment(c))
+                            .Header(Localization.GetText("TC.DecisionSWO.Comments.Title"))
+                            .CssHeaderClass("col-md-6")
+                            .Persistent();
+                        columns.Template(c => ColumnQualityAssessment(c, false, dropDownQualityAssessment))
+                            .EditableTemplate(c => ColumnQualityAssessment(c, true, dropDownQualityAssessment))
+                            .Header(Localization.GetText("TCM.FR.FindingsAndRecommendations.QualityAssesment"))
+                            .CssHeaderClass("col-md-2");
+                    });
+                config.TableClass = "tableNormal endSpacing";
+
+                @Html.Partial("Controls/DataTable", config)
+            }
+        </div>
+    </div>
+
+
+
+    @helper ColumnId(InstitutionRelatedViewModel row)
+    {
+        if (row.IsEditable)
+        {
+            @Confluence.InputHidden(
+                row.RowId.ToString(), FindingRecomendationField.EA_ROW_ID)
+        }
+    }
+
+    @helper ColumnExecutingAgency(InstitutionRelatedViewModel row, bool modeEdit)
+    {
+        @Confluence.Label(row.InstitutionName)
+
+        if (row.IsEditable)
+        {
+            @Confluence.InputHidden(row.InstitutionAcronym, FindingRecomendationField.EA_AGENCY_ID)
+        }
+    }
+
+    @helper ColumnComment(InstitutionRelatedViewModel row)
+    {
+        @Confluence.InputTextModal(
+            row.Comment,
+            FindingRecomendationField.EA_COMMENT,
+            Localization.GetText("TC.DecisionSWO.Comments.Title"),
+            required: false,
+            width: "100%",
+            height: "100%",
+            readOnly: !row.IsEditable)
+    }
+
+    @helper ColumnQualityAssessment(
+        InstitutionRelatedViewModel row,
+        bool modeEdit,
+        List<SelectListItem> dropDownQualityAssessment)
+    {
+        if (row.IsEditable && modeEdit)
+        {
+            @Confluence.InputDropDown(
+                row.QualityAssessmentId.ToString(),
+                FindingRecomendationField.EA_QUALITY_ASSESSMENT,
+                dropDownQualityAssessment,
+                required: false)
+        }
+        else
+        {
+            @Confluence.LabelGetDropDown(
+                row.QualityAssessmentId.ToString(), dropDownQualityAssessment)
+        }
+    }
+}

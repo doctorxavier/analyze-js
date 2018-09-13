@@ -1,0 +1,226 @@
+﻿@using IDB.MW.Domain.Values
+@model IDB.MW.Application.AdministrationModule.ViewModels.Institution.InstitutionEditViewModel
+
+@if (ViewBag.Permission != false || ViewBag.InstitutionPermission != false)
+{
+    <div class="col-md-12">
+        @if (ViewBag.ID > 0)
+        {
+            @Confluence.InputHidden(Model.ValidationId.ToString(), "ValidationStageId")
+            <div class="col-md-4">@Confluence.Navigation(Confluence.LabelMainTitle(Model.Acronym), Url.Action(controllerName: "InstitutionView", actionName: "Institution"))</div>
+            <div class="col-md-4 mt10"><b>@Localization.GetText("Status: ")</b>@Model.ValidationStage</div>
+        }
+        @Html.Partial("Partial/ButtonsEdit")
+    </div>
+    <div name="ContentEdit" id="ContentEdit" data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-url="@Url.Action("InstitutionEditSave", "InstitutionSave", new {area = "AdministrationSecondPhase"})"
+         data-loadurl="@Url.Action("InstitutionEditReload", "InstitutionView", new { area = "AdministrationSecondPhase" ,id= ViewBag.ID})">
+
+        @Html.Partial("Partial/InstitutionEditPartial", Model)
+
+    </div>
+    <div class="col-md-12">
+        @Html.Partial("Partial/ButtonsEdit")
+    </div>
+}
+
+@section Scripts{
+    <script type="text/javascript">
+        @if (ViewBag.ID == 0){
+        <text>
+        $(document).ready(function() {
+                edit();
+        });
+        </text>
+        }
+        
+        function edit() {
+            var canEdit = true;
+            @if (Model.InstitutionId > 0)
+            {
+                <text>
+            postUrlWithOptions('@Url.Action("LockRegister", "InstitutionView", new {area = "AdministrationSecondPhase"})', { async: false }, { operationNumber: '@Model.InstitutionId', url: '@OPUSGlobalValues.URL_INSTITUTION' })
+                        .done(function (data) {
+                            if (data.IsValid === false) {
+                                canEdit = false;
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+            </text>
+            }
+            
+            if (canEdit) {
+                var success = enterEditMode(false, $("#ContentEdit"), false);
+                if (success) {
+                    enterEditMode(false, $('[data-id=headerButtons]'), false);
+                }
+            }
+        }
+
+        function exitAll() {
+            window.location.href = '@Url.Action(controllerName: "InstitutionView", actionName: "Institution")';
+        }
+
+        function cancel() {
+            var msg = "@Localization.GetText("OP.IN.Message.Cancelnstitutions")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    @if (Model.InstitutionId > 0){
+                    <text>
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "InstitutionView", new {area = "AdministrationSecondPhase"})', { async: true }, {operationNumber: '@Model.InstitutionId', url: '@OPUSGlobalValues.URL_DELEGATION' });
+                    </text>
+                    }
+                    exitEditMode(true, $('#ContentEdit'), true, true);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);    
+                }
+
+            });
+        }
+
+        function cancelNew() {
+            var msg = "@Localization.GetText("OP.IN.Message.CancelNewInstitutions")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    window.location.href = '@Url.Action(controllerName: "InstitutionView", actionName: "Institution")';
+                }
+
+            });
+        }
+
+        function registerInstitutionLms(source) {
+            var withSave = $(source).attr("data-with-save") === "YES";
+            var institutionId = '@ViewBag.ID';
+
+            if (withSave) {
+                if (validateContainer($('#ContentEdit'))) {
+                    if ($("[name='insModePag']").val() === "NEW") {
+                        var msg = "@Localization.GetText("OP.IN.Message.NewInstitution")";
+                        confirmAction(msg).done(function(pressOk) {
+                            if (pressOk) {
+                                if ($('input[name=TxtAcronym]').val() !== '') {
+                                    var msgAcronym = '@Localization.GetText("OP.CR.NewInstitution.AcronymMessageInstitution")';
+                                    allowMultiPopUp();
+                                    confirmActionCustom(msgAcronym, null).done(function () {
+                                        saveInstitutionInDb(true);
+                                    });
+                                }
+                                else {
+                                    saveInstitutionInDb(true);
+                                }
+                            }
+                        });
+                    }
+                    else {
+                        saveInstitutionInDb(true);
+                    }
+                }
+            }
+            else {
+                registerLms(institutionId,false);
+            }
+        }
+
+        function registerLms(institutionId, saveInDbOk) {
+
+            postUrlWithOptions("@Url.Action("UpdateRegisterInstitution", "InstitutionSave")", { async: false }, { 'institutionId': institutionId, 'insModePag': $("[name='insModePag']").val() })
+                .done(function(data) {
+                    var url = '@Url.Action(controllerName: "InstitutionView", actionName: "InstitutionEdit")' + "?id=" + data.InstitutionId;
+
+                    if (data.IsValid) {
+                        if ($("[name='insModePag']").val() === "NEW") {
+                            showMessage(data.MessageOk ? data.ErrorMessage : "@Localization.GetText("OP.IN.Message.CreateSucceslnstitution")", true, url);
+                        } else {
+                            showMessage(data.MessageOk ? data.ErrorMessage : "@Localization.GetText("OP.IN.Message.Success")", true, url);
+                        }
+                    } else {
+                        if (saveInDbOk) {
+                            showMessage(data.ErrorMessage, true, url);
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    }
+                });
+        }
+
+        function saveInstitution() {
+
+            if (validateContainer($('#ContentEdit'))) {
+
+                if ($("[name='insModePag']").val() === "NEW") {
+                    var msg = "@Localization.GetText("OP.IN.Message.NewInstitution")";
+                    confirmAction(msg)
+                        .done(function(pressOk) {
+                            if (pressOk) {
+                                saveInstitutionInDb(false);
+                            }
+                        });
+                } else {
+                    saveInstitutionInDb(false);
+                }
+            }
+        }
+
+        function saveInstitutionInDb(withLms) {
+            var modelSerialized = '#hidInstitutionEditViewModel';
+            var response = saveContainer($('#ContentEdit'), modelSerialized, true, $('#headerButtons'), null, !($("[name='insModePag']").val() === "NEW"));
+            if (response !== false) {
+                response.done(function(data) {
+                    
+                    if ((data.ErrorMessage == null || data.ErrorMessage === "") && (data.ExistsAddress === false)) {
+                        if ($("[name='insModePag']").val() != "NEW") exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                        if (withLms) {
+                            registerLms(data.InstitutionId,true);
+                        } else {
+                            if ($("[name='insModePag']").val() === "NEW") {
+                                var url = '@Url.Action(controllerName: "InstitutionView", actionName: "InstitutionEdit")' + "?id=" + data.InstitutionId;
+                                showMessage("@Localization.GetText("OP.IN.Message.CreateSucceslnstitution")", true, url);
+                            } else {
+
+                                showMessage("@Localization.GetText("OP.IN.Message.Success")");
+                            }
+                        }
+                    } else {
+                        if (data.ExistsAddress) {
+                            confirmAction(data.ErrorMessage)
+                                .done(function(pressOk) {
+                                    if (pressOk) {
+                                        var urlSave = $("#ContentEdit").attr("data-url");
+                                        $("#ContentEdit").attr("data-url", urlSave + '?repeatAddress=true');
+                                        saveInstitutionInDb(withLms);
+                                    }
+                                });
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    }
+                });
+            }
+        }
+
+        function deleteInstitution() {
+            var msg = "@Localization.GetText("OP.IN.Message.DeleteInstitution")";
+
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+
+                    postUrlWithOptions("@Url.Action("DeleteInstitution", "InstitutionDelete")", { async: true }, { 'id': @ViewBag.ID })
+                        .done(function(data) {
+                            if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                                window.location.href = '@Url.Action(controllerName: "InstitutionView", actionName: "Institution")';
+                            }
+                        });
+                }
+
+            });
+
+        }
+
+        function backToSearch() {
+            window.location.href = '@Url.Action(controllerName: "InstitutionView", actionName: "Institution")';
+        }
+    </script>
+}

@@ -1,0 +1,88 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.CountryStrategyModule.ViewModels.ResultMatrix
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.CountryStrategy.HtmlHelpers
+@using IDB.Presentation.MVC4.Helpers
+
+@model  List<PortfolioOpertationsApprViewModel>
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    var config = Html.RenderDataTable(Model);
+    config.TableClass = "tableNormal";
+    config.Name("operationsApprovedTable")
+    .PrimaryKey(m => m.RowId.ToString())
+    .AddPrimaryKeyToName(false)
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.OperationType)
+        .Header(Localization.GetText("CS.PortfolioSummary.OperationApprTable.OperationType"))
+        .CssClassDynamic(c => GetClassPriorityArea(c.IsRowTitle, c.IsBold, false))
+        .Persistent();
+
+        columns.Bound(c => c.Instrument)
+        .CssClassDynamic(c => GetClassPriorityArea(c.IsRowTitle, c.IsBold, false))
+        .Header(Localization.GetText("CS.PortfolioSummary.OperationApprTable.Instrument"))
+        .Persistent();
+
+        columns.Template(c => NumOperationsLink(c))
+        .CssClassDynamic(c => GetClassPriorityArea(c.IsRowTitle, c.IsBold, true))
+        .Header(Localization.GetText("CS.PortfolioSummary.OperationApprTable.NumberOperations"))
+        .Persistent();
+
+        columns.Bound(c => FormatHelper.Format(c.AmountUSD, formatDecimal))
+        .CssClassDynamic(c => GetClassPriorityArea(c.IsRowTitle, c.IsBold, true))
+        .Header(Localization.GetText("CS.Portfolio.TotalCurrenAprovalAmount"))
+        .Persistent();
+    });
+}
+
+@Html.Partial("Controls/DataTable", config)
+
+@functions{
+    private static string GetClassPriorityArea(bool isRowTitle, bool isBold, bool isAlignRight)
+    {
+        var cssClass = string.Empty;
+        if (isRowTitle)
+        {
+            cssClass = "row-title";
+        }
+        else if (isBold)
+        {
+            cssClass = "row-title-total";
+        }
+
+        if (isAlignRight)
+        {
+            cssClass += " text-right";
+        }
+        return cssClass;
+    }
+}
+
+
+@helper NumOperationsLink(PortfolioOpertationsApprViewModel row)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatInteger = appSettings.FormatInteger;
+    if ((!row.IsRowTitle && !row.IsBold && !row.IsEditable && row.NumberOfOperations > 0) || (row.IsIIC && row.NumberOfOperations > 0))
+    {        
+        @Confluence.LabelLink(FormatHelper.Format(row.NumberOfOperations, formatInteger),
+                                  name: "opertionNumberApprovedLink",
+                                  dataAttributes: new Dictionary<string, string> {
+                                  { "rowId", row.RowId.ToString() },
+                                  { "typeInstrument", row.OrderValue.ToString() }
+                                 })
+    }
+    else
+    {
+        @Confluence.Label(FormatHelper.Format(row.NumberOfOperations, formatInteger))
+    }
+}

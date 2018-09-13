@@ -1,0 +1,220 @@
+﻿@using System.Web.Mvc.Html
+
+@using IDB.Presentation.MVC4.MVCExtensions
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Areas.RiskMatrix.Models
+@using IDB.MW.Application.RiskMatrix.ViewModels
+
+@model RiskMaterializedViewModel
+
+@using (Ajax.BeginForm("Edit", "Materialized", new { operationNumber = Model.OperationNumber }, new AjaxOptions() { UpdateTargetId = "mainLayoutOperationContent", HttpMethod = "Post", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBegin", OnFailure = "riskMaterializedAjaxOnFailure" }, new { id = "frmriskMaterializedViewMode" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.OperationNumber)
+
+    <div class="col-md-10 mt10">
+        <h2 class="titlePrincipal">@Localization.GetText("RISK.TITLE")</h2>
+    </div>
+    <div class="col-md-2 mt10">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnMaterializedEdit", Model.ScreenSecurity.Security))
+        {
+            <button class="buttonBlue pull-right mr0" type="submit" id="btnMaterializedEdit">@Localization.GetText("RISK.EDIT")</button>
+        }
+    </div>
+    <div class="col-md-12">
+        @Html.Partial("~/Areas/RiskMatrix/Views/Partials/RiskHeader.cshtml", Model.HeaderInfo)
+        @Html.HiddenFor(model => model.HeaderInfo.PmrCycle)
+        @Html.HiddenFor(model => model.HeaderInfo.EsgClassfication)
+        @Html.HiddenFor(model => model.HeaderInfo.PmrValidationStage)
+        @for (int i = 0; i < Model.HeaderInfo.ExecutingAgencies.Count; i++)
+        {
+            @Html.HiddenFor(model => model.HeaderInfo.ExecutingAgencies[i])
+        }
+        @Html.HiddenFor(model => model.HeaderInfo.LastUpdatedRisk)
+        @Html.HiddenFor(model => model.HeaderInfo.PmrValidatedClassification)
+        @Html.HiddenFor(model => model.HeaderInfo.SafeguardPerformance)
+    </div>
+    <div class="col-md-12">
+        <div class="col-md-5">
+            <ul class="tabs">
+                <li>
+                    @Ajax.ActionLink(@Localization.GetText("RISK.MATRIX.TAB"), "Index", "RiskMatrix", new { operationNumber = Model.OperationNumber }, new AjaxOptions { UpdateTargetId = "mainLayoutOperationContent", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBegin", OnFailure = "riskMaterializedAjaxOnFailure" }, new { })
+                </li>
+                <li class="active">
+                    @Ajax.ActionLink(Localization.GetText("RISK.MATERIALIZED.TAB"), "Index", "Materialized", new { operationNumber = Model.OperationNumber }, new AjaxOptions { UpdateTargetId = "mainLayoutOperationContent", OnComplete = "riskMaterializedAjaxOnComplete", OnBegin = "riskMaterializedAjaxOnBegin", OnFailure = "riskMaterializedAjaxOnFailure" }, new { })
+                </li>
+            </ul>
+        </div>
+        <div class="col-md-7">
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnExcel", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonExcel("btnExcel", "ExportFileMaterializedReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "xls" } })
+            }
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnWord", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonWord("btnWord", "ExportFileMaterializedReport", clase: "pull-right mr0", dataAttributes: new Dictionary<string, string> { { "fileType", "doc" } })
+            }
+            @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnPDF", Model.ScreenSecurity.Security))
+            {
+                @Confluence.ButtonPdf("btnPDF", "ExportFileMaterializedReport", clase: "pull-right", dataAttributes: new Dictionary<string, string> { { "fileType", "pdf" } })
+            }
+        </div>
+    </div>
+    <div class="col-md-12">
+        @Confluence.LabelBold(Localization.GetText("RISK.MATERIALIZED.RISKS"))
+        @Confluence.ButtonColapseAll(new List<string>() { "tblIssues" })
+    </div>
+    <div class="col-md-12">
+        <table class="tableNormal" id="tblIssues">
+            <thead>
+                <tr>
+                    <th width="10%" class="sort" order-type="numeric">@Localization.GetText("RISK.ISSUE")</th>
+                    <th width="80%" class="sort">@Localization.GetText("RISK.ISSUE.DESCRIPTION")</th>
+                    <th width="10%">@Localization.GetText("RISK.DETAILS")</th>
+                    <th width="10%">@Localization.GetText("RISK.ACTIONS.MATERIALIZED")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Model.MaterializedRisks.Count; i++)
+                {
+                    <tr data-id="@Model.MaterializedRisks[i].MaterializedId">
+                        <td align="right">
+                            @Confluence.LabelBold(Model.MaterializedRisks[i].MaterializedCode.ToString())
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].MaterializedCode)
+                        </td>
+                        <td align="left">
+                            @Confluence.LabelBold(Model.MaterializedRisks[i].Description)
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].Description)
+                        </td>
+                        <td align="center">
+                            <button class="buttonShowRow" onclick="CollapseRowTable(this)" type="button">
+                                <span class="caret"></span>
+                            </button>
+                        </td>
+                        <td></td>
+                    </tr>
+                    @*Hidden Expandable area*@
+                    <tr data-row-parent-id="@Model.MaterializedRisks[i].MaterializedId">
+                        <td colspan="4">
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ASSOCIATED.RISK"))
+                                    <br />
+                                    @Confluence.LabelBold(Model.MaterializedRisks[i].RiskDescription)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].RiskDescription)
+                                </div>
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ACTIONS.MATERIALIZED"))
+                                    <br />
+                                    @Confluence.LabelBold(Model.MaterializedRisks[i].Actions)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].Actions)
+                                </div>
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ISSUE.EXPECTED.COMPLETION.DATE"))
+                                    <br />
+                                    @Confluence.LabelGetDate(Model.MaterializedRisks[i].ExpectedCompletationDate, bold: true)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].ExpectedCompletationDate)
+                                </div>
+                            </div>
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.OPERATION.IMPACT"))
+                                    <br />
+                                    @Confluence.LabelBold(Model.MaterializedRisks[i].OperationImpact)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].OperationImpact)
+                                </div>
+                                <div class="col-md-4">
+
+                                </div>
+                                <div class="col-md-4">
+                                    @Confluence.Label(Localization.GetText("RISK.ISSUE.CURRENT.COMPLETION.DATE"))
+                                    <br />
+                                    @Confluence.LabelGetDate(Model.MaterializedRisks[i].CurrentCompletationDate, bold: true)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].CurrentCompletationDate)
+                                </div>
+                            </div>
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-12">
+                                    @Confluence.Label(Localization.GetText("RISK.QUESTION"))
+                                    <br />
+                                    @Confluence.LabelBold(@Model.MaterializedRisks[i].Question)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].Question)
+                                </div>
+                            </div>
+                            @{
+                                var displayStageCaterogy = Model.MaterializedRisks[i].FindingsRecommendations == true ? "block" : "none";
+                            }
+                            <div id="materizalizedDetail_@Model.MaterializedRisks[i].MaterializedId" class="col-md-12 mb10">
+                                <div class="col-md-4">
+                                    @Confluence.InputCheckbox(Model.MaterializedRisks[i].FindingsRecommendations, "addname", "addId", Localization.GetText("RISK.FINDINGS.RECOMMENDATION"), disabled: true)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingsRecommendations)
+                                </div>
+                                <div class="col-md-4">
+                                    <div id="riskMaterializedDelay" style="display:@displayStageCaterogy">
+                                        @Confluence.InputCheckbox(Model.MaterializedRisks[i].Causes, "addname", "addId", Localization.GetText("RISK.CAUSED.DELAY"), disabled: true)
+                                    </div>
+                                        @Html.HiddenFor(model => Model.MaterializedRisks[i].Causes)
+                                    
+                                </div>
+                                <div class="col-md-4">
+
+                                </div>
+                            </div>
+                           
+                            <div id="stage_category_@Model.MaterializedRisks[i].MaterializedId" style="display:@displayStageCaterogy" class="col-md-12">
+                                <div class="col-md-4">
+                                    <div class="mb10">@Confluence.Label(Localization.GetText("RISK.STAGE"))</div>
+                                    @Confluence.LabelBold(Model.MaterializedRisks[i].StageName)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].StageName)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].StageId)
+                                </div>
+                                <div class="col-md-8">
+                                    <div>@Confluence.Label(Localization.GetText("RISK.CATEGORY"))</div>
+                                    @Confluence.LabelBold(Model.MaterializedRisks[i].Category)
+                                    @Html.HiddenFor(model => Model.MaterializedRisks[i].Category)
+                                    <br>
+                                    @{var childCategoriesFilter = new List<FindingRecommendationCategoryViewModel>();}
+                                    @for (int j = 0; j < Model.MaterializedCategoryTitles.Count; j++)
+                                    {
+                                        var childCategories = Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated.Where(p => p.ParentId == Model.MaterializedCategoryTitles[j].MasterDataId).ToList();
+                                        childCategoriesFilter.AddRange(childCategories.Where(a => a.Selected == true).ToList());                                        
+                                   }
+                                   @{
+                                       for (int k = 0; k < childCategoriesFilter.Count(); k++)
+                                       {
+                                        @Confluence.LabelBold(childCategoriesFilter[k].CategoryName);
+                                           if (k + 1 != childCategoriesFilter.Count())
+                                           {
+                                            <span>&nbsp;-</span>
+                                           }
+                                       } 
+                                    }
+                                   
+                                </div>
+                            </div>                           
+                        </td>
+
+                        @Html.HiddenFor(model => Model.MaterializedRisks[i].MaterializedId)
+                        @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationId)
+                        @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.FindingRecommendationId)
+                        @for (int j = 0; j < Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated.Count; j++)
+                    {
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated[j].CategoryId)
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated[j].CategoryName)
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated[j].ParentId)
+                            @Html.HiddenFor(model => Model.MaterializedRisks[i].FindingRecommendationVM.CategoriesRelated[j].Selected)
+                        }
+
+                    </tr>
+                }
+
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-12 mt20 mb20">
+        @if (SecureControlHelper.IsAuthorizedControl(Model.ScreenSecurity.PageName, "btnMaterializedEdit", Model.ScreenSecurity.Security))
+        {
+            <button class="buttonBlue pull-right mr0" type="submit" id="btnMaterializedEdit">@Localization.GetText("RISK.EDIT")</button>
+        }
+    </div>
+}

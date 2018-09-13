@@ -1,0 +1,190 @@
+﻿@using Microsoft.Ajax.Utilities
+
+@model IDB.MW.Domain.Models.Visit.VisitPlanModel
+@{
+    var counter = 0;
+    var typeVisitValues = ((Dictionary<int, string>)ViewBag.LocalizedMainVisits).Select(a => new SelectListItem { Value = a.Key.ToStringInvariant(), Text = a.Value }).ToList();
+    var canEdit = (bool)ViewBag.DraftOrModified || (bool)ViewBag.IsNewPlan;
+    var canEditActual = (bool)ViewBag.Approved || (bool)ViewBag.Modified;
+    var rt = (bool)ViewBag.Modified;
+    var isNewEntity = (bool)ViewBag.IsNewPlan;
+
+    var x = Model;
+
+    object htmlSimpleAttribs = new { data_view = "visit", @class = "grayBorder w40" };
+    object htmlComboAttribs = new { data_view = "visit", @class = "optionSelect kendoDropDown" };
+    object htmlIntegerAttribs = new { data_view = "visit", @class = "grayBorder w40 integer-edit-field numberOnly", @maxlength = "9" };
+   
+}
+
+@if (canEdit){
+    <div class="verticalMargin20 rightAlign">
+        <input type="button" id="newVisit" class="button blueButton" value=" @Localization.GetText("New Visit")"/>
+    </div>
+}
+
+<div id="VisitsPanel" class="verticalMargin40 font08em">
+
+    @Html.HiddenFor(m => m.VisitPlanId)
+
+    @for (var i = 0; i < Model.Visits.Count; i++)
+    {
+        @Html.Hidden("messageDelete",@Localization.GetText("This action cannot be undone, are you sure you wish to continue?"))
+        @Html.Hidden("rutaVisit",@Url.Action("DeleteDocumentByVisit", "Visits", new { area = "Visits"}))
+        @Html.Hidden("IndexDeleteVisitsUrl", "", new { data_title = "Delete Visit", data_route = Url.Action("_WarningOnDeleteVisits", "Visits", new { area = "Visits" }) })
+        @Html.Hidden("RequiredPlanned",@Localization.GetText("The Planned Field  Is Required"))
+        counter++;
+        typeVisitValues.Find(a => a.Value == Model.Visits[i].TypeVisits.ConvergenceMasterDataId.ToStringInvariant()).Selected = true;
+        
+        <div class="verticalMargin40 visitComponent">
+            @Html.HiddenFor(m => m.Visits[i].VisitPlanId)
+            @Html.HiddenFor(m => m.Visits[i].VisitId)
+            @Html.Hidden("Visits.Index", i)
+
+            <div class="leftMargin40 relative borderLeft paddingLeft20 marginBottom2">
+                <div class="verticalMargin20 paddingTop10px">
+                    <div class="componentNumber grayColor absolute visit-counter">@counter</div>
+                    <div class="minMaxButtonContainer absolute">
+                        <input class="minMaxButton cursorPointer plus" type="button" value="" />
+                    </div>
+                    <div class="relative h50px">
+                        <div class="absolute w80">
+                            @if (canEdit) {
+                                 @Html.DropDownListFor(m => m.Visits[i].TypeVisitId, typeVisitValues, new { data_view = "visit", @class = "optionSelect kendoDropDown" })
+                            } else {
+                                @Html.HiddenFor(m => m.Visits[i].TypeVisitId)
+                                @(((Dictionary<int, string>) ViewBag.LocalizedMainVisits)[Model.Visits[i].TypeVisits.ConvergenceMasterDataId])
+                            }
+                        </div>
+                        <div class="absRight absolute">
+                            @if (canEdit) { 
+                                <input type="button" value=" @Localization.GetText("Delete")" class="deleteTextButton verticalAlignTop absolute absRight deleteActivityBtn"/>
+                            }
+                        </div>
+                    </div>
+                    <div class="verticalMargin40">
+                        <div class="inline-block w20 leftAlign">
+                            <div class="disabledColor"> @Localization.GetText("Planned")</div>
+                            <div class="boldFont verticalMargin10">
+                                @if (canEdit) {
+                                    @Html.TextBoxFor(m => m.Visits[i].Planned, htmlIntegerAttribs)
+                                    @Html.HiddenFor(m => m.Visits[i].Planned)
+                                }
+                                else {
+                                    @Html.HiddenFor(m => m.Visits[i].Planned)
+                                    @Html.DisplayFor(m => m.Visits[i].Planned)
+                                }
+                            </div>
+                        </div>
+                        <div class="inline-block w20 leftAlign">
+                            <div class="disabledColor"> @Localization.GetText("Actual")</div>
+                            <div class="boldFont verticalMargin10">
+                                @if (canEditActual) {
+                                    @Html.TextBoxFor(m => m.Visits[i].Actual, htmlIntegerAttribs)
+                                } else {
+                                    @Html.HiddenFor(m => m.Visits[i].Actual)
+                                    @Html.DisplayFor(m => m.Visits[i].Actual)
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+@if (!isNewEntity) {
+    <h3 class="font1-5em verticalMargin10"> @Localization.GetText("Documents")</h3>
+    <!-- inicio tabla -->
+    <div class='marginBottom2'>
+        <table class="grid w100">
+            <thead>
+                <tr>
+                    <th> @Localization.GetText("User")</th>
+                    <th> @Localization.GetText("Date")</th>
+                    <th> @Localization.GetText("IDB Doc. Number")</th>
+                    <th> @Localization.GetText("Content")</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var j = 0; j < Model.Visits[i].Documents.Count; j++) {
+                    <tr>
+                        <td>@Html.DisplayFor(m => m.Visits[i].Documents[j].CreatedBy)</td>
+                        <td>
+                            @Model.Visits[i].Documents[j].Created.Value.ToString("dd MMM yyyy")
+                        </td>
+                        <td><a href="#">@Model.Visits[i].Documents[j].DocumentReference</a></td>
+                        <td>
+                            @Html.TextAreaFor(m => m.Visits[i].Documents[j].Description, new {@class = "h50px", data_view = "document",  @maxlength = "500"})
+                        </td>
+                        <td>
+                            
+                            @Html.HiddenFor(m => m.Visits[i].Documents[j].DocumentId, new {data_view = "document"})
+
+                            @{
+                                var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(Model.Visits[i].Documents[j].DocumentReference);
+                            }
+
+                            <a href=@secureUrl target="_blank">
+                                <input type="button" class="noBorder operationButton documentSupportDownloadIcon cursorPointer" />
+                            </a>
+                            <input type="button" value="" class="operationButton removeIcon" onclick="deleteDocument(this,@Model.Visits[i].Documents[j].DocumentId);" >
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    @*@if ((bool)ViewBag.Approved || (bool)ViewBag.Modified)
+    {
+        *@<div class="centerAlign addOneWrapper centerContent verticalMargin20 w40">
+            <div class="addOneContainer w100 h100">
+                <input type="button" value=" @Localization.GetText("New") " class=" noBorder h100 addOne cursorPointer w100 lnkModal" data-title=" @Localization.GetText("Add a document") " data-route=" @Html.Raw(Url.Action("IndexDocumentRelationship", "Document", new { operationId = (int)ViewBag.OperationId , mainOperationNumber = (string)ViewBag.OperationNumber, parentEntityId = 0, subParentEntityId = (int) ViewBag.SelectedYear, subsubParentEntityId = 0, entityRelated = "VISIT", entityRegisterId = Model.Visits[i].VisitId, isFirstTime = true, errorMessage = string.Empty })) " />
+
+            </div>
+        </div>
+    @*}*@
+    </div>
+} 
+            </div>
+        </div>
+        typeVisitValues.ForEach(a => a.Selected = false);
+    }
+</div>
+<div id="VisitEditTemplate" class="hide">
+    <div class="verticalMargin40 visitComponent">
+        @Html.Hidden("[#rowCount#].VisitId", "-1", htmlSimpleAttribs)
+        <div class="leftMargin40 relative borderLeft paddingLeft20 marginBottom2">
+            <div class="verticalMargin20 paddingTop10px">
+                <div class="componentNumber grayColor absolute visit-counter"></div>
+                <div class="minMaxButtonContainer absolute">
+                    <input class="minMaxButton cursorPointer plus" type="button" value="" />
+                </div>
+                <div class="relative h50px">
+                    <div class="absolute w80">
+                        @Html.DropDownList("[#rowCount#].TypeVisitId", typeVisitValues, new { data_view = "activity" })
+                    </div>
+                    <div class="absRight absolute">
+                        <input type="button" value=" @Localization.GetText("Delete")" class="deleteTextButton verticalAlignTop absolute absRight deleteVisitBtn">
+                    </div>
+                </div>
+                <div class="verticalMargin40">
+                    <div class="inline-block w20 leftAlign">
+                        <div class="disabledColor"> @Localization.GetText("Planned")</div>
+                        <div class="boldFont verticalMargin10">@Html.TextBox("[#rowCount#].Planned", "0", htmlSimpleAttribs)</div>
+                    </div>
+                    <div class="inline-block w20 leftAlign">
+                        <div class="disabledColor"> @Localization.GetText("Actual")</div>
+                        <div class="boldFont verticalMargin10">
+                            @if (canEditActual) {
+                                @Html.TextBox("[#rowCount#].Actual", "0", htmlSimpleAttribs)
+                            } else {
+                                @Html.Hidden("[#rowCount#].Actual", "0", htmlSimpleAttribs)
+                                <text>0</text>
+                            }
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @Html.Partial("NewVisitTemplate")
+</div>
+

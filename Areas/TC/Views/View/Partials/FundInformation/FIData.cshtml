@@ -1,0 +1,661 @@
+﻿@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Repeater
+@using IDB.MW.Application.TCAbstractModule.ViewModels.FundInformation
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Domain.Values
+
+@model FIBasicDataViewModel
+
+@{
+
+    var isSWCPermision = MvcHelpers.CheckSomeRoles(ViewBag.GLobalRoleList, ActionEnum.SWCoordinatorWritePermission);
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+
+    var expRegDecimal = appSettings.ValidationDecimalExpReg;
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatInteger = appSettings.FormatInteger;
+    var formatDate = appSettings.FormatDate;
+    var formatPercent = appSettings.FormatPercent;
+    var tiedPercentageValidation = appSettings.ValidationPercentRegExp;
+
+    var funds = new List<MultiSelectListItem> {
+        new MultiSelectListItem {
+            Text= "NONE",
+            Value = "4748"
+        },
+
+    };
+
+    var attributes = new Dictionary<string, string>() { { "parsley-noRepeatValue", "[name=fundCoordinator_text], [name=fundCoordinatorAlternate_text]" } };
+    var hasGCMChiefWrite = MvcHelpers.CheckRole(ViewBag.GLobalRoleList, ActionEnum.GCMChiefWrite);
+}
+
+@Confluence.InputHidden(ViewBag.SerializedViewModel, name: "hiddenFIData", id: "hiddenFIData")
+
+<div class="row mb50 mt20">
+    <div class="col-md-12 pl0">
+        @Confluence.LabelTitleGroup(@Localization.GetText("TC.TAB.BasicInformation"))
+    </div>
+</div>
+
+<div class="row mb20">
+    <div class="col-md-12 pl0">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("TC.TCAbstract.BasicData.Title"))
+    </div>
+</div>
+<!-- Section Basic Data -->
+<!-- Row -->
+<div class="row mb20 grouping-section">
+    <div class="col-md-3 lineGrayRight" style="padding-left:0px;">
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.FundName"), Confluence.LabelBold(Model.FundName), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+            title: @Localization.GetText("TC.FundInformation.BasicData.FundType"),
+            contentRead: Confluence.LabelBold(Model.FundType),
+            contentEdit: Confluence.InputDropDown(
+                value: Model.FundTypeId,
+                name: "FundTypeId",
+                elements: ViewBag.FundType,
+                width: "100%",
+                required: false))
+        </div>
+
+        <div class="mb10">
+            @if (hasGCMChiefWrite)
+            {
+                @Confluence.LabelsGroup(
+                    title: Localization.GetText("TC.FundInformation.BasicData.FundCoordinator"),
+                    contentRead: Confluence.LabelBold(Model.FundCoordinatorFullName),
+                    contentEdit:
+                        Confluence.InputDropDownAsync(
+                            Model.FundCoordinatorUserName,
+                            "fundCoordinator",
+                            Url.Action("FindUserAD", "View", new { area = "TC" }),
+                            width: "100%",
+                            required: true,
+                            textSelected: Model.FundCoordinatorFullName,
+                            dataAttributes: attributes
+                        ))
+            }
+            else
+            {
+                @Confluence.LabelsGroup(
+                    title: Localization.GetText("TC.FundInformation.BasicData.FundCoordinator"),
+                    contentAlways: Confluence.LabelBold(Model.FundCoordinatorFullName))
+                @*@Confluence.InputText(Model.FundCoordinatorUserName, "fundCoordinator", htmlClass: "hide")
+                    @Confluence.InputText(Model.FundCoordinatorFullName, "fundCoordinator_text", htmlClass: "hide")*@
+            }
+        </div>
+
+        <div class="mb10">
+            @*@Confluence.LabelsGroup(title: Localization.GetText("TC.FundInformation.BasicData.AlternateFundCoordinators"), contentAlways: (HelperResult)null, asterisk: false)*@
+            <div data-pagemode="read">
+                @Confluence.LabelsGroupExtendAlways(new List<IHtmlString>() { Localization.GetText("TC.FundInformation.BasicData.AlternateFundCoordinators").HtmlEncode() },
+                                                    Model.Delegates.Select(x => toDivElement(x.DelegateFullName)).Cast<IHtmlString>().ToList())
+            </div>
+            <div data-pagemode="edit">
+
+                @Confluence.LabelsGroupExtendAlways(new List<IHtmlString>() { Localization.GetText("TC.FundInformation.BasicData.AlternateFundCoordinators").HtmlEncode() },
+                                                    new List<IHtmlString>() {
+                                                        Html.Partial("~/Views/Shared/Controls/Repeater.cshtml",
+                                                             new RepeaterModel<FIDelegatesViewModel>
+                                                             {
+                                                                 Name = "Delegates",
+                                                                 PartialViewName = "Partials/FundInformation/FIDataDelegateNew",
+                                                                 RepeaterModelData = Model.Delegates,
+                                                                 ModelTemplate = new FIDelegatesViewModel
+                                                                 {
+                                                                     DelegatesID = -1,
+                                                                 },
+
+                                                                 CanRemoveElement = x => hasGCMChiefWrite,
+                                                                 PropertyNameId = "DelegatesID",
+                                                                 ButtonNewRowContainerStyle = "row row-body-40",
+                                                                 ButtonNewColContainerStyle = "col-md-12 text-center",
+                                                                 ButtonNewStyle = hasGCMChiefWrite ? "button08" : "hide",
+                                                                 ButtonNewText = Localization.GetText("COMMON.Add"),
+                                                                 ButtonNewItemAction = "newDelegate", /*???? */
+                                                                 ButtonNewPosition = "bottom",
+                                                                 ButtonDeleteItemAction = "PreventDeleteDelegate",
+
+
+                                                                 ButtonDeleteClass = CssClass.ButtonDelete,
+                                                                 ButtonDeleteHasIcon = true,
+                                                                 ButtonDeletePosition = Position.Right,
+                                                                 ButtonDeleteAlign = Position.Top,
+                                                             }
+                                                        )
+                                                    })
+            </div>
+
+            @*@Localization.GetText("TC.FundInformation.BasicData.AlternateFundCoordinators")*@
+
+
+        </div>
+    </div>
+
+    <div class="col-md-3 lineGrayRight pl10">
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.SAPCode"), Confluence.LabelBold(Model.SapCode), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.LMSCode"), Confluence.LabelBold(Model.LmsCode), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.ParallelFund"), Confluence.LabelBold(Model.ParallelFund), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.OwnersOfTheFund"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.FundOwners,
+                        optionList: ViewBag.UsersAndOwnersOfTheFund,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "ownersOfTheFundList",
+                        elements: ViewBag.UsersAndOwnersOfTheFund,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.FundOwners)))
+        </div>
+    </div>
+
+    <div class="col-md-3 lineGrayRight pl10">
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.Status"), Confluence.LabelBold(Model.Status), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.YearEstablished"), Confluence.LabelBold(Model.YearEstablished), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(@Localization.GetText("TC.FundInformation.BasicData.ExpirationDate"), Confluence.LabelBold(FormatHelper.Format(Model.ExpirationDate, formatDate)), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+                title: @Localization.GetText("TC.FundInformation.BasicData.UserOfTheFund.Capitalized"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.FundUsers,
+                        optionList: ViewBag.UsersAndOwnersOfTheFund,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "usersOfTheFundList",
+                        elements: ViewBag.UsersAndOwnersOfTheFund,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.FundUsers)))
+        </div>
+    </div>
+
+    <div class="col-md-3 pl10">
+        <div class="mb10">
+            @Confluence.LabelsGroup(Localization.GetText("TC.FundInformation.BasicData.TerminationAgreMode"), Confluence.LabelBold("A"), false)
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.TyingCondition"),
+                contentRead: Model.TyingCondition,
+                contentEditList: new List<HelperResult>
+                {
+                    Confluence.InputRadioButton("Tied", "TyingCondition", Model.TyingCondition == "Tied", label: "Tied", isInLine: true),
+                    Confluence.InputRadioButton("Untied", "TyingCondition", Model.TyingCondition == "Untied", label: "Untied", isInLine: true, htmlClass: "ml5")
+                },
+                asterisk: false
+            )
+        </div>
+
+        <div class="mb10 hide" id="tiedPercentage">
+            @Confluence.LabelsGroup(
+                    title: Localization.GetText("TC.FundInformation.BasicData.TiedPercentage"),
+                    contentRead: Confluence.LabelDecimalPercent(valor: Model.TiedPercentage, bold: true),
+                    contentEdit: Confluence.InputDecimal(
+                        value: Model.TiedPercentage,
+                        name: "TiedPercentage",
+                        width: "100%",
+                        minValue: "1",
+                        maxValue: "100",
+                        decimalPrecision: 2))
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+            title: Localization.GetText("TC.FundInformation.BasicData.BeneficiaryCountries"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.CountriesAssigned,
+                        optionList: ViewBag.BeneficiaryCountries,
+                        bold: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                    name: "CountriesAssignedList",
+                    elements: ViewBag.BeneficiaryCountries,
+                    width: "100%",
+                    required: false,
+                    values: string.Join(",", Model.CountriesAssigned)))
+        </div>
+    </div>
+</div>
+
+<!-- Section: Fund Attributes -->
+<div class="row mb20">
+    <div class="col-md-12 pl0">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("TC.FundInformation.BasicData.FundAttributes"))
+    </div>
+</div>
+<div class="row mb20 grouping-section">
+    <div class="col-md-3 lineGrayRight" style="padding-left:0px;">
+        <div class="mb40">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.EligibleSectorsAssigned"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.EconomicSectorsAssigned,
+                        optionList: ViewBag.EconomicSectorsAssignedList,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "EconomicSectorsAssignedList",
+                        elements: ViewBag.EconomicSectorsAssignedList,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.EconomicSectorsAssigned)))
+        </div>
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.EligibleSubSectorsAssigned"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.EconomicSubSectorsAssigned,
+                        optionList: ViewBag.EconomicSubSectorsAssignedList,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "EconomicSubSectorsAssignedList",
+                        elements: Model.EconomicSectorsAssigned.Count != 0 ? ViewBag.EconomicSubSectorsAssignedList : new List<MultiSelectListItem>(),
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.EconomicSubSectorsAssigned)))
+        </div>
+    </div>
+
+    <div class="col-md-3 lineGrayRight pl10">
+        <div class="mb40">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.Theme"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.Themes,
+                        optionList: ViewBag.ThemeList,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "ThemeList",
+                        elements: ViewBag.ThemeList,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.Themes)))
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.ThemeFocusses"),
+                contentRead: Confluence.LabelBold("None"),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "ThemeFocusses",
+                        elements: funds,
+                        required: false,
+                        width: "100%"))
+        </div>
+    </div>
+
+    <div class="col-md-3 lineGrayRight pl10">
+        <div class="mb40">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.GCI9SectorPrioritiesSelectOne"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.GCI9SectorPriorities,
+                        optionList: ViewBag.GCI9SectorPrioritiesList,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "GCI9SectorPrioritiesList",
+                        elements: ViewBag.GCI9SectorPrioritiesList,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.GCI9SectorPriorities)))
+        </div>
+
+        <div class="mb10">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.IChallengesCrossCuttingThemes"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.InstChallCrossCuttingThemes,
+                        optionList: ViewBag.IChallengesCrossCuttingThemesList,
+                        bold: true,
+                        listFormat: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "IChallengesCrossCuttingThemesList",
+                        elements: ViewBag.IChallengesCrossCuttingThemesList,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.InstChallCrossCuttingThemes)))
+        </div>
+    </div>
+
+    <div class="col-md-3 pl10">
+        <div class="mb40">
+            @Confluence.LabelsGroup(
+                title: Localization.GetText("TC.FundInformation.BasicData.TypeInstrumentsFinancedByFund.Capitalized"),
+                contentRead:
+                    Confluence.LabelGetMultiDropDown(
+                        values: Model.TypeInstFinancedFund,
+                        optionList: ViewBag.TypeInstrumentsFinancedList,
+                        bold: true),
+                contentEdit:
+                    Confluence.InputDropDownMulti(
+                        name: "TypeInstrumentsFinancedList",
+                        elements: ViewBag.TypeInstrumentsFinancedList,
+                        required: false,
+                        width: "100%",
+                        values: string.Join(",", Model.TypeInstFinancedFund)))
+        </div>
+
+        <!-- Display Fund on Web -->
+        <div class="mb10">
+            @{
+                var isMyFund = ViewBag.IsMyFund ?? false;
+                var isGCM = MvcHelpers.CheckRole(ViewBag.GLobalRoleList, ActionEnum.GCMChiefWrite);
+                var isSWC = MvcHelpers.CheckRole(ViewBag.GLobalRoleList, ActionEnum.SWCoordinatorWritePermission);
+
+                var editable = isMyFund || isGCM || isSWC;
+            }
+            
+            
+            
+            <div class="LabelsGroup">
+                <label class="lgTit">@Localization.GetText("TC.FundInformation.DisplayFundWeb") <span name="iconInformationToolkit" class="icoInformation" style="margin-bottom: -5px !important;display: inline-block;margin-left: 7px;"></span></label>
+                <div data-pagemode="read">
+                    <label class="lgCont">@(Model.DisplayFundWeb ? Localization.GetText("COMMON.Yes") : Localization.GetText("COMMON.No"))</label>
+                </div>
+                <div data-pagemode="edit" class="lgCont hide">
+                    @Confluence.InputRadioButton("Yes", "DisplayFundWeb", Model.DisplayFundWeb == true, label: Localization.GetText("COMMON.Yes"), isInLine: true, disabled: !editable)
+                    @Confluence.InputRadioButton("No", "DisplayFundWeb", Model.DisplayFundWeb == false, label: Localization.GetText("COMMON.No"), isInLine: true, htmlClass: "ml5", disabled: !editable)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Section: ExternalAudits -->
+<div class="row mb20">
+    <div class="col-md-12 pl0">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("TC.FundInformation.BasicData.ExternalAudits"))
+    </div>
+</div>
+<div class="row mb20 grouping-section">
+    <div class="col-md-3 lineGrayRight" style="padding-left:0px;">
+        @Confluence.LabelsGroup(
+            title: Localization.GetText("TC.FundInformation.BasicData.LastAuditDate"),
+            contentRead: FormatHelper.Format(Model.LastAuditDate, formatDate),
+            contentEdit: Confluence.InputDatePicker(Model.LastAuditDate, name: "LastAuditDate", width: "100%", required: false,
+                              dataAttributes: new Dictionary<string, string> { { "parsley-lessDate", "[name=NextAuditDate]" } }))
+    </div>
+    <div class="col-md-3 ml10">
+        @Confluence.LabelsGroup(
+            title: Localization.GetText("TC.FundInformation.BasicData.NextAuditDate"),
+            contentRead: FormatHelper.Format(Model.NextAuditDate, formatDate),
+            contentEdit: Confluence.InputDatePicker(Model.NextAuditDate, name: "NextAuditDate", width: "100%", required: false,
+                             dataAttributes: new Dictionary<string, string> { { "parsley-greaterDate", "[name=LastAuditDate]" } }))
+    </div>
+</div>
+
+<!-- Section: Fund Description -->
+<div class="row mb20 pl0">
+    <div class="col-md-12">
+        @Confluence.Label(Localization.GetText("TC.FundInformation.BasicData.FundDescription.Capitalized"))
+    </div>
+</div>
+
+<div class="row mb20">
+    <div class="col-md-12 boxlanguage ">
+        <div class="floatLeft">
+            <ul>
+                <li dd-lang="en" onclick="multiLenguague(this)"><span class="langText">EN</span><span class="glyphicon glyphicon-play"></span></li>
+                <li dd-lang="es" onclick="multiLenguague(this)"><span class="langText">ES</span><span class="glyphicon"></span></li>
+            </ul>
+        </div>
+
+        <div dd-lang="en" class="contentboxlanguage">
+            @Confluence.LabelsGroup(String.Empty, Confluence.Label(Model.FundDescription), Confluence.InputTextArea(Model.FundDescription, "FundDescription", width: "100%", required: false, maxLength: 3500, height: "150px"))
+        </div>
+
+        <div dd-lang="es" class="contentboxlanguage hide">
+            @Confluence.LabelsGroup(String.Empty, Confluence.Label(Model.FundDescriptionEs), Confluence.InputTextArea(Model.FundDescriptionEs, "FundDescriptionEs", width: "100%", required: false, maxLength: 3500, height: "150px"))
+        </div>
+    </div>
+</div>
+
+<!-- Section: Project Size -->
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.Label(Localization.GetText("TC.FundInformation.BasicData.ProjectSize.Capitalized"))
+    </div>
+</div>
+
+<div class="row mb20">
+    <div class="col-md-12 boxlanguage">
+        <div class="floatLeft">
+            <ul>
+                <li dd-lang="en" onclick="multiLenguague(this)"><span class="langText">EN</span><span class="glyphicon glyphicon-play"></span></li>
+                <li dd-lang="es" onclick="multiLenguague(this)"><span class="langText">ES</span><span class="glyphicon"></span></li>
+            </ul>
+        </div>
+
+        <div dd-lang="en" class="contentboxlanguage">
+            @Confluence.LabelsGroup(String.Empty, Confluence.Label(Model.ProjectSizeEn), Confluence.InputTextArea(Model.ProjectSizeEn, "ProjectSizeEn", width: "100%", required: false, maxLength: 500, height: "80px"))
+        </div>
+
+        <div dd-lang="es" class="contentboxlanguage hide">
+            @Confluence.LabelsGroup(String.Empty, Confluence.Label(Model.ProjectSizeEs), Confluence.InputTextArea(Model.ProjectSizeEs, "ProjectSizeEs", width: "100%", required: false, maxLength: 500, height: "80px"))
+        </div>
+    </div>
+</div>
+
+<!-- Section: Official Fund Name -->
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.Label(Localization.GetText("TC.FundInformation.BasicData.OfficialFundName.Capitalized"))
+    </div>
+</div>
+<div class="row mb20">
+    <div class="col-md-12 boxlanguage">
+        <div class="floatLeft">
+            <ul>
+                <li dd-lang="en" onclick="multiLenguague(this)"><span class="langText">EN</span><span class="glyphicon glyphicon-play"></span></li>
+                <li dd-lang="es" onclick="multiLenguague(this)"><span class="langText">ES</span><span class="glyphicon"></span></li>
+            </ul>
+        </div>
+
+        <div dd-lang="en" class="contentboxlanguage">
+            @Confluence.LabelsGroup(String.Empty, Confluence.Label(Model.WebNameEn), Confluence.InputTextArea(Model.WebNameEn, "WebNameEn", width: "100%", required: false, maxLength: 500))
+        </div>
+
+        <div dd-lang="es" class="contentboxlanguage hide">
+            @Confluence.LabelsGroup(String.Empty, Confluence.Label(Model.WebNameEs), Confluence.InputTextArea(Model.WebNameEs, "WebNameEs", width: "100%", required: false, maxLength: 500))
+        </div>
+
+    </div>
+</div>
+
+<!-- Section: Funding Process Information -->
+<div class="row mb20">
+    <div class="col-md-12 pl0">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("TC.FundInformation.BasicData.FundingProcessInformation"))
+    </div>
+</div>
+
+<div class="row mb20">
+    <div class="col-md-12 pl0">
+        @Confluence.LabelsGroup(
+            title: Localization.GetText("TC.FundInformation.BasicData.FundSingleWindowFundingProcess"),
+            contentRead: Model.ISSWPasses ?
+                Localization.GetText(TCGlobalValues.YES) : Localization.GetText(TCGlobalValues.NO),
+            contentEditList: new List<HelperResult>
+            {
+                Confluence.InputRadioButton(
+                    "Yes",
+                    "IsRetroactiveExpense",
+                    isChecked: Model.ISSWPasses,
+                    label: Localization.GetText(TCGlobalValues.YES),
+                    labelBold: true,
+                    isInLine: true,
+                    disabled: !isSWCPermision),
+
+                Confluence.InputRadioButton(
+                    "No",
+                    "IsRetroactiveExpense",
+                    isChecked: !Model.ISSWPasses,
+                    label: Localization.GetText(TCGlobalValues.NO),
+                    labelBold: true,
+                    isInLine: true,
+                    htmlClass: "ml5",
+                    disabled: !isSWCPermision)
+            },
+            asterisk: false)
+    </div>
+</div>
+<div class="@(isSWCPermision ? string.Empty : "hide")">
+    <div data-pagemode="edit" id="fundingAuthority">
+        <div class="row mb20 pl0">
+            <div class="col-md-12">
+                @Confluence.Label(Localization.GetText("TC.FundInformation.BasicData.FundingAuthority"))
+            </div>
+        </div>
+        <div class="row mb20 grouping-section">
+            <div class="col-md-3 lineGrayRight ml15">
+                <div class="mb20">
+                    @Confluence.InputCheckbox(
+                        isChecked: Model.EligibilityByDelegation,
+                        name: "EligibilityByelegation",
+                        label: Localization.GetText("TC.FundInformation.BasicData.EligibilityByDelegation"))
+                </div>
+                <div class="mb20">
+                    @Confluence.LabelsGroup(
+                        title: Localization.GetText("TC.FundInformation.BasicData.DelegatedForAmountUpto"),
+                        contentAlways: Confluence.InputDecimal(Model.AmountUpto, "DelegatedForAmountUpto", width: "100%", required: false))
+                </div>
+            </div>
+            <div class="col-md-3 lineGrayRight ml10">
+                <div class="mb20">
+                    @Confluence.InputCheckbox(
+                        isChecked: Model.SendToESC,
+                        name: "SendToESC",
+                        label: Localization.GetText("TC.FundInformation.BasicData.SendToESC"))
+                </div>
+                <div class="mb20">
+                    @Confluence.InputDropDown(
+                        Model.EscTeamID.ToString(),
+                        "ESCCommitteeE-mail",
+                        elements: ViewBag.EscTeamList,
+                        width: "100%",
+                        required: false,
+                        disabled: true,
+                        htmlClass: "hide")
+                </div>
+            </div>
+            <div class="col-md-3 lineGrayRight ml10">
+                <div class="mb20">
+                    @Confluence.InputCheckbox(
+                        isChecked: Model.SendToDonor,
+                        name: "SendToDonor",
+                        label: Localization.GetText("TC.FundInformation.BasicData.SendToDonor"))
+                </div>
+            </div>
+
+            <div class="col-md-2 ml10">
+                <div class="mb20">
+                    @Confluence.InputCheckbox(
+                        isChecked: true,
+                        name: "PlaceOperationOnHold",
+                        label: Localization.GetText("TC.FundInformation.BasicData.PlaceOperationOnHold"),
+                        disabled: true)
+                </div>
+            </div>
+        </div>
+        <div id="applicableESCEmail">
+            <div class="row mb20">
+                <div class="col-md-12">
+                    @Confluence.Label(Localization.GetText("TC.FundInformation.BasicData.ApplicableESCE-mailTemplate"))
+                </div>
+            </div>
+            <div class="row mb20">
+                @foreach (var option in Model.TemplateOptions)
+                {
+                    <div class="col-md-2">
+                        @Confluence.InputRadioButton(
+                             option.MasterId.ToString(),
+                             "Template",
+                             isChecked: option.MasterId == Model.EscEmailTemplateID,
+                             label: option.GetLocalizedName(),
+                             isInLine: true,
+                             required: false,
+                             dataAttributes: new Dictionary<string, string>
+                             {
+                                 { "type-template", option.Code }
+                             })
+                    </div>
+                }
+            </div>
+            <div class="row mb20">
+                @foreach (var template in Model.Templates)
+                {
+                    <div id="@template.Key" name="templateContent" class="hide">
+                        <div class="col-md-12 mb20">
+                            @Confluence.Label(
+                                Localization.GetText("OP.NOT.Notification.Content"))
+                        </div>
+                        <div class="col-md-12">
+                            <label class="labelNormal">@Html.Raw(template.Value)</label>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@helper toDivElement(string text)
+{
+    <div>
+        @text.HtmlEncode()
+    </div>
+}

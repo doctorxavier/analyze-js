@@ -1,0 +1,409 @@
+﻿@using IDB.Presentation.MVC4.MVCCommon;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+
+@{
+    Layout = "~/Views/Shared/_ClearLayout.cshtml";
+    var editRule = Model.Execute("Visualization.VO.IsEditable");
+    var vo = Model.VisualOutput;
+    var vov = vo.VisualOutputVersionsData;
+    var output = Model.ResultsMatrixContext.Current.Components
+        .SelectMany(rm => rm.Outputs)
+        .FirstOrDefault(otp => otp.OutputId == vov.OutputYearPlan.OutputId);
+}
+
+@section javascript {
+    <script type="text/javascript" src="~/scripts/kendo.web.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/common.js"></script>
+}
+
+@section css{
+    <style type="text/css">
+        .documentSupportDownloadIcon {
+            background: #ffffff url("../../../Images/icons/downloadSupportDocumentIcon.png") no-repeat center center;
+        }
+
+        .operationButton {
+            width: 30px;
+            height: 25px;
+            background-color: transparent;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid #cbdcf2;
+        }
+    </style>
+}
+
+@section scripts{
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $(".tabs").kendoTabStrip({
+                animation: {
+                    close: {
+                        duration: 1,
+                        effects: 'fadeOut'
+                    },
+                    open: {
+                        duration: 1,
+                        effects: 'fadeIn'
+                    }
+                }
+            });
+            $('.show-details').click(function () {
+                var btn = $(this).children('i');
+
+                if (btn.hasClass('fa-caret-square-o-down')) {
+                    btn.parentsUntil('tr').parent().next().show();
+                    btn.removeClass('fa-caret-square-o-down');
+                    btn.addClass('fa-caret-square-o-up');
+                } else {
+                    btn.parentsUntil('tr').parent().next().hide();
+                    btn.addClass('fa-caret-square-o-down');
+                    btn.removeClass('fa-caret-square-o-up');
+                }
+            });
+
+        });
+
+        function validateVOConcurrenceAndConfirmEdition() {
+            var currentLocation = window.location.href;
+
+            $.get(idbg.getPath('@(Model.VerifyConcurrenceUrl)' + '?path=' +
+                '@(Model.VerifyConcurrenceData[0])' + '&query=' + '@(Model.VerifyConcurrenceData[1])'),
+                    function (res, status, xhr) {
+                        if (res != '') {
+                            var alertMessage = "@(Html.Raw(Localization.GetText("VIS.current.object.being.edited.by")))";
+
+                            alertMessage = alertMessage
+                                .replace("{0}", "@(Html.Raw(Localization.GetText("Visual Output")))").replace("{1}", res);
+                            alert(alertMessage);
+
+                            document.location.href = currentLocation;
+                            return false;
+                        }
+                        else {
+                            var confirmTitle = '@(Localization.GetText("Warning"))';
+                            var confirmMessage = '@(Html.Raw(editRule.GetResult<string>("Confirmation")))';
+                            var actionUrl = '@(editRule.GetResult<string>("Action"))';
+
+                            if (confirmMessage) {
+                                kendoConfirm({
+                                    title: confirmTitle,
+                                    message: confirmMessage,
+                                    data: actionUrl,
+                                    onConfirm: function (data) {
+                                        document.location.href = data;
+                                    }
+                                });
+                                return;
+                            }
+
+                            document.location.href = actionUrl;
+                        }
+                    })
+                .fail(function (res, status, xhr) {
+                    if (!(res.responseText.trim() == "" && status.trim() == "error" && xhr.trim() == "")) {
+                        alert("error: " + res.responseText + " " + status + " " + xhr);
+
+                        return false;
+                    }
+                })
+        }
+
+        function downloadDocumentNewSection(register) {
+            var docNumber = $(register.closest('tr')).find('td:nth-child(3)')[0].outerText;
+            var url = '@Url.Action("GetDocument", "Document", new { area = string.Empty})' + '?docNum=' + docNumber;
+            window.open(url, '_blank');
+        }
+
+    </script>
+}
+
+@section contentheader{
+    <div class="content-block">
+        <div class="left">
+            <h1>
+                @{
+                    if (ViewBag.CycleTypeOperation == "TCM")
+                    {
+                        <a href="@Url.Action("Index", "Components", new { area = "TCM", isTCM = "true" })"><span class="back-arrow"></span>@Localization.GetText("Outputs")</a>
+                    }
+                    else
+                    {
+                        <a href="@Url.Action("grid")"><span class="back-arrow"></span>@Localization.GetText("Outputs")</a>
+                    }
+                }
+            </h1>
+        </div>
+        <div class="right">
+            @RenderActions(editRule)
+        </div>
+    </div>
+}
+
+@helper RenderActions(IDB.Architecture.BusinessRules.RuleContext editRule)
+{
+    if (editRule.GetResult<bool>())
+    {
+        <input type="button"
+               class="button click-action"
+               value="@Localization.GetText("Edit")"
+               onclick="validateVOConcurrenceAndConfirmEdition()" />
+    }
+}
+
+<div class="content-block">
+    <div class="form-item">
+        <ul class="content-list one">
+            <li>
+                <div class="title">@Localization.GetText("Output name")</div>
+                <div class="content">@output.Definition</div>
+            </li>
+        </ul>
+        <ul class="content-list three">
+            <li>
+                <div class="title">@Localization.GetText("Last update")</div>
+                <div class="content">@HtmlFormat.LocaleTimeFormat(vov.Modified)</div>
+            </li>
+            <li>
+                <div class="title">@Localization.GetText("Validation status")</div>
+                <div class="content">@Model.GetVisualDataValidationStageName(vov.ValidationStageId, vov.IsValidated)</div>
+            </li>
+            <li></li>
+        </ul>
+        <ul class="content-list three">
+            <li>
+                <div class="title">@Localization.GetText("Year")</div>
+                <div class="content">@vov.OutputYearPlan.Year</div>
+            </li>
+            <li>
+                <div class="title">@Localization.GetText("Planned (a)")</div>
+                <div class="content">@(vov.OutputYearPlan.AnnualPlan == null ? "-" : vov.OutputYearPlan.AnnualPlan.ToString())</div>
+            </li>
+            <li>
+                <div class="title">@Localization.GetText("Actual")</div>
+                <div class="content">@(vov.OutputYearPlan.ActualValue == null ? "-" : vov.OutputYearPlan.ActualValue.ToString())</div>
+            </li>
+        </ul>
+        <ul class="content-list three">
+            <li>
+                <div class="title">@Localization.GetText("Actual Mapped by Other VOs")</div>
+                <div class="content">@Model.VisualOutputSummarize(vov.OutputYearPlan.Year)</div>
+            </li>
+            <li>
+                <div class="title">@Localization.GetText("Physical output units represented by VO")</div>
+                <div class="content">@vov.OutputUnits</div>
+            </li>
+            <li>
+                <div class="title">@Localization.GetText("Published")</div>
+                @if (vov.ValidationStage.Code == "VIS_DRAFY")
+                {
+                    <div class="content">@Localization.GetText("VIS.UNPUBLISHED")</div>
+                }
+                else if (vov.ValidationStage.Code == "VIS_TL")
+                {
+                    <div class="content">@Localization.GetText("VIS.Internal")</div>
+                }
+                else if (vov.ValidationStage.Code == "VIS_COO" & !vov.IsValidated)
+                {
+                    <div class="content">@Localization.GetText("VIS.AWAITING.VALIDATION")</div>
+                }
+                else if (vov.ValidationStage.Code == "VIS_COO" & vov.IsValidated)
+                {
+                    <div class="content">@Localization.GetText("VIS.External")</div>
+                }
+            </li>
+        </ul>
+        <ul class="content-list three">
+            <li>
+                <div class="title">@Localization.GetText("Delivery status")</div>
+                <div class="content">@MasterDefinitions.GetMasterName(vov.DeliveryStatusId)</div>
+            </li>
+
+            <li>
+                <div class="title">@Localization.GetText("Precision Level")</div>
+                <div class="content">
+                    @MasterDefinitions.GetMasterName(vov.LocationTypeId)
+                </div>
+            </li>
+            <li>
+                <div class="title" style="float:left;">
+                    @Localization.GetText("Ready for Map Publication")
+                    <div style="float: left; margin-right: 0.4em">
+                        @{
+                            var isCompleteToPublish = Model.VisualOutput.VisualOutputVersionsData.IsCompleteToPublish.HasValue
+                                    ? Model.VisualOutput.VisualOutputVersionsData.IsCompleteToPublish.Value
+                                    : false;
+                        }
+
+                        @Html.CheckBox("IsCompleteToPublish", isCompleteToPublish,
+                            new
+                            {
+                                @class = "idb-checkbox",
+                                @disabled = "disabled"
+                            })
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="content-block">
+    <h2>@Localization.GetText("Name and description")</h2>
+    <div class="content-separator"></div>
+    <div class="tabs vertical">
+        <ul class="links">
+            <li class="k-state-active">EN</li>
+            <li>ES</li>
+            <li>PT</li>
+            <li>FR</li>
+        </ul>
+        <div class="content-item">
+            <div class="title">@Localization.GetText("Name")</div>
+            <span class="content">@vov.NameEn</span>
+            <div class="title">@Localization.GetText("Description")</div>
+            <div class="content">@vov.DescriptionEn</div>
+        </div>
+        <div class="content-item">
+            <div class="title">@Localization.GetText("Name")</div>
+            <span class="content">@vov.NameEs</span>
+            <div class="title">@Localization.GetText("Description")</div>
+            <div class="content">@vov.DescriptionEs</div>
+        </div>
+        <div class="content-item">
+            <div class="title">@Localization.GetText("Name")</div>
+            <span class="content">@vov.NamePt</span>
+            <div class="title">@Localization.GetText("Description")</div>
+            <div class="content">@vov.DescriptionPt</div>
+        </div>
+        <div class="content-item">
+            <div class="title">@Localization.GetText("Name")</div>
+            <span class="content">@vov.NameFr</span>
+            <div class="title">@Localization.GetText("Description")</div>
+            <div class="content">@vov.DescriptionFr</div>
+        </div>
+    </div>
+    <div class="content-separator"></div>
+</div>
+
+<div class="content-block">
+    <h2>@Localization.GetText("Location data")</h2>
+    <div style="width: 100%; border: solid 2px #ccc; height: 590px">
+        <iframe id="map" style="width:100%;height:590px"
+                src="@Url.Action("MapSelection", new {
+       language = IDBContext.Current.CurrentLanguage,
+       visualObjectId = Model.VisualOutputId,
+       visualObjectVersionId = Model.VisualOutputVersionId,
+       objectType = "vo"
+   })"></iframe>
+    </div>
+</div>
+
+<div class="content-block">
+    <ul class="content-list three double-height"></ul>
+</div>
+
+<div class="content-block">
+    <h2>@Localization.GetText("Media")</h2>
+    <div class="content-separator"></div>
+    <table class="grid visualization-table td-middle">
+        <thead>
+            <tr>
+                <th>@Localization.GetText("Year")</th>
+                <th>@Localization.GetText("Media file")</th>
+                <th>@Localization.GetText("Name")</th>
+                <th>@Localization.GetText("Source")</th>
+                <th>@Localization.GetText("Permission documentation")</th>
+                <th>@Localization.GetText("History status")</th>
+                <th>@Localization.GetText("Actions")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var media in vov.VisualOutputMedia)
+            {
+                <tr>
+                    <td>
+                        @media.Media.Year
+                    </td>
+                    <td>
+                        <img class='image-loader' src='@media.Media.MediaUrl' style='width:96px; height:60px;' />
+                    </td>
+                    <td>@media.Media.Name</td>
+                    <td>@media.Media.MediaSource</td>
+                    <td>
+                        @foreach (var document in media.Media.DocumentMedias)
+                        {
+                            var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocumentReference);
+                            <div class="single-line">
+                                    <a href=@secureUrl target="_blank">
+                                        @document.Description
+                                    </a>
+                            </div>
+                        }
+                    </td>
+                    <td>
+                        @MasterDefinitions.GetMasterName(media.Media.HistoryStatusId)
+                    </td>
+                    <td>
+                        <a href="javascript:void(0)" class="show-details" title="@Localization.GetText("View details")"><i class="fa fa-caret-square-o-down"></i></a>
+                    </td>
+                </tr>
+                <tr style="display: none">
+                    <td colspan="7">
+                        <ul class="content-list two">
+                            <li>
+                                <div class="title">Content</div>
+                                <div class="content">@media.Media.Content</div>
+                            </li>
+                            <li>
+                                <div class="title">Type</div>
+                                <div class="content">@media.Media.MediaType</div>
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            }
+            <tr></tr>
+        </tbody>
+    </table>
+</div>
+
+<!--  Section Documents - Initial -->
+@if (ViewBag.CycleTypeOperation == "TCM")
+{
+    <div class="content-block">
+        <h2>@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Documents")</h2>
+        <div class="content-separator"></div>
+        <table id="SectionDocumentsTable" class="grid visualizationDoc-table td-middle">
+            <thead>
+                <tr>
+                    <th style="text-align: center; width:15%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.User")</th>
+                    <th style="text-align: center; width:10%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Date")</th>
+                    <th style="text-align: center; width:15%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.IDBDocNumber")</th>
+                    <th style="text-align: center; width:50%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Description")</th>
+                    <th style="text-align: center; width:10%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Action")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int index = 0; (vo.VisualOutputDocument != null) && (index < vo.VisualOutputDocument.Count()); index++)
+                {
+                    var document = vo.VisualOutputDocument[index];
+                    <tr id="row-index-@document.Document.DocumentId" class="row-child">
+                        <td>@document.Document.CreatedBy</td>
+                        <td>@String.Format("{0:dd MMM yyyy}", document.Document.Created)</td>
+                        <td>@document.Document.DocumentReference</td>
+                        <td>@document.Document.Description</td>
+                        <td><input type="button" class="operationButton documentSupportDownloadIcon cursorPointer" onclick="downloadDocumentNewSection(this)" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+<!-- Section Documents - Final -->
+<div class="content-block">
+    <div class="right">
+        @RenderActions(editRule)
+    </div>
+</div>

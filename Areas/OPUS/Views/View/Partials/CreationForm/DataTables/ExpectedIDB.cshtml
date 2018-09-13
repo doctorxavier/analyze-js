@@ -1,0 +1,111 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Presentation.MVC4.Helpers
+
+@model IDB.MW.Application.OPUSModule.ViewModels.CreationFormService.CreationFormViewModel
+
+<div class="row row-body-40" data-name="ExpectedIDB">
+    <div class="col-md-12 table-line-padding">
+        @if (Model.ExpectedIDB != null)
+        {
+            var donors = Model.AvailablePsgDonors != null ?
+                Html.BuildMultiSelectItemList(
+                    Model.AvailablePsgDonors.AsEnumerable(),
+                    ad => ad.DonorName,
+                    ad => ad.DonorId.ToString()) :
+                 new List<MultiSelectListItem>();
+
+            if (ViewBag.WriteFinancing)
+            {
+                var config = Html.RenderDataTable(Model.ExpectedIDB);
+                config.Name("gridExpectedIDB")
+                .PrimaryKey(m => m.FinancingTypeId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Template(c => Confluence.LabelGetDropDown(c.FinancingTypeId.ToString(), ViewBag.financingTypeList))
+                        .EditableTemplate(row => Confluence.InputDropDown(row.FinancingTypeId.ToString(), "FinancingTypeId", ViewBag.financingTypeList, dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlFinancingType" } }))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.FinancingType"));
+
+                    columns.Template(c => Confluence.LabelGetMultiDropDown(c.Donors.ToString(), donors.ToList()))
+                        .Header(Localization.GetText("TC.FundInformation.PendingPledges.Donor"))
+                        .HeaderAttribute("id", "fundDonorCellHeader")
+                        .Attribute("class", y => "fundDonorCell")
+                        .EditableTemplate(row => Confluence.InputDropDownMulti("selectedPsgDonors",
+                            donors,
+                            width: "200px",
+                            required: false,
+                            values: row.Donors))
+                        .HeaderAttribute("id", "donor-header");
+
+                    columns.Template(c => Confluence.LabelGetDropDown(c.FundId.ToString(), ViewBag.FundList))
+                        .EditableTemplate(row => Confluence.InputDropDown(row.FundId.ToString(), "FundId", ViewBag.FundList, dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlFund" } }))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.Fund"));
+
+                    columns.Template(c =>
+                            Confluence.LabelGetMultiDropDown(c.FundsTbd, ViewBag.fundTDB))
+                        .Attribute("id", y => "fundTbdColumn")
+                        .HeaderAttribute("id", "fundTbdTitle")
+                        .EditableTemplate(row =>
+                            Confluence.InputDropDownMulti("FundTBD",
+                                ViewBag.fundTDB,
+                                width: "200px",
+                                required: false,
+                                values: row.FundsTbd.Any() ? string.Join(",", row.FundsTbd) : string.Empty,
+                                placeholder: "N/A"))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.DTF"));
+
+                    columns.Template(c => Confluence.LabelDecimal(c.Amount))
+                        .EditableTemplate(row => Confluence.InputDecimal(row.Amount, "UsAmount", minValue: "0.01", maxValue: "999999999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "txdUsAmount" } }))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.Amount")).Right();
+
+                    columns.Bound(c => String.Empty).Attribute("data-pagemode", y => "edit").HeaderAttribute("data-pagemode", "edit")
+                        .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult> { Confluence.InputHidden(row.isBld.ToString(), "isBld"), Confluence.InputHidden(row.IdFundOperation.ToString(), "FundOperationId"), Confluence.ButtonTrash(null, null, "removeRowExpectedIDB", dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnRemoveExIdb" } }) })).CssHeaderClass("w130").CssClass("text-center");
+                });
+
+        config.TableClass = "tableNormal endSpacing";
+
+                            @Html.Partial("Controls/DataTable", config)
+
+
+                            <div class="col-md-12">
+                    <div data-pagemode="edit" class="text-center">
+                        @Confluence.ButtonAddNewRows(Localization.GetText("OP.CR.CreationForm.BD.FD.Financing"), "gridExpectedIDB", "Financing", "addNewRowExpectedIDB", dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnNewFinancing" } })
+                    </div>
+                </div>   
+            }
+            else
+            {
+                var config = Html.RenderDataTable(Model.ExpectedIDB);
+                config.Name("gridExpectedIDB")
+                .PrimaryKey(m => m.FinancingTypeId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Template(c => Confluence.LabelGetDropDown(c.FinancingTypeId.ToString(), ViewBag.FinancingTypeList))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.FinancingType")).Persistent();
+
+                    columns.Template(c => Confluence.LabelGetMultiDropDown(c.Donors.ToString(), donors.ToList()))
+                       .Header(Localization.GetText("TC.FundInformation.PendingPledges.Donor")).Persistent();
+
+                    columns.Template(c => Confluence.LabelGetDropDown(c.FundId.ToString(), ViewBag.FundList))
+                       .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.Fund")).Persistent();
+
+                    columns.Template(c => Confluence.LabelGetMultiDropDown(c.FundsTbd, ViewBag.fundTDB))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.DTF")).Persistent();
+
+                    columns.Template(c => Confluence.LabelDecimal(c.Amount, dataAttributes: new Dictionary<string, string> { { "amount-id-read-permision", ""} }))
+                        .Header(Localization.GetText("OP.CR.CreationForm.BD.FD.Amount")).Persistent().CssClass("text-right");
+
+                    columns.Template(c => Confluence.InputHidden(c.isBld.ToString(), "isBld")).Attribute("data-pagemode", y => "edit").HeaderAttribute("data-pagemode", "edit");
+
+                });
+
+                config.TableClass = "tableNormal endSpacing";
+
+                @Html.Partial("Controls/DataTable", config)
+            }
+        }
+    </div>
+</div>

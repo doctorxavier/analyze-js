@@ -1,0 +1,309 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.ESW_CIPModule.ViewModels.K2Workflow.WorkflowViewModels
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+}
+<input hidden data-idb-pagename="Missions-TaskDetail-Mode" />
+
+
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl=""
+     data-url="@Url.Action("SaveWorkFlowECO", "WorkflowK2", new { area = "ESW_CIP" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit">
+        <input type="hidden" name="changeStatus" value="none" />     
+    </span>
+
+    <span class="text-right">@Html.Partial("Partials/WFECOButtons", Model)</span>   
+       
+
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            @Confluence.LabelSubTitleGroup(text: Localization.GetText("OP.MS.MissionsWorkflow.Instructions"), htmlClass: "bold")
+            <p class="mt20 mb10">@Model.Instructions</p>
+        </div>
+    </div>
+
+    <div class="row row-body-40" id="workflowComments">
+        <div class="col-md-12">
+            <div class="col-md-6">
+                @Confluence.LabelSubTitleGroup(text: Localization.GetText("R6.Proposal.Pcomments.Comment"), htmlClass: "bold")
+            </div>
+            <div class="col-md-6 text-right" data-pagemode="edit">
+                @Confluence.ButtonBlue(text: Localization.GetText("OP.MS.New"), action: "newComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnNewComment" } })
+            </div>
+        </div>
+        <div class="col-md-12">
+            @Html.Partial("../View/Partials/Proposals/Tabs/ESWCIPComments", Model.UserComments)
+        </div>
+    </div>
+
+    <div class="row row-body-40" id="workflowDocuments">
+        <div class="col-md-12">
+            @Confluence.LabelSubTitleGroup(text: Localization.GetText("R6.Proposal.Documents"), htmlClass: "bold")
+        </div>
+
+        <div class="buttom-Padding text-center" data-pagemode="edit">
+            @Confluence.ButtonBlue(text: Localization.GetText("R6.Proposal.TabObjectiveDocuments.AddDoc"), name: "documentsAdd", dataAttributes: new Dictionary<string, string> { { "id", "ESWCIPDocuments-add" }, { "modal-allowclose", "true" }, { "custom-modal", "ESWCIPDocuments-modal-add" }, { "custom-modal-validate", "false" }, { "custom-modal-title", "Add Documents" }, { "idb-fieldname", "btnAddDocuments" } })
+            <br />
+            <br />
+        </div>
+
+        <div class="col-md-12">
+            @Html.Partial("Partials/WFECODocuments", Model.Documents)
+        </div>
+    </div>
+
+    <div class="row" id="footer-section">
+        <div class="col-md-12">
+            <span class="text-right">@Html.Partial("Partials/WFECOButtons", Model)</span>
+        </div>
+    </div>
+</div>
+
+
+
+
+@section scripts
+{
+    @if (k2Mode)
+    {
+
+        @ModuleScripts.K2UIIntegration()
+
+    }
+    <script type="text/javascript">
+
+    $(document).ready(function () {
+        @if (k2Mode)
+            {
+        	    @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+                                                                                                                                                                        @:$(".operationData").css("padding-left", "0.5%")
+                                                                                                                                                                        @:$("#headerButtons").css("margin-right", "-10%")
+                                                                                                                                                                        @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                                                                                                                                                                        @:$(".operationData").eq(0).append($(".tMissionCode"))
+                                                                                                                                                                    }
+
+        editScreen();
+        readyForSubmissionCheck();
+
+    });
+
+
+    function editScreen() {
+        enterEditMode(false, $('#workflowComments'), true);
+        enterEditMode(false, $('#workflowDocuments'), true);
+        enterEditMode(false, $('#headerButtons'), true);
+        enterEditMode(false, $('#footer-section'), true);
+    }
+
+    function cancelWorkflow(source) {
+        window.location.href = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+    }
+
+    function saveAndSubmit(source) {
+        var msg = '@Localization.GetText("R6.Proposal.AnnualAllocation.Message.Submit")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                showLoader();
+                $(source.toElement).attr('disabled', 'disabled')
+                window.setTimeout(function () {
+                    var url = '@Url.Action("IsReadyforSubmition", "WorkflowK2", new { area = "ESW_CIP", proposalId = Model.ProposalId })';
+                    var result = postUrl(url)
+                                .success(function (data) {
+                                    if (data.IsValid) {
+                                        $("[name=changeStatus]").val("SubmitWorkflow");
+                                        url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber})';
+                                        processWorkFlow(url);
+                                    } else {
+                                        showMessage('@Localization.GetText("R6.Proposal.TabGeneralInfo.RequiredBanner")');
+                                    }
+                                });
+                }, 10);
+            }
+        });
+    }
+
+    function saveOnly() {
+        $("[name=changeStatus]").val("none");
+        var url = '@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })';
+        processWorkFlow(url);
+    }
+
+    function saveAndReturn(source) {
+        $(source.toElement).attr('disabled', 'disabled')
+        if (validateComment()) {
+            $("[name=changeStatus]").val("ReturnWorkflow");
+            url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber})';
+            processWorkFlow(url);
+        } else {
+            showMessage('@Localization.GetText("R6.Proposal.MessageAddComment")');
+            $(source.toElement).removeAttr('disabled');
+        }
+    }
+
+    function saveAndValidate(source) {
+        $(source.toElement).attr('disabled', 'disabled');
+        $("[name=changeStatus]").val("ValidateWorkflow");
+        url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber})';
+        processWorkFlow(url);
+    }
+
+    function saveProposal() {
+
+    }
+
+    function processWorkFlow(url) {
+        showLoader();
+        window.setTimeout(function () {
+            showLoader();
+            var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null || data.ErrorMessage != '')
+                            showMessage(data.ErrorMessage);
+                        else
+                            showMessage('@Localization.GetText("R6.Proposal.Message.ErrorSaving")');
+                    }
+                    else
+                        window.location.href = url;
+                });
+            } else {
+                hideLoader();
+                var vexModal = $('.ECOModal').parents('.vex');
+                if (vexModal.length)
+                    vex.closeByID(vexModal.data().vex.id);
+            }
+
+            $('.buttonBlue').removeAttr('disabled');
+        }, 10);
+    }
+
+
+    function newComment(source) {
+        var newBlock = '@ESWCIP.InputCommentsAndInfoBox(Model.UserName, Model.Role, Model.OrganizationalUnit, DateTime.Now.ToString("dd MMM yyyy"), "", "newComment", isReadOnly: false, editable: true).ToString().Replace("\r\n", "").Replace("\n", "").Replace("&#39;", "'").Replace("&#244;", "ô").Replace("&#233;", "é").Replace("&#225;", "á").Replace("&#231;", "ç").Replace("&#227;", "ã")';
+        var trashButton = '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")';
+
+        $("#workflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+        $('.inputComment:last').append(trashButton.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+        enterEditMode(false, $("workflowComments"), false);
+        $('[name=newComment]:last').css("border", "1px solid #0f7bd1");
+        $('[name=newComment]:last').click();
+        $('[name=newComment]:last').focus();
+        bindHandlers($("workflowComments"));
+    }
+
+    function deleteComment(source) {
+        source.siblings().parent().remove();
+    }
+
+    function deleteDocument(source) {
+        var msg = '@Localization.GetText("OP.AP.Cancel.Warning.DeleteDocument")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                var docNumber = source.attr('data-docnumber');
+                var urlDelete = '@Url.Action("DeleteDocument", "WorkflowK2Controller")' + '?documentNumber=' + docNumber;
+                var result = postUrl(urlDelete)
+                      .success(function (data) {
+                          if (data.IsValid) {
+                              deleteRow(source);
+                          } else {
+                              showMessage(data.ErrorMessage);
+                          }
+                      })
+                      .error(function (response) {
+                          showMessage(response.ErrorMessage);
+                      });
+            }
+        });
+    }
+
+    function deleteRow(source) {
+        source.parents("tr").remove();
+    }
+
+    function downloadDocument(source) {
+        var docNumber = source.attr('data-docnumber');
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+        window.open(url, '_blank');
+
+    }
+
+    function readyForSubmissionCheck() {
+        $('[name=studiesComitte]').change(function () {
+            var group = "input:checkbox[name=studiesComitte]";
+            if ($(this).is(":checked")) {
+                $(group).prop("checked", true);
+            } else {
+                $(group).prop("checked", false);
+            }
+        })
+    }
+
+    function validateComment() {
+        var existComment = true;
+        if ($("[name=newComment]").length > 0) {
+            if (!validateContainer($('#pageContent')))
+                existComment = false;
+        } else if ($("[name=newComment]").length === 0) {
+            existComment = false;
+        }
+        return existComment;
+    }
+
+    function renderizeRow(documentList, sourceType) {
+        var docNumber;
+        if (documentList.length <= 0)
+            return;
+        if (sourceType === "selected") {
+            if (documentList.length > 0) {
+                docNumber = documentList[0].DocumentNumber;
+            }
+
+        } else {
+            if (documentList.length > 0) {
+                docNumber = documentList[0];
+            }
+        }
+
+        var urlf = '@Url.Action("AddNewDocument", "View")';
+
+        var result = postUrl(urlf, { documentNumber: docNumber });
+        var newRow = '<tr role="row" data-id="">' +
+            '<td>' + result.responseJSON.data.User + '</td>' +
+            '<td>' + result.responseJSON.data.Date + '</td>' +
+            '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+            '<td> <span data-pagemode="edit">' +
+            '@Confluence.InputText(value: "", name: "documentDescription", maxLength: 250, width: "100%", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "txtDocumentDescription"}}).ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '@Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '</span></td><td class="text-center">' +
+            '<div class="col-md-6 text-right margin-12-Download">' +
+            '<a href=' + result.responseJSON.data.Url + ' target="_blank">' +
+            '<button class="buttonDownload">' +
+            '<span class="icon"></span>' +
+            '<span></span>' +
+            '</button>' +
+            '</a>' +
+            '</div>' +
+            '<span data-pagemode="edit">' +
+            '@Confluence.ButtonTrash("", action: "deleteDocument", dataAttributes: new Dictionary<string, string> {{"idb-fieldname", "btnDeleteDocument"}, {"docdescription", ""}, {"docnumber", "docNumberValue"}}).ToString().Replace("\r\n", "").Replace("\n", "")' + '</span>' +
+            '</td></tr>';
+
+
+        $('#ESWCIPTaskDocumentsTable').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber));
+        $('#ESWCIPTaskDocumentsTable tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+
+
+    }
+
+</script>
+}

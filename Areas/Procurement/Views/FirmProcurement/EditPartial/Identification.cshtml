@@ -1,0 +1,432 @@
+@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.BEOProcurementModule.Enums
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+
+@model IdentificationViewModel
+@{
+    var cmdCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+}
+
+@if (Model.Modality != Modality.Framework)
+{
+    <div class="row mb40">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/DatatableIdeCommitFunds", Model)
+        </div>
+        <div class="col-xs-12 mb40">
+            @Html.Partial("EditPartial/DatatableCommitFundsSimple",
+        new CommitFundsViewModel
+        {
+            IsTotal = false,
+            Prefix = string.Empty,
+            Rows = Model.CommitFundsSecond,
+            TableName = "IdeCommitFundsSecond"
+        })
+        </div>
+
+    </div>
+}
+
+<div class="row mb20">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("EditPartial/DataTableDocsSimple",
+        new SimpleDocViewModel
+        {
+            HasLink = true,
+            LinkURL = AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+            Prefix = string.Empty,
+            SimpleTable = Model.TermsReferenceTable,
+            SubTitle = Localization.GetText("TCP.FirmProcurement.TableSubTitle.TermsOfReference"),
+            TableName = "TermsReference",
+            Title = Localization.GetText("TCP.FirmProcurement.TableTitle.TermsOfReference")
+        })
+    </div>
+</div>
+
+@if (Model.Modality != Modality.SingleSourceSelection && Model.Modality != Modality.TaskSimplifiedSelection && Model.Modality != Modality.TaskSingleSourceSelection)
+{
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/DatatableREOIs", Model.REOIs, new ViewDataDictionary { { "HasRuleForREOI", Model.HasRuleForREOI } })
+        </div>
+    </div>
+    <div class="row mb40">
+        <div class="col-xs-12 mb40">
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableFootTitle.REOI"))
+        </div>
+    </div>
+}
+<div class="row">
+    <div class="col-xs-12">
+        @Html.Partial("EditPartial/DatatableParticipatingFirm", Model.ParticipatingFirm)
+    </div>
+</div>
+
+<div class="row mb30">
+    <div class="col-xs-12 mb50">
+        @Confluence.InputCheckbox(
+                isChecked: Model.ParticipatingFirm.IsCertify,
+                name: "ParticipatingFirmIsCertify",
+                label: Localization.GetText("TCP.FirmProcurement.CheckboxText.ParticipatingFirm"),
+                disabled: false)
+        @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.AccessSanctionsList"),
+            name: "accessSanctionsListLink",
+            url: AppParameter.GetText("Template.Site.Url.BEO.Templates.Sanction.List"),
+            htmlClass: "ml20 fontSize13")
+    </div>
+</div>
+
+@if ((Model.Modality != Modality.SingleSourceSelection && Model.Modality != Modality.TaskSingleSourceSelection) && Model.Modality != Modality.TaskSimplifiedSelection)
+{
+    <div class="row">
+        <div class="col-xs-12 mb40">
+            @Html.Partial("EditPartial/DataTableDocsSimple",
+            new SimpleDocViewModel
+            {
+                HasLink = true,
+                LinkURL = AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+                Prefix = string.Empty,
+                SimpleTable = Model.EvaluationsCommitteeTable,
+                SubTitle = Localization.GetText("TCP.FirmProcurement.TableSubTitle.EvaluationComitee.Upload"),
+                TableName = "EvaluationsCommittee",
+                Title = Localization.GetText("TCP.FirmProcurement.TableTitle.EvaluationComitee")
+            })
+        </div>
+    </div>
+}
+
+<div class="mb5 aligment">
+    @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.IdentificationChecklist"))
+</div>
+
+<div class="mb10">
+    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.IdentificationChecklist"))
+</div>
+
+<div class="row mb40">
+    <div class="col-xs-12">
+        @(Html.Checklist("IdeChecklist")
+            .Items(Model.Checklist)
+            .HeaderItemName(Localization.GetText("TCP.FirmProcurement.TableHeader.ChecklistItem"))
+            .HeaderMandatory(Localization.GetText("TCP.FirmProcurement.TableHeader.Mandatory"))
+            .HeaderCompleted(Localization.GetText("TCP.FirmProcurement.TableHeader.Completed"))
+            .HeaderDateCompleted(Localization.GetText("TCP.FirmProcurement.TableHeader.DateCompleted"))
+            .HeaderUser(Localization.GetText("COMMON.User"))
+            .ValidationMessageFormat(ValidationMessageFormatEnum.ChecklistItemRed)
+            .ValidateOnLoad()
+            .Editable()
+            .CurrentUser(ViewBag.CurrentUser ?? "")
+        )
+    </div>
+</div>
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        var modalitySingleId = '@cmdCollection[ProcurementModalityEnum.SingleSourceSelection].MasterId';
+        var modalityTaskSingleId = '@cmdCollection[ProcurementModalityEnum.TaskSingleSourceSelection].MasterId';
+
+        function removeRowParticipatingFirm(event, source) {
+
+            var promise = $.Deferred();
+            var modalityId = $('[name="HeaderHiddenModalityId"]').val();
+
+            var trToRemove = source.closest('tr');
+            var trDetailToRemove = trToRemove.next();
+            var offerIdToRemove = trToRemove.attr('data-id');
+            trToRemove.remove();
+            trDetailToRemove.remove();
+
+            var checklist = $('[data-role="checklist"]');
+            var checklistData = checklist.data('checklist');
+            checklistData.Validate(null, false);
+
+            if ((modalityId == modalitySingleId || modalityId == modalityTaskSingleId)) {
+                hideNewParticipatingFirm();
+            }
+
+            promise.resolve();
+            return promise;
+        }
+
+        function hideNewParticipatingFirm() {
+            var table = $('#ParticipatingFirm');
+            var buttonAdd = $('[data-linked-table="ParticipatingFirm"]');
+            var row = buttonAdd.closest('div.col-xs-2');
+
+            if (table.find('tr[data-id]').length > 0) {
+                buttonAdd.addClass('hide');
+                row.addClass('hide');
+                var check = table.find('input[name="ParticipatingFirm-IncludeInShortList"]');
+                check.prop('checked', true);
+                check.attr('disabled', 'disabled');
+            } else {
+                buttonAdd.removeClass('hide');
+                row.removeClass('hide');
+            }
+        }
+
+        function modifyFirmDropDown(isDelete, offerId, firmName, inputsDropAffected) {
+            if ((offerId == null) || (firmName == null) ||
+                (inputsDropAffected == null) || (inputsDropAffected.length == 0)) {
+                return;
+            }
+
+            if (isDelete) {
+                inputsDropAffected.each(function () {
+                    var inputDrop = $(this);
+
+                    var ulDrop = inputDrop.nextAll('ul.dropdown-menu');
+                    var selector = String.format('a[dd-value="{0}"]', offerId);
+                    var item = ulDrop.find(selector);
+
+                    if (item.length == 1) {
+                        item.parent().remove();
+                    }
+                });
+            } else {
+                inputsDropAffected.each(function () {
+                    var inputDrop = $(this);
+                    var spanText = inputDrop.prevAll('button').find('span.valueText');
+
+                    var ulDrop = inputDrop.nextAll('ul.dropdown-menu');
+                    var selector = String.format('a[dd-value="{0}"]', offerId);
+                    var item = ulDrop.find(selector);
+
+                    if (item.length == 1) {
+                        item.html(firmName);
+                        if (item.attr('dd-selected') != null) {
+                            spanText.html(firmName);
+                        }
+                    } else {
+                        var li = $('<li>');
+                        var a = $('<a>');
+                        a.attr('dd-value', offerId);
+                        a.html(firmName);
+                        a.appendTo(li);
+                        li.appendTo(ulDrop);
+                    }
+                });
+            }
+        }
+
+        registerCallback(function () {
+
+            $(document).on('click', '[name="RemoveRowParticipatingFirm"]', function () {
+                var source = $(this);
+                var table = source.closest('talbe');
+                var addButtonContainer = $('button[data-linked-table="ParticipatingFirm"]').closest('div').closest('div');
+
+                var button = $('[name="btn-open-popup-firmUsedDeleteInfo"]');
+                button.data('pressed-by', source);
+                button.click();
+            });
+
+            $(document).on('click', '[name="addNewTCFund"]', function () {
+                var source = $(this);
+                var tableName = source.attr('data-linked-table');
+                var table = $(String.format('#{0}', tableName));
+
+                var newId = table.GenerateNewId();
+
+                var trMainTemplate = table.find('tbody tr.template:first');
+                var trDetailTemplate = table.find('tbody tr.template:nth(1)');
+
+                var template = table.find('tbody tr.template');
+
+                var newMain = trMainTemplate.clone();
+                var newDetail = trDetailTemplate.clone();
+
+                var trsMains = table.find('tbody tr:not(.template):not(.extend-custom):not(.sumAmountsColor)');
+                if (trsMains.length % 2 == 0) {
+                    newMain.addClass('custom-even');
+                } else {
+                    newMain.addClass('custom-odd');
+                }
+
+
+                newMain.attr('data-id', String.format('new-{0}', newId));
+                newDetail.attr('data-id', String.format('new-{0}', newId));
+
+                newMain.removeClass('template');
+                newMain.removeClass('hide');
+                newDetail.removeClass('template');
+                newDetail.removeClass('hide');
+
+                CustomEnable(newMain);
+                CustomEnable(newDetail);
+
+                var inputs = newMain.find('td.operationNumberHidden input, td.totalFundsHidden input');
+                inputs.attr('disabled', 'disabled');
+
+                inputs = newDetail.find('[data-role="drop-multiple"][data-bind="false"]');
+                inputs.attr('data-bind', 'true');
+
+                table.find('tbody tr:last').before(newMain);
+                table.find('tbody tr:last').before(newDetail);
+
+                //Parsley for amounts
+                var amountId = newMain.find('[data-parsley-lessOrEqualsAmount]');
+                amountId.each(function () {
+                    var amount = $(this);
+                    var selector = amount.attr('data-parsley-lessOrEqualsAmount');
+                    selector = String.format(selector, "new-" + newId);
+                    amount.attr('data-parsley-lessOrEqualsAmount', selector);
+                });
+
+                bindHandlers(newMain);
+                bindHandlers(newDetail);
+
+                validateChangeTable(table);
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+
+            $(document).on('change', '[name="ParticipatingFirm-FirmId"]', function (e, additionalDataStr) {
+                var source = $(this);
+                var tr = source.closest('tr');
+
+                var nationalityHidden = tr.find('[name="ParticipatingFirm-FirmNationality"]');
+                var buttonNationality = nationalityHidden.siblings('button');                
+
+                if (source.val() == '') {
+                    nationalityHidden.removeAttr('disabled');
+                    buttonNationality.removeAttr('disabled');
+                } else if ((additionalDataStr != null) && (additionalDataStr.trim() != '')) {
+                    nationalityHidden.attr('disabled', 'disabled');
+                    buttonNationality.attr('disabled', 'disabled');
+                    var additionalData = JSON.parse(additionalDataStr);
+                    selectDropDownItem(nationalityHidden, additionalData.NationalityId);
+
+                    //var firmNameInput = tr.find('[name="ParticipatingFirm-FirmId_text"]');
+                    //firmNameInput.val(additionalData.FirmName);
+                }
+
+                var offerId = tr.attr('data-id');
+                var firmName = tr.find('[name="ParticipatingFirm-FirmId_text"]').val();
+                var inputsDropAffected = $('[name="EOIsReceived-FirmId"]');
+
+                modifyFirmDropDown(false, offerId, firmName, inputsDropAffected);
+            });
+
+            $(document).on('change', '[name="ParticipatingFirm-IncludeInShortList"]:not([data-is-task-single-selection])', function (key, item) {
+                var source = $(this);
+                var offerId = source.closest('tr').attr('data-id');
+
+                if (!source.is(':checked') && !isNaN(offerId)) {
+                    var canUncheck = validateFirmNameOtherTables(offerId);
+
+                    if (!canUncheck) {
+                        source.prop('checked', true);
+                        var modalBtn = $('[name="btn-open-popup-firmUsedInfo"]');
+                        modalBtn.data('pressed-by', source);
+                        modalBtn.click();
+                    }
+                }
+            });
+
+            $(document).on('change', '[name="ParticipatingFirm-IncludeInShortList"][data-is-task-single-selection]', function (key, item) {
+                var source = $(this);
+                var sourceOfferId = source.closest('tr').attr('data-id');
+
+                var allCheckbox = $('[name="ParticipatingFirm-IncludeInShortList"]');
+                var sourceIsChecked = source.is(':checked');
+
+                if (sourceIsChecked) {
+                    var allChecked = $('[name="ParticipatingFirm-IncludeInShortList"]:checked');
+                    if (allChecked.length > 1) {
+                        var check1 = $(allChecked[0]);
+                        var check1Id = check1.closest('tr').attr('data-id');
+                        var check2 = $(allChecked[1]);
+                        var check2Id = check2.closest('tr').attr('data-id');
+
+                        var canUncheck = false;
+                        if (sourceOfferId == check1Id) {
+                            canUncheck = validateFirmNameOtherTables(check2Id);
+                            if (canUncheck) {
+                                check2.prop('checked', false);
+                            }
+                        } else if (sourceOfferId == check2Id) {
+                            canUncheck = validateFirmNameOtherTables(check1Id);
+                            if (canUncheck) {
+                                check1.prop('checked', false);
+                            }
+                        }
+
+                        if (!canUncheck) {
+                            source.prop('checked', false);
+                            var modalBtn = $('[name="btn-open-popup-firmUsedInfo"]');
+                            modalBtn.data('pressed-by', source);
+                            modalBtn.click();
+                        }
+
+                    }
+                } else {
+                    source.prop('checked', true);
+                }
+            });
+
+            window.ParsleyValidator.addValidator('unique', function (value) {
+                var firmNames = $('tr:not(.template) input[name="ParticipatingFirm-FirmId_text"]');
+
+                var valueMod = value.toUpperCase().trim();
+                var count = 0;
+
+                firmNames.each(function (key, item) {
+                    var name = $(item).val().toUpperCase().trim();
+                    if (valueMod == name) {
+                        count++;
+                    }
+                });
+
+                return count == 1;
+            })
+            .addMessage('en', 'unique', '@(Localization.GetText("TCP.FirmProcurement.ParsleyValidationMessage.UniqueFirm"))');
+
+            window.ParsleyValidator.addValidator('simplifiedFirms', function (value) {
+                
+                var table = $('#ParticipatingFirm');
+                var trs = table.find('tbody tr:not(.template)');
+                var shorts = trs.find('[name="ParticipatingFirm-IncludeInShortList"]:checked');
+                var count = 0;
+
+                shorts.each(function (key, item) {
+                    count++;
+                });
+                return count == 2 || count > 2;
+            })
+              .addMessage('en', 'simplifiedFirms', '@(Localization.GetText("TCP.FirmProcurement.SimplifiedModality.Requirement.ToClose"))');
+
+            function validateFirmNameOtherTables(offerId) {
+                var url = '@Url.Action("CanDeleteFirm", "FirmProcurement", new { area = "Procurement" })';
+                var response = postUrl(url, { beoOfferId: offerId });
+
+                var canDelete = true;
+                response.done(function (data) {
+                    if ((data.Message != null) && (data.Message != "")) {
+                        showMessage(data.Message);
+                    }
+                    if (data == "False") {
+                        canDelete = false;
+                    }
+                });
+
+                return canDelete;
+            }
+        });
+
+    </script>
+    )

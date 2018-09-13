@@ -1,0 +1,367 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using OutputsCompModel = IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    var outputs = Model.ResultsMatrixContext.Current.Components.SelectMany(cp => cp.Outputs).ToList();
+    Layout = "~/Areas/TCM/Views/Shared/_Layout.cshtml";
+    <script type="text/javascript" src="@Url.Content("~/Scripts/kendo/kendo.web.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visualization/sendRemoveFromMapCommon.js")"></script>
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Visualization/sendRemoveFromMap.css")" />
+}
+
+
+@helper RenderOutputs(OutputsCompModel.OutputModel output)
+{
+    //Get the Visual Outputs for the given Output
+    var voyp = output.OutputYearPlans.OrderBy(oyp => oyp.Year).Select(oyp => oyp.OutputYearPlanId);
+
+    var vovms = Model.VisualOutputs.Select(vo => vo.VisualOutputVersionsData).Where(vov0 => vov0.OutputYearPlanId != null && voyp.Contains((int)vov0.OutputYearPlanId));
+
+    if (!vovms.Any(vovm => Model.IsK2WorkflowInProgress(vovm) && (vovm.IsDeleted == null || vovm.IsDeleted.Value == false)))
+    {
+        return;
+    }
+
+    <table id="tablaTreeAnidada" class="tableNormal lineNonStop">
+        <thead>
+            <tr>
+                <th class="tree icon">@Confluence.ButtonExpandTable()</th>
+                <td>@Confluence.LabelSubTitleGroup(output.Definition)</td>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @foreach (var vov in vovms)
+            {
+                if (!(Model.IsK2WorkflowInProgress(vov) && (vov.IsDeleted == null || vov.IsDeleted.Value == false)))
+                {
+                    continue;
+                }
+
+                <tr>
+                    <td class="tree"><span></span></td>
+                    <td class="subnivel">
+                        <div>
+                            <table class="tableNormal lineNonStop">
+                                <thead>
+                                    <tr>
+                                        <th class="tree icon">@Confluence.ButtonExpandTable()</th>
+                                        <td colspan="2">@Confluence.LabelSubTitleGroup(text: vov.NameEn)</td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr data-id="">
+                                        <td class="tree"><span></span></td>
+                                        <td>
+                                            @Confluence.LabelsGroup(title: Localization.GetText("Description"),
+                                    contentAlways: vov.DescriptionEn)
+                                        </td>
+
+                                        <td>
+                                            @Confluence.LabelsGroup(title: Localization.GetText("Year"),
+                                    contentAlways: vov.OutputYearPlan.Year.ToString())
+                                        </td>
+                                    </tr>
+
+                                    <tr data-id="">
+                                        <td class="tree"><span></span></td>
+                                        <td>
+                                            <div class="carrousel hide" data-pos="0" style="width:79%;">
+                                                <div class="paginator" style="max-width:100%;">
+                                                    <input type="button"
+                                                           class="button click-action left-paginate"
+                                                           value="&lt;"
+                                                           onclick="Images.scrollLeft(this)" />
+
+                                                    <input type="button"
+                                                           class="button click-action right-paginate"
+                                                           value="&gt;"
+                                                           style="float:right"
+                                                           onclick="Images.scrollRight(this)" />
+                                                </div>
+
+                                                <div class="images" style="max-width:98%;">
+                                                    <div class="images-container">
+                                                        @if (vov.VisualOutputMedia.Any())
+                                                        {
+                                                            foreach (var vom in vov.VisualOutputMedia)
+                                                            {
+                                                                var mediaDocument = vom.Media.DocumentMedias.OrderByDescending(x => x.DocumentId).FirstOrDefault();
+                                                                var documentDesc = mediaDocument == null ? string.Empty : mediaDocument.Description;
+                                                                var documentUrl = mediaDocument == null ?
+                                                                string.Empty :
+                                                                Url.Action("GetDocument", "Document", new
+                                                                {
+                                                                    area = string.Empty,
+                                                                    docNum = mediaDocument.DocumentReference
+                                                                });
+
+                                                                <div class="img-block" style="vertical-align:top">
+                                                                    <a href="javascript: void(0)"
+                                                                       onclick="Images.openModalDialog('@vom.Media.MediaUrl','@vom.Media.Name.Trim()','@vom.Media.Year','@vom.Media.MediaSource.Trim()','@vom.Media.Content','@documentUrl','@documentDesc','@MasterDefinitions.GetMasterName(vom.Media.HistoryStatusId)')">
+                                                                        <img src='@vom.Media.MediaUrl' />
+                                                                    </a>
+                                                                    <div class="datatext" style="text-align:center;">@Localization.GetText("Photo Source"): @vom.Media.MediaSource</div>
+                                                                    <a href="@documentUrl"><div class="datatext" style="text-align:center;">@documentDesc</div></a>
+                                                                </div>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="img-block" style="vertical-align:top">
+                                                                <a>
+                                                                    &nbsp;<br />
+                                                                    &nbsp;<br />
+                                                                    &nbsp;<br />
+                                                                </a>
+                                                                <div class="datatext" style="text-align:center;">&nbsp;</div>
+                                                                <a><div class="datatext" style="text-align:center;">&nbsp;</div></a>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style="width: 100%;height: 150px; overflow: hidden;" class="mb30">
+                                                <iframe id="map" style="width:150px; height:170px;"
+                                                        src="@Url.Action("SendToMapSelectionMap",
+                                                new
+                                                {
+                                                language=IDBContext.Current.CurrentLanguage,
+                                                visualobjectid=vov.VisualOutputId,
+                                                visualobjectversionid=vov.VisualOutputVersionId,
+                                                objecttype="vo" ,
+                                                height=150,
+                                                width=250,
+                                                showrightblock=0
+                                                })"></iframe>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr data-id="">
+                                        <td class="tree"><span></span></td>
+                                        <td colspan="2">
+                                            @Confluence.Label(@Localization.GetText("Comments"))<br />
+                                            @Confluence.InputTextArea(value: "",
+                                    name: "valSendToMapComment",
+                                    width: "100%", height: "100px",
+                                    dataAttributes: new Dictionary<string, string>
+                                        {
+                                        { "VisualOutputId", vov.VisualOutputId.ToString()},
+                                        { "VisualOutputVersionId",vov.VisualOutputVersionId.ToString() }
+                                        })
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl="@Url.Action("Detail", "Tasks" , new { area="Global" , id=Model.sendToMapTaskId })"
+     data-url="@Url.Action("Saveworkflowtcm", "WorkflowK2" , new { area="TCM" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit"><input type="hidden" name="changeStatus" value="none" /></span>
+
+    <span class="text-right">
+        @Html.Partial("~/Areas/TCM/Views/WorkflowK2/Partials/WorkflowButtonsWF2.cshtml")
+    </span>
+
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            @Confluence.LabelSubTitleGroup(text: Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Instructions"), htmlClass: "bold")
+            <p class="mt20 mb10">@Html.Raw(Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.ContentVOInstructions"))</p>
+        </div>
+    </div>
+
+    <div class="row row-body-40">
+        <div class="contentFloats" style="overflow: visible">
+            <div class="floatRight">
+                @Confluence.ButtonColapseAll(new List<string> { "tablaTreeAnidada" })
+            </div>
+        </div>
+        <div class="col-md-12">
+            @foreach (var output in outputs)
+            {
+                @RenderOutputs(output)
+            }
+        </div>
+    </div>
+
+
+
+
+
+    <div class="row" id="footer-section">
+        <span class="text-right">@Html.Partial("~/Areas/TCM/Views/WorkflowK2/Partials/WorkflowButtonsWF2.cshtml")</span>
+    </div>
+</div>
+
+<div data-id="ModalRegionTwo" class="hide">
+    <button data-id="buttonModaReject" class="buttonBlue"
+            data-idb-fieldname="btnSaveAndReject"
+            data-modal-allowclose="true"
+            data-custom-modal="saveRejectModal"
+            data-custom-modal-style="vex-theme"
+            data-custom-modal-title="@Localization.GetText("GLOBAL.K2.BUTTON.SaveReject")"
+            data-custom-modal-validate="false"
+            data-custom-buttons='["save", "cancel"]'
+            data-custom-button-save-id="send"
+            data-custom-button-save="@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Message.SaveReject")"
+            data-custom-button-save-style="buttonBlue"
+            data-custom-button-save-callback="saveRejectWorkflowTCMSave"
+            data-custom-button-save-closeatend="true"
+            data-custom-button-cancel-id="cancel"
+            data-custom-button-cancel="@Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Cancel")"
+            data-custom-button-cancel-style="buttonLink"
+            data-custom-button-cancel-callback=""
+            data-custom-modal-onclose=""
+            data-custom-modal-closeonoverlayclick="false">
+        @Localization.GetText("TCM.TR.TaskAndRequestFoundCoordinator.Reject")
+    </button>
+    <div data-id="ModalRegion" class="">
+        <div id="saveRejectModal" class="hide modalBody institutionsModal">
+            @Localization.GetText("GLOBAL.K2.MODAL.SaveRejectTask")
+        </div>
+    </div>
+</div>
+
+@section scripts
+{
+    @if (k2Mode)
+    {
+        @ModuleScripts.K2UIIntegration()
+    }
+    <script type="text/javascript">
+        $(document).ready(function () {
+            @if (k2Mode)
+             {
+            @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+                                                                                                                                                                                                                                                                                                                                                                            @:$(".operationData").css("padding", "0 15px 0 15px")
+                                                                                                                                                                                                                                                                                                                                                                            @:$("#headerButtons").css("margin-right", "-17%")
+                                                                                                                                                                                                                                                                                                                                                                            @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                                                                                                                                                                                                                                                                                                                                                                }
+
+            enterEditMode(false, $('#headerButtons'), true);
+            enterEditMode(false, $('#footer-section'), true);
+            $(".subtitleGroup ").css("line-height", "0");
+        });
+
+
+
+        function cancelWorkflowTCM(source) {
+            window.location.href = '@Url.Action("Index", "Tasks",
+                                    new
+                                    {
+                                        area = "Global",
+                                        operationNumber = Model.ResultsMatrixContext.OperationContext.OperationNumber
+                                    })';
+        }
+
+        function acceptApproveTCM() {
+            saveWorkflowTCM("@IDB.Presentation.MVC4.Areas.Visualization.Enums.SendToMapOperTypeEnum.SaveAndValidate",
+            "@IDB.Presentation.MVC4.Areas.Visualization.Enums.SendToMapK2OperTypeEnum.Approved");
+        }
+
+        function saveRejectWorkflowTCM() {
+            $('[data-id="buttonModaReject"]').click();
+        }
+
+        function saveRejectWorkflowTCMSave() {
+            saveWorkflowTCM("@IDB.Presentation.MVC4.Areas.Visualization.Enums.SendToMapOperTypeEnum.Reject",
+            "@IDB.Presentation.MVC4.Areas.Visualization.Enums.SendToMapK2OperTypeEnum.Rejected");
+        }
+
+        function saveOnly() {
+            saveWorkflowTCM("@IDB.Presentation.MVC4.Areas.Visualization.Enums.SendToMapOperTypeEnum.Save",
+            "@IDB.Presentation.MVC4.Areas.Visualization.Enums.SendToMapK2OperTypeEnum.NoAction")
+        }
+
+        function prepareVisualDataK2Object(sendToMapTaskId, action, k2operationType) {
+            var visualDataK2Object = new Object();
+            visualDataK2Object.sendToMapTaskId = sendToMapTaskId;
+            visualDataK2Object.operationType = action;
+            visualDataK2Object.sendToMapK2FlowValidationModels = [];
+
+            $('[name=valSendToMapComment]').each(function (i, obj) {
+                var currentObj = $(obj);
+
+                var sendToMapK2FlowValidationModel = new Object();
+                sendToMapK2FlowValidationModel.k2OperationType = k2operationType;
+                sendToMapK2FlowValidationModel.visualDataVersionId = parseInt(currentObj.attr('data-visualoutputversionid'));
+                sendToMapK2FlowValidationModel.voComment = currentObj.val();
+
+                visualDataK2Object.sendToMapK2FlowValidationModels.push(sendToMapK2FlowValidationModel);
+
+            });
+
+
+            return visualDataK2Object;
+        }
+
+        function saveWorkflowTCM(action, k2operationType) {
+            var sendToMapTaskId = @Model.sendToMapTaskId;
+            var visualDataK2Object = prepareVisualDataK2Object(sendToMapTaskId, action, k2operationType);
+            var urlToValidate = '@Url.Action("VisualOutputValidateTCM")';
+
+            $.ajax({
+                type: "POST",
+                url: urlToValidate,
+                data: JSON.stringify(visualDataK2Object),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    var returnUrl;
+
+                    if (data.success) {
+                        returnUrl = '@Url.Action("Index", "Tasks",
+                                        new
+                                        {
+                                            area = "Global",
+                                            operationNumber = Model.ResultsMatrixContext.OperationContext.OperationNumber
+                                        })';
+                    }
+                    else {
+                        returnUrl = '@Html.Raw(Url.Action("Index", "Tasks",
+                        new
+                        {
+                            area = "Global",
+                            operationNumber = Model.ResultsMatrixContext.OperationContext.OperationNumber,
+                            state = 600
+                        }))';
+                    }
+                    window.location = returnUrl;
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    window.location = '@Html.Raw(Url.Action("Index", "Tasks",
+                    new
+                    {
+                        area = "Global",
+                        operationNumber = Model.ResultsMatrixContext.OperationContext.OperationNumber,
+                        state = 601,
+                        status = "Something went wrong, please verify the log for further details"
+                    }))';
+                }
+            });
+        }
+
+    </script>
+}
+
+

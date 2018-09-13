@@ -1,0 +1,1396 @@
+﻿@using System.Web.Mvc
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.MW.Application.SGPModule.Enums
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.SecurityService.Enums
+
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model ProcurementDetailViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var actualDate = FormatHelper.Format(DateTime.Today, formatDate).HtmlEncode();
+
+    var contractNumber = Model.ViewContainer.GetValue<string>("contractNumber");
+    var otherTypeId = Model.ViewContainer.GetValue<int>("otherType");
+    var pendingId = Model.ViewContainer.GetValue<int>("PendingId");
+    var terminatedId = Model.ViewContainer.GetValue<int>("TerminatedId");
+    var nonStartedId = Model.ViewContainer.GetValue<int>("nonStarted");
+    var rejectedId = Model.ViewContainer.GetValue<int>("RejectedStatusId");
+    var individualConsultantId = Model.ViewContainer.GetValue<int>("IndividualConsultingId");
+    var contractAwardTypeId = Model.ViewContainer.GetValue<int>("contractAwardType");
+    var contractCompletionTypeId = Model.ViewContainer.GetValue<int>("contractCompletionType");
+    var contractTerminatedTypeId = Model.ViewContainer.GetValue<int>("contractTerminatedType");
+    var ContractModificationTypeScopeId = Model.ViewContainer.GetValue<int>("ContractModificationTypeScope");
+    var ContractModificationTypeObjectiveId = Model.ViewContainer.GetValue<int>("ContractModificationTypeObjective");
+    var ContractModificationTypeLotId = Model.ViewContainer.GetValue<int>("ContractModificationTypeLot");
+    var contractModificationStartDateType = Model.ViewContainer.GetValue<int>("modificationStartDate");
+    var contractModificationEndDateType = Model.ViewContainer.GetValue<int>("modificationEndDate");
+    var userName = Model.ViewContainer.GetValue<string>("User");
+    var statusFinished = Model.ContractsTab.ViewContainer.GetValue<int>("statusFinshedId-Contracts");
+    var statusTerminated = Model.ContractsTab.ViewContainer.GetValue<int>("statusTerminatedId-Contracts");
+    var startProcurementDate = Model.ContractsTab.ViewContainer.GetValue<DateTime?>("StartProcurementDate");
+    var endProcurementDate = Model.ContractsTab.ViewContainer.GetValue<DateTime?>("EndProcurementDate");
+    var statusTerminatedUnderReview = Model.ContractsTab.ViewContainer.GetValue<int>("statusTerminatedUnderReviewId-Contracts");
+    var statusAmendmentUnderReview = Model.ContractsTab.ViewContainer.GetValue<int>("statusAmendmentUnderReviewId-Contracts");
+}
+
+@if (Model != null)
+{
+    @Confluence.InputDatePicker(startProcurementDate, name: "startProcurementDate", required: false, disabled: true, htmlClass: "hide")
+    @Confluence.InputDatePicker(endProcurementDate, name: "endProcurementDate", required: false, disabled: true, htmlClass: "hide")
+    @Confluence.InputText(string.Empty, name: "submitMode", required: false, disabled: true, htmlClass: "hide")
+    @Confluence.InputText(Model.ContractsTab.TotalContractAmount.ToString(), name: "totalContractAmounts", required: false, disabled: true, htmlClass: "hide")
+    @Html.Partial("EditPartial/Contracts/Modals/ContractsNotificationModal")
+    <div>
+        @Html.Partial("EditPartial/Contracts/Buttons")
+        @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.Contracts"), htmlClass: "subTitleSG mb10 pt5")
+    </div>
+    <div class="mb10">
+        @Confluence.Label(Localization.GetText("SGP.Label.ContractDetailSubtitle"))
+    </div>
+    <div class="mb30">
+        @Html.Partial("EditPartial/Contracts/ContractsDataTablePartial", Model.ContractsTab)
+    </div>
+    <div class="mb30 tabs"></div>
+    <div data-section="contract-section-details">
+        @if (Model.ContractsTab.ContractDetails != null)
+        {
+            if (Model.ContractsTab.ContractStatusId == statusFinished || Model.ContractsTab.ContractStatusId == statusTerminated || Model.ContractsTab.ContractStatusId == statusTerminatedUnderReview || Model.ContractsTab.ContractStatusId == statusAmendmentUnderReview)
+            {
+                @Html.Partial("ReadPartial/Contracts/ContractDetailsPartial", Model.ContractsTab.ContractDetails)
+            }
+            else
+            {
+                @Html.Partial("EditPartial/Contracts/ContractDetailsPartial", Model.ContractsTab.ContractDetails)
+            }
+        }
+    </div>
+    <div>
+        @Html.Partial("EditPartial/Contracts/Buttons")
+    </div>
+
+    @Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        var razorEditParticipants = {
+            ProcurementId: '@Model.ProcurementId',
+            ContractId: '@Model.ContractsTab.ContractSelectedId',
+            ProcurementType: '@Model.Header.ProcurementTypeId',
+            IndividualConsultant: '@individualConsultantId',
+            PackageSelected: '@(Model.ContractsTab.ContractSelectedId  != null ? Model.ContractsTab.ContractSelectedId : 0)',
+            Urls: {
+                CancelContracts: '@Url.Action("Cancel", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_CONTRACTS})'
+                                  + '&procurementId=' + '@Model.ProcurementId',
+                DownLoadDoc: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })',
+                UrlCalculateUSD: '@Url.Action("CalculateUSD", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_CONTRACTS })',
+                GetContractDetailEdit: '@Url.Action("GetContractDetailsEdit", "ProcurementDetail", new { area = "SGP" })',
+
+            },
+            ContractNumber: '@contractNumber',
+
+            TotalCost: '@Model.Header.TotalCost',
+            User: '@userName',
+            FirmMode: '@ProcurementDetailNavigation.SUBMIT_MODE_FIRM',
+            SaveMode: '@ProcurementDetailNavigation.SUBMIT_MODE_SAVE',
+            TerminatedMode: '@ProcurementDetailNavigation.SUBMIT_MODE_TERMINATION',
+            ConfirmAmendmentMode: '@ProcurementDetailNavigation.SUBMIT_AMENDMENT_MODE_FIRM',
+            RequestAmendmentMode: '@ProcurementDetailNavigation.SUBMIT_AMENDMENT_MODE_REQUEST',
+            DocumentTypeIds: {
+                ContractAwardId: '@contractCompletionTypeId',
+                ContractCompletionId: '@contractAwardTypeId',
+                OtherId: '@otherTypeId',
+                ContractTerminatedId: '@contractTerminatedTypeId',
+                NonStartedId: '@nonStartedId',
+            },
+            StatusType: {
+                TerminatedId: '@terminatedId',
+                PendingId: '@pendingId',
+                Rejected: '@rejectedId',
+            },
+            ContractStatusId: '@Model.ContractsTab.ContractStatusId',
+            ModificationId: {
+                ScopeId: '@ContractModificationTypeScopeId',
+                ObjectiveId: '@ContractModificationTypeObjectiveId',
+                LotId: '@ContractModificationTypeLotId',
+                StartDateId: '@contractModificationStartDateType',
+                EndDateId: '@contractModificationEndDateType',
+            },
+            Time: {
+                Today: '@DateTime.Today',
+                TodayFormat: '@actualDate'
+            },
+            CheckSaveType: {
+                SaveContract: 'SaveContract',
+                ConfirmContract: 'ConfirmContract',
+                ConfirmAmedment: 'ConfirmAmendment'
+            },
+
+            Messages: {
+                ValidationDatesContract: '@(Localization.GetText("SGP.Message.ValidationAllDatesContract"))',
+                DocumentRequired: '@Localization.GetText("SGP.Message.RequiredDoc")',
+                ValidateContractTerminate: '@(Localization.GetText("SGP.Message.ValidationContractTerminated"))',
+                ValidationTotalContractLotsCurrent: '@(Localization.GetText("SGP.Message.ValidationTotalLotToCurrent"))',
+
+            },
+
+            @if (Model.ContractsTab.ContractDetails != null && Model.ContractsTab.ContractDetails.ShowTerminatedContractBtn)
+            {
+               @:ShowTerminatedContractBtn: 'True',
+            }
+            else
+            {
+                @:ShowTerminatedContractBtn: 'False'
+            }
+
+
+        };
+
+        registerCallback(function () {
+
+            /* ---------------------- Validations ---------------------- */
+            window.ParsleyValidator.addValidator('localizationRequired', function (value, requirement) {
+                var result = true;
+
+                var section = $('[data-section="location-contracts-section"]');
+                var countryEmpty = (section.find('input[name="country"]').val() == "" || section.find('input[name="country"]').val() == null);
+                var stateEmpty = (section.find('input[name="state"]').val() == "" || section.find('input[name="state"]').val() == null);
+                var districtEmpty = (section.find('input[name="district"]').val() == "" || section.find('input[name="district"]').val() == null);
+
+                if (countryEmpty && stateEmpty && districtEmpty) {
+                    result = false;
+                }
+
+                return result;
+            }, 32).addMessage('en', 'localizationRequired', '@Localization.GetText("OP.AP.EditRegister.RegisterApproval.RequiredField")');
+
+            window.ParsleyValidator.addValidator('amountRequired', function (value, requirement) {
+                var result = true;
+                var length = $('div[data-name="amount-container"]').find('input[name="currencyType-Amount"]').length;
+
+                if (length == null || length == 0) {
+                    result = false;
+                }
+
+                return result;
+            }, 32).addMessage('en', 'amountRequired', '@Localization.GetText("OP.AP.EditRegister.RegisterApproval.RequiredField")');
+
+            window.ParsleyValidator.addValidator('signatureDateGreaterStartDate', function (value, requirement) {
+                var compareInput = $(requirement);
+                var compareValue = compareInput.val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue <= dateCompare;
+
+            }, 32).addMessage('en', 'signatureDateGreaterStartDate', '@Localization.GetText("SGP.Message.ValidationStartDate")');
+
+            window.ParsleyValidator.addValidator('StartDateLessSignatureDate', function (value, requirement) {
+                var compareInput = $(requirement);
+                var compareValue = compareInput.val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue >= dateCompare;
+
+            }, 32).addMessage('en', 'StartDateLessSignatureDate', '@Localization.GetText("SGP.Message.ValidationStartDate")');
+
+            window.ParsleyValidator.addValidator('endDateGreaterSignatureDate', function (value, requirement) {
+                var compareInput = $(requirement);
+                var compareValue = compareInput.val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue <= dateCompare;
+
+            }, 32).addMessage('en', 'endDateGreaterSignatureDate', '@Localization.GetText("SGP.Message.ValidationEndDate")');
+
+            window.ParsleyValidator.addValidator('endDatelessSignatureDate', function (value, requirement) {
+                var compareInput = $(requirement);
+                var compareValue = compareInput.val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue >= dateCompare;
+
+            }, 32).addMessage('en', 'endDatelessSignatureDate', '@Localization.GetText("SGP.Message.ValidationEndDate")');
+
+            window.ParsleyValidator.addValidator('signatureDateGreaterStartProcurementDate', function (value, requirement) {
+
+                var compareValue = $('[name="startProcurementDate"]').val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue >= dateCompare;
+
+            }, 32).addMessage('en', 'signatureDateGreaterStartProcurementDate', '@Localization.GetText("SGP.Message.ValidationStartProcurementDate")');
+
+            window.ParsleyValidator.addValidator('endDateGreaterEndProcurementDate', function (value, requirement) {
+
+                var compareValue = $('[name="dateStart-contracts"]').val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue >= dateCompare;
+
+            }, 32).addMessage('en', 'endDateGreaterEndProcurementDate', '@Localization.GetText("SGP.Message.ValidationEndProcurementDate")');
+
+            window.ParsleyValidator.addValidator('endDateGreaterStartDate', function (value, requirement) {
+
+                var compareValue = $('#ContractAmendments tbody tr[data-id="' + requirement + '"]').find('[name="dateStartDate-amendment"]').val();
+
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                return dateValue >= dateCompare;
+
+            }, 32).addMessage('en', 'endDateGreaterStartDate', '@Localization.GetText("SGP.Message.ValidationEndProcurementDate")');
+
+            window.ParsleyValidator.addValidator('notDuplicateProcurementType', function (value, requirement) {
+
+                if (value == razorEditParticipants.DocumentTypeIds.OtherId) {
+                    return true;
+                }
+
+                var combos = $(requirement);
+                if ((combos != null) && (combos.length > 0)) {
+                    var combosWithValue = combos.filter(function (index, item) {
+                        var $item = $(item);
+                        var status = $item.closest('tr:not(.template)').find('[name="contractDocuments-statusId"]').val();
+
+                        if ($item.attr("disabled") === "disabled") {
+                            return false;
+                        }
+                        ////if document type exist and status is not same to rejected, active parsley. This case affect to termination document.
+                        return $item.val().trim().toLowerCase() == value.trim().toLowerCase() && status != razorEditParticipants.StatusType.Rejected;
+                    });
+
+                    var numElements = combosWithValue.length;
+                    return numElements <= 1;
+                }
+                return true;
+            }, 32).addMessage('en', 'notDuplicateProcurementType', '@Localization.GetText("SGP.Label.ValidationRepeat")');
+
+            window.ParsleyValidator.addValidator('notDuplicateLotName', function (value, requirement) {
+                var combos = $(requirement);
+                if ((combos != null) && (combos.length > 0)) {
+                    var combosWithValue = combos.filter(function (index, item) {
+                        var $item = $(item);
+                        if ($item.attr("disabled") === "disabled") {
+                            return false;
+                        }
+                        return $item.val().trim().toLowerCase() == value.trim().toLowerCase();
+                    });
+
+                    var numElements = combosWithValue.length;
+                    return numElements <= 1;
+                }
+                return true;
+            }, 32).addMessage('en', 'notDuplicateLotName', '@Localization.GetText("SGP.Label.ValidationRepeat")');
+
+            window.ParsleyValidator.addValidator('notDuplicateCurrency', function (value, requirement) {
+                var combos = $(requirement);
+                if ((combos != null) && (combos.length > 0)) {
+                    var combosWithValue = combos.filter(function (index, item) {
+                        var $item = $(item);
+                        if ($item.attr("disabled") === "disabled") {
+                            return false;
+                        }
+                        return $item.val() == value;
+                    });
+
+                    var numElements = combosWithValue.length;
+                    return numElements <= 1;
+                }
+                return true;
+            }, 32).addMessage('en', 'notDuplicateCurrency', '@Localization.GetText("SGP.Label.ValidationCurrencyRepeat")');
+
+            /* ---------------------- Events Contract Table ---------------------- */
+
+            /* ------- Add New Row Contracts ------- */
+            $(document).on('click', '[name="addNewRow-Contracts"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var tbody = $('#ContractsTable tbody:first');
+                var trTemplate = tbody.find('tr:first');
+                var trTemplateLat = tbody.find('tr:last')
+                var clonedTr = trTemplate.clone(false).appendTo(tbody);
+                clonedTr.find('input, button').removeAttr('disabled');
+                clonedTr.attr('data-id', String.format('new-{0}', newId));
+
+                var lastRow = $('#ContractsTable tbody tr:not(.template):last');
+
+                var labelContractNumber = clonedTr.find('[data-name="contractNumber"]');
+                var inputContractNumber = clonedTr.find('[name="contractNumber-Contracts"]');
+
+                if (lastRow.length == 0) {
+                    var contractIdNumber = (razorEditParticipants.ContractNumber + '-C01')
+                    labelContractNumber.html(contractIdNumber);
+                    inputContractNumber.val(contractIdNumber);
+                }
+                else {
+                    var contractNumberText = lastRow.find('input[name="contractNumber-Contracts"]').val();
+                    var contracNumberSubString = contractNumberText.substr(-2);
+                    var finalContractNumber = parseInt(contracNumberSubString) + 1;
+
+                    if (finalContractNumber > 9) {
+                        labelContractNumber.html(razorEditParticipants.ContractNumber + '-C' + finalContractNumber);
+                        inputContractNumber.val(razorEditParticipants.ContractNumber + '-C' + finalContractNumber);
+                    } else {
+                        labelContractNumber.html(razorEditParticipants.ContractNumber + '-C0' + finalContractNumber);
+                        inputContractNumber.val(razorEditParticipants.ContractNumber + '-C0' + finalContractNumber);
+                    }
+                }
+
+                clonedTr.removeClass('hide');
+                clonedTr.removeClass('template');
+                bindHandlers(clonedTr);
+            });
+
+            /* ------- Remove Row Contracts ------- */
+            $(document).on('click', '[name="removeRow-Contracts"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-contacts-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            /* ------- Amount ------- */
+            $(document).on('click', '[name="addNewCurrencyAmount"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var dataSection = $('div[data-name="amount-container"]');
+                var templateAmount = $('div[data-name="template-amount"]');
+                var newAmount = templateAmount.clone(false);
+                newAmount.removeClass("hide");
+                newAmount.find('input,button').removeAttr("disabled");
+                newAmount.find('input,button').attr("data-id", String.format('new-{0}', newId));
+                newAmount.removeAttr("data-name");
+                newAmount.appendTo(dataSection);
+                bindHandlers(newAmount);
+
+                if (dataSection.find('div[data-name="amount-item"]').length >= 3) {
+                    $('button[name="addNewCurrencyAmount"]').addClass("hide");
+                }
+
+                if (dataSection.find('div[data-name="amount-item"]').length == 1) {
+                    $('button[name="removeAmount"]').addClass("hide");
+                } else {
+                    $('button[name="removeAmount"]').removeClass("hide");
+                }
+            });
+
+            $(document).on('click', '[name="removeAmount"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-amount-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            /* ------- Lot ------- */
+            $(document).on('click', '[name="addNewLot"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var dataSection = $('div[data-name="lot-container"]');
+                var templateAmount = $('div[data-name="lot-template"]');
+                var newLot = templateAmount.clone(false);
+                newLot.removeClass("hide");
+                newLot.find('input,button').removeAttr("disabled");
+                newLot.find('input,button').attr("data-id", String.format('new-{0}', newId));
+                newLot.removeAttr("data-name");
+                newLot.appendTo(dataSection);
+                bindHandlers(newLot);
+            });
+
+            $(document).on('click', '[name="removeLot"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-lot-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            $(document).on('click', '[name="removeLotAmendment"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-lot-amendment-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            /* ------- Call Ajax Details ------- */
+            $(document).on('click', '[name="link-Contracts"]', function () {
+                var source = $(this);
+                var isLoadedContract = ($('[name="contractId-validation"]').length != 0);
+                if (!isLoadedContract) {
+                    var contractId = source.attr('data-contractId');
+                    getContractDetails(contractId);
+                }
+            });
+
+            /* ------- Firm Details ------- */
+            $(document).on('click', '[name="confirm-contract"]', function () {
+                $('input[name="submitMode"]').val(razorEditParticipants.FirmMode);
+                ActivateFirmModeValidation();
+                if (ValidateContractsDates()) {
+                    if (ValidateAmountContract(razorEditParticipants.CheckSaveType.ConfirmContract)) {
+                        if (ValidateContractTerminated()) {
+                            showMessage(razorEditParticipants.Messages.ValidateContractTerminate);
+                        }
+
+                        var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+                        if (response !== false) {
+                            response.done(function (data) {
+                                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                    showMessage(data.ErrorMessage);
+                                } else if (data.IsValid == false) {
+                                    showMessage(razorEditParticipants.Messages.DocumentRequired);
+                                }
+                            });
+                        }
+                    }
+                }
+                else {
+                    showMessage(razorEditParticipants.Messages.ValidationDatesContract);
+                }
+            });
+
+            $(document).on('click', '[name="confirm-amendment"]', function () {
+                $('input[name="submitMode"]').val(razorEditParticipants.ConfirmAmendmentMode);
+
+                if (ValidateContractsDatesAmendment()) {
+                    if (ValidateAmountContract(razorEditParticipants.CheckSaveType.ConfirmAmedment)) {
+                        var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+                        if (response !== false) {
+                            response.done(function (data) {
+                                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                    showMessage(data.ErrorMessage);
+                                } 
+                            });
+                        }
+                    }
+                }
+                else {
+                    showMessage(razorEditParticipants.Messages.ValidationDatesContract);
+                }
+            });
+
+            /* ------- Save Details ------- */
+            $(document).on('click', '[name="save-Contracts"]', function () {
+                $('input[name="submitMode"]').val(razorEditParticipants.SaveMode);
+                ActivateSaveModeValidation();
+                if (ValidateContractsDates()) {
+                    if (ValidateAmountContract(razorEditParticipants.CheckSaveType.SaveContract)) {
+                        var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+                        if (response != false) {
+                            response.done(function (data) {
+                                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+                        }
+                    }
+                }
+                else {
+                    showMessage(razorEditParticipants.Messages.ValidationDatesContract);
+                }
+            });
+
+            /* ------- Cancel Edit Details ------- */
+            $(document).on('click', '[name="cancel-Contracts"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel-contracts"]');
+                modalBtn.click();
+            });
+
+            /* ------ Terminated Contract ------ */
+
+            @*$(document).on('click', '[name="terminated-contract"]', function () {
+            $('input[name="submitMode"]').val(razorEditParticipants.FirmMode);
+            ActivateFirmModeValidation();
+            var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid == false) {
+                        showMessage('@Localization.GetText("SGP.Message.RequiredDoc")');
+                    }
+                });
+            }
+        });*@
+
+            $(document).on('click', '[name="addNewAmendment"]', function () {
+                addNewContractAmedmentRow();
+            });
+
+            $(document).on('click', '[name="UploadAmedment"]', function () {
+                var source = $(this);
+
+                var modalButton = $('[name="btn-open-popup-add-amendment-doc"]');
+
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+
+                var modalSelector = modalButton.attr('data-new-modal');
+                var modal = $(modalSelector);
+                var tab = modal.find('[data-tab-id="add"]');
+                tab.click();
+            });
+
+            $(document).on('click', '[name="addNewLotAmedment"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var trContainer = source.closest('tr');
+                var dataSection = trContainer.find('div[data-name="lot-container-amedment"]');
+                var templateAmount = trContainer.find('div[data-name="lot-template-amedment"]').find('div[data-name="lot-item-amedment"]');
+                var newLot = templateAmount.clone(false);
+                newLot.removeClass("hide");
+                newLot.find('input,button').removeAttr("disabled");
+                newLot.find('input,button').attr("data-persist-lotid", String.format('new-{0}', newId));
+                newLot.removeAttr("data-template");
+                newLot.appendTo(dataSection);
+                bindHandlers(newLot);
+            });
+
+            $(document).on('change', '[name="modifications-amendment"]', function () {
+                var source = $(this);
+                var values = source.val();
+                var tr = source.closest('tr').next();
+                var startDate = razorEditParticipants.ModificationId.StartDateId;
+                var endDate = razorEditParticipants.ModificationId.EndDateId;
+                var sections = tr.find('div[data-section-amedment]:not([data-template])');
+                var sectionStartDate = tr.find('div[data-section-amedment="' + startDate + '"]:not([data-template])');
+                var sectionEndDate = tr.find('div[data-section-amedment="' + endDate + '"]:not([data-template])');
+                sections.addClass('hide');
+                sections.find('input').attr('disabled', 'disabled');
+
+                if (values != null) {
+                    var tam = values.length;
+
+                    for (i = 0; i < values.length; i++) {
+                        var sectionAffected = tr.find('div[data-section-amedment="' + values[i] + '"]:not([data-template])');
+                        sectionAffected.removeClass('hide');
+                        sectionAffected.find('input').removeAttr('disabled');
+                    }
+
+                    if (jQuery.inArray(razorEditParticipants.ModificationId.LotId, values) != -1) {
+                        $('div[data-name="lot-container-amedment"] div[data-name="lot-item-amedment"][data-isadded="true"]').remove();
+                    }
+
+                    if (jQuery.inArray(startDate, values) != -1) {
+                        var sectionStartDate = tr.find('div[data-section-amedment="' + startDate + '"]:not([data-template])');
+                        sectionStartDate.removeClass('hide');
+                    } else {
+                        sectionStartDate.find('input').val("");
+                    }
+
+                    if (jQuery.inArray(endDate, values) != -1) {
+                        var sectionEndDate = tr.find('div[data-section-amedment="' + endDate + '"]:not([data-template])');
+                        sectionEndDate.removeClass('hide');
+                    } else {
+                        sectionEndDate.find('input').val("");
+                    }
+                }
+            });
+
+            $(document).on('click', '[name="removeLotAmedment"]', function () {
+                var source = $(this);
+                var row = source.closest('[data-name="lot-item-amedment"]').closest('div');
+                row.remove();
+            });
+
+            $(document).on('click', '[name="removeRow-amendment"]', function () {
+                var source = $(this);
+                var modalButton = $('[name="btn-open-popup-row-amendment-remove"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+            });
+
+            /* ---------------------- Events Documents Table ---------------------- */
+
+            $(document).on('click', '[name="addNewContractDocuments"]', function () {
+                var source = $(this);
+
+                var modalButton = $('[name="btn-open-popup-add-contact-doc"]');
+
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+
+                var modalSelector = modalButton.attr('data-new-modal');
+                var modal = $(modalSelector);
+                var tab = modal.find('[data-tab-id="add"]');
+                tab.click();
+            });
+
+            $(document).on('click', '[name="UploadContractDoc"]', function () {
+                var source = $(this);
+                var modalButton = $('[name="btn-open-popup-add-contact-doc"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+            });
+
+            $(document).on('click', '[name="DownLoadDoc"]', function () {
+                var source = $(this);
+                var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                var url = razorEditParticipants.Urls.DownLoadDoc;
+                url = url + '?documentNumber=' + documentNumber;
+                window.open(url, '_blank');
+            });
+
+            $(document).on('click', '[name="RemoveRowContractDocuments"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-contracts-doc-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            $(document).on('change', '[name="contractDocuments-documentType"]', function () {
+
+                var source = $(this);
+                var tr = source.closest('tr');
+
+                var manyTerminationType = [];
+                var table = $('#ContractsTable tbody tr:not(.template)');
+                var docTypes = table.find('[name="contractDocuments-documentType"]');
+
+                docTypes.each(function (key, item) {
+                    if ($(item).val() == razorEditParticipants.DocumentTypeIds.ContractTerminatedId) {
+                        manyTerminationType.push($(item).val());
+                    }
+                });
+
+                if (manyTerminationType.length <= 0) {
+                    if (razorEditParticipants.IsFirmMode) {
+                        if (source.val() == razorEditParticipants.DocumentTypeIds.ContractTerminatedId) {
+                            if (IsTerminated = 'True') {
+                                var nonStatus = tr.find('[name="contractDocuments-documentType"]');
+
+                            }
+                        }
+                    }
+                }
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            });
+
+            /* -------------------------- CALCULATE USD ----------------------------*/
+            $(document).on('change', '[name="total-Amount"]', function () {
+                var source = $(this);
+                var amountValue = parseFloatFormated(source.val());
+                var currencyId = source.parents('div[data-name="amount-item"]').find('[name="currencyType-Amount"]').val();
+
+                if (!isNaN(currencyId) && currencyId != 0) {
+                    calculateUSD(source, amountValue, currencyId);
+                } else {
+                    source.val("");
+                }
+            });
+
+            $(document).on('change', '[name="currencyType-Amount"]', function () {
+                var source = $(this);
+                var currency = source.val();
+                var amountValue = parseFloatFormated(source.parents('div[data-name="amount-item"]').find('[name="total-Amount"]').val());
+
+                if ((isNaN(currency) && currency == 0) && currency == null || currency == "") {
+                    source.parents('div[data-name="amount-item"]').find('[name="total-Amount"]').val("");
+                    source.parents('div[data-name="amount-item"]').find('div[data-name="converted"] label').html("");
+                    source.parents('div[data-name="amount-item"]').find('div[data-name="converted"] input').val("");
+                }
+
+                if ((!isNaN(amountValue) && amountValue != 0) && (!isNaN(currency) && currency != 0)) {
+                    calculateUSD(source, amountValue, currency);
+                }
+            });
+
+            $(document).on('change', '[name="totalAmount-amendment"]', function () {
+                var source = $(this);
+                var amountValue = parseFloatFormated(source.val());
+                var currencyId = source.parents('div[data-name="amount-item-amedment"]').find('[name="currencyType-amendment"]').val();
+                if (!isNaN(currencyId) && currencyId != 0) {
+                    calculateAmendmetUSD(source, amountValue, currencyId);
+                }
+            });
+        });
+
+        /* ---------------------- Functions Navigation ---------------------- */
+
+        /* ------- Cancel Edit ------- */
+        function confirmCancelContracts(e, source) {
+            var promise = $.Deferred();
+            var url = razorEditParticipants.Urls.CancelContracts;
+            if (razorEditParticipants.PackageSelected != '0') {
+                url = url + "&contractId=" + razorEditParticipants.PackageSelected;
+            }
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+
+        function removeRowLot(e, source) {
+            var promise = $.Deferred();
+            var row = source.closest('[data-name="lot-item"]').closest('div');
+            row.remove();
+            promise.resolve();
+            return promise;
+        }
+
+        function removeRowLotAmendment(e, source) {
+            var promise = $.Deferred();
+            var row = source.closest('[data-name="lot-item-amedment"]').closest('div');
+            row.remove();
+            promise.resolve();
+            return promise;
+        }
+
+        function removeRowAmount(e, source) {
+            var promise = $.Deferred();
+            var row = source.closest('[data-name="amount-item"]').closest('div');
+            var dataSection = $('div[data-name="amount-container"]');
+            var buttonAdd = $('[name="addNewCurrencyAmount"]');
+            buttonAdd.removeClass('hide');
+            row.remove();
+
+            if (dataSection.find('div[data-name="amount-item"]').length == 1) {
+                $('button[name="removeAmount"]').addClass("hide");
+            } else {
+                $('button[name="removeAmount"]').removeClass("hide");
+            }
+            promise.resolve();
+            return promise;
+        }
+
+        /* ------- Remove Row Contracts ------- */
+        function removeRowContracts(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            var idSelected = tr.attr('data-id')
+            tr.remove();
+
+            if (razorEditParticipants.PackageSelected == idSelected) {
+                $('div[data-section="contract-section-details"]').html("");
+            }
+
+            promise.resolve();
+            return promise;
+        }
+
+        function getContractDetails(contractId) {
+            var containerContractDetail = $('div[data-section="contract-section-details"]');
+            $.ajax({
+                url: razorEditParticipants.Urls.GetContractDetailEdit,
+                data: {
+                    procurementId: razorEditParticipants.ProcurementId,
+                    contractId: contractId,
+                },
+                cache: false,
+                type: 'POST',
+            }).done(function (data) {
+                containerContractDetail.html(data.ContentHTML);
+                bindHandlers(containerContractDetail);
+            });
+        }
+
+        function removeRowContractDoc(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            tr.remove();
+            promise.resolve();
+            return promise;
+        }
+
+        function removeRowAmendment(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            $(tr).next().remove();
+            tr.remove();
+            $('button[name="addNewAmendment"]').removeClass('hide');
+            promise.resolve();
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+
+            return promise;
+        }
+
+        function saveContractModelSaveContract(e, source) {
+            var promise = $.Deferred();
+
+            var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+            if (response != false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+            promise.resolve();
+            return promise;
+        }
+
+        function saveContractModelConfirmContract(e, source) {
+            var promise = $.Deferred();
+            if (ValidateContractTerminated()) {
+                showMessage(razorEditParticipants.Messages.ValidateContractTerminate);
+            }
+
+            var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid == false) {
+                        showMessage(razorEditParticipants.Messages.DocumentRequired);
+                    }
+                });
+            }
+            promise.resolve();
+            return promise;
+        }
+
+        function saveContractModelConfirmAmendment(e, source) {
+            var promise = $.Deferred();
+            var response = saveContainer($('[name="formContracts"]'), '[name="serializedContractsModel"]', false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+            promise.resolve();
+            return promise;
+        }
+
+
+        /*------ Call Ajax Auto Calulate USD ------*/
+        function calculateUSD(source, amountValue, currency) {
+            $.ajax({
+                url: razorEditParticipants.Urls.UrlCalculateUSD,
+                data: {
+                    amount: amountValue,
+                    currency: currency,
+                },
+                cache: false,
+                type: 'POST',
+                dataType: 'json',
+            }).done(function (data) {
+                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                    showMessage(data.ErrorMessage);
+                } else {
+                    var convert = convertToDecimalString(data.Model.ConvertedToUSD.Item1.toFixed(2));
+                    source.parents('div[data-name="amount-item"]').find('div[data-name="converted"] label').html("$ " + convert + " ");
+                    source.parents('div[data-name="amount-item"]').find('div[data-name="converted"] input').val(convert);
+                }
+            });
+        }
+
+        function calculateAmendmetUSD(source, amountValue, currency) {
+            $.ajax({
+                url: razorEditParticipants.Urls.UrlCalculateUSD,
+                data: {
+                    amount: amountValue,
+                    currency: currency,
+                },
+                cache: false,
+                type: 'POST',
+                dataType: 'json',
+            }).done(function (data) {
+                if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                    showMessage(data.ErrorMessage);
+                } else {
+                    var convert = convertToDecimalString(data.Model.ConvertedToUSD.Item1.toFixed(2));
+                    source.parents('div[data-section-amedment]').find('div[data-name="converted-amendment"] label').html("$ " + convert + " ");
+                    source.parents('div[data-section-amedment]').find('div[data-name="converted-amendment"] input').val(convert);
+                }
+            });
+        }
+
+        /* ------ Add Document Popup ------ */
+
+        function AddIDBDocProcContract(items, type, source) {
+            var table = $('#ContractDocuments');
+            var tbody = table.children('tbody');
+            var template = tbody.children(':first');
+
+            var docs = [];
+            if (type == 'added') {
+                items.forEach(function (item, index, list) {
+                    docs.push({ DocumentNumber: item, Description: '' });
+                });
+            } else {
+                docs = items;
+            }
+
+            docs.forEach(
+                function (elem, index, list) {
+                    var newId = table.GenerateNewId();
+
+                    var newTr = template.clone(false);
+
+                    newTr.removeClass('hide');
+                    newTr.removeClass('template');
+                    newTr.attr('data-id', 'new-' + newId);
+
+                    CustomEnable(newTr);
+
+                    $(newTr).find('.document-number').text(elem.DocumentNumber);
+                    $(newTr).find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                    $(newTr).find('input[name="contractDocuments-description"]').val(elem.Description);
+
+                    var choosens = newTr.find('[data-role="drop-multiple"]');
+                    choosens.attr('data-bind', 'true');
+
+                    var datepickers = newTr.find('.hasDatepicker');
+                    datepickers.removeAttr('id');
+
+                    newTr.appendTo(tbody);
+                    bindHandlers(newTr);
+                });
+
+
+            validateChangeTable(table);
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+        }
+
+        function AddIDBDocProcAmendment(items, type, filenames, source) {
+            if (items.length > 0) {
+                var tr = source.closest('tr');
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+                var documentNumber = docs[0].DocumentNumber;
+                var documentDescription = docs[0].Description;
+
+                var docNumber = tr.find('span[data-section="documentNumber"]');
+                var docNumberVal = tr.find('input[name="documentNumber-amendment"]');
+                var description = tr.find('input[name="description-amendment"]');
+                var date = tr.find('input[name="description-Amendment"]');
+
+                var dateText = tr.find('.date-template');
+                dateText.text(razorEditParticipants.Time.TodayFormat);
+
+                var dateInput = tr.find('[name="date-amendment"]');
+                dateInput.val(razorEditParticipants.Time.Today);
+
+                var descriptionInput = tr.find('[name="description-amendment"]');
+                descriptionInput.removeAttr('disabled');
+                descriptionInput.removeAttr('required');
+
+                docNumber.text(documentNumber);
+                docNumberVal.val(documentNumber);
+                description.val(documentDescription);
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+
+            }
+        }
+
+        function addNewContractAmedmentRow() {
+            var table = $('#ContractAmendments');
+            var tbody = table.children('tbody');
+            var template = tbody.children(':first');
+            var templateDetails = template.next();
+            var newId = table.GenerateNewId();
+            var newTr = template.clone(false);
+            var newTrDetails = templateDetails.clone(false);
+
+            newTr.removeClass('hide');
+            newTrDetails.removeClass('hide');
+            newTr.removeClass('template');
+            newTrDetails.removeClass('template');
+            newTr.attr('data-id', 'new-' + newId);
+            newTrDetails.attr('data-id', 'new-' + newId);
+            newTrDetails.find('data-template-persist-amountId');
+            newTrDetails.find('input[data-parsley-greaterThanEndDateAmendment]').attr('data-parsley-greaterThanEndDateAmendment', 'new-' + newId);
+            newTrDetails.find('input[data-parsley-lessThanSignatureDateAmendment]').attr('data-parsley-lessThanSignatureDateAmendment', 'new-' + newId);
+            newTrDetails.find('input[data-parsley-lessThanStartDateAmendment]').attr('data-parsley-lessThanStartDateAmendment', 'new-' + newId);
+            newTrDetails.find('input[data-parsley-notDuplicateLotName]').attr('data-parsley-notDuplicateLotName', 'tr[data-id="' + 'new-' + newId + '"][data-section="details-amendment"] input[name="lotName-amendment"]:not([disabled])');
+            newTrDetails.find('input[data-parsley-enddategreaterstartdate]').attr('data-parsley-enddategreaterstartdate', 'new-' + newId);
+
+            newTrDetails.find('input[data-template-persist-amountId]').each(function () {
+                var sourceInput = $(this);
+                var valueAttr = sourceInput.attr("data-template-persist-amountId");
+                sourceInput.attr("data-persist-amountId", valueAttr);
+                sourceInput.removeAttr("data-template-persist-amountId");
+            });
+
+            var choosens = newTr.find('[data-role="drop-multiple"]');
+            choosens.attr('data-bind', 'true');
+
+            choosens = newTrDetails.find('[data-role="drop-multiple"]');
+            choosens.attr('data-bind', 'true');
+
+            var datepickers = newTr.find('.hasDatepicker');
+            datepickers.removeAttr('id');
+
+            datepickers = newTrDetails.find('.hasDatepicker');
+            datepickers.removeAttr('id');
+
+            var descriptionInput = newTr.find('[name="description-amendment"]');
+
+            validateChangeTable(table);
+
+            CustomEnable(newTr);
+            newTr.appendTo(tbody);
+            newTrDetails.appendTo(tbody);
+            descriptionInput.removeAttr('required');
+            descriptionInput.attr('disabled', 'disabled');
+            bindHandlers(newTr);
+            bindHandlers(newTrDetails);
+
+
+            $('[name="addNewAmendment"]').addClass('hide');
+            $(newTr).find('[data-name="collapseAmedmentsDetails"]').click();
+            $(newTr).find('[data-name="collapseAmedmentsDetails"]').click();
+        }
+
+        function CustomEnable(container) {
+            var inputs = container.find('input, select, textarea, div.inputSearch.lupa.ctlAsyncr > button, div.dropdown > button');
+            inputs = inputs.filter(function () {
+                var input = $(this);
+                return input.attr('data-keep-disabled') != 'true';
+            });
+            inputs.removeAttr('disabled');
+        }
+
+        function validateChangeTable(source) {
+            var associatedRows = source.data('checklist-associated-rows');
+            if (associatedRows != null) {
+                for (var key in associatedRows) {
+                    var row = associatedRows[key];
+                    var table = row.closest('table[data-role="checklist"]');
+                    table.trigger('checklist-validate-row', row);
+                }
+            }
+        }
+
+        function ActivateFirmModeValidation() {
+            var form = $('[name="formContracts"]');
+            var affectedInputsRemove = form.find('input[data-required-firm="false"],select[data-required-firm="false"]');
+            var affectedInputsAdd = form.find('input[data-required-firm="true"],select[data-required-firm="true"]');
+            affectedInputsRemove.removeAttr('data-parsley-required');
+            affectedInputsAdd.attr('data-parsley-required', "true");
+            $('input[name="validation-localization"]').attr('data-parsley-localizationrequired', "true");
+            $('input[name="validation-currency-amount"]').attr('data-parsley-amountRequired', "true");
+
+            var contractId = $('[name=contractId-validation]').val();
+            var bidderContractAffected = $('#ContractsTable tbody tr[data-id="' + contractId + '"] input[name="bidder-Contracts"]');
+            bidderContractAffected.attr('data-parsley-required', "true");
+
+            var table = $('#ContractDocuments tbody tr:not(.template)');
+            var docType = table.find('[name="contractDocuments-documentType"]');
+            docType.attr('data-parsley-required', 'true');
+
+            docType.each(function (key, item) {
+                var tr = $(item).closest('tr');
+                tr.find('[name="contractDocuments-documentType"]').attr('data-parsley-required', 'true');
+            });
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley()
+        }
+
+        function ActivateSaveModeValidation() {
+            var form = $('[name="formContracts"]');
+            var affectedInputsRemove = form.find('input[data-required-save="false"],select[data-required-save="false"],[name="bidder-Contracts"]');
+            var affectedInputsAdd = form.find('input[data-required-save="true"],select[data-required-save="true"]');
+            affectedInputsRemove.removeAttr('data-parsley-required');
+            affectedInputsAdd.attr('data-parsley-required', "true");
+            $('input[name="validation-localization"]').removeAttr('data-parsley-localizationrequired');
+            $('input[name="validation-currency-amount"]').removeAttr('data-parsley-amountRequired');
+
+            var amendmentRequired = form.find('input[name="AmendmentRequired"]');
+            amendmentRequired.attr('data-parsley-notAmendmentDoc', 'true');
+
+            var table = $('#ContractDocuments tbody tr:not(.template)');
+            var docType = table.find('[name="contractDocuments-documentType"]');
+
+            docType.each(function (key, item) {
+                var tr = $(item).closest('tr');
+                tr.find('[name="contractDocuments-documentType"]').attr('data-parsley-required', 'true');
+            });
+
+            initParsley();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+        }
+
+        function ActivateValidationAmendment() {
+            var form = $('[name="formContracts"]');
+            var amendmentRequired = form.find('input[name="AmendmentRequired"]');
+            amendmentRequired.attr('data-parsley-notAmendmentDoc', 'true');
+        }
+
+        function ValidateContractsDates() {
+            var result = true;
+            var endProcurementDate = $('[name="endProcurementDate"]').val();
+            var contractSignatureDate = $('[name="dateSignature-contracts"]').val();
+            var contarctStartDate = $('[name="dateStart-contracts"]').val();
+            var contractEndDate = $('[name="dateEnd-contracts"]').val();
+
+            if (endProcurementDate != "") {
+                var valueEndProcurementDate = convertStringToDateDDMMMYYYY(endProcurementDate);
+
+                if (contractSignatureDate != "" && result) {
+                    var valuecontractSignatureDate = convertStringToDateDDMMMYYYY(contractSignatureDate);
+                    result = valuecontractSignatureDate <= valueEndProcurementDate;
+                }
+                if (contarctStartDate != "" && result) {
+                    var valuecontarctStartDate = convertStringToDateDDMMMYYYY(contarctStartDate);
+                    result = valuecontarctStartDate <= valueEndProcurementDate;
+                }
+                if (contractEndDate != "" && result) {
+                    var valuecontractEndDate = convertStringToDateDDMMMYYYY(contractEndDate);
+                    result = valuecontractEndDate <= valueEndProcurementDate;
+                }
+            }
+
+            return result;
+        }
+
+        function ValidateContractsDatesAmendment() {
+            var result = true;
+            var endProcurementDate = $('[name="endProcurementDate"]').val();
+            var contarctStartDate = $('#ContractAmendments tbody tr[data-section="details-amendment"][data-id] [name="dateStartDate-amendment"]').val();
+            var contractEndDate = $('#ContractAmendments tbody tr[data-section="details-amendment"][data-id] [name="dateEndDate-amendment"]').val();
+
+            if (endProcurementDate != "") {
+                var valueEndProcurementDate = convertStringToDateDDMMMYYYY(endProcurementDate);
+
+                if (contarctStartDate != "" && result) {
+                    var valuecontarctStartDate = convertStringToDateDDMMMYYYY(contarctStartDate);
+                    result = valuecontarctStartDate <= valueEndProcurementDate;
+                }
+                if (contractEndDate != "" && result) {
+                    var valuecontractEndDate = convertStringToDateDDMMMYYYY(contractEndDate);
+                    result = valuecontractEndDate <= valueEndProcurementDate;
+                }
+            }
+
+            return result;
+        }
+
+        function ValidateAmountContract(saveType) {
+
+            //// Current amount of detail
+            var currentsAmount = $('[name="total-convertedUSD"]');
+
+            //// Amount of lots no amendment
+            var lotsAmount = $('[name="amount-Lots"]');
+            //// Table amendment
+            var tableAmedment = $('#ContractAmendments tbody tr:not(.template)');
+
+            //// Lots amount of amendment
+            var lotsAmedmentAmount = tableAmedment.find('[name="lotAmount-amendment"]');
+            //// Current amount of amendment
+            var currentAmedmentAmount = tableAmedment.find('[name="convertToUSD-amendment"]');
+            //// Lots amendment name
+            var lotAmendments = tableAmedment.find('[name="lotName-amendment"]');
+
+            var totaCurrentAmount = 0;
+            var totaLotsAmount = 0;
+            var totalLotsAmedment = 0;
+
+            //// Total cost of procurement
+            var totalCost = parseFloatFormated(razorEditParticipants.TotalCost);
+
+            //// When lots is required, get total lots amount of procurement.
+            var totalContractAmountParse = parseFloatFormated($('[name="totalContractAmounts"]').val());
+
+            //// We need verify if exist lots no amendment
+            var totalLots = $('[data-name="lot-container"]').find('input[name="name-Lots"]');
+
+            //// We nedd verify if exist lots on amendment
+            var lotContainer = $('[data-section="details-amendment"]').not('.hide');
+            var lotAmendments = lotContainer.find('[name="lotName-amendment"]').not('[disabled="disabled"]');
+
+            var result = true;
+
+            if ((razorEditParticipants.ContractStatusId != razorEditParticipants.StatusType.PendingId && razorEditParticipants.ContractStatusId != razorEditParticipants.StatusType.TerminatedId)) {
+                //// Details amendments
+                currentAmedmentAmount.each(function (key, item) {
+                    var currentAmedmentSource = parseFloatFormated($(item).val());
+                    if (!isNaN(currentAmedmentSource)) {
+                        totaCurrentAmount = totaCurrentAmount + currentAmedmentSource;
+                    }
+                });
+
+                lotsAmedmentAmount.each(function (key, item) {
+                    var lotAmedmentSource = parseFloatFormated($(item).val());
+                    if (!isNaN(lotAmedmentSource)) {
+                        totalLotsAmedment = totalLotsAmedment + lotAmedmentSource;
+                    }
+                });
+
+                if (razorEditParticipants.ProcurementType != razorEditParticipants.IndividualConsultant) {
+                    if (lotAmendments.length == 0) {
+                        if (totaCurrentAmount + totalContractAmountParse > totalCost) {
+                            result = warningValidate(saveType);
+                        }
+                    } else {
+                        if ((totalLotsAmedment != totaCurrentAmount && lotAmendments.length > 0)) {
+                            showMessage(razorEditParticipants.Messages.ValidationTotalContractLotsCurrent);
+                            result = false;
+                        } else if (totaCurrentAmount > totalCost || totalContractAmountParse + totalLotsAmedment > totalCost) {
+                            result = warningValidate(saveType);
+                        }
+                    }
+                } else {
+                    if (totaCurrentAmount > totalCost || totalContractAmountParse + totaCurrentAmount > totalCost) {
+                        result = warningValidate(saveType);
+                    }
+                }
+
+            } else {
+                //// Details No amendments
+                //// Get all amounts of all contract.
+                currentsAmount.each(function (key, item) {
+                    var currentSource = parseFloatFormated($(item).val());
+                    if (!isNaN(currentSource)) {
+                        totaCurrentAmount = totaCurrentAmount + currentSource;
+                    }
+                });
+
+                //// get all lots of contract
+                lotsAmount.each(function (key, item) {
+                    var lotSource = parseFloatFormated($(item).val());
+                    if (!isNaN(lotSource)) {
+                        totaLotsAmount = totaLotsAmount + lotSource;
+                    }
+                });
+
+                if (razorEditParticipants.ProcurementType != razorEditParticipants.IndividualConsultant) {
+                    if (totalLots.length == 0) {
+                        if (totaCurrentAmount + totalContractAmountParse > totalCost) {
+                            result = warningValidate(saveType);
+                        }
+                    } else {
+                        if (totaLotsAmount != totaCurrentAmount) {
+                            showMessage(razorEditParticipants.Messages.ValidationTotalContractLotsCurrent);
+                            result = false;
+                        } else if (totaCurrentAmount > totalCost || totalContractAmountParse + totaLotsAmount > totalCost) {
+                            result = warningValidate(saveType);
+                        }
+                    }
+
+                } else {
+                    if (totaCurrentAmount > totalCost || totalContractAmountParse + totaLotsAmount > totalCost) {
+                        result = warningValidate(saveType);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        function warningValidate(saveType) {
+            var modalBtn = $('[name="btn-open-popup-validation-total-lot"]');
+            modalBtn.attr('data-new-modal-button-btn-cancel-ok-callback', "saveContractModel" + saveType)
+            modalBtn.click();
+            result = false;
+        }
+
+        function ValidateContractTerminated() {
+            //// Show message when Non Objection button for Terminated Contract is displayed
+            return razorEditParticipants.ShowTerminatedContractBtn == "True";
+        }
+
+        function convertToDecimalString(amount) {
+            if (amount == null) {
+                return '';
+            }
+
+            var string = amount.toString();
+            var amountParts = string.split('.');
+            var decimalPart = amountParts[1];
+            var intPart = addCommas(amountParts[0]);
+
+            if (typeof (decimalPart) == "undefined") {
+                decimalPart = "00";
+            } else if (decimalPart.length == 1) {
+                decimalPart = decimalPart + "0";
+            }
+
+            return intPart + '.' + decimalPart;
+        }
+
+        function addCommas(nStr) {
+            nStr += '';
+            x = nStr.split('.');
+            x1 = x[0];
+            x2 = x.length > 1 ? '.' + x[1] : '';
+            var rgx = /(\d+)(\d{3})/;
+            while (rgx.test(x1)) {
+                x1 = x1.replace(rgx, '$1' + ',' + '$2');
+            }
+
+            return x1 + x2;
+        }
+
+    </script>
+            )
+}

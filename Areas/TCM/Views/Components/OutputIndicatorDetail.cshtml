@@ -1,0 +1,294 @@
+﻿@using Newtonsoft.Json;
+@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Common
+@using IDB.MW.Domain.Values
+
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+    ViewBag.Title = Localization.GetText("TCM.Outputs.OutputIndicatorDetails");
+}
+@model IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Components.OutputIndicatorDetailViewModel
+
+<input hidden data-idb-pagename="UI-COM-005Partial-OutputIndicatorDetails" />
+<div class="page">
+    <div id="PageContent" class="content-expandable"
+         data-parsley-validate="data-parsley-validate"
+         data-loadurl="@Url.Action("OutputIndicatorDetailReload", "Components", new { area = "TCM", id = Model.OutputIndicatorDetailContent.OutputId})"
+         data-url="@Url.Action("SaveOutputIndicatorDetail", "ComponentsSave", new { area = "TCM" })">
+        @if (Model != null)
+        {
+            @Html.Partial("Partial/OutputIndicatorDetailPartial", Model)
+        }
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+        
+        var otherFundIndicators = null;
+        var beoProcurements = @Html.Raw(Json.Encode(Model.OutputIndicatorDetailContent.RelateBeoProcurements));
+
+        $(document).ready(function () {
+            var idTheme = $("[name='theme']").val();
+            if (idTheme === "") {
+                $('input[name="otherDescription"]').prop("disabled", true);
+            } else {
+                $('input[name="otherDescription"]').prop("disabled", false);
+            }
+            
+            otherFundIndicators = @Html.Raw(JsonConvert.SerializeObject(Model.OutputIndicatorDetailContent.OtherFundIndicatorIds));
+        });
+
+        $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-theme"] a', function () {
+            var idTheme = $("[name='theme']").val();
+            var isManualOutput = $("input[name='hdIsManualOutput']").val().toLowerCase() === 'true';
+
+            if (idTheme !== "" && !isManualOutput) {
+                $.ajax({
+                    url: "@Url.Action("GetFundIndicatorsByThemeId", "Components", new {area = "TCM"})",
+                    type: "POST",
+                    dataType: "json",
+                    data: { 'idTheme': idTheme, 'outputId': $("input[name='hdOutputId']").val() },
+                    success: function (result) {
+
+                        if (result.ListResponse.length > 0) {
+                            var data = $.map(result.ListResponse, function (item, a) {
+                                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                            });
+
+                            $("input[name='fundIndicator']").attr("required", false);
+                            $('ul.dropdown-menu[aria-labelledby="id-fundIndicator"]').html(data.join(""));
+                            $('ul.dropdown-menu[aria-labelledby="id-fundIndicator"]').closest('div.dropdown').find('button').FirstorDefault();
+
+                            $('input[name="otherDescription"]').val("");
+                            if ($('ul.dropdown-menu[aria-labelledby="id-fundIndicator"]').find("a[dd-selected]").attr("dd-value") == "-1") {
+                                $('input[name="otherDescription"]').attr("required", false);
+                                $("[name='otherDescription']").closest("[data-attr='descriptionContent']").show();
+                            } else {
+                                $('input[name="otherDescription"]').attr("required", false);
+                                $("[name='otherDescription']").closest("[data-attr='descriptionContent']").hide();
+                            }
+                        } else {
+                            $('ul.dropdown-menu[aria-labelledby="id-fundIndicator"]').closest('div.dropdown').find('button').FirstorDefault();
+                            $("[name='otherDescription']").closest("[data-attr='descriptionContent']").show();
+                            $('input[name="otherDescription"]').attr("required", false);
+                            $('input[name="otherDescription"]').val("");
+                            $("input[name='fundIndicator']").attr("required", false).attr("data-parsley-required", false).next('ul.parsley-errors-list').removeClass('filled').find('li').remove();
+                        }
+
+                    }
+                });
+
+            } else {
+            }
+            if (idTheme === "") {
+                $('input[name="otherDescription"]').prop("disabled", true);
+            } else {
+                $('input[name="otherDescription"]').prop("disabled", false);
+            }
+        });
+
+        $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-fundIndicator"] a', function () {
+            
+            var idFundInd = $("[name='fundIndicator']").val();
+            
+            var isOther = isOtherFundIndicator(otherFundIndicators, $(this).text());    
+
+            if (!isOther) {
+                $("[name='otherDescription']").closest("[data-attr='descriptionContent']").hide();
+                $('input[name="otherDescription"]')
+                    .attr("required", false)
+                    .attr("data-parsley-required", false)
+                    .attr("data-parsley-required", false)
+                    .next('ul.parsley-errors-list')
+                    .removeClass('filled').find('li').remove();
+            }else {
+                $("[name='otherDescription']").closest("[data-attr='descriptionContent']").show();
+                $('input[name="otherDescription"]').attr("required", false);
+                $('input[name="otherDescription"]').val("");
+            }
+        });
+
+        $(document).on("change", "input[name='meansOfVerification']", function () {
+            if ($("[name='hdSaveInResultMatrix']").val() == "True") {
+                var originalMeansOfVerification = $(this).parent("span").find("[name='original-meansOfVerification']");
+                setClassToStoreInMatrixChanges(originalMeansOfVerification, this);
+            }
+        });
+
+        $(document).on("change", "input[name='baseline']", function () {
+            if ($("[name='hdSaveInResultMatrix']").val() == "True") {
+                var originalBaseline = $(this).parent("span").find("[name='original-baseline']");
+                setClassToStoreInMatrixChanges(originalBaseline, this);
+            }
+        });
+
+        $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-baselineYear"] a', function () {
+            if ($("[name='hdSaveInResultMatrix']").val() == "True") {
+                var originalBaselineYear = $(this).closest("span.showDataEdit").find("[name='original-baselineYear']");
+                var temporaryBaselineYear = $("<input type='text' value=" + $(this).text() + ">");
+                setClassToStoreInMatrixChanges(originalBaselineYear, temporaryBaselineYear);
+            }
+        });
+
+        $(document).on("click", "input[name='isAutoCalcEop']", function () {
+            if ($("[name='hdSaveInResultMatrix']").val() == "True") {
+
+                $(this).parent("label.checkbox-default").hasClass("checked")
+                    ? $(this).parent("label.checkbox-default").removeClass("checked")
+                    : $(this).parent("label.checkbox-default").addClass("checked");
+
+                var checked = $(this).parent("label.checkbox-default").hasClass("checked");
+                var checkedValue = checked ? "true" : "false";
+
+                var originalIsAutoCalcEop = $(this).closest("span.showDataEdit").find("[name='original-isAutoCalcEop']");
+                var temporaryIsAutoCalcEop = $("<input type='text' value=" + checkedValue + ">");
+                setClassToStoreInMatrixChanges(originalIsAutoCalcEop, temporaryIsAutoCalcEop);
+            }
+        });
+
+        $(document).on("click", "input[name='inactivateOutputsDetails']", function () {
+            
+            if ($(this).is(':checked') && 
+                $("[name='hdIsLinkedToBeoProcurement']").val() == "True" && 
+                ($("[name='hdIntervalId']").val() == "1" || $("[name='hdIntervalId']").val() == "2")) {
+                buildProcurementList();
+                confirmAction($("#inactive-beo-procurement-output-message").html());
+            }
+
+            if ($("[name='hdSaveInResultMatrix']").val() == "True") {
+
+                $(this).parent("label.checkbox-default").hasClass("checked")
+                    ? $(this).parent("label.checkbox-default").removeClass("checked")
+                    : $(this).parent("label.checkbox-default").addClass("checked");
+
+                var checked = $(this).parent("label.checkbox-default").hasClass("checked");
+                var checkedValue = checked ? "true" : "false";
+
+                var originalIsAutoCalcEop = $(this).closest("span.showDataEdit").find("[name='original-inactivateOutputsDetails']");
+                var temporaryIsAutoCalcEop = $("<input type='text' value=" + checkedValue + ">");
+                setClassToStoreInMatrixChanges(originalIsAutoCalcEop, temporaryIsAutoCalcEop);
+            }
+        });
+
+        function isOtherFundIndicator(otherFundIndicators, fundIndicatorName)
+        {
+            var found = false;
+            $.each(otherFundIndicators,function(index, otherFundIndicator){
+                if(otherFundIndicator.Item2 == fundIndicatorName){
+                    found=true;
+                    return false;
+                }
+            });
+            return found;
+        }
+
+        function setClassToStoreInMatrixChanges(originalInput, updatedInput) {
+            $(updatedInput).val() != $(originalInput).val()
+                ? $(originalInput).addClass("store-to-matrix-changes")
+                : $(originalInput).removeClass("store-to-matrix-changes");
+        }
+
+        function edit(source) {
+            postUrlWithOptions('@Url.Action("LockRegister", "Components", new {area = "TCM"})', { async: false }, { url: '@TCMGlobalValues.TCM_EDIT_COMPONENTS' })
+                .done(function (data) {
+                    if (data.IsValid === true) {
+                        var success = enterEditMode(false, $('#PageContent'), false);
+
+                        if (success) {
+                            enterEditMode(false, $('[data-id=headerButtons]'), false);
+                        }
+
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+        }
+
+        function redirect(elem) {
+            var msg = '@Localization.GetText("TCM.Outputs.CancelOtherMessage")';
+            confirmActionCustom(msg, '@Localization.GetText("TCM.SOI.SelectOutputIndicator.Cancel")', '@Localization.GetText("TCM.Ok")').done(function (pressOk) {
+
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "Components", new {area = "TCM"})', { async: true }, { url: '@TCMGlobalValues.TCM_EDIT_COMPONENTS' });
+                    var path = $(elem).data("url");
+                    setTimeout(showLoader(), 2000);
+                    window.location = path;
+                }
+            });
+        }
+
+        function cancel(source) {
+            var msg = '@Localization.GetText("TCM.Outputs.CancelOtherMessage")';
+            confirmActionCustom(msg, '@Localization.GetText("TCM.SOI.SelectOutputIndicator.Cancel")', '@Localization.GetText("TCM.Ok")').done(function (pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "Components", new {area = "TCM"})', { async: true }, { url: '@TCMGlobalValues.TCM_EDIT_COMPONENTS' });
+                    exitEditMode(true, $('#PageContent'), true, false);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    setTimeout(showLoader(), 2000);
+                }
+            });
+        }
+
+        function save(source) {
+            if (validateContainer($('#PageContent'))) {
+                var changesWithChangesMatrixActive = $("input.store-to-matrix-changes");
+                if ($("[name='hdSaveInResultMatrix']").val() == "True" && changesWithChangesMatrixActive.length > 0) {
+                    var msg = '@Localization.GetText("TCM.RCMW.RegisterChanges.TextMessage")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.SOI.SelectOutputIndicator.Cancel")', '@Localization.GetText("TCM.Save")').done(function(pressOk) {
+                        if (pressOk) {
+                            saveDetail(true);
+                        }
+                    });
+                } else {
+                    if (showWarningProcurement()) {
+                        var msg = '@Localization.GetText("Prueba Warning")';
+                        confirmActionCustom(msg, '@Localization.GetText("TCM.SOI.SelectOutputIndicator.Cancel")', '@Localization.GetText("TCM.Save")').done(function(pressOk) {
+                            if (pressOk) {
+                                saveDetail(true);
+                            }
+                        });
+                    }else {
+                        saveDetail(true);
+                    }
+                }
+            }
+        }
+
+        function showWarningProcurement()
+        {
+            if ($(this).is(':checked') && 
+                $("[name='hdIsLinkedToBeoProcurement']").val() == "True" && 
+                ($("[name='hdIntervalId']").val() == "1" || $("[name='hdIntervalId']").val() == "2")) {
+                return true;
+            }
+
+            return false;
+        }
+
+        function buildProcurementList()
+        {
+            $("#related-beo-procurement").text("");
+            $.each(beoProcurements, function(index, value){
+                $("#related-beo-procurement").append("<b>"+value+"</b><br /><br />");
+            });
+        }
+
+        function saveDetail(isAsync) {
+            var response = saveContainer($('#PageContent'), '#hidViewModel', true, $('#headerButtons'), null, true, null, null, isAsync);
+            if (response !== false) {
+                response.done(function(data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                        errorBar(data.ErrorMessage);
+                        return false;
+                    } else {
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                        successBar('@Localization.GetText("OP.DL.Message.Success")', 3, true);
+                    }
+                });
+            }
+        }
+
+    </script>
+
+}

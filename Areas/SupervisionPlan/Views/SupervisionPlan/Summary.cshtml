@@ -1,0 +1,273 @@
+﻿@using IDB.MW.Business.SupervisionPlan.ViewModels.SupervisionPlan
+@using IDB.MW.Domain.Values
+
+@model SummaryModel
+@{
+    Layout = "~/Areas/SupervisionPlan/Views/Shared/_Layout.cshtml";
+}
+
+@using (Html.BeginForm("Summary", "SupervisionPlan", FormMethod.Post, new { area = "SupervisionPlan", id = "mainSummaryForm" }))
+{
+    @Confluence.InputHidden(ViewBag.OperationNumber, "operationNumber")
+    @Confluence.InputHidden(ViewBag.Year.ToString(), "year")
+}
+
+@using (Html.BeginForm("SummaryEdit", "SupervisionPlan", FormMethod.Post, new { area = "SupervisionPlan", id = "editSummaryForm" }))
+{
+    @Confluence.InputHidden(ViewBag.OperationNumber, "operationNumber")
+    @Confluence.InputHidden(ViewBag.Year.ToString(), "year")
+    @Confluence.InputHidden(null, "tab")
+}
+
+@using (Html.BeginForm("DetailsPlanVersionApprovalRequest", "SupervisionPlanLegacy", FormMethod.Post, new { area = "SupervisionPlan", id = "requestForm" }))
+{
+    @Confluence.InputHidden(ViewBag.OperationNumber, "operationNumber")
+    @Confluence.InputHidden(ViewBag.Year.ToString(), "year")
+    if (ViewBag.Year != 0)
+    {
+        @Confluence.InputHidden(Model.SupervisionPlan.ActualVersion.SupervisionPlanVersionId.ToString(), "planVersionId")
+    }
+}
+
+
+
+<div class="row col-md-12 mb20">
+    @Confluence.LabelMainTitle(Localization.GetText("SP.Summary.TextTitle"))
+</div>
+
+@Confluence.ButtonColapseAll(new List<string> { "tableSummary" })
+<div class="mb20">
+    <table id="tableSummary" class="tableNormal mb20">
+        <thead>
+            <tr>
+                <th class="sort" order-type="numeric">@Localization.GetText("SP.Summary.SupervisionPlanTable.Year")</th>
+                <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.Modality")</th>
+                <th class="sort">@Localization.GetText("SP.Summary.SupervisionPlanTable.Status")</th>
+                <th class="sort" order-type="date">@Localization.GetText("SP.Summary.SupervisionPlanTable.LastUpdated")</th>
+                <th class="sort" order-type="date">@Localization.GetText("SP.Summary.SupervisionPlanTable.CreationDate")</th>
+                <th class="sort" order-type="date">@Localization.GetText("SP.Summary.SupervisionPlanTable.ValidationDate")</th>
+                <th>@Localization.GetText("SP.Summary.SupervisionPlanTable.Action")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var plan in Model.SupervisionsPlans.Where(plan => plan.ActualVersion != null).Where(plan => plan.ActualVersion.SupervisionPlanVersionId != Model.VersionId))
+            {
+                <tr data-id="@plan.SupervisionPlanId" data-version-id="@plan.ActualVersion.SupervisionPlanVersionId" class="@((bool)ViewBag.LoadCollapse ? "hide" : "")">
+                    <td class="text-center">@Confluence.LabelLink(plan.Year.ToString(), action: "reloadPlan", htmlClass: "bold")</td>
+                    <td data-type="@(plan.ActualVersion != null && plan.ActualVersion.Modality != null ? plan.ActualVersion.Modality.Code : null)" class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.Modality != null ? plan.ActualVersion.Modality.GetLanguageCode(Localization.CurrentLanguage) : SpGlobalValues.SpSimplified)</td>
+                    <td class="text-center">@(plan.ActualVersion != null ? plan.ActualVersion.ValidationStage.Name : string.Empty)</td>
+                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.Modified.HasValue ? plan.ActualVersion.Modified.Value.ToString("dd MMM yyy") : "")</td>
+                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.Created.HasValue ? plan.ActualVersion.Created.Value.ToString("dd MMM yyy") : "")</td>
+                    <td class="text-center">@(plan.ActualVersion != null && plan.ActualVersion.ValidationDate.HasValue ? plan.ActualVersion.ValidationDate.Value.ToString("dd MMM yyy") : "")</td>
+                    <td class="text-center">@Html.Partial("Partial/RowButtons", plan)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (Model.CanCreateSupervisionPlan)
+    {
+        <div  class="text-center">
+            @Confluence.ButtonAddNewRows(
+            text: Localization.GetText("SP.Button.New"),
+            tableid: "tableSummary",
+            action: "NewSupervisionPlan")
+        </div>
+    }
+
+    @if (ViewBag.Year != 0)
+    {
+        <a name="titleSPYear" class="col-md-12 pr0">
+            <div class="row col-md-8 mb10">
+                @Confluence.LabelMainTitle(string.Format("{0} {1}", Localization.GetText("SP.Summary.SupervisionPlan"), ViewBag.Year))
+            </div>
+        </a>
+        <div>
+            @if (Model.IsRequestValidation)
+            {
+                <div class="requestZone mb30">@Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/RequestButton.cshtml", Model)</div>
+            }
+        </div>
+            @Confluence.Tabs(new Dictionary<string, string>
+    {
+        {"CriticalProducts", Localization.GetText("SP.Summary.SupervisionPlanTable.CriticalProducts")},
+        {"Activities", Localization.GetText("SP.Summary.SupervisionPlanTable.Activities")},
+        {"Budget", Localization.GetText("SP.Summary.SupervisionPlanTable.Budget")}
+    }, ViewBag.Tab)
+            <div class="tab-content">
+                <div class="tab-pane" id="CriticalProducts" data-id-tab="1"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-url=""
+                     data-loadurl="">
+                    @Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ActionButtons.cshtml", Model)
+                    @(Model.ModalityType == SpGlobalValues.SpDetailed ? Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ReadMode/CriticalProductDetailedPartial.cshtml") : Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ReadMode/CriticalProductSimplifiedPartial.cshtml"))
+                    @if (Model.CriticalModel.CriticalsProducts.Count > 0)
+                    {
+                        <div>@Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ActionButtons.cshtml", Model)</div>
+
+                    }
+
+                </div>
+
+                <div class="tab-pane" id="Activities" data-id-tab="2"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-url=""
+                     data-loadurl="">
+                    @Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ActionButtons.cshtml", Model)
+                    @(Model.ModalityType == SpGlobalValues.SpDetailed ? Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ReadMode/ActivitiesDetailedPartial.cshtml") : Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ReadMode/ActivitiesSimplifiedPartial.cshtml"))
+                    @if (Model.ActivitiesModel.Activities.Count > 0)
+                    {
+                        <div>@Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ActionButtons.cshtml", Model)</div>
+                    }
+
+                </div>
+
+                <div class="tab-pane" id="Budget" data-id-tab="3"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-url=""
+                     data-loadurl="">
+
+                    @Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ActionButtons.cshtml", Model)
+                    @(Model.ModalityType == SpGlobalValues.SpDetailed ? Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ReadMode/BudgetPartial.cshtml", Model) : Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/ReadMode/BudgetPartialSimplified.cshtml", Model))
+
+                </div>
+            </div>
+    }
+</div>
+
+<div id="divPriorVersion">
+    <button data-id="buttonPriorVersion" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="priorVersionModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("SP.Summary.PriorVersions")"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="priorVersionModal" class="hide modalBody"></div>
+</div>
+
+@section JS
+{
+    <script type="text/javascript">
+
+
+        $(document).ready(function () {
+            $('#tableSummary').sortableConfluense(false);
+
+            @if ((bool)ViewBag.LoadCollapse)
+            {
+                <text>
+            $('[dd-contenedores=",tableSummary,"]').click();
+            </text>
+            }
+
+            @if (ViewBag.Year != 0)
+            {
+                <text>
+            showLoaderOptional();
+            setTimeout(function () {
+                window.location = '#titleSPYear';
+                hideLoaderOptional();
+            }, 1000);
+            </text>
+            }
+            disableEditOnBudget();
+            hideLoader();
+            $('.tabs li[dd-tab="#Budget"]').click(function () {
+                disableEditOnBudget();
+            });
+
+        });
+
+        function downloadDocument(target) {
+            var docNumber = $(target).closest('tr').find('[name="docReference"]').val().trim();
+
+            var url = '@Url.Action("DownloadDocument", "DocumentModal", new {area = ""})' + '?documentNumber=' + docNumber;
+            window.open(url, '_blank');
+        }
+
+        function reloadPlan(source) {
+            showLoaderOptional();
+            $('#mainSummaryForm').find('[name="year"]').val(source.text());
+            $('#mainSummaryForm').submit();
+
+        }
+
+        function priorVersion(source) {
+            var idPriorVersion = $(source).closest('tr').attr('data-id');
+            var url = '@Url.Action("PriorPlanVersionPartial", "SupervisionPlan", new {area = "SupervisionPlan"})' + "?supervisioPlanId=" + idPriorVersion;
+            postUrlWithOptions(url, { async: false })
+                .done(function (data) {
+                    $('#priorVersionModal').html(data);
+                    $('[data-id="buttonPriorVersion"]').click();
+                })
+                .fail(function (jqXhr, textStatus, errorThrown) {
+                    showMessage(errorThrown);
+                });
+        }
+        function disableEditOnBudget() {
+            if ($('.tab-pane.active').attr('id') === "Budget" && '@Model.ModalityType' === '@SpGlobalValues.SpDetailed') {
+                $('.tab-pane.active').find('.buttonBlue[data-action="edit"]').remove();
+            }
+        }
+
+        $('.tabs li[dd-tab="#Budget"]').click(function () {
+            disableEditOnBudget();
+        });
+
+        function DownloadDocument(source) {
+            var formatDoc = source.attr('name');
+            var tr = $(source).closest('tr');
+            var supervisionPlanVersionId = tr.attr('data-version-id');
+            var operationId = '@Model.OperationId';
+            var modality = "";
+            if (tr.find('[data-type]').length > 0) {
+                modality = tr.find('[data-type]').attr('data-type');
+            }
+            var url = '@Url.Action("ExportSupervisionPlanReport", "SupervisionPlan", new
+               {area = "SupervisionPlan"})' + "?supervisionPlanId=" + supervisionPlanVersionId +
+                "&operationId=" + operationId + "&language=EN" + "&exportType=" + formatDoc +
+                "&modality=" + modality;
+
+            var data = { SupervisionPlanId: supervisionPlanVersionId, operation_id: operationId, language: "EN", ExportType: formatDoc, modality: modality };
+            postUrlWithOptions(url, null, data).done(function (data) {
+                window.open(data, '_blank');
+            });
+        }
+
+        function edit(source) {
+            showLoaderOptional();
+            $('#editSummaryForm').find('[name="tab"]').val(source.closest('.tab-pane').attr('data-id-tab'));
+            $('#editSummaryForm').submit();
+        }
+
+        function request() {
+            showLoaderOptional();
+            $('#requestForm').submit();
+        }
+
+        function NewSupervisionPlan()
+        {
+            var url = '@Url.Action("CreateNewSupervisionPlan", "SupervisionPlan", 
+                new
+                {
+                    area = "SupervisionPlan"
+                })' + '?operationNumber=' + '@IDBContext.Current.Operation';
+
+            postUrlWithOptions(url, { async: false })
+                .done(function (data) {
+                    if (data.IsValid) {
+                        location.reload();
+                    }
+
+                    showMessage(data.ErrorMessage);
+                })
+                .fail(function (jqXhr, textStatus, errorThrown) {
+                    showMessage(errorThrown);
+                });
+        }
+    </script>
+}

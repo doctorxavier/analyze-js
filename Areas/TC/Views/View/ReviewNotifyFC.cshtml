@@ -1,0 +1,128 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.MW.Application.TCAbstractModule.ViewModels.NotifyFunding
+
+@model TCReviewNotifyFCViewModel
+
+@if (ViewBag.IsCoordinator)
+{
+    <div class="header">
+        <div class="row row-body-40">
+            <div class="col-md-12">
+                @Html.Partial("Partials/Controls/ReviewTCNotifyFCButtons")
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="row row-header font-header">
+                    <div class="col-md-12">
+                        @Localization.GetText("TC.Header.Instructions").HtmlEncode()
+                    </div>
+                </div>
+                <div class="row row-body-50 font-body">
+                    <div class="col-md-12">
+                        @Localization.GetText("TC.Header.SelectFundCoordinator").HtmlEncode()
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>    
+    <div class="page">
+        <div id="TCData" class="tcCollapsibleMargin" data-parsley-validate="data-parsley-validate"
+                data-parsley-excluded="[disabled]" data-ignore-nullable-values="true"
+                data-loadurl="@Url.Action("ReviewNotifyFCEdit", "View", new { area = "TC" })"
+                data-url="@Url.Action("ReviewNotifyFC", "Save", new { area = "TC" })">
+            @Html.Partial("Partials/NotifyFC/ReviewNotifyFCPartial", Model)
+        </div>    
+        <div class="row row-body-50">
+            <div class="col-md-12">
+                @Html.Partial("Partials/Controls/ReviewTCNotifyFCButtons")
+            </div>
+        </div>
+    </div>
+}
+
+@section scripts {
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AddNoRepeatValueValidator()
+    @ModuleScripts.MinNumOfElementsFilled()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+            $(document).on('paste', '[name=dateMeeting]', function (e) {
+                e.preventDefault();
+            });
+
+            $(document).on('change', '[name=fund-coord-applicableFund]', function () {
+                var form = $('[data-parsley-validate]');
+                var $this = $(this);
+                var fundCoordinatorInput = $this.parents('.notify-fund-row').find("input[name=fund-coord-fundCoordinator]");
+                var selectedItem = $this.data("kendoDropDownList").dataItem();
+
+                fundCoordinatorInput.val("");
+
+                var promise = postUrl(
+                    '@Url.Action("GetFundFullName", "View", new { area = "TC" })',
+                    { fundCode: selectedItem.Code });
+
+                promise.done(function (response) {
+                    if (response.IsValid) {
+                        fundCoordinatorInput.val(response.Model.FullName);
+                        if (form.data('is-fired-validation') == true) {
+                            fundCoordinatorInput.parsley().validate();
+                        }
+                    }
+                });
+            });
+        });
+
+        function setSendValidation() {
+            $('#TCData').parsley().destroy();
+            var fundCoordinatorValidator = $('[name="validatorMinElementsFilled"]');
+            fundCoordinatorValidator.attr('data-parsley-minElementsFilled', '1;[name=fund-coord-applicableFund]:not([disabled])');
+            destroyParsley($('#TCData'));
+            initParsley($('#TCData'));
+        }
+
+        function edit(source) {
+            var success = enterEditMode(true, $('#TCData'), true);
+            if (success) {
+                destroyParsley($('#TCData'));
+                initParsley($('#TCData'));
+                enterEditMode(false, $('.notifyFCButtons'), false);
+            }
+        }
+
+        function cancel(source) {
+            exitEditMode(true, $('#TCData'), true, true);
+            exitEditMode(false, $('.notifyFCButtons'), false, false);
+        }
+
+        function sendAndSave(source) {
+            setSendValidation();
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+            var resp = $.Deferred();
+            var response = saveContainer(
+                $('#TCData'),
+                '#hidViewModel',
+                true,
+                $('.notifyFCButtons'),
+                $(source.target));
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    resp.resolve();
+                });
+            }
+            return resp;
+        }
+
+     </script>
+}

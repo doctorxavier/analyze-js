@@ -1,0 +1,181 @@
+﻿@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OutputModel
+
+@{
+    var outputList = new List<SelectListItem>();
+
+    foreach (var ouput in Model.relatedOutputs)
+    {
+        outputList.Add(new SelectListItem()
+        {
+            Value = ouput.OutputId.ToString(),
+            Text = ouput.Definition,
+            Selected = ouput.Definition.Equals("Delete")
+        });
+    }
+}
+
+@using (Html.BeginForm("DeleteOutput", "Outputs", FormMethod.Post, new { id = "targetDeleteOutput" }))
+{
+    @Html.HiddenFor(x => x.OutputId)
+    @Html.HiddenFor(x => x.OperationOperationNumber)
+
+    <div class="contentImpacts pt30 pl30 pb10 pr0" id="deleteOutputContent">
+
+        @if (Model.IsValidated && !Model.AccessedByAdministrator)
+        {
+            <div class="dataContent1">
+                @Localization.GetText("Outputs already validated or with some reported actuals, physical or financial, cannot be deleted")
+            </div>
+        }
+        else
+        {
+            <div class="dataContent1">
+                <p class="dataTitle">@Localization.GetText("Output Name")</p>
+                <p class="dataText">@Model.Definition</p>
+            </div>
+
+            if (Model.Milestones.Any())
+            {
+                <div class="dataContent1">
+                    <p class="dataText">
+                        @Localization.GetText("If there milestones associated to the output you would like to delete, below you may reassign some or all of them. Unassigned milestones will be deleted.")
+                    </p>
+                </div>
+
+                <div class="mod_tabla no_sortable w100">
+                    <table class="grid4">
+                        <thead>
+                            <tr>
+                                <th class="btn_azul_oscuro" data-field="Operation">@Localization.GetText("Milestone")</th>
+                                <th class="btn_azul_oscuro" data-field="LoanNumber">@Localization.GetText("Output")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var milestoneIndex = 0; milestoneIndex < Model.Milestones.Count(); milestoneIndex++)
+                            {
+                                <tr>
+                                    <td>
+                                        @Html.HiddenFor(x => x.Milestones[milestoneIndex].MilestoneId)
+                                        @Model.Milestones[milestoneIndex].Definition
+                                    </td>
+                                    <td>
+                                        <fieldset>
+                                            <legend class="hide">Dropdown con opciones</legend>
+                                            <ul class="optionList">
+                                                <li class="small">
+                                                    @Html.DropDownListFor(x =>
+                                                        x.Milestones[milestoneIndex].ReassignToOutput,
+                                                        outputList,
+                                                        new
+                                                        {
+                                                            @class = "optionSelect optionSelectDeleteOutput"
+                                                        })
+                                                </li>
+                                            </ul>
+                                        </fieldset>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p class="dataText"> @Localization.GetText("TCM.DO.DeleteOutcomeStatement.UndoneActionMessage")</p>
+            }
+        }
+    </div>
+
+    <div class="contentImpacts pt0 pl30">
+        <div id="ComponentChangeMatrixMessage" style="padding: 20px; display: none;">
+            @Localization.GetText("TCM.RCMW.RegisterChangesMany.TextMessage")
+        </div>
+        <p class="text-center alert alert-warning font14">
+            @Localization.GetText("Warning: If you updated other information, please save it before continuing with this action.")
+        </p>
+    </div>
+    
+    <div class="pie pieReassign">
+        <div class="botones">
+            <a title="Cancel" class="cancel" id="CancelWarningDialog" href="javascript:void(0)">@Localization.GetText("Cancel")</a>
+            @if (!Model.IsValidated || Model.AccessedByAdministrator)
+            {
+                <label for="delete">
+                    <input type="button" value="@Localization.GetText("Delete")" class="btn btn-warning" id="guardar3">
+                </label>
+            }
+        </div>
+    </div>
+}
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        var interval = new Object();
+        interval.IntervalId = $("#hdnIntervalId").val();
+        interval.CycleId = $("#hdnCycleId").val();
+
+        $(".optionSelectDeleteOutput").kendoDropDownList();
+
+        $("#CancelWarningDialog").click(function () {
+            removeModalContent();
+        });
+
+        $("#guardar3").click(function () {
+            checkUsedForStrategicAligment();
+        });
+
+        function checkUsedForStrategicAligment() {
+            var usedForStrategicAlignment = $('.UsedForStrategicAlignment')
+                    .closest("tr[data-outputindex]")
+                    .find("> td:eq(0) > input.UsedForStrategicAlignment")
+                    .val();
+
+            if (usedForStrategicAlignment != undefined
+                && usedForStrategicAlignment.toLowerCase() === "true") {
+                updateRMIndicatorRelations();
+            } else {
+                checkIsThirdInterval();
+            }
+        }
+
+        function checkIsThirdInterval() {
+            if (interval.IntervalId == 3) {
+                isThirdInterval();
+            }
+            else {
+                submitDelete();
+            }
+        }
+
+        function isThirdInterval() {
+            if ($("#deleteOutputContent").is(":visible")) {
+                $(".k-window-titlebar").addClass("warning");
+                $(".k-window-title").addClass("ico_warning");
+                $("#deleteOutputContent").hide();
+                $("#ComponentChangeMatrixMessage").show();
+            }
+            else {
+                submitDelete();
+            }
+        }
+
+        function updateRMIndicatorRelations() {
+            updateRMIndicatorRelationsToSAClassifications();
+            $("#targetDeleteOutput").submit();
+            removeModalContent();
+        }
+
+        function submitDelete() {
+            idbg.lockUiRM(null, true);
+            $("#targetDeleteOutput").submit();
+            removeModalContent();
+        }
+
+        function removeModalContent() {
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $(".ui-widget-overlay").remove();
+            $(".k-window").remove();
+        }
+    });
+</script>

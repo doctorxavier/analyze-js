@@ -1,0 +1,408 @@
+﻿@using System.Collections.Generic
+@using System.Linq
+
+@using IDB.Architecture.Language
+@using IDB.MW.Application.DEMModule.ViewModels
+@using IDB.Presentation.MVC4.Areas.DEM.Helpers
+@using Areas.DEM
+
+@model AlignmentContributionDemViewModel
+@{
+    bool sectionContribution = false;
+    var ModelIndicator = Model.IndicatorDataList.OrderBy(x => x.IsContribution);
+}
+<div class="grouping-section">
+    <label class="lbltitle">
+        @Localization.GetText("R6.DEM.CountryDevelopmentResults.Alignment")
+    </label>
+</div>
+@if (ModelIndicator.Count() == 0)
+{
+    <div class="grouping-section">
+        <label class="lbltitle">
+            @Localization.GetText("R6.DEM.CountryDevelopmentResults.Contribution")
+        </label>
+    </div>
+}
+@Confluence.InputHidden(value: Model.CountIndicatorsResultsMatrix,
+    name: "hiddenCountIndicatorsRMCountryInitial")
+
+@Confluence.InputHidden(value: Model.CountIndicatorsResultsMatrix,
+    name: "hiddenCountIndicatorsRMCountryCurrent")
+
+@Confluence.InputHidden(value: "0",
+    name: "hiddenCountDeleteComments")
+
+@foreach (var indicator in ModelIndicator)
+{
+    var attrContentIndicator = indicator.IndicatorId.ToString() + "-" + indicator.IndicatorId.ToString();
+    var hideRow = (!indicator.IsIndicatorViewMode) ? "hide" : string.Empty;
+
+    var nameCountIndicatorRM = "countIndicatorsRM_Indicator" + indicator.IndicatorId;
+
+    var attributes = new Dictionary<string, string>();
+    attributes.Add("id", indicator.IndicatorId.ToString());
+    attributes.Add("target-section", attrContentIndicator);
+    attributes.Add("isValid", indicator.IsValid.ToString().ToLower());
+
+    if (indicator.IsContribution && !sectionContribution)
+    {
+        sectionContribution = true;
+        <div class="grouping-section">
+            <label class="lbltitle">
+                @Localization.GetText("R6.DEM.CountryDevelopmentResults.Contribution")
+            </label>
+        </div>
+    }
+
+    <div class="row classViewModeCountry @hideRow">
+        <div class="col-md-12">
+            <div data-pagemode="edit">
+                @Confluence.InputCheckbox(isChecked: indicator.IsChecked,
+                    name: "indicator-Check-Country",
+                    label: indicator.IndicatorName,
+                    forceValidation: false,
+                    htmlClass: (indicator.IsModeFreezing) ? "labelExpired" : "titleLabel",
+                    disabled: true,
+                    dataAttributes: attributes)
+            </div>
+            <div data-pagemode="read">
+                @if (indicator.IsIndicatorViewMode)
+                {
+                    @Confluence.InputCheckbox(isChecked: indicator.IsChecked,
+                    name: "indicator-Check-dis-Country",
+                    label: indicator.IndicatorName,
+                    forceValidation: false,
+                    htmlClass: (indicator.IsModeFreezing) ? "labelExpired" : "titleLabel",
+                    disabled: true)
+                }
+            </div>
+        </div>
+        <div data-section="@attrContentIndicator">
+            <div class="clearfix"></div>
+        </div>
+
+        @if (!Model.IsUserConvergenceReadAfterApproved)
+        {
+            var countryDevelopmentResultsCommentsId = "CountryDevelopmentResultsCommentsId-" +
+                Convert.ToString(indicator.AlignmentContributionDemId);
+
+        <div id="@countryDevelopmentResultsCommentsId" class="CountryDevelopmentResultsComments">
+            @{
+                var divIndicator = string.Empty;
+                var contenidoColapsableCountry = string.Empty;
+
+                contenidoColapsableCountry = "ContenidoColapsableDemCountry" +
+                    Convert.ToString(indicator.AlignmentContributionDemId);
+
+                bool isCommentEdit = false;
+                int isOneComment = 0;
+
+                divIndicator = "divCommentsIndicator" + Convert.ToString(indicator.IndicatorId);
+
+                var showNewCommentAddComment = "showNewCommentButtonAddComment" +
+                    Convert.ToString(indicator.IndicatorId);
+
+                int countComment = indicator.UserCommentIndicatorList.Count();
+
+                bool IsAnyCommentFromCurrentVersionCreated = (indicator.UserCommentIndicatorList != null) &&
+                    (indicator.UserCommentIndicatorList.Any(x => x.CheckListVersion == Model.CurrentVersion));
+            }
+            <div id="@contenidoColapsableCountry">
+                <div class="col-md-12 contentComment" id="@divIndicator">
+                    @if ((indicator.UserCommentIndicatorList != null) &&
+                    (indicator.UserCommentIndicatorList.Count() > 0))
+                    {
+                        int i = 0;
+
+                        foreach (var comment in indicator.UserCommentIndicatorList)
+                        {
+                            i++;
+                            bool showLineComment = true;
+                            if ((countComment == 1) || (i == countComment))
+                            {
+                                showLineComment = false;
+                            }
+
+                            bool isCommentEditable = DEMCommentsHelper.IsCommentEditable(comment.CheckListVersion);
+                            string commentClass = DEMCommentsHelper
+                                .CommentBoxClassAccordingDemCurrentVersion(comment.CheckListVersion, comment.IsNewCommentLastVersion);
+
+                            if (isCommentEditable)
+                            {
+                                isOneComment = 1;
+                            }
+
+                            <div class="showNewCommentLastVersion lastComment">
+                                @Confluence.CommentsSection(
+                                      contendRead: (!indicator.IsIndicatorViewMode && !(comment.CommentId != 0)) ? null :
+                                         CountryDevelopmentResultsCommentsRead(comment, showLineComment, isCommentEdit),
+                                     contentEdit: Model.IsFinalVersionCompletedDem ? 
+                                         CountryDevelopmentResultsCommentsRead(comment, showLineComment, isCommentEdit) :
+                                          DEMHelpers.InputNewCommentBox(
+                                          section1: Confluence.Label(comment.FullName + " (" + comment.Role + ")"),
+                                          section2: Confluence.Label(comment.Date),
+                                          section3: Confluence.Label(comment.Stage.ToUpper()),
+                                          section4: (isCommentEditable) ? Confluence.ButtonTrash(text: "", action: "deleteCommentIndicatorCountry",
+                                              dataAttributes: new Dictionary<string, string>
+                                              {
+                                                 { "commentId", Convert.ToString(comment.CommentId) },
+                                                 { "colapsableDem", Convert.ToString(contenidoColapsableCountry) },
+                                                 {"showNewCommentButtonAddComment", Convert.ToString(showNewCommentAddComment)},
+                                                 { "idb-fieldname", "btnDeleteComment" },
+                                              }, htmlClass: "deleteCommentIndicatorCountry") : null,
+                                          value: Html.Raw(comment.Comment).ToString(),
+                                          required: false,
+                                          maxLength: 1000,
+                                          name: "updateCommentTextIndicatorCountry",
+                                          dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtTextComment02" } },
+                                          disabled: false,
+                                          showLine: showLineComment,
+                                          isNewMark: false,
+                                          isEditMode: isCommentEditable,
+                                          htmlClass: "cdrTextAreaWidth " + DEMCommentsHelper
+                                              .CommentBoxClassAccordingDemCurrentVersion(comment.CheckListVersion, comment.IsNewCommentLastVersion) + " alignmenttextArea"))
+                            </div>
+
+                            <div data-pagemode="edit">
+                                @if (isCommentEditable)
+                                {
+                                    <div class="sectionUpdateComment">
+                                        @Confluence.InputHidden(value: Convert.ToString(comment.CommentId),
+                                         name: "updateCommentIdIndicatorCountry")
+
+                                        @Confluence.InputHidden(value: Convert.ToString(indicator.IndicatorId),
+                                         name: "updateIndicadorIdIndicatorCountry")
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+
+                <span data-pagemode="edit">
+                    @Confluence.InputHidden(value: "", name: "deleteCommentsIndicatorCountry", required: false)
+                </span>
+            </div>
+
+            <div class="hiddenAddCommentCountry" id="@showNewCommentAddComment">
+                <div class="col-md-11 paddingLeft70" style="">
+                    <div data-pagemode="edit">
+                        @Confluence.InputHidden(value: Convert.ToString(isOneComment), name: "hiddenOneComment")
+
+                        @Confluence.CommentsActionSection(
+                            Model.IsFinalVersionCompletedDem ? null : 
+                             Confluence.ButtonAddComment(text: "",
+                                 name: "addNewCommentCountry",
+                                 action: "newCommentIndicatorCountry",
+                                 required: true,
+                                 dataAttributes: new Dictionary<string, string> {
+                                    {"indicatorId", Convert.ToString(indicator.IndicatorId)},
+                                    {"colapsableDem", Convert.ToString(contenidoColapsableCountry)},
+                                    {"showNewCommentButtonAddComment", Convert.ToString(showNewCommentAddComment)},
+                                    { "idb-fieldname", "btnNewComment" } },
+                                htmlClass: "contributionNewComment"
+                             ),
+                            Confluence.LabelLink(Localization.GetText("R6.DEM.General.ShowComments"),
+                                name: "linkCommentsCountry" + Convert.ToString(indicator.IndicatorId) + "Edit",
+                                action: "showOrHideCommentsCountrySection",
+                                htmlClass: "addNewCommentLabelLink showCommentsAlignment",
+                                dataAttributes: new Dictionary<string, string> {
+                                    {"indicatorId", Convert.ToString(indicator.IndicatorId)},
+                                    { "idb-fieldname", "btnNewComment" } })
+                              )
+                    </div>
+                    <div>
+                        <div data-pagemode="read">
+                            @if (indicator.IsIndicatorViewMode)
+                            {
+                                @Confluence.LabelLink(Localization.GetText("R6.DEM.General.ShowComments"),
+                                    name: "linkCommentsCountry" + Convert.ToString(indicator.IndicatorId),
+                                    action: "showOrHideCommentsCountrySection",
+                                    htmlClass: "addNewCommentLabelLink showCommentsAlignment",
+                                    dataAttributes: new Dictionary<string, string> {
+                                        {"indicatorId", Convert.ToString(indicator.IndicatorId)},
+                                        { "idb-fieldname", "btnNewComment" } })
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+                }
+        <div class="col-md-12 paddingLeft70 mb5">
+            <div class="col-md-4">
+                <div data-pagemode="edit" class="DemList mb10">
+                    @Confluence.InputHidden(value: Convert.ToString(indicator.CountCheckedIndicatorRM),
+                        name: nameCountIndicatorRM)
+
+                    @if (indicator.IsCheckedAnyIndicatorRM)
+                    {
+                        @Confluence.Label(
+                            Localization.GetText("R6.DEM.CountryDevelopmentResults.ResultsMatrixImpactIndicators"),
+                            htmlClass: "titleLabel")
+                    }
+                </div>
+                <div data-pagemode="read" class="DemList mb10">
+                    @if (indicator.IsIndicatorViewMode && indicator.IsCheckedAnyIndicatorRM)
+                    {
+                        @Confluence.Label(
+                            Localization.GetText("R6.DEM.CountryDevelopmentResults.ResultsMatrixImpactIndicators"),
+                            htmlClass: "titleLabel")
+                    }
+                </div>
+                @foreach (var impactIndicator in indicator.ImpactIndicatorList)
+                {
+                    <div class="lbltitle bold mb10">
+                        <div data-pagemode="edit">
+                            @Confluence.InputCheckbox(isChecked: true,
+                                name: "impactIndicatorCheck",
+                                label: impactIndicator.Text,
+                                forceValidation: false,
+                                disabled: false,
+                                labelBold: true,
+                                dataAttributes: attributes)
+
+                            @Confluence.InputHidden(value: Convert.ToString(impactIndicator.Value),
+                                name: "impactIndicatorId")
+
+                            @Confluence.InputHidden(value: Convert.ToString(impactIndicator.ResultsMatrixId),
+                                name: "impactResultsMatrixId")
+                        </div>
+                        <div data-pagemode="read">
+                            @if (indicator.IsIndicatorViewMode)
+                            {
+                                @Confluence.InputCheckbox(isChecked: true,
+                                    name: "impact-indicator-Check",
+                                    label: impactIndicator.Text,
+                                    forceValidation: false,
+                                    labelBold: true,
+                                    disabled: true)
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="col-md-4 lbltitle">
+                <div data-pagemode="edit" class="DemList mb10">
+                    @if (indicator.IsCheckedAnyIndicatorRM)
+                    {
+                        @Confluence.Label(
+                            Localization.GetText("R6.DEM.CountryDevelopmentResults.ResultsMatrixOutcomeIndicators"),
+                            htmlClass: "titleLabel")
+                    }
+                </div>
+                <div data-pagemode="read" class="DemList mb10">
+                    @if (indicator.IsIndicatorViewMode && indicator.IsCheckedAnyIndicatorRM)
+                    {
+                        @Confluence.Label(
+                            Localization.GetText("R6.DEM.CountryDevelopmentResults.ResultsMatrixOutcomeIndicators"),
+                            htmlClass: "titleLabel")
+                    }
+                </div>
+                @foreach (var outcomeIndicator in indicator.OutcomeIndicatorList)
+                {
+                    <div class="lbltitle mb20">
+                        <div data-pagemode="edit">
+                            @Confluence.InputCheckbox(isChecked: true, name: "outcomeIndicatorCheck",
+                                label: outcomeIndicator.Text,
+                                forceValidation: false,
+                                disabled: false,
+                                labelBold: true,
+                                dataAttributes: attributes)
+
+                            @Confluence.InputHidden(value: Convert.ToString(outcomeIndicator.Value),
+                                name: "outcomeIndicatorId")
+
+                            @Confluence.InputHidden(value: Convert.ToString(outcomeIndicator.ResultsMatrixId),
+                                name: "outcomeResultsMatrixId")
+                        </div>
+                        <div data-pagemode="read">
+                            @if (indicator.IsIndicatorViewMode)
+                            {
+                                @Confluence.InputCheckbox(isChecked: true,
+                                    name: "outcome-indicator-Check",
+                                    label: outcomeIndicator.Text,
+                                    forceValidation: false,
+                                    labelBold: true,
+                                    disabled: true)
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="col-md-4">
+                <div data-pagemode="edit" class="DemList mb10">
+                    @if (indicator.IsCheckedAnyIndicatorRM)
+                    {
+                        @Confluence.Label(
+                            Localization.GetText("R6.DEM.CountryDevelopmentResults.ResultsMatrixOutputIndicators"),
+                            htmlClass: "titleLabel")
+                    }
+                </div>
+                <div data-pagemode="read" class="DemList mb10">
+                    @if (indicator.IsIndicatorViewMode && indicator.IsCheckedAnyIndicatorRM)
+                    {
+                        @Confluence.Label(
+                            Localization.GetText("R6.DEM.CountryDevelopmentResults.ResultsMatrixOutputIndicators"),
+                            htmlClass: "titleLabel")
+                    }
+                </div>
+                @foreach (var outputIndicator in indicator.OutputIndicatorList)
+                {
+                    <div class="lbltitle mb20">
+                        <div data-pagemode="edit">
+                            @Confluence.InputCheckbox(isChecked: true,
+                                name: "outputIndicatorCheck",
+                                label: outputIndicator.Text,
+                                forceValidation: false,
+                                disabled: false,
+                                labelBold: true,
+                                dataAttributes: attributes)
+
+                            @Confluence.InputHidden(value: Convert.ToString(outputIndicator.Value),
+                                name: "outputIndicatorId")
+
+                            @Confluence.InputHidden(value: Convert.ToString(outputIndicator.ResultsMatrixId),
+                                name: "outputResultsMatrixId")
+                        </div>
+                        <div data-pagemode="read">
+                            @if (indicator.IsIndicatorViewMode)
+                            {
+                                @Confluence.InputCheckbox(isChecked: true,
+                                    name: "output-indicator-Check",
+                                    label: outputIndicator.Text,
+                                    forceValidation: false,
+                                    labelBold: true,
+                                    disabled: true)
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+ }
+
+@helper CountryDevelopmentResultsCommentsRead(UserCommentIndicatorViewModel comment, bool showLineComment, bool isCommentEdit)
+{
+    @DEMHelpers.InputNewCommentBox(
+                                       section1: Confluence.Label(comment.FullName + " (" + comment.Role + ")"),
+                                       section2: Confluence.Label(comment.Date),
+                                       section3: Confluence.Label(comment.Stage.ToUpper()),
+                                       value: @Html.Raw(comment.Comment).ToString(),
+                                       required: false,
+                                       name: "updateCommentTextIndicatorCountry",
+                                       dataAttributes: new Dictionary<string, string>
+                                           { { "idb-fieldname", "txtTextComment01" } },
+                                           disabled: false,
+                                           isReadOnly: true,
+                                           showLine: showLineComment,
+                                           isEditMode: isCommentEdit,
+                                           htmlClass: "cdrTextAreaWidth " + 
+                                               DEMCommentsHelper.CommentBoxClassAccordingDemCurrentVersion(
+                                                   comment.CheckListVersion, 
+                                                   comment.IsNewCommentLastVersion) + 
+                                                   " alignmenttextArea")
+
+}

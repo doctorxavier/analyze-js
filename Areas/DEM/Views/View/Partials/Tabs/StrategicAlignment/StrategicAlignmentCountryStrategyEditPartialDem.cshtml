@@ -1,0 +1,328 @@
+﻿@using System.Linq
+@using Areas.DEM
+
+@using IDB.Architecture.Language
+@using IDB.MW.Application.OPUSModule.ViewModels.OperationDataService
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.OPUS.Models
+@using IDB.Presentation.MVC4.Areas.DEM.Helpers
+@using IDB.MW.Application.DEMModule.ViewModels
+
+@model SACountryStrategyViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var validationPercentRegExp = appSettings.ValidationPercentRegExp;
+}
+
+@if (Model.IsCountryStrategyApproved)
+{
+    <div class="row">
+        <div class="col-md-12">
+            <div class="row pl15">
+                <div class="col-md-4 padding0">
+                    @Confluence.Label(Localization.GetText("OP.OD.CountryStrategy.Title"), htmlClass: "display-block mb5 subtitle")
+                    @Confluence.LabelLink(Model.NameLink, name: "linktoprofile", dataAttributes: new Dictionary<string, string> { { "url", Model.UrlLink } })
+                </div>
+                <div class="col-md-8 padding0 alignleft">
+                    @Confluence.LabelsGroup(Localization.GetText("OP.OD.CountryStrategy.GNDocumentNumber"),
+                        contentAlways: Confluence.Label(Model.GNDocumentNumber),
+                        asterisk: false)
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-12 mb30">
+            @Confluence.Label(Localization.GetText("OP.OD.CountryStrategy.CountrySrategyNotApproved"))
+        </div>
+    </div>
+}
+<div data-pagemode="read" class="row mb20">
+    @if (Model.IsObjecticeAligned == true || Model.IsObjecticeAligned == null)
+    {
+        <div data-content="aligned-read">
+            @if (Model.CurrentObjectivesList.Any())
+            {
+                <div class="col-md-12 mb20">
+                    @Confluence.Label(text: Localization.GetText("OP.OD.CountryStrategy.Objective"))
+                    <span class="asteriskColor"> *</span>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div data-content="notAligned-read">
+            @if (Model.CurrentObjectivesList.Any())
+            {
+                <div class="col-md-12 mb20">
+                    @Confluence.Label(text: Localization.GetText("OP.OD.CountryStrategy.ObjectiveNotAligned"))
+                    <span class="asteriskColor"> *</span>
+                </div>
+            }
+        </div>
+    }
+    @if (Model.CurrentObjectivesList.Any())
+    {
+        <div class="pl15 mb20">
+            @foreach (var objective in Model.CurrentObjectivesList)
+            {
+                <div class="col-md-12 padding0 mb10 @(objective.OperationCsObjectiveId == null ? "hide" : "")"
+                     data-type="operationObjective"
+                     data-id="@(!objective.IsObjectiveAligned ? "SOCA-" + objective.ObjectiveId.ToString() : objective.ObjectiveId.ToString())">
+                    <div class="col-md-5 padding0 selected-objective">
+                        @Confluence.LabelBold(objective.NameObjective)
+                    </div>
+                    @if (objective.IsExpired)
+                    {
+                        <div class="col-md-7">
+                            <span class="objectiveExpired">
+                                @Localization.GetText("OP.OD.CountryStrategy.ObjectiveExpiredMessage")
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+<div data-pagemode="edit">
+    @Confluence.InputHidden(value: Convert.ToString(Model.IsCountryStrategyApproved), name: "hiddenIsCountryStrategyApproved")
+</div>
+
+    <div data-pagemode="edit" class="row mb20">
+        @if (Model.CurrentObjectivesList.Any() && Model.CurrentObjectivesList.First().IsExpired)
+        {
+            if (Model.IsObjecticeAligned == true || Model.IsObjecticeAligned == null)
+            {
+                <div data-content="aligned-read">
+                    @if (Model.CurrentObjectivesList.Any())
+                    {
+                        <div class="col-md-12 mb5">
+                            @Confluence.Label(text: Localization.GetText("OP.OD.CountryStrategy.Objective"), htmlClass: "titleLabel")
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div data-content="notAligned-read">
+                    @if (Model.CurrentObjectivesList.Any())
+                    {
+                        <div class="col-md-12 mb5">
+                            @Confluence.Label(text: Localization.GetText("OP.OD.CountryStrategy.ObjectiveNotAligned"), htmlClass: "titleLabel")
+                        </div>
+                    }
+                </div>
+            }
+    
+            <div class="pl15 mb5">
+                @foreach (var objective in Model.CurrentObjectivesList)
+                {
+                    <div class="col-md-12 padding0 mb5 @(objective.OperationCsObjectiveId == null ? "hide" : "")" data-type="operationObjective" data-id="@(!objective.IsObjectiveAligned ? "SOCA-" + objective.ObjectiveId.ToString() : objective.ObjectiveId.ToString())">
+                        <div class="col-md-5 padding0 lblvalue selected-objective">
+                            @if (objective.IsExpired && Model.ShowRemoveObjectivesCheckbox)
+                            {
+                                @Confluence.InputCheckbox(true, "expired-objective", label: objective.NameObjective, dataAttributes: new Dictionary<string, string>() { { "id", objective.OperationCsObjectiveId.ToString() } }, labelBold: true);
+                            }
+                            else
+                            {
+                                @Confluence.LabelBold(objective.NameObjective)
+                            }
+                        </div>
+                        @if (objective.IsExpired && !Model.ShowRemoveObjectivesCheckbox)
+                        {
+                            <div class="col-md-7 padding0">
+                                <span class="objectiveExpired">@Localization.GetText("OP.OD.CountryStrategy.ObjectiveExpiredMessage")</span>
+                            </div>
+                        }
+                        @if (objective.IsExpired && Model.ShowRemoveObjectivesCheckbox)
+                        {
+                            <div class="col-md-7 padding0">
+                                <span class="objectiveExpired">@Localization.GetText("OP.OD.CountryStrategy.ExpiredObjectivesToRemove")</span>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (Model.ShowRemoveObjectivesMessage)
+                {
+                    <div class="col-md-12 pl0 pt10">
+                        <span class="asteriskColor">* </span>
+                        @Confluence.Label(@Localization.GetText("OP.OD.CountryStrategy.ExpiredObjectivesWillBeRemoved"), htmlClass: "titleLabel ml10")
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (Model.IsCountryStrategyApproved || Model.IsOperationTcpType)
+    {
+        <div data-pagemode="edit">
+            <div class="row mb40">
+                <div class="col-md-12 pb20 op-radio-container">
+                    @Confluence.InputRadioButton(value: "aligned",
+                    name: "objectivesAligned",
+                    isChecked: Model.IsObjecticeAligned ?? true,
+                    label: Localization.GetText("OP.OD.CountryStrategy.Objective"))
+                    <span class="asteriskColor" data-name="asteriskAligned"> *</span>
+                </div>
+                <div data-content="aligned" class="@(Model.IsObjecticeAligned == false ? "hide" : "")">
+                    <div class="col-md-12 pb20">
+                        @(Html.MultiDropDown("objectives")
+                        .AddAttributes("required", "required")
+                        .Items(ViewBag.CountryStrategyObjectivesList)
+                        .CanSelectGroup()
+                        .SelectedItems(Model.ObjectivesAlignedIdList)
+                        .HtmlClass("objetivesCombo mb20"))
+                    </div>
+                </div>
+                <div class="col-md-12 pb20  op-radio-container">
+                    @Confluence.InputRadioButton(value: "not-aligned",
+                    name: "objectivesAligned",
+                    isChecked: !(Model.IsObjecticeAligned ?? true),
+                    label: Localization.GetText("OP.OD.CountryStrategy.ObjectiveNotAligned"))
+                    <span class="asteriskColor" data-name="asteriskNotAligned"> *</span>
+                </div>
+                <div data-content="notAligned" class="@(Model.IsObjecticeAligned == true || Model.IsObjecticeAligned == null ? "hide": "")">
+                    <div class="col-md-12 mb20 pb10">
+                        @(Html.MultiDropDown("objectivesNotAligned")
+                        .AddAttributes("required", "required")
+                        .Items(ViewBag.CountryStrategyNotAligned)
+                        .CanSelectGroup()
+                        .SelectedItems(Model.ObjectivesNotAlignedIdList)
+                        .HtmlClass("objetivesCombo mb20"))
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+
+    @if (Model.IsModuleDEM)
+    {
+        int isOneComment = 0;
+        int countComment = Model.UserCommentCountryList.Count();
+        bool IsAnyCommentFromCurrentVersionCreated = (Model.UserCommentCountryList != null) && 
+            (Model.UserCommentCountryList.Any(x => x.CheckListStatus == Model.CurrentVersion));
+
+        <div id="StrategicAlignmentCommentsCountryStrategy" class="paddingLeftStrategicCommentsBox">
+            <div id="colapseSectionCountryStrategy">
+                <div class="col-md-11 contentComment" id="divCommentsCountryStrategy" style="padding-left: 0px;">
+
+                    @if ((Model.UserCommentCountryList != null) && 
+                        (Model.UserCommentCountryList.Count() > 0))
+                    {
+                        int countAux = 0;
+
+                        foreach (var comment in Model.UserCommentCountryList)
+                        {
+                            countAux++;
+                            bool showLineComment = true;
+                            if ((countComment == 1) || (countAux == countComment))
+                            {
+                                showLineComment = false;
+                            }
+
+                            bool isCommentEditable = DEMCommentsHelper.IsCommentEditable(comment.CheckListStatus);
+                            string commentClass = DEMCommentsHelper
+                                .CommentBoxClassAccordingDemCurrentVersion(comment.CheckListStatus, comment.IsNewCommentLastVersion);
+
+                            if (isCommentEditable)
+                            {
+                                isOneComment = 1;
+                            }
+
+                            <div class="sectionCountryStrategyHide mb20 lastComment">
+                                @Confluence.CommentsSection(
+                               contendRead: SectionCountryStrategyCommentsRead(comment, showLineComment, commentClass),
+                               contentEdit: Model.IsFinalVersionCompletedDem ? 
+                               SectionCountryStrategyCommentsRead(comment, showLineComment, commentClass) :
+                               @DEMHelpers.InputNewCommentBox(section1: Confluence.Label(comment.FullName + " (" + comment.Role + ")"),
+                                    section2: Confluence.Label(comment.Date),
+                                    section3: Confluence.Label(comment.Stage.ToUpper()),
+                                    section4: (isCommentEditable) ? Confluence.ButtonTrash(text: "",
+                                        action: "deleteCommentSectionCountryStrategy",
+                                        dataAttributes: new Dictionary<string, string>
+                                        {
+                                            { "commentId", Convert.ToString(comment.CommentId) },
+                                            { "idb-fieldname", "btnDeleteComment" },
+                                        }) : null,
+                                    value: @Html.Raw(comment.Comment).ToString(),
+                                    required: false,
+                                    maxLength: 1000,
+                                    name: "updateCommentTextCountryStrategy",
+                                    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtTextComment02" } },
+                                    disabled: !isCommentEditable,
+                                    isNewMark: false,
+                                    isEditMode: isCommentEditable,
+                                    showLine: showLineComment,
+                                    htmlClass: commentClass))
+                            </div>
+
+                            <div data-pagemode="edit">
+                                @if (isCommentEditable)
+                                {
+                                    @Confluence.InputHidden(value: Convert.ToString(comment.CommentId), 
+                                        name: "updateCommentIdCountryStrategy")
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+                <span data-pagemode="edit">@Confluence.InputHidden(value: "", name: "deleteCommentsSectionCountryStrategy")</span>
+            </div>
+            <div class="hiddenAddCommentSectionCountryStrategy" id="sectionAddLinkCommentCountryStrategy">
+                <div class="col-md-11 paddingLeftRisksCommentsBox mb30 countryStrategyComments" style="margin-left:0px;">
+                    <div data-pagemode="edit">
+                        @Confluence.InputHidden(value: Convert.ToString(isOneComment), name: "hiddenOneSectionCountryStrategy")
+                        @Confluence.CommentsActionSection(
+                        Model.IsFinalVersionCompletedDem ? null : 
+                            Confluence.ButtonAddComment(text: "",
+                                name: "addNewCommentSectionCountry",
+                                action: "newCommentSectionCountryStrategy",
+                                required: true,
+                                dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnNewComment" } }
+                                ),
+                            Confluence.LabelLink(Localization.GetText("R6.DEM.General.ShowComments"),
+                                name: "showOrHideCommentsCountryStrategyEdit",
+                                action: "showOrHideCommentsSectionCountryStrategy",
+                                htmlClass: "addNewCommentLabelLink",
+                                dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnNewComment" } } ) )
+                    </div>
+                    <div data-pagemode="read">
+                        @Confluence.LabelLink(Localization.GetText("R6.DEM.General.ShowComments"),
+                            name: "showOrHideCommentsCountryStrategy",
+                            action: "showOrHideCommentsSectionCountryStrategy",
+                            htmlClass: "addNewCommentLabelLink",
+                            dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnNewComment" } } )
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+@helper SectionCountryStrategyCommentsRead(
+    UserCommentCountryStrategyViewModel 
+    comment, 
+    bool showLineComment, 
+    string commentClass)
+{
+    @DEMHelpers.InputNewCommentBox(
+                                    section1: Confluence.Label(comment.FullName + " (" + comment.Role + ")"),
+                                    section2: Confluence.Label(comment.Date),
+                                    section3: Confluence.Label(comment.Stage.ToUpper()),
+                                    value: @Html.Raw(comment.Comment).ToString(),
+                                    required: false,
+                                    name: "updateCommentTextCountryStrategy",
+                                    dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtTextComment01" } },
+                                    disabled: false,
+                                    isReadOnly: false,
+                                    isNewMark: false,
+                                    showLine: showLineComment,
+                                    htmlClass: commentClass)
+
+}

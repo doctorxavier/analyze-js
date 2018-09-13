@@ -1,0 +1,117 @@
+﻿@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+
+@model ContractDetailsViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    
+    var showTerminatedContractBtn = Model.IsSigned && Model.ShowTerminatedContractBtn;
+    var canPublishAndRquestNon = Model.ViewContainer.GetValue<bool>("canPublishAndRquestNon");
+    var canAddResponse = Model.ViewContainer.GetValue<bool>("canAddResponse");
+    
+    var config = Html.RenderDataTable(Model.ContractDocuments)
+    .Name("ContractDocuments")
+    .AddPrimaryKeyToName(false)
+    .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.DocumentTypeText)
+            .Header(Localization.GetText("SGP.Label.DocumentType"));
+
+        columns.Bound(c => c.User)
+            .CssClass("colDocumentUser")
+            .CssHeaderClass("colDocumentUser")
+            .Header(Localization.GetText("COMMON.User"));
+
+        columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+            .CssClass("colDate textalign-center")
+            .CssHeaderClass("colDate")
+            .Header(Localization.GetText("COMMON.Date"));
+
+        columns.Template(c => Confluence.ButtonLink(c.DocumentNumber, "documentNumberLink", htmlClass: "bold"))
+            .CssClass("document-number colDocumentNumber textalign-center")
+            .CssHeaderClass("colDocumentNumber")
+            .Header(Localization.GetText("COMMON.SVQ.DocNumber#"));
+
+        columns.Bound(c => c.Description)
+            .Header(Localization.GetText("COMMON.Description"));
+
+        columns.Template(c => Confluence.InputText(c.DocumentNumber, "ContractDocuments-DocumentIDBDoc", disabled: false, width: "100%", required: false))
+            .Hidden(true);
+
+        columns.Bound(c => c.NonObjectionStatusText)
+            .CssClass("colNonObjectionStatus")
+            .CssHeaderClass("colNonObjectionStatus")
+            .Header(Localization.GetText("SGP.Label.NonObjectionStatus"));
+
+        columns.Template(c => ActionsTermsReference(c, false))
+            .CssClass("colAction140")
+            .CssHeaderClass("colAction140")
+            .Header(Localization.GetText("COMMON.Action"));
+    });
+
+    config.TableClass = "tableNormal";
+}
+
+<div class="mb5">
+    <div class="col-xs-3 pl0">
+        @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.ContractDocuments"), htmlClass: "subTitleSG mb10")
+    </div>
+    <div class="col-xs-2" style="padding-top:29px;">
+        @Confluence.LabelLinkBlank(text: Localization.GetText("SGP.COMMON.ViewTemplates"), url: "", name: "viewTemplatesLink", htmlClass: "bold align-subtitle hide")
+    </div>
+    @if (showTerminatedContractBtn && Model.ShowAddBankResponseBtn)
+    {
+     <div class="col-xs-2"></div>
+    }
+
+    @if (Model.ShowAddBankResponseBtn && canAddResponse)
+    {
+        <div class="@(!showTerminatedContractBtn ? "col-xs-7" : "col-xs-2") pt10 pr0 mr0 text-right" style="@(showTerminatedContractBtn ? "width : 21%;" : string.Empty)">
+            @Confluence.ButtonBlue(Localization.GetText("SGP.Button.AddBankResponse"), name: "addResponseBankContract", htmlClass: "mr0")
+            @Confluence.InputText("", "DocumentIDBDoc-Contract-addResponse", disabled: false, width: "100%", required: false, htmlClass: "hide")
+            @Confluence.InputText("", "DesciptionIDBDoc-Contract-addResponse", disabled: false, width: "100%", required: false, htmlClass: "hide")
+            @Confluence.InputText(Model.ContractId.HasValue ? Model.ContractId.Value.ToString() : string.Empty, "contractId-addResponse", disabled: false, width: "100%", required: false, htmlClass: "hide")
+        </div>
+    }
+
+    @if (showTerminatedContractBtn && canPublishAndRquestNon)
+    {
+        <div class="@(!Model.ShowAddBankResponseBtn ? "col-xs-7" : "col-xs-3") pt10 pr0 mr0 text-right" style="@(Model.ShowAddBankResponseBtn ? "width : 20%;" : string.Empty)">
+            @Confluence.ButtonBlue(Localization.GetText("SGP.Button.RequestNonObject"), "terminated-contract", disabled: !Model.IsEnabledTerminatedContractBtn, dataAttributes: new Dictionary<string, string>() { { "entitytype", Model.WorkflowContractTerminatedEntityType }, { "entityid", Model.WorkflowEntityId.ToString() } })
+        </div>
+    }
+
+
+</div>
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper ActionsTermsReference(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var hasDocument = !string.IsNullOrEmpty(row.DocumentNumber);
+
+    <div class="textalign-center">
+        @if (hasDocument)
+        {
+            @Confluence.ButtonDownload("", "DownLoadDoc")
+        }
+    </div>
+}

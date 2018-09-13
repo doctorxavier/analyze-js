@@ -1,0 +1,244 @@
+﻿@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core.EditIndicators
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Fund
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model EditIndicatorPageViewModel<FundBasicDataViewModel>
+
+@{
+    bool hasExpired = ( Model.Indicator.Common.ExpirationDate.HasValue && ( Model.Indicator.Common.ExpirationDate.Value < DateTime.Today ) );
+}
+
+@Html.Partial("PermissionButtons", new Dictionary<string, ActionEnum[]>()
+{
+    {
+        "Set GCM Indicator Admin Write",
+        new ActionEnum[]
+        {
+            ActionEnum.GCMIndicatorWritePermission
+        }
+    }
+    ,{
+        "Set GCM Indicator Template Admin Write",
+        new ActionEnum[]
+        {
+            ActionEnum.GCMIndicatorTemplateWritePermission
+        }
+    }
+    ,{
+        "Set Both",
+        new ActionEnum[]
+        {
+            ActionEnum.GCMIndicatorWritePermission,
+            ActionEnum.GCMIndicatorTemplateWritePermission
+        }
+    }
+    ,{
+        "Set Empty",
+        new ActionEnum[]{}
+    }
+})
+
+    @if(MvcHelpers.CheckSomeRoles(ViewBag.Permissions, ActionEnum.GCMIndicatorWritePermission, ActionEnum.GCMIndicatorTemplateWritePermission))
+    {
+
+        <div class="row mb20">
+            <div class="col-md-12">
+                @if(Model.Indicator.Common.IndicatorId == 0)
+                {
+                    @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("IM.EditReadIndicator.Title.CreateIndicator")), Url.Action("RedirectToIndicatorsPage", Model.ControllerName, new { area = "Indicators" }))
+                }
+                else
+                {
+                    @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("IM.EditReadIndicator.Title.EditIndicator")), Url.Action("RedirectToIndicatorsPage", Model.ControllerName, new { area = "Indicators" }))
+                }
+
+                @Html.Partial("EditIndicators/Buttons")
+            </div>
+        </div>
+
+        <div class="row mb20">
+            <div class="col-md-12">
+                @Confluence.Label(Localization.GetText("IM.EditReadIndicator.BasicData.AcitiveInstructionsChanges"))
+            </div>
+        </div>
+
+
+        <div class="page" data-parsley-validate="true" name="submitForm" data-ignore-nullable-values="true">
+            <input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" name="serializeModel" />
+            <div data-fake-pagemode="edit">
+
+                @Html.Partial("EditIndBasicData", Model)
+
+                @* Start Technical Field *@
+                <div class="row mb20">
+                    <div class="col-md-12">
+                        @Confluence.LabelTitleGroup(Localization.GetText("IM.EditReadIndicator.TechnicalFields.Title"))
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12" data-section="technicalFields">
+                        @Html.Partial("EditIndicators/EditIndTechnicalFields", Model.Indicator.Common.TechnicalFields)
+                    </div>
+                </div>
+                @* End Technical Field *@
+
+
+                @* Start Disaggregation *@
+                @Html.Partial("Display/EditSubindicator",
+                          new MVCSubindicatorViewModel(Model.Indicator.Specific.Disaggretations)
+                              .SetName("FundDisaggregation")
+                              .SetTitleKey("IM.EditReadIndicator.Disaggregation.Title")
+                              .SetNewButtonKey("IM.EditReadIndicator.IndicatorTemplate.Disaggregation.New")
+                              .SetLanguageEnRequired(true)
+                              .SetLanguageEsRequired(true))
+                @* End Disaggregation *@
+
+                <div class="row mb20">
+                    <div class="col-md-12">
+                        @Html.Partial("EditIndicators/Buttons")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+
+
+                <div id="warning-duplicate" class="hide modalBody">
+                    @Localization.GetText("IM.TemplatesList.WarningRemove")
+                </div>
+                @Display.AddModalButton(new ModalViewModel(contentSelector : "#warning-duplicate",
+                            title : Localization.GetText("COMMON.Warning"),
+                            type : CssClass.ModalWarning,
+                            moveOriginalContent : true,
+                            name : "open-warning-btn",
+                            closeOnOverlay : false,
+                            allowClose : true,
+                            validateForm : true,
+                            actionOnClose : "")
+            .AddButton(name : "cancel-delete",
+                            text : Localization.GetText("COMMON.Cancel"),
+                            type : CssClass.ButtonLink,
+                            callback : "")
+            .AddButton(name : "confirm-delete",
+                            text : Localization.GetText("COMMON.Confirm"),
+                            type : CssClass.Button01,
+                            callback : "confirmSave",
+                            closeAtEnd : true))
+
+            </div>
+        </div>
+
+        @section scripts{
+            @IndicatorCommon.SetEditModeAndChangeFakePageMode()
+
+            @IndicatorCommon.IndicatorNavigationActionsEdit(Url, Model.ControllerName, Model.Indicator.Common.IndicatorId)
+
+            @IndicatorCommon.IndicatorActionsEdit(Url, Model.ControllerName)
+
+            @IndicatorCommon.AddDatesPasteEvent()
+
+            @ModuleScripts.AddCompareDatesValidator()
+
+            @ModuleScripts.AddAfterDate()
+
+            @IndicatorCommon.AddExpirationDateValidation(hasExpired, Localization.GetText("IM.EditReadIndicator.IndicatorProfile.ExpirationDate.ExpiredCreation"))
+
+            <script type="text/javascript">
+
+                function InitializeActive() {
+                    var activeCheck = $('[name="isActive"]');
+                    var contributionCheck = $('[name="isContribution"]');
+                    var strategicAlignmentCheck = $('[name="isStrategicAlignment"]');
+
+                    if (activeCheck.is(':checked')) {
+                        contributionCheck.removeAttr('disabled');
+                        strategicAlignmentCheck.removeAttr('disabled');
+
+                    } else {
+                        contributionCheck.attr('disabled', '');
+                        strategicAlignmentCheck.attr('disabled', '');
+                    }
+                }
+
+                registerCallback(function () {
+
+                    InitializeActive();
+
+                    $(document).on('click', '[name="isActive"]', function () {
+                        var activeCheck = $('[name="isActive"]');
+                        var contributionCheck = $('[name="isContribution"]');
+                        var strategicAlignmentCheck = $('[name="isStrategicAlignment"]');
+
+                        contributionCheck.removeAttr('checked');
+                        strategicAlignmentCheck.removeAttr('checked');
+
+                        if (activeCheck.is(':checked')) {
+                            contributionCheck.removeAttr('disabled');
+                            strategicAlignmentCheck.removeAttr('disabled');
+
+                        } else {
+                            contributionCheck.attr('disabled', '');
+                            strategicAlignmentCheck.attr('disabled', '');
+                        }
+
+                        InitializeExpirationDateParsley();
+
+                    });
+
+                    /* javaScripts Fund */
+
+                    function customEnableContainer(container) {
+                        var inputs = container.find('input, select, textarea');
+
+                        inputs.removeAttr('disabled');
+
+                        destroyParsley();
+                        initParsley();
+                        destroyParsley();
+                        initParsley();
+                    }
+
+                    $(document).on('click', '[name="newDisaggregation"]', function (e) {
+                        var source = $(this);
+                        var newId = source.GenerateNewId();
+                        var table = $('#DisaggregationTable');
+
+                        var trToClone1 = table.children('tbody').children('tr:first');
+                        var newTr1 = trToClone1.clone(false);
+                        newTr1.appendTo(table.children('tbody'));
+                        newTr1.removeClass('template');
+                        newTr1.removeClass('hide');
+                        newTr1.attr('data-id', String.format('new-{0}', newId));
+
+                        var inputs = newTr1.find('input');
+
+                        inputs.removeAttr('disabled');
+
+                        destroyParsley();
+                        initParsley();
+                        destroyParsley();
+                        initParsley();
+
+
+                    });
+
+                    $(document).on('click', '[name="removeDisaggregation"]', function (e) {
+                        var source = $(this);
+                        var tr = source.closest('tr');
+                        tr.remove();
+                    });
+
+                    /* End javaScripts Fund */
+
+                });
+            </script>
+        }
+    }

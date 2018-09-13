@@ -1,0 +1,285 @@
+﻿@using System.Configuration
+
+@{
+    MvcHelpers.ViewBag = ViewBag;
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IDB</title>
+    <meta charset="utf-8" />
+    <meta name="Author" content="BID" />
+    <meta name="Description" content="BID" />
+
+    @Styles.Render("~/Content/Confluence")
+    @Styles.Render("~/Content/overrides/indicatorsOverride.css")
+    @Styles.Render("~/Content/RMIndicators")
+    @Scripts.Render("~/bundles/jquery")
+    @Scripts.Render("~/bundles/jqueryui")
+    @Scripts.Render("~/bundles/scripts2")
+    @Scripts.Render("~/bundles/RMIndicatorScripts")
+    <script src="~/Scripts/Mainframe/fixIframe.js"></script>
+
+    @RenderSection("CSS", required: false)
+    @RenderSection("JavaScript", required: false)
+    @RenderSection("scripts", false)
+    @Html.WriteScriptBlocks()
+
+    @*@if (!Globals.GetSetting("SecurityMode", string.Empty).Equals("Local"))
+        {
+           <script type="text/javascript">
+                (function () {
+                    var walkme = document.createElement('script');
+                    walkme.type = 'text/javascript';
+                    walkme.async = true;
+                    walkme.src = '@Globals.GetSetting("WalkMeKey")';
+                    var s = document.getElementsByTagName('script')[0];
+                    s.parentNode.insertBefore(walkme, s);
+                    window._walkmeConfig = { smartLoad: true };
+                })();
+            </script>
+
+        }*@
+    <script type="text/javascript">
+        idbg.config.basePath = '@System.Configuration.ConfigurationManager.AppSettings["BasePath"]';
+        idbg.config.baseSharePointAddress = '@System.Configuration.ConfigurationManager.AppSettings["BasePath"]';
+        idbg.config.language = '@Localization.CurrentLanguage';
+        idbg.init();
+    </script>
+    @{Html.RenderPartial("~/Views/Shared/TrackingHeader.cshtml");}
+</head>
+<body>
+    @Confluence.Loader()
+
+    <section class="container-fluid">
+        @RenderBody()
+    </section>
+
+    <footer class="pie">
+        <p id="titleVerifyContent" title="@Localization.GetText("Verify content")"></p>
+    </footer>
+
+    <div id="divVerifyContent" hidden="hidden">
+        <button data-id="buttonVerifyContent" class="hide"
+                data-modal-allowclose="true"
+                data-custom-modal="verifyContentModal"
+                data-custom-modal-style=""
+                data-custom-modal-title="@Localization.GetText("RM.Predef.Indicator.Disaggregations.Selection.Popup.Title")"
+                data-custom-modal-validate="false"
+                data-custom-modal-closeonoverlayclick="false"></button>
+        <div id="verifyContentModal" class="hide modalBody"></div>
+    </div>
+
+    <script type="text/javascript">
+
+        ShowMessageFunctions.CurrentFunction = ShowMessageFunctions.GenericFunction;
+        var routeLockregister = '@Url.Action("LockRegister", "Outputs", new { area = "ResultsMatrix" })';
+        var routeRemoveIndicator = '@Url.Action("RemoveLinkIndicator", "LinkIndicator", new { area = "Indicators" })';
+        var routeWarningUnLinkIndicator = '@Url.Action("WarningUnLinkIndicator", "LinkIndicator", new { area = "Indicators" })';
+        var routeDeleteDisaggregation = '@Url.Action("DeleteDisaggregation", "Outputs", new { area = "ResultsMatrix" })';
+        var messageErrorContactSupport = '@Localization.GetText("TC.SWMeetingService.ErrorMessage")';
+        var messageDeleteDisaggregation = '@Localization.GetText("TCM.DOD.DeleteOutomeDisaggregation.DeleteDisaggregationMessage")' +
+            '<br><div class="text-center alert alert-warning mt1em mb0">@Localization.GetText("TCM.DO.DeleteOutcomeStatement.WarningMessage")</div>';
+        var messageDeleteDisaggregationInterval3 = '@Localization.GetText("TCM.RCMW.RegisterChangesMany.TextMessage")';
+        var messageWarningPopup = '@Localization.GetText("PI.Message.Information.UnitMeasureCRFIndicatorCont")';
+        var module = $('#TypeModule');
+        var backUrl = $("#hdnPredefinedIndicatorBackUrl").val();
+        var text = '<div class="col-md-12 contentWarningPopup">' +
+            '<spam class="ico_warning iconPopup"></spam><spam style=" vertical-align: middle; ">' +
+            messageWarningPopup + '</spam></div>';
+
+        $(document).ready(function () {
+            postUrlWithOptions(routeLockregister,
+                { async: false },
+                { operationNumber: module.data('operation'), url: module.data('urlsave') })
+                .done(function (response) {
+                    if (!response.IsValid) {
+                        showMessage(response.ErrorMessage, true, module.data('urlreturn'));
+                    }
+                });
+        });
+
+        registerCallback(function () {
+            var type = module.attr('name');
+            var containerModal = $('.filterNormalExtension');
+            $(containerModal).find('[name="filter-' + type + '-indicator-category"]')
+                .parent().addClass('pr20');
+            $(containerModal).find('[name="btn-search"]').parent().after(text);
+
+            $('[name="' + type + '"]').LinkModalButton({
+                Event: "click",
+                LinkModalId: '' + type + '-link-modal'
+            });
+        });
+
+        function showModalIndicators(baseId, typeIndicator) {
+            $('[name="baseIndicadorId"]').val(baseId);
+            $('[name="' + typeIndicator + '"]').click();
+        }
+
+        function showWarningRemoveIndicators(resultsMatrixId, outputId, typeIndicator) {
+            var object = {
+                'ResultsMatrixId': resultsMatrixId,
+                'BaseIndicatorId': outputId,
+                'TypeModule': typeIndicator
+            };
+
+            $.ajax({
+                url: routeWarningUnLinkIndicator,
+                type: 'POST',
+                data: JSON.stringify(object),
+                contentType: 'application/json; charset=utf-8',
+                success: function (response) {
+                    if (!response.IsValid) {
+                        showMessage(response.ErrorMessage, false);
+                        return false;
+                    }
+
+                    confirmActionRM(response.DefaultUnlinkMessage + response.TitlePendingChanges)
+                        .done(function (value) {
+                            if (value) {
+                                AjaxCall(object, routeRemoveIndicator);
+                                return false;
+                            }
+                        });
+                },
+                error: function () {
+                    showMessage(messageErrorContactSupport, false);
+                }
+            });
+        }
+
+        function @(ViewBag.ModelIndicators.Name + "LinkItems")(sourceOpen, objValues){
+            AjaxRetrieveIndicatorDisaggregations(objValues.IndicatorId);
+        }
+
+        function AjaxCall(object, routeActionMethod) {
+            $.ajax({
+                url: routeActionMethod,
+                type: 'POST',
+                data: JSON.stringify(object),
+                contentType: 'application/json; charset=utf-8',
+                success: function (response) {
+                    if (!response.IsValid) {
+                        showMessage(response.ErrorMessage, false);
+                        return false;
+                    }
+                    ShowNotification(response.TypeNotification, response.MessageNotification);
+
+                    vex.close();
+                    location.href = backUrl;
+                },
+                error: function () {
+                    showMessage(messageErrorContactSupport, false);
+                }
+            });
+        }
+
+        function AjaxRetrieveIndicatorDisaggregations(indicatorId){
+            var url = '@Url.Action("RetrieveIndicatorDisaggregations", "LinkIndicator",
+                new {
+                    area = "Indicators"
+                })';
+
+
+            postUrlWithOptions(url, { async: false }, { indicatorId: indicatorId })
+                .done(function(data) {
+                    if (data.indicatorWithoutDisaggregations === true){
+                        LinkIndicatorWithDisaggregations(false);
+                    }
+                    else {
+                        $('#verifyContentModal').html(data);
+                        $('[data-id="buttonVerifyContent"]').click();
+                    }
+                })
+                .fail(function(jqXhr, textStatus, errorThrown) {
+                    showMessage(errorThrown);
+                });
+        }
+
+        function AjaxRMActions(object, routeActionMethod) {
+            $.ajax({
+                url: routeActionMethod,
+                type: 'POST',
+                data: JSON.stringify(object),
+                contentType: 'application/json; charset=utf-8',
+                success: function (response) {
+                    if (!response.IsValid) {
+                        showMessage(messageErrorContactSupport, false);
+                        return false;
+                    }
+
+                    location.href = response.RedirectUrl;
+                },
+                error: function () {
+                    showMessage(messageErrorContactSupport, false);
+                }
+            });
+        }
+
+        function ShowNotification(type, message) {
+            showNotification({
+                'message': message,
+                'type': type,
+                "autoClose": "true",
+                "duration": "5"
+            });
+        }
+
+        function removeDisaggregation(element) {
+            confirmAction(messageDeleteDisaggregation)
+                .done(function (value) {
+                    if (value) {
+                        var object = {
+                            'OperationOperationNumber': $("#Operation_OperationNumber").val(),
+                            'OutputDisaggregationId': $(element).closest("tr.hoverMilestone")
+                                .find("> td:eq(0) > input").val(),
+                            'IsJsonResult': true
+                        };
+
+                        AjaxRMActions(object, routeDeleteDisaggregation);
+                    }
+                });
+        }
+
+        function LinkIndicatorWithDisaggregations(usesDisaggsPopup) {
+            var indicatorId = $(document).find('[data-id=mainContainer]')
+                .find('#' + disaggsModalModule + 'LinkTable').find('tbody tr input:checked').val();
+
+
+            var value = {
+                IndicatorId: indicatorId,
+                BaseIndicatorId: $('[name="baseIndicadorId"]').val(),
+                TypeModule: disaggsModalModule,
+                disaggregationsToInclude: usesDisaggsPopup ? GetDisaggregations() : [],
+                isSGResultsMatrix: true,
+                RouteActionMethod: '@Url.Action("SaveLinkIndicator", "LinkIndicator",
+                new {
+                    area = "Indicators"
+                })'
+            };
+
+            AjaxCall(value, value.RouteActionMethod);
+        }
+
+        function DeselectAllDisaggregations() {
+            $('[name=predef-indic-disagg-checkbox]').not(':disabled').prop('checked', false);
+        }
+
+        function GetDisaggregations() {
+            var disaggregations = [];
+
+            $('[name=predef-indic-disagg-checkbox]:checked').parent()
+                .find('.labelNormal').each(function (index, current) {
+
+                    var currentText = $(current).text();
+                    disaggregations.push(currentText);
+                })
+
+            return disaggregations;
+        }
+    </script>
+    @Html.Partial("~/Views/Shared/Controls/ShowError.cshtml")
+</body>
+</html>

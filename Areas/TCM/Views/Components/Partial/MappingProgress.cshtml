@@ -1,0 +1,264 @@
+﻿@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Components
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Extensions
+@using NewConfluence
+
+@model MappingProgressViewModel
+
+@{
+    var categoriesList = Model.OutputCategory.Select(o => new SelectListItem { Selected = false, Value = o.Value, Text = o.Text }).ToList();
+    var deliveryStatusList = Model.DeliveredStatus.Select(o => new SelectListItem { Selected = false, Value = o.MasterId.ToString(), Text = o.GetLocalizedName() }).ToList();
+    var validationStatusList = Model.ValidationStage.Select(o => new SelectListItem { Selected = false, Value = o.MasterId.ToString(), Text = o.GetLocalizedName() }).ToList();
+    var componentOutputMultiSelect = Model.ComponentOutputFilter.Select(o => new MultiSelectListItem { Selected = false, Value = o.Value, Text = o.Text }).ToList();
+    var outputList = Model.Component.SelectMany(c => c.Outputs).Where(o => o.VisualOutputVersion.Any()).Select(o => string.Format("Output{0}", o.OutputId)).ToList();
+}
+
+<input type="hidden" id="hidMappingProgressModel" value="@PageSerializationHelper.SerializeObject(Model)" />
+
+<div class="col-md-12">
+    <div class="col-md-4 mb10 float-right">
+        <div class="floatRight">
+            @Confluence.ButtonColapseAll(outputList, collapseSubTable: true)
+            @Confluence.ButtonBlue(Localization.GetText("TCM.Outputs.Filter"), "FilterButton")
+        </div>
+    </div>
+</div>
+
+<div class="col-md-4 mb10 float-right">
+    <div class="filterNormal" id="hideFilter">
+        @Confluence.InputDropDownMulti("msComponentOutputFilter", componentOutputMultiSelect, required: false, placeholder: Localization.GetText("TCM.Outputs.FilterByComponentOrOutputName"), width: "100%")
+    </div>
+</div>
+
+<div class="col-md-12 mb10">
+    <div class="overflow">
+        @foreach (var component in Model.Component)
+        {
+            var outputNumber = 0;
+            <div class="numberMapping mb10">
+                <div class="col-md-10 pb10 pl0">
+                    <label class="componentMappingTitle tcmTitleTable">
+                        @component.OrderNumber
+                    </label>
+                    <label class="componentMappingTitleMain tcmTitleTable ml15">
+                        @component.Statement
+                    </label>
+                </div>
+                @foreach (var output in component.Outputs)
+                {
+                    outputNumber++;
+                    var hasVisuals = output.VisualOutputVersion.Any();
+                    <table id="@string.Format("Output{0}", output.OutputId)" class="tableNormal paddingTd mb15">
+                        <thead>
+                            <tr>
+                                <th class="tree icon pr0">
+                                    <div class="treeNumber pt5 pb5 pr15">@string.Format(component.OrderNumber + "." + outputNumber)</div>
+                                    @if (hasVisuals)
+                                    {
+                                        @Confluence.ButtonExpandTable(expandSubTable: true)
+                                    }
+                                </th>
+                                <th class="outputIndicator">@Localization.GetText("TCM.Output")</th>
+                                <th class="unitMeasure">@Localization.GetText("TCM.Outputs.UnitOfMeasure")</th>
+                                <th class="w200">@Localization.GetText("TCM.Outputs.Category")</th>
+                                <th class="w70"></th>
+                                @foreach (var year in Model.YearPlans)
+                                {
+                                    <th class="w100">@year</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-id="">
+                                <td class="tree pr0">
+                                    @if (hasVisuals)
+                                    {
+                                        <span></span>
+                                    }
+                                </td>
+                                <td>@output.Definition</td>
+                                <td class="text-center">@output.UnitOfMeasure</td>
+                                <td>
+                                    <div data-pagemode="read">
+                                        @Confluence.LabelGetDropDown(output.OutputCategoryId.ToString(), categoriesList)
+                                    </div>
+                                    <div data-pagemode="edit">
+                                        @Confluence.InputDropDown(output.OutputCategoryId.ToString(), "ddCategories", categoriesList, dataAttributes: new Dictionary<string, string> { { "id", string.Format(output.OutputId.ToString()) } })
+                                    </div>
+                                </td>
+                                <td>
+                                    <table>
+                                        <tr class="annual-value-row text-center">
+                                            <td>@Localization.GetText("TCM.Outputs.Pa")</td>
+                                        </tr>
+                                        <tr class="annual-value-row text-center">
+                                            <td>@Localization.GetText("TCM.Outputs.A")</td>
+                                        </tr>
+                                        <tr class="annual-value-row text-center">
+                                            <td>@Localization.GetText("TCM.Outputs.PMapping")</td>
+                                        </tr>
+                                        <tr class="annual-value-row text-center">
+                                            <td>@Localization.GetText("TCM.Outputs.AMapping")</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                @foreach (var yearPlanVisualization in output.OutputYearPlanVisualization)
+                                {
+                                    <td>
+                                        <div data-pagemode="read">
+                                            <table data-id="" class="annual-value-row w80 text-right">
+                                                <tr>
+                                                    <td>@((yearPlanVisualization.AnnualPlan == null) ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.AnnualPlan))</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@(yearPlanVisualization.ActualValue == null ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.ActualValue))</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@(yearPlanVisualization.MappedUnits == null ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.MappedUnits))</td>
+                                                </tr>
+                                                <tr>
+                                                    <td data-year="@yearPlanVisualization.Year">@(yearPlanVisualization.VisualObjects == null ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.VisualObjects))</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        <div data-pagemode="edit">
+                                            <table class="annual-value-row">
+                                                <tr>
+                                                    <td>@(yearPlanVisualization.AnnualPlan == null ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.AnnualPlan))</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>@(yearPlanVisualization.ActualValue == null ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.ActualValue))</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="paddingTd">
+                                                        @Confluence.InputDecimal(yearPlanVisualization.MappedUnits, "idMappedUnits", false, dataAttributes: new Dictionary<string, string> { { "id", string.Format(yearPlanVisualization.OutputId + "|" + yearPlanVisualization.OutputYearVisualizationId + "|" + yearPlanVisualization.Year) } }, htmlClass: "wTextBox")
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td data-year="@yearPlanVisualization.Year">@(yearPlanVisualization.VisualObjects == null ? "-" : FunctionConfluence.DecimalToString(yearPlanVisualization.VisualObjects))</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </td>
+                                }
+                            </tr>
+                            @if (hasVisuals)
+                            {
+                                <tr>
+                                    <td class="tree pr0">
+                                        <span></span>
+                                        <span class="selected"></span>
+                                    </td>
+                                    <td colspan="@Convert.ToInt32(Model.YearPlans.Count + 4)" class="subnivel">
+                                        <div>
+                                            <table class="tableNormal collapsibleNew mb15 skinGray">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="tree"></th>
+                                                        <th>@Localization.GetText("TCM.Outputs.VisualOutput")</th>
+                                                        <th class="w100">@Localization.GetText("TCM.Outputs.OutputYear")</th>
+                                                        <th>@Localization.GetText("TCM.Outputs.Description")</th>
+                                                        <th class="w100">@Localization.GetText("TCM.Outputs.DeliveryStatus")</th>
+                                                        <th class="w100">@Localization.GetText("TCM.Outputs.NoOutputUnits")</th>
+                                                        <th class="w100">@Localization.GetText("TCM.Outputs.ValidationStatus")</th>
+                                                        <th class="w100">@Localization.GetText("TCM.Outputs.LastUpdate")</th>
+                                                        <th class="w100">@Localization.GetText("TCM.Outputs.Options")</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var visualOuputVersion in output.VisualOutputVersion)
+                                                    {
+                                                        <tr data-id="">
+                                                            <td class="tree son"></td>
+                                                            <td>
+                                                                @{
+                                                                    var linkRef = output.HasCategory ? Url.Action("VODetails", "VisualData", new { area = "Visualization", visualOutputId = visualOuputVersion.VisualOutputId }) : "javascript:void(0)";
+                                                                }
+
+                                                                <a href="@linkRef" rel="voDetail">
+                                                                    <span>@visualOuputVersion.VisualOutput</span>
+                                                                    @if (visualOuputVersion.IsDeleted.IsTrue())
+                                                                    {
+                                                                        <span style="color: red">(Deleted)</span>
+                                                                    }
+                                                                </a>
+                                                            </td>
+                                                            <td>@visualOuputVersion.Year</td>
+                                                            <td>
+                                                                @{
+                                                        if (!string.IsNullOrEmpty(visualOuputVersion.Description) && visualOuputVersion.Description.Length > 100)
+                                                        {
+                                                            @visualOuputVersion.Description.Substring(0, 100)<span style="display: none">@visualOuputVersion.Description.Substring(100)</span>
+                                                                    <a href="javascript:void(0)" class="show-more">@Html.Raw(" ..more [+]")</a>
+                                                        }
+                                                        else
+                                                        {
+                                                            @visualOuputVersion.Description
+                                                        }
+                                                                }
+
+                                                            </td>
+
+                                                            <td>
+                                                                @Confluence.LabelGetDropDown(visualOuputVersion.DeliveryStatusId, deliveryStatusList)
+                                                            </td>
+                                                            <td>@visualOuputVersion.OutputUnits</td>
+                                                            <td>
+                                                                @Confluence.LabelGetDropDown(visualOuputVersion.ValidationStatusId, validationStatusList)
+                                                            </td>
+                                                            <td>
+                                                                @Confluence.LabelGetDate(visualOuputVersion.LastUpdate)
+                                                            </td>
+                                                            <td>
+                                                                <div data-pagemode="edit">
+                                                                    @if (visualOuputVersion.IsDeletedTrashButton)
+                                                                    {
+                                                                        @Confluence.ButtonTrash(null, action: "VisualOutputVersionDelete", dataAttributes: new Dictionary<string, string> { { "vovId", visualOuputVersion.VisualOutputVersionId.ToString() } })
+                                                                    }
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <div class="text-center mb20">
+                        <div>
+                            @if (SecurityHelper.IsVisible(Model.FieldAccessList, "btnNewVisualOutput"))
+                            {
+                                if (!output.HasCategory || !output.HasVisualUnits)
+                                {
+                                    @Confluence.ButtonAddNewRowsAlert(Localization.GetText("TCM.Outputs.NewVisualOutput"), null, "NewVisualOutputButton", dataAttributes: new Dictionary<string, string>
+                                {
+                                    {"id", output.OutputId.ToString()},
+                                    {"hascategory", output.HasCategory.ToString().ToLower()},
+                                    {"hasvisualunits", output.HasVisualUnits.ToString().ToLower()},
+                                    {"idb-fieldname", "btnNewVisualOutput"}
+                                })
+                                }
+                                else
+                                {
+                                    @Confluence.ButtonAddNewRows(Localization.GetText("TCM.Outputs.NewVisualOutput"), null, "NewVisualOutputButton", dataAttributes: new Dictionary<string, string>
+                                {
+                                    {"id", output.OutputId.ToString()},
+                                    {"hascategory", output.HasCategory.ToString().ToLower()},
+                                    {"hasvisualunits", output.HasVisualUnits.ToString().ToLower()},
+                                    {"idb-fieldname", "btnNewVisualOutput"}
+                                })
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+
+            </div>
+        }
+    </div>
+
+</div>

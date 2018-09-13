@@ -1,0 +1,264 @@
+﻿
+@model IDB.Presentation.MVC4.Models.CustomDeleteComponentModel
+
+
+@{
+    var componentList = new List<SelectListItem>();
+
+    foreach (var component in Model.Components)
+    {
+        componentList.Add(new SelectListItem()
+        {
+            Value = component.ComponentId.ToString(),
+            Text = component.Statement,
+            Selected = component.Statement.Equals("Delete") ? true : false
+
+        });
+    }
+
+}
+
+<script>
+
+    $(document).ready(function () {
+
+        var interval = new Object();
+        interval.IntervalId = $("#hdnIntervalId").val();
+        interval.CycleId = $("#hdnCycleId").val();
+
+        $(".optionSelectDeleteComponent").kendoDropDownList();
+
+        $(".cancelDeleteComponent").click(function () {
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $(".ui-widget-overlay").remove();
+            $(".k-window").remove();
+        });
+
+        $("#btn-delete-component").click(function (e) {
+            e.preventDefault();
+
+            var selectedOptions = new Array();
+
+            $.each($("select.optionSelectDeleteComponent"), function (index, dropDown) {
+                
+                var outputId = -1;
+                var componentId = -1;
+                var subComponentId = -1;
+
+                outputId = $(dropDown).closest("td").prev("td").find(":hidden").val();
+                componentId = $("#" + $(dropDown).attr("id")).kendoDropDownList().val();
+
+                $(dropDown).closest("td").find("input[name$='.ComponentId']").val(componentId);
+                $(dropDown).closest("td").prev("td").find("input[name$='.OutputId']").val(outputId);
+
+                var ddlSubcomponent = $("#" + $(dropDown).attr("id") + "-subcomponent");
+
+                if (ddlSubcomponent != null &&
+                    (typeof $(ddlSubcomponent).attr("id") !== typeof undefined) && 
+                    ($(ddlSubcomponent).attr("id") == $(dropDown).attr("id") + "-subcomponent")) {
+                    if ($(ddlSubcomponent).data("kendoDropDownList") != null &&
+                        (typeof $(ddlSubcomponent).data("kendoDropDownList") !== typeof undefined)) {
+                        subComponentId = $(ddlSubcomponent).data("kendoDropDownList").value();
+                        $(ddlSubcomponent).closest("td").find("input[name$='.SubComponentId']").val(subComponentId);
+                    }
+                }
+
+                selectedOptions.push({ output: outputId, component: componentId, subcomponent: subComponentId });
+            });
+
+            if (interval.IntervalId == 3) {
+                if ($("#deleteComponentContent").is(":visible")) {
+                    $(".k-window-titlebar").addClass("warning");
+                    $(".k-window-title").addClass("ico_warning");
+                    $("#deleteComponentContent").hide();
+                    $("#ComponentChangeMatrixMessage").show();
+                    return;
+                }
+            }
+
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $("#targetDeleteComponent").submit();
+            $(".ui-widget-overlay").remove();
+            $(".k-window").remove();
+            idbg.lockUiRM(null, true);
+
+        });
+        
+        var isIntegratedWithPep = $("#hdn-is-integrated-with-pep").val();
+        
+        if (isIntegratedWithPep.toLowerCase() == 'true')
+        {
+            bindLoadSubComponentsByComponent($("select.optionSelectDeleteComponent"));
+        }
+    });
+
+    function bindLoadSubComponentsByComponent(deleteDropDownComponents)
+    {
+        if (deleteDropDownComponents != null && deleteDropDownComponents.length > 0) {
+            $.each(deleteDropDownComponents, function (index, dropDown) {
+                $("#" + $(dropDown).attr("id"))
+                    .data("kendoDropDownList")
+                    .bind("change", handleDeleteComponentChange);
+            });
+        }
+    }
+
+    function handleDeleteComponentChange()
+    {
+        var path = $("#hdn-subcomponents-path").val();
+
+        var selectedComponentId = this.value();
+        
+        var componentToDeleteId = $("#targetDeleteComponent").find("#currentComponent_ComponentId").val();
+        var dropDownComponent = $("#" + this.element.context.id);
+        var subComponentContainer = $(dropDownComponent).closest("td").find("#subcomponent-data-container");
+        
+        if (selectedComponentId != componentToDeleteId) {
+
+            var request = $.ajax({
+                url: path,
+                data: JSON.stringify({ componentId: selectedComponentId }),
+                dataType: "json",
+                contentType: "application/json",
+                type: 'post'
+            });
+
+            request.done(function (data) {
+                $(subComponentContainer).find("input").attr("id", $(dropDownComponent).attr("id") + "-subcomponent");
+
+                if (data != null && data.length > 0) {
+                    if (data.length == 2) {
+                        $(dropDownComponent).closest("td").find("input[name$='.SubComponentId']").val(data[1].PepTaskId);
+                        $(subComponentContainer).hide();
+                    }else {
+                        $("#" + $(dropDownComponent).attr("id") + "-subcomponent").kendoDropDownList({
+                            dataSource: data,
+                            dataTextField: "PepTaskName",
+                            dataValueField: "PepTaskId"
+                        });
+                        $(subComponentContainer).show();
+                    }
+
+                    if (data.length == 1) {
+                        $(subComponentContainer).hide();
+                        $(subComponentContainer).closest("td").find("input[name$='.SubComponentId']").val(-1);
+                    }
+                }
+            }).fail(function () {
+
+            });
+        } else {
+            $(subComponentContainer).find("input").attr("id", $(dropDownComponent).attr("id") + "-subcomponent");
+            $(subComponentContainer).find("input").data("kendoDropDownList").value(-1);
+            $(subComponentContainer).closest("td").find("input[name$='.SubComponentId']").val(-1);
+            $(subComponentContainer).hide();
+        }
+    }
+</script>
+
+    <p class="hide headerWindow">@Localization.GetText("Delete Output")</p>
+
+    @using (Html.BeginForm("DeleteComponent", "Outputs", FormMethod.Post, new { area = "ResultsMatrix", id = "targetDeleteComponent", @class = "" }))
+    {
+        @Html.HiddenFor(x => x.currentComponent.ComponentId)
+        @Html.HiddenFor(x => x.currentComponent.OperationOperationNumber)
+
+        <div class="contentImpacts" id="deleteComponentContent">
+
+
+
+            <div class="dataContent1">
+                <p class="dataTitle">@Localization.GetText("Component Name")</p>
+                <p class="dataText">@Model.currentComponent.Statement</p>
+            </div>
+
+
+
+
+            @if (Model.currentComponent.Outputs.Count > 0)
+            {
+                <div class="dataContent1">
+                    <p class="dataText">
+                        @Localization.GetText(@"In the case where Outputs are related to the Component you wish to delete, please use the option below to reassign some/all of them.  Outputs that are not reassigned will be deleted.")
+                    </p>
+                </div>
+
+                <div class="dataContent1">
+                    <div class="mod_tabla no_sortable" style="width:100%">
+                        <table class="grid4">
+                            <thead>
+                                <tr>
+                                    <th class="btn_azul_oscuro" data-field="Operation">@Localization.GetText("Output")</th>
+                                    <th class="btn_azul_oscuro" data-field="LoanNumber">@Localization.GetText("Component")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (var outputIndex = 0; outputIndex < Model.currentComponent.Outputs.Count; outputIndex++)
+                                {
+
+                                    <tr>
+                                        <td width="33%">
+                                            @Html.HiddenFor(x => x.currentComponent.Outputs[outputIndex].OutputId)
+                                            @Model.currentComponent.Outputs[outputIndex].Definition
+                                            <input id="SelectedOptions_@(outputIndex)__OutputId" name="SelectedOptions[@(outputIndex)].OutputId" type="hidden" value="">
+                                        </td>
+                                        <td width="33%">
+                                            <fieldset>
+                                                <legend class="hide">Dropdown con opciones</legend>
+                                                <ul class="optionList">
+                                                    <li class="small">
+                                                        @Html.DropDownListFor(x => x.currentComponent.Outputs[outputIndex].ReassignToComponent, componentList, new { @class = "optionSelect optionSelectDeleteComponent" })
+                                                    </li>
+                                                </ul>
+                                            </fieldset>
+                                            <div id="subcomponent-data-container" style="display:none">
+                                                <br />
+                                                <p class="">@Localization.GetText("The component has sub-components linked in the Pep, please select the subcomponent that the output will related to: ")</p>
+                                                <fieldset>
+                                                    <legend class="hide">Dropdown con opciones</legend>
+                                                    <ul class="optionList">
+                                                        <li class="small">
+                                                            <input id="" data-role="dropdownlist" data-auto-bind="false" />
+                                                        </li>
+                                                    </ul>
+                                                </fieldset>
+                                            </div>
+                                            <input id="SelectedOptions_@(outputIndex)__ComponentId" name="SelectedOptions[@(outputIndex)].ComponentId" type="hidden" value="">
+                                            <input id="SelectedOptions_@(outputIndex)__SubComponentId" name="SelectedOptions[@(outputIndex)].SubComponentId" type="hidden" value="">
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="dataContent1">
+                    <p class="dataText"> @Localization.GetText("TCM.DO.DeleteOutcomeStatement.UndoneActionMessage")</p>
+                </div>
+            }
+
+        </div>
+        <div id="ComponentChangeMatrixMessage" style="padding: 20px; display: none;">
+            @Localization.GetText("TCM.RCMW.RegisterChangesMany.TextMessage")
+        </div>
+
+        <div class="titlePendingChanges text-center">
+            @Localization.GetText("Warning: If you updated other information, please save it before continuing with this action.")
+        </div>
+   <!--END CONTENT IMPACTS-->
+        <div class="pie pieReassign">
+            <div class="botones">
+                <a title="@Localization.GetText("Cancel")" class="cancel cancelDeleteComponent" href="javascript:void(0)"> @Localization.GetText("Cancel")</a>
+                <label for="delete">
+                    <input type="button" id="btn-delete-component" value="@Localization.GetText("Delete")" class="btn btn-primary deleteComponent" @*id="delete"*@ />
+                </label>
+            </div>
+        </div>
+
+    }
+
+
+

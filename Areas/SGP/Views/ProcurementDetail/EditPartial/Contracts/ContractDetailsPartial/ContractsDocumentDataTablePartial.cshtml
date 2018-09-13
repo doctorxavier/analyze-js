@@ -1,0 +1,282 @@
+﻿@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+
+@model ContractDetailsViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var userName = Model.ViewContainer.GetValue<string>("User");
+
+    var config = Html.RenderDataTable(Model.ContractDocuments)
+    .Name("ContractDocuments")
+    .AddPrimaryKeyToName(false)
+    .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Template(c => ColumnDocumentType(c, false))
+            .Header(Localization.GetText("SGP.Label.DocumentType"));
+
+        columns.Bound(c => c.User)
+            .CssClass("colDocumentUser")
+            .CssHeaderClass("colDocumentUser")
+            .Header(Localization.GetText("COMMON.User"));
+
+        columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+            .CssClass("colDate textalign-center")
+            .CssHeaderClass("colDate")
+            .Header(Localization.GetText("COMMON.Date"));
+        
+        columns.Template(c => Confluence.ButtonLink(c.DocumentNumber, "documentNumberLink", htmlClass: "bold"))
+            .CssClass("document-number colDocumentNumber textalign-center")
+            .CssHeaderClass("colDocumentNumber")
+            .Header(Localization.GetText("COMMON.SVQ.DocNumber#"));
+
+        columns.Template(c => ColumnDescription(c, false))
+            .Header(Localization.GetText("COMMON.Description"));
+
+        columns.Template(c => ColumnNonOjectionStatus(c, false))
+            .CssClass("colNonObjectionStatus")
+            .CssHeaderClass("colNonObjectionStatus")
+            .Header(Localization.GetText("SGP.Label.NonObjectionStatus"));
+
+        columns.Template(c => Confluence.InputText(c.DocumentNumber, "contractDocuments-DocumentIDBDoc", disabled: false, width: "100%", required: false))
+            .Hidden(true);
+
+        columns.Template(c => ActionsTermsReference(c, false))
+            .CssClass("colAction140")
+            .CssHeaderClass("colAction140")
+            .Header(Localization.GetText("COMMON.Action"));
+    })
+    .RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(new ContractDataDocumentViewModel() { User = userName, Date = DateTime.Today }));
+    })
+;
+    config.TableClass = "tableNormal";
+}
+
+<div class="mb5">
+    <div class="col-xs-3 pl0">
+        @Confluence.LabelMainSubTitle(Localization.GetText("Contract Documents"), htmlClass: "subTitleSG mb10")
+    </div>
+    <div class="col-xs-3" style="padding-top:29px;">
+        @Confluence.LabelLinkBlank(text: Localization.GetText("SGP.COMMON.ViewTemplates"), url: "", name: "viewTemplatesLink", htmlClass: "bold align-subtitle hide")
+    </div>
+    @if (Model.ShowConfirmContractDetailBtn)
+    {
+        <div class="col-xs-6 pt10 pr0" style="text-align: right;">
+            @Confluence.ButtonBlue(Localization.GetText("SGP.Button.ConfirmContractDetails"), "confirm-contract")
+        </div>
+    }
+
+</div>
+
+<div class="row">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="row mb30 mt30">
+    <div class="col-xs-12 text-center">
+        @Confluence.ButtonAddNewRows(Localization.GetText("SGP.Button.AddAditionalContractDoc"), "", name: "addNewContractDocuments")
+    </div>
+</div>
+
+@helper ActionsTermsReference(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var canBeEdit = row.CanBeEdited;
+    var hasDocument = !string.IsNullOrEmpty(row.DocumentNumber);
+    var showUpload = (!hasDocument && canBeEdit);
+    var showDownload = hasDocument;
+    var isContractFirm = Model.IsSigned;
+    var responseBankTypeId = Model.ViewContainer.GetValue<int>("BankResponseTypeId");
+    var isResponseBank = row.DocumentTypeId == responseBankTypeId;
+
+    <div class="textalign-center">
+        @if (isTemplate)
+        {
+            @Confluence.ButtonDownload("", "DownLoadDoc")
+            @Confluence.ButtonTrash("", "RemoveRowContractDocuments")
+        }
+        else
+        {
+            if (showDownload)
+            {
+                @Confluence.ButtonDownload("", "DownLoadDoc")
+            }
+            if (!isContractFirm && !isResponseBank)
+            {
+                @Confluence.ButtonTrash("", "RemoveRowContractDocuments")
+            }
+            else
+            {
+                if (!row.IsMandatory && !isResponseBank)
+                {
+                    @Confluence.ButtonTrash("", "RemoveRowContractDocuments")
+                }
+            }
+        }
+    </div>
+}
+
+@helper ColumnDocumentType(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var contractDocTypeList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ContractDocumentType").ConvertToSelectListItems();
+    var responseBankTypeId = Model.ViewContainer.GetValue<int>("BankResponseTypeId");
+    var isResponseBank = row.DocumentTypeId == responseBankTypeId;
+
+    if (!isResponseBank)
+    {
+        var responseBankTypeItem = contractDocTypeList.FirstOrDefault(x => x.Value == responseBankTypeId.ToString());
+        contractDocTypeList.Remove(responseBankTypeItem);
+    }
+
+    var contractCompletionTypeId = Model.ViewContainer.GetValue<int>("contractTerminatedType");
+    var docTypeWithoutTermination = contractDocTypeList.FirstOrDefault(x => x.Value == contractCompletionTypeId.ToString());
+
+    var isMandatory = row.IsMandatory;
+    var isFirmContract = Model.IsSigned;
+
+    if (isFirmContract)
+    {
+        if (isTemplate || !isMandatory)
+        {
+            if (!isResponseBank)
+            {
+                @Confluence.InputDropDown(row.DocumentTypeId.ToString(), "contractDocuments-documentType", contractDocTypeList, orderAsc: false, required: false, width: "185px", dataAttributes: new Dictionary<string, string> { { "parsley-notDuplicateProcurementType", "input[name=\"contractDocuments-documentType\"]" } })
+            }
+            else
+            {
+                @Confluence.LabelGetDropDown(row.DocumentTypeId.Value, contractDocTypeList, false)
+                @Confluence.InputText(row.DocumentTypeId.ToString(), "contractDocuments-documentType", disabled: false, required: false, width: "185px", htmlClass: "hide")
+
+            }
+        }
+        else
+        {
+            @Confluence.LabelGetDropDown(row.DocumentTypeId.Value, contractDocTypeList, false)
+            @Confluence.InputText(row.DocumentTypeId.ToString(), "contractDocuments-documentType", disabled: false, required: false, width: "185px", htmlClass: "hide")
+        }
+    }
+    else
+    {
+        contractDocTypeList.Remove(docTypeWithoutTermination);
+
+        if (!isResponseBank)
+        {
+            @Confluence.InputDropDown(row.DocumentTypeId.ToString(), "contractDocuments-documentType", contractDocTypeList, orderAsc: false, required: false, width: "100%", dataAttributes: new Dictionary<string, string> { { "parsley-notDuplicateProcurementType", "input[name=\"contractDocuments-documentType\"]" } })
+        }
+        else
+        {
+            @Confluence.LabelGetDropDown(row.DocumentTypeId.Value, contractDocTypeList, false)
+            @Confluence.InputText(row.DocumentTypeId.ToString(), "contractDocuments-documentType", disabled: false, required: false, width: "185px", htmlClass: "hide")
+        }
+    }
+}
+
+@helper ColumnDescription(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var canBeEdit = row.CanBeEdited;
+    var isMandatory = row.IsMandatory;
+    var isFirmContract = Model.IsSigned;
+    var responseBankTypeId = Model.ViewContainer.GetValue<int>("BankResponseTypeId");
+    var isResponseBank = row.DocumentTypeId == responseBankTypeId;
+
+    if (isTemplate)
+    {
+        @Confluence.InputText(row.Description, "contractDocuments-description", disabled: false, maxLength: 100, required: false, width: "100%")
+    }
+    else
+    {
+        if (isFirmContract)
+        {
+            if (isMandatory || isResponseBank)
+            {
+                @row.Description
+                @Confluence.InputText(row.Description, "contractDocuments-description", disabled: false, required: false, htmlClass: "hide")
+            }
+            else
+            {
+                @Confluence.InputText(row.Description, "contractDocuments-description", disabled: false, maxLength: 100, required: false, width: "100%")
+            }
+        }
+        else
+        {
+            if (!isResponseBank)
+            { 
+            @Confluence.InputText(row.Description, "contractDocuments-description", disabled: false, maxLength: 100, required: false, width: "100%")
+            }
+            else
+            {
+                @row.Description
+                @Confluence.InputText(row.Description, "contractDocuments-description", disabled: false, required: false, htmlClass: "hide")
+            }
+        }
+    }
+}
+
+@helper ColumnNonOjectionStatus(ContractDataDocumentViewModel row, bool isTemplate)
+{
+    var nonObjectionStatusList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("NonObjectionStatusEnum").ConvertToSelectListItems();
+    var notAplicable = Model.ViewContainer.GetValue<int>("notAplicableStatus");
+
+    if (isTemplate)
+    {
+        <div name="status-objection">
+            @Confluence.LabelGetDropDown(notAplicable, nonObjectionStatusList, false)
+        </div>
+        @Confluence.InputText(notAplicable.ToString(), "contractDocuments-statusId", disabled: false, width: "100%", required: false, htmlClass: "hide")
+    }
+    else
+    {
+        @Confluence.LabelGetDropDown(row.NonObjectionStatusId, nonObjectionStatusList, false)
+        @Confluence.InputText(row.NonObjectionStatusId.ToString(), "contractDocuments-statusId", disabled: false, width: "100%", required: false, htmlClass: "hide")
+    }
+}
+
+@helper DrawRowTemplate(ContractDataDocumentViewModel row)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    <tr class="template hide">
+        <td>
+            @ColumnDocumentType(row, true)
+        </td>
+        <td class="colDocumentUser documentUser" name="documentUser">
+            @row.User
+        </td>
+        <td class="colDate textalign-center" name="documentDate">
+            @FormatHelper.Format(row.Date, formatDate)
+        </td>
+        <td class="document-number colDocumentNumber textalign-center">
+            @row.DocumentNumber
+        </td>
+        <td class=" ">
+            @ColumnDescription(row, true)
+        </td>
+        <td class="hide">
+            @Confluence.InputText(row.DocumentNumber, "contractDocuments-DocumentIDBDoc", disabled: false, width: "100%", required: false)
+        </td>
+        <td>
+            @ColumnNonOjectionStatus(row, true)
+        </td>
+        <td class="colAction120 textalign-center">
+            @ActionsTermsReference(row, true)
+        </td>
+    </tr>
+}

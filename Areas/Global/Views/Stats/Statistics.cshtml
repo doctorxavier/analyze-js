@@ -1,0 +1,1228 @@
+﻿@using Newtonsoft.Json;
+
+@using IDB.MW.Domain.Models.Architecture.Enumerations
+
+@model IDB.MW.Domain.Models.Global.OperationStatsModel
+@{
+    ViewBag.Title = "Operations Stats";
+
+    var itemsCountryDeparment = new List<SelectListItem> {
+        new SelectListItem {Selected = true, Text = Localization.GetText("Country"), Value = "0"},
+        new SelectListItem {Selected = false, Text = Localization.GetText("Country department"), Value = "1"},
+    };
+
+    var itemsSectorDepartment = new List<SelectListItem> {
+        new SelectListItem {Selected = true, Text = Localization.GetText("Sector"), Value = "0"},
+        new SelectListItem {Selected = false, Text = Localization.GetText("Department"), Value = "1"}
+    };
+
+    var UserName = @ViewData["UserName"];
+
+    string linkTitle = Localization.GetText("Go to Clause Detail");
+    int maxLengthOperationNumber = 10;
+    int maxLengthContractNumber = 16;
+    int maxLengthClauseNumber = 16;
+    int maxLengthClauseDescription = 83;
+    int maxLengthTypeOfClause = 27;
+}
+
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Workspace/ui_ws_001_graph.css")" />
+    <style type="text/css">
+        .colIcon {
+            display: inline-block;
+            height: 10px;
+            width: 10px;
+            margin-right: 5px;
+        }
+
+        .col_0 {
+            background: #2f69b9;
+        }
+
+        .col_1 {
+            background: #FFA92D;
+        }
+
+        .col_2 {
+            background: #703593;
+        }
+
+        .col_3 {
+            background: #a7dc38;
+        }
+
+        .col_4 {
+            background: #007283;
+        }
+
+        .col_5 {
+            background: #08fcbf;
+        }
+
+        .col_6 {
+            background: #002052;
+        }
+
+        .col_7 {
+            background: #ffacc0;
+        }
+
+        .col_8 {
+            background: #c92b22;
+        }
+
+        .col_9 {
+            background: #f6eb3b;
+        }
+
+        /*Kendo Grid*/
+
+
+        /* Remove Grid Headers */
+        .k-pager-first {
+            display: none;
+        }
+
+        .k-pager-last {
+            display: none;
+        }
+
+        .k-label {
+            display: none;
+        }
+
+        .k-pager-numbers li {
+            float: left;
+        }
+
+        .k-pager-nav {
+            display: none;
+        }
+
+        .k-link {
+            margin-right: 6px;
+            margin-left: 6px;
+        }
+
+        .k-pager-numbers .k-link:hover {
+            /* padding: 0 7px; */
+            border-style: none;
+            /* border-width: 1px; */
+            /* line-height: 22px; */
+        }
+
+        .k-pager-numbers .k-state-selected {
+            border-style: solid;
+            border-width: 1px;
+            /*line-height: 22px;*/
+            padding: 0 3px;
+            -moz-border-radius: 0px;
+            -webkit-border-radius: 0px;
+            -o-border-radius: 0px;
+            border-radius: 0px;
+            border-bottom-color: #3B73C3;
+            border-bottom-width: 1px;
+        }
+
+            .k-pager-numbers .k-state-selected:hover {
+                background-color: white;
+            }
+
+        .k-pager-numbers {
+            float: right;
+            margin-top: 10px;
+        }
+
+        div.k-grid-pager {
+            width: 99%;
+        }
+
+        .expiredClauseIcon {
+            vertical-align: middle;
+        }
+
+        tbody tr:nth-child(odd) {
+            background-color: #f6f7f8;
+        }
+
+        .k-widget-legend {
+            margin-bottom: 4px;
+            margin-left: 5px;
+        }
+
+        .grid thead tr th {
+            border-right: none;
+            padding: 5px 10px 5px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        .expire-clause-icon {
+            border: 1px solid #333;
+            /*height: 10px;
+            width: 10px;*/
+            padding: 0.1em;
+            width: 0.99em;
+            -moz-border-radius: 75px;
+            -webkit-border-radius: 75px;
+            display: table-cell;
+            vertical-align: middle;
+        }
+
+        .expired-icon {
+            background-color: #FF0000;
+        }
+
+        .expire-10-days-icon {
+            background-color: #FFA500;
+        }
+
+        .expire-beyond-11-days-icon {
+            background-color: #FFFF00;
+        }
+
+        .grid thead tr th:hover, .grid thead tr td.gridHeader:hover {
+            background-color: #1F396C;
+            cursor: default;
+        }
+
+        tbody tr:nth-of-type(odd) {
+            background-color: white;
+        }
+
+        .k-grid td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .k-tooltip-content {
+            line-height: normal;
+            text-align: justify;
+            opacity: 1;
+            border-radius: 2px;
+            background-color: rgba(100,100,100,0.9);
+            border-color: rgba(100,100,100,0.9);
+        }
+
+            .k-tooltip-content .custom-tooltip-content {
+                font-family: 'OpenSans-Regular';
+                font-size: 0.9em;
+                color: white;
+                width: auto;
+                min-width: initial;
+                max-width: 600px;
+                padding: 6px;
+            }
+    </style>
+}
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Workspace/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/JQchartfx/jquery.jqChart.min.js")"></script>
+
+    <script type="text/x-kendo-template" id="gridCellOperationNumber">
+        <div style="display:table">
+            #if (ExpiredClauseType == 0)
+            {#
+            <div class="expire-clause-icon expired-icon"></div>
+            #}#
+            #if (ExpiredClauseType == 1)
+            {#
+            <div class="expire-clause-icon expire-10-days-icon"></div>
+            #}#
+            #if (ExpiredClauseType == 2)
+            {#
+            <div class="expire-clause-icon expire-beyond-11-days-icon"></div>
+            #}#
+            &nbsp;&nbsp;&nbsp;
+            #if (ClauseType.toLowerCase().indexOf("financial") > -1)
+            {#
+            #if(OperationNumber.length > maxLengthOperationNumber)
+            {#
+            <div style="display:table-cell;vertical-align:middle" class="k-grid-cell-container">
+                <span style="font-weight: bold; cursor: pointer" title="#=OperationNumber#">#=OperationNumber.substring(0,maxLengthOperationNumber)# ...</span>
+            </div>
+            #}
+            else
+            {#
+            <div style="font-weight:bold;display:table-cell;vertical-align:middle" class="">
+                <span style="font-weight: bold">#=OperationNumber#</span>
+            </div>
+            #}#
+            #}
+            else
+            {#
+            #if(OperationNumber.length > maxLengthOperationNumber)
+            {#
+            <div style="display:table-cell;vertical-align:middle" class="k-grid-cell-container">
+                <span style="cursor:pointer" title="#=OperationNumber#">#=OperationNumber.substring(0,maxLengthOperationNumber)# ...</span>
+            </div>
+            #}
+            else
+            {#
+            <div style="display:table-cell;vertical-align:middle" class="">
+                <span>#=OperationNumber#</span>
+            </div>
+            #}#
+            #}#
+        </div>
+    </script>
+
+    <script type="text/x-kendo-template" id="gridCellContractNumber">
+        <div style="display:table">
+            #if (ClauseType.toLowerCase().indexOf("financial") > -1)
+            {#
+            #if(ContractNumber.length > maxLengthContractNumber)
+            {#
+            <div style="display:table-cell;vertical-align:middle" class="k-grid-cell-container">
+                <span style="font-weight: bold; cursor: pointer" title="#=ContractNumber#">#=ContractNumber.substring(0,maxLengthContractNumber)# ...</span>
+            </div>
+            #}
+            else
+            {#
+            <div style="font-weight:bold;display:table-cell;vertical-align:middle">#=ContractNumber#</div>
+            #}#
+            #}
+            else
+            {#
+            #if(ContractNumber.length > maxLengthContractNumber)
+            {#
+            <div style="display:table-cell;vertical-align:middle" class="k-grid-cell-container">
+                <span style="cursor:pointer" title="#=ContractNumber#">#=ContractNumber.substring(0,maxLengthContractNumber)# ...</span>
+            </div>
+            #}
+            else
+            {#
+            <div style="display:table-cell;vertical-align:middle">#=ContractNumber#</div>
+            #}#
+            #}#
+        </div>
+    </script>
+
+    <script type="text/x-kendo-template" id="gridCellClauseNumber">
+    # var clauseNumberText = ClauseNumber; #
+    # var clauseSuffix = (ClauseIndividualSuffix != null) ? '.' + ClauseIndividualSuffix : ""; #
+
+    # clauseNumberText += clauseSuffix; #
+    #if (ClauseType.toLowerCase().indexOf("financial") > -1)
+    {#
+    #if(clauseNumberText.length > maxLengthClauseNumber)
+    {#
+    <div class="k-grid-cell-container">
+        <span title="#=clauseNumberText#">
+            <a style="font-weight:bold;text-decoration:underline"
+               href="@Globals.GetSetting("ParamForOptimaServer")/#=OperationNumber#/Clauses/Clause/Details?operationId=#=OperationId#&contractId=#=ContractId#&clauseId=#=ClauseId#&clauseIndividualId=#=ClauseIndividualId#&mainOperationNumber=#=OperationNumber#">
+                #=clauseNumberText.substring(0,maxLengthClauseNumber)# ...
+            </a>
+        </span>
+    </div>
+    #}
+    else{#
+    <div>
+       
+        <span title="#=clauseNumberText#">
+            <a style="font-weight: bold; text-decoration: underline; "
+               href="@Globals.GetSetting("ParamForOptimaServer")/#=OperationNumber#/Clauses/Clause/Details?operationId=#=OperationId#&contractId=#=ContractId#&clauseId=#=ClauseId#&clauseIndividualId=#=ClauseIndividualId#&mainOperationNumber=#=OperationNumber#">
+                #=clauseNumberText#
+            </a>
+        </span>
+    </div>
+    #}#
+    #}
+    else{#
+    #if(clauseNumberText.length > maxLengthClauseNumber)
+    {#
+
+    <div class="k-grid-cell-container">
+        <span title="#=clauseNumberText#">
+            <a style="text-decoration: underline"
+               href="@Globals.GetSetting("ParamForOptimaServer")/#=OperationNumber#/Clauses/Clause/Details?operationId=#=OperationId#&contractId=#=ContractId#&clauseId=#=ClauseId#&clauseIndividualId=#=ClauseIndividualId#&mainOperationNumber=#=OperationNumber#">
+                #=clauseNumberText.substring(0,maxLengthClauseNumber)# ...
+            </a>
+        </span>
+    </div>
+    #}
+    else{#
+    <div>
+        <span title="#=clauseNumberText#">
+            <a style="text-decoration: underline"
+               href="@Globals.GetSetting("ParamForOptimaServer")/#=OperationNumber#/Clauses/Clause/Details?operationId=#=OperationId#&contractId=#=ContractId#&clauseId=#=ClauseId#&clauseIndividualId=#=ClauseIndividualId#&mainOperationNumber=#=OperationNumber#">
+                #=clauseNumberText#
+            </a> ---
+        </span>
+    </div>
+    #}#
+    #}#
+</script>
+
+    <script type="text/x-kendo-template" id="gridCellClauseDescription">
+        #if (ClauseType.toLowerCase().indexOf("financial") > -1)
+        {#
+        <div style="" class="k-grid-cell-container">
+            #if(ClauseDescription.length > maxLengthClauseDescription)
+            {#
+            # var descriptionText = ClauseDescription; #
+            # var descriptionText = descriptionText.substring(0,maxLengthClauseDescription); #
+            <span style="font-weight: bold; cursor: pointer" title="#=ClauseDescription#">
+                #=kendo.toString(descriptionText)# ...
+            </span>
+            #}
+            else
+            {#
+            <div style="font-weight:bold">#=ClauseDescription#</div>
+            #}#
+
+        </div>
+        #}
+        else
+        {#
+        <div class="k-grid-cell-container">
+            #if(ClauseDescription.length > maxLengthClauseDescription)
+            {#
+            # var descriptionText = ClauseDescription; #
+            # var descriptionText = descriptionText.substring(0,maxLengthClauseDescription); #
+            <span style="cursor: pointer" title="#=ClauseDescription#">
+                #=kendo.toString(descriptionText)# ...
+            </span>
+            #}
+            else{#
+            #=ClauseDescription#
+            #}#
+        </div>
+        #}#
+    </script>
+
+    <script type="text/x-kendo-template" id="gridCellClauseType">
+        #if (ClauseType.toLowerCase().indexOf("financial") > -1)
+        {#
+        #if (ClauseType.length > maxLengthTypeOfClause)
+        {#
+        <div style="" class="k-grid-cell-container">
+            <span style="font-weight: bold;cursor:pointer" title="#=ClauseType#">
+                #=ClauseType.substring(0,maxLengthTypeOfClause)# ...
+            </span>
+        </div>
+        #}
+        else
+        {#
+        <div style="font-weight:bold">
+            <span style="font-weight: bold" title="#=ClauseType#">
+                #=ClauseType#
+            </span>
+        </div>
+        #}#
+        #}
+        else
+        {#
+        #if (ClauseType.length > maxLengthTypeOfClause)
+        {#
+        <div style="" class="k-grid-cell-container">
+            <span style="cursor: pointer" title="#=ClauseType#">
+                #=ClauseType.substring(0,maxLengthTypeOfClause)# ...
+            </span>
+        </div>
+        #}
+        else
+        {#
+        <div style="">
+            <span style="" title="#=ClauseType#">
+                #=ClauseType#
+            </span>
+        </div>
+        #}#
+        #}#
+    </script>
+
+    <script type="text/x-kendo-template" id="gridCellExpirationDate">
+        #if (ClauseType.toLowerCase().indexOf("financial") > -1)
+        {#
+        <div style="font-weight:bold">#= kendo.toString(kendo.parseDate(ExpirationDate, 'yyyy-MM-dd'), 'MM/dd/yyyy') #</div>
+        #}
+        else
+        {#
+        <div>#= kendo.toString(kendo.parseDate(ExpirationDate, 'yyyy-MM-dd'), 'MM/dd/yyyy') #</div>
+        #}#
+    </script>
+
+    <script id="tooltip-grid-template" type="text/x-kendo-template">
+        <div class="custom-tooltip-content">#=target.data('title')#</div>
+    </script>
+
+
+
+    <script type="text/javascript">
+
+        var maxLengthOperationNumber = parseInt("@maxLengthOperationNumber")
+        var maxLengthContractNumber = parseInt("@maxLengthContractNumber");
+        var maxLengthClauseNumber = parseInt("@maxLengthClauseNumber");
+        var maxLengthClauseDescription = parseInt("@maxLengthClauseDescription");
+        var maxLengthTypeOfClause = parseInt("@maxLengthTypeOfClause");
+
+        var expireClauseCount = parseInt("@Model.ExpiredClauses.Count()");
+
+
+        $(document).ready(function () {
+
+
+
+            var statusData = @Html.Raw(JsonConvert.SerializeObject(Model.StatusStats));
+            var supPlanData = @Html.Raw(JsonConvert.SerializeObject(Model.SupervisionPlanValidationStatusStats));
+            var ovRiskData = @Html.Raw(JsonConvert.SerializeObject(Model.OverallRiskStats));
+            var contractsData = @Html.Raw(JsonConvert.SerializeObject(Model.ContractClauseStatusStats));
+            var contractsExpData = @Html.Raw(JsonConvert.SerializeObject(Model.ContractClausesExpirationStats));
+            var envSocialData = @Html.Raw(JsonConvert.SerializeObject(Model.EnvironmentalSocialImpactStats));
+            var pmrRequirements = @Html.Raw(JsonConvert.SerializeObject(Model.PMRRequirementStats.Select(r => new { r.Key, r.Value }).ToList()));
+            var opsVisualization = @Html.Raw(JsonConvert.SerializeObject(Model.OperationGeolocationStats.Select(r => new { r.Key, r.Value }).ToList()));
+            var opsEligility = @Html.Raw(JsonConvert.SerializeObject(Model.OperationElegibilityStats.Select(r => new { r.Key, r.Value }).ToList()));
+            var pmrValidation = @Html.Raw(JsonConvert.SerializeObject(Model.PMRValidationStageStats));
+            var expiredClauses = @Html.Raw(JsonConvert.SerializeObject(Model.ExpiredClauses));
+
+            var colors = ['#2f69b9', '#FFA92D', '#703593', '#a7dc38', '#007283', '#08fcbf', '#002052', '#ffacc0', '#c92b22', '#f6eb3b'];
+
+            $('#statusChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : statusData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Code',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#risksStatsChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : ovRiskData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Code',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#supPlanChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : supPlanData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Name_En',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#ESGClassifChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : envSocialData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Name_En',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#EnvSocialStatsChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : envSocialData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Name_En',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#contractStatusChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : contractsData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Code',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#contractClausesExpireChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : contractsExpData,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Code',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#PMRReqStatsChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : pmrRequirements,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Key',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#visualizationGeoChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : opsVisualization,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Key',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#OpEligibStatsChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : opsEligility,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Key',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#PMRvalidationChart').jqChart({
+                animation: { duration: 1 },
+                dataSource : pmrValidation,
+                border: { visible: false },
+                legend: { visible: false },
+                shadows: { enabled: true },
+                series: [
+                    {
+                        type: 'pie',
+                        fillStyles: colors,
+                        explodedRadius: 10,
+                        dataLabelsField: 'Key',
+                        dataValuesField: 'Value',
+                        explodedField: 'exploded'
+                    }
+                ]
+            });
+            $('#contractStatusChart').bind('tooltipFormat', function (e, data) {
+                var percentage = data.series.getPercentage(data.value);
+                percentage = data.chart.stringFormat(percentage, '%.2f%%');
+
+                return '<b>' + data.dataItem[0] + '</b><br />' +
+                       data.value + ' (' + percentage + ')';
+            });
+            $('#contractStatusChart').bind('tooltipFormat', function (e, data) {
+                var percentage = data.series.getPercentage(data.value);
+                percentage = data.chart.stringFormat(percentage, '%.2f%%');
+
+                return '<b>' + data.dataItem[0] + '</b><br />' +
+                       data.value + ' (' + percentage + ')';
+            });
+
+            if (expireClauseCount > 0 ) {
+
+                var expiredClausesGrid = $("#grdExpiredClauses").kendoGrid({
+                    dataSource: {
+                        data:expiredClauses,
+                        schema: {
+                            model: {
+                                fields: {
+                                    OperationId: { type: "string" },
+                                    OperationNumber: { type: "string" },
+                                    ContractId: { type: "string" },
+                                    ContractNumber: { type: "string" },
+                                    ClauseId: { type: "string" },
+                                    ClauseNumber: { type: "string" },
+                                    ClauseIndividualId: { type: "string" },
+                                    ClauseIndividualSuffix: { type: "string" },
+                                    ClauseDescription: { type: "string"},
+                                    ClauseType: { type: "string" },
+                                    ClauseCategory: { type: "string" },
+                                    ExpirationDate: { type: "date" },
+                                    ExpiredClauseType: { type: "int" },
+                                    MainOperationNumber: { type: "string" }
+                                }
+                            }
+                        },
+                        pageSize: 15
+                    },
+                    scrollable: false,
+                    sortable: false,
+                    selectable: false,
+                    filterable: false,
+                    pageable: true,
+                    info: false,
+                    previousNext: false,
+                    resizable: false,
+                    messages: {
+                        display: "",
+                        first: "",
+                        previous: "",
+                        next: "",
+                        last: "",
+                        refresh: ""
+                    },
+                    columns: [
+                    {
+                        field: "OperationNumber",
+                        title: "@Localization.GetText("Operation Number")",
+                        template:  kendo.template($("#gridCellOperationNumber").html())
+                    },
+                    {
+                        field: "ContractNumber",
+                        title: "@Localization.GetText("Contract Number")",
+                        template:  kendo.template($("#gridCellContractNumber").html())
+                    },
+                    {
+                        field: "ClauseNumber",
+                        title: "@Localization.GetText("Clause Number")",
+                        template:  kendo.template($("#gridCellClauseNumber").html())
+                    },
+                    {
+                        field: "ClauseDescription",
+                        title: "@Localization.GetText("Clause Description")",
+                        template:  kendo.template($("#gridCellClauseDescription").html())
+                    },
+                    {
+                        field: "ClauseType",
+                        title: "@Localization.GetText("Type of Clause")",
+                        template:  kendo.template($("#gridCellClauseType").html())
+                    },
+                    {
+                        field: "ExpirationDate",
+                        title: "@Localization.GetText("Expiration Date")",
+                        template:  kendo.template($("#gridCellExpirationDate").html())
+                    }
+                    ],
+                    dataBound: function (e) {
+
+                        var tooltip = $(".k-grid-cell-container").kendoTooltip({
+                            filter: "span",
+                            position: "bottom",
+                            content: kendo.template($("#tooltip-grid-template").html()),
+                            autoHide: true
+                        }).data("kendoTooltip");
+
+
+                    }
+                }).data("kendoGrid");
+
+                var tooltip = $(".k-grid-cell-container").kendoTooltip({
+                    filter: "span",
+                    position: "bottom",
+                    content: kendo.template($("#tooltip-grid-template").html()),
+                    autoHide: true
+                }).data("kendoTooltip");
+
+
+                $(".k-grid-cell-container span").on("blur", function()
+                {
+                    $(this).data("kendoTooltip").hide();
+                });
+
+
+
+
+
+                if (expireClauseCount <= 10)
+                {
+                    $(".k-pager-wrap").hide();
+                }
+                else {
+                    $(".k-pager-wrap").show();
+                }
+
+            }
+        });
+
+        function wrapLink(currentDiv) {
+
+            $(currentDiv).css("color", "#264A7F");
+            $(currentDiv).css("cursor", "pointer");
+            var currentTitle = "@linkTitle";
+            currentTitle = currentTitle.replace("&#225;","\u00e1");
+            currentTitle = currentTitle.replace("&#233;","\u00e9");
+            var currentTitleTemp = currentTitle.replace("&#233;","\u00e9");
+            $(currentDiv).attr("title",currentTitleTemp);
+
+        }
+
+        function unWrapLink(currentDiv) {
+            $(currentDiv).css("color", "#3B73C3");
+            $(currentDiv).removeAttr("title");
+        }
+
+        function redirectToClauseDetail(currentDiv) {
+            var url = $(currentDiv).find("#hdnLinkPath").val();
+            window.location.href = url;
+        }
+    </script>
+}
+
+
+<div class="lineHeight2em verticalMargin20 marginLeft1">
+    <div class="inline-block w100">
+        <h3 class="font2em" style="text-transform: capitalize;">@(Model.MyOperations ? Localization.GetText("My Operations") : Localization.GetText("Overall Operations"))</h3>
+    </div>
+</div>
+
+<div class="relative h50px w100">
+    <div class="absolute marginLeft1">
+        <span class="font1-5em"> @Localization.GetText("My Operations")</span>
+    </div>
+    <div class="absolute absRight" style="padding-right:24px">
+        <input type="button" class="tabButton active" value="@Localization.GetText("GRAPH")" id="graphBtn">
+        <input type="button" class="tabButton" value="@Localization.GetText("VALUES")" id="tableBtn">
+    </div>
+</div>
+
+
+<div class="statsContainer" style="font-family: 'OpenSans-Regular'; color: #3B73C3; font-size: 0.75em; width: 100%!important">
+    <div class="stats-column" style="width: 98%!important">
+        <div id="opVisualizationStats" class="stats" style="width: 100%!important;padding-left:17px">
+            <div class="">
+                <div id="widgetTitleA" style="width: 98.93%; padding-top:10px;padding-left:0px; background: #1F396C; color: #ffffff; font-family: 'OpenSans-Bold'">
+                    <span style="margin-left: 10px;">@Localization.GetText("Expired/Expiring Clauses")</span>
+                </div>
+            </div>
+            <div class="" style="color:#3B73C3">
+                @if (Model.ExpiredClauses != null && Model.ExpiredClauses.Count() > 0)
+                {
+                    <table class="grid" id="grdExpiredClauses" style="width:99%!important; font-size: 1em">
+                        <colgroup>
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                        </colgroup>
+                    </table>
+                }
+                <br />
+                <div>
+                    <table>
+                        <tr style="background-color: white">
+                            <td style="padding-left: 10px;vertical-align:middle"><div class="expire-clause-icon expired-icon" style="width:12px;height:12px"></div></td>
+                            <td style="padding-left: 10px; padding-bottom:6px; vertical-align: middle">@Localization.GetText("Expired")</td>
+                        </tr>
+                        <tr style="background-color: white;">
+                            <td style="padding-left: 10px; vertical-align: middle"><div class="expire-clause-icon expire-10-days-icon" style="width:12px;height:12px"></div></td>
+                            <td style="padding-left: 10px; padding-bottom: 6px; vertical-align: middle">@Localization.GetText("10 days to Expiration")</td>
+                        </tr>
+                        <tr style="background-color: white;">
+                            <td style="padding-left: 10px; vertical-align: middle"><div class="expire-clause-icon expire-beyond-11-days-icon" style="width:12px;height:12px"></div></td>
+                            <td style="padding-left: 10px; padding-bottom: 6px; vertical-align: middle">@Localization.GetText("11 – 30 days to expiration")</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="clear"></div>
+
+
+<div id="ui_ws_001-graph" class="padding20">
+
+    <!-- STATS GRIDS -->
+    <div class="verticalMargin20 relative font075em">
+        <div class="stats-column w48 statsContainer">
+            <div class="stats-column w48">
+                <div id="countryDepartmentStats" class="stats">
+                    <div class="statsHeader padding10">
+                        <div class="relative h22px">
+                            <div class="absolute w100 marginTop2px">@Html.DropDownList("CountryDepartment", itemsCountryDeparment, new { @class = "kendoDropDown" })</div>
+                        </div>
+                    </div>
+                    <div id="CountryDepartmentValues" data-route="@Url.Action("_CountryDepartment", "Stats")" class="grayBorder padding10">
+                        @Html.Partial("_StatisticsValueView", Model.CountryStats, new ViewDataDictionary { { "filterName", "Country" }, { "UserName", UserName } })
+                    </div>
+                    <div class="statsChart statsPie" id="countryChart">
+                    </div>
+                </div>
+            </div>
+            <div class="stats-column right-column absRight w48">
+                <div id="sectorDepartmentStats" class="stats">
+                    <div class="statsHeader padding10">
+                        <div class="relative h22px">
+                            <div class="absolute w100 marginTop2px">@Html.DropDownList("SectorDepartment", itemsSectorDepartment, new { @class = "kendoDropDown" })</div>
+                        </div>
+                    </div>
+                    <div id="SectorDepartmentValues" data-route="@Url.Action("_SectorDepartment", "Stats")" class="grayBorder padding10">
+                        @Html.Partial("_StatisticsValueView", Model.SectorStats, new ViewDataDictionary { { "filterName", "Sector" }, { "UserName", UserName } })
+                    </div>
+                </div>
+            </div>
+            <div class="clear"></div>
+        </div>
+        <div class="stats-column w48 right-column statsContainer">
+            <div id="statusStats" class="stats">
+                <div class="statsHeader padding10"> @Localization.GetText("Status")</div>
+                <div class="grayBorder padding10">
+                    @Html.Partial("_StatisticsValueView", Model.StatusStats, new ViewDataDictionary { { "filterName", "OverallStatus" }, { "UserName", UserName } })
+                    <div class="statsChart statsPie" id="statusChart">
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+        <div class="clear"></div>
+    </div>
+
+    <div class="verticalMargin20 relative font075em">
+        <div class="stats-column w48 statsContainer">
+            <div class="stats-column w48">
+                <div id="ESGStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("ESG Risk Classification Value")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.ESGRiskStats, new ViewDataDictionary { { "filterName", "ESGRisk" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="ESGClassifChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-column right-column w48">
+                <div id="PMRStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("PMR Validation Status")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.PMRValidationStageStats, new ViewDataDictionary { { "filterName", "PMRValidation" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="PMRvalidationChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="clear"></div>
+        </div>
+        <div class="stats-column w48 right-column statsContainer">
+            <div class="stats-column w48">
+                <div id="opVisualizationStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("Operation visualization status")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsDictionaryValueView", Model.OperationGeolocationStats, new ViewDataDictionary { { "filterName", "Geolocation" } })
+                        </div>
+                        <div class="statsChart statsPie" id="visualizationGeoChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-column right-column w48">
+                <div id="supervisionPlanValidationStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("Current Year Supervision Plan Status")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.SupervisionPlanValidationStatusStats, new ViewDataDictionary { { "filterName", "PlanStatus" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="supPlanChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="clear"></div>
+        </div>
+        <div class="clear"></div>
+    </div>
+
+    <div class="verticalMargin20 relative font075em">
+        @*<div class="stats-column w48 statsContainer">
+                <div class="stats-column w48">
+                    <div id="risksStats" class="stats">
+                        <div class="statsHeader padding10"> @Localization.GetText("Overall Risk")</div>
+                        <div class="grayBorder padding10">
+                            <div class="inline-block w50">
+                                @Html.Partial("_StatisticsValueView", Model.OverallRiskStats)
+                            </div>
+                            <div class="statsChart statsPie" id="risksStatsChart">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-column right-column w48">
+                    <div id="PMRReqStats" class="stats">
+                        <div class="statsHeader padding10"> @Localization.GetText("PMR Requirement")</div>
+                        <div class="grayBorder padding10">
+                            <div class="inline-block w50">
+                                @Html.Partial("_StatisticsDictionaryValueView", Model.PMRRequirementStats)
+                            </div>
+                            <div class="statsChart statsPie" id="PMRReqStatsChart">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>*@
+        <div class="stats-column w48 statsContainer">
+            <div class="stats-column w48">
+                <div id="OpEligibStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("Operation eligibility")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsDictionaryValueView", Model.OperationElegibilityStats, new ViewDataDictionary { { "filterName", "Eligibility" }, { "dateModifier", Model.DaysToEligibility.ToString() } })
+                        </div>
+                        <div class="statsChart statsPie" id="OpEligibStatsChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-column right-column w48">
+                <div id="EnvSocialStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("Environmental & Social Impact")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.EnvironmentalSocialImpactStats, new ViewDataDictionary { { "filterName", "Environmental" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="EnvSocialStatsChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="stats-column right-column w48 statsContainer">
+            <div class="stats-column w48">
+                <div id="PMRReqStats" class="stats">
+                    <div class="statsHeader padding10"> @Localization.GetText("PMR Requirement")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsDictionaryValueView", Model.PMRRequirementStats, new ViewDataDictionary { { "filterName", "PMRReq" } })
+                        </div>
+                        <div class="statsChart statsPie" id="PMRReqStatsChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="verticalMargin80-0-20">
+        <div class="marginLeft1">
+            <span class="font1-5em">@Localization.GetText("My contracts")</span>
+        </div>
+    </div>
+    @*<div class="verticalMargin20 w48 relative font075em">
+            <div class="stats-column w48 statsContainer">
+                <div id="contractStatus" class="stats">
+                <div class="statsHeader padding10">@Localization.GetText("Contract Clauses status")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.ContractClauseStatusStats, new ViewDataDictionary { { "filterName", "ClauseStatus" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="contractStatusChart">
+                            </div>
+
+                    </div>
+                </div>
+            </div>
+            <div class="stats-column right-column w48 statsContainer">
+                <div id="contractClausesExpire" class="stats">
+                <div class="statsHeader padding10"> @Localization.GetText("Contract with Clauses about to expire")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.ContractClausesExpirationStats, new ViewDataDictionary { { "filterName", "ClauseExpiration" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="contractClausesExpireChart">
+                            </div>*
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="clear"></div>
+        </div>*@
+
+    <div class="verticalMargin20 relative font075em">
+        <div class="stats-column w48 statsContainer">
+            <div class="stats-column w48">
+                <div id="ESGStats" class="stats">
+                    <div class="statsHeader padding10">@Localization.GetText("Contract Clauses status")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.ContractClauseStatusStats, new ViewDataDictionary { { "filterName", "ClauseStatus" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="contractStatusChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-column right-column w48">
+                <div id="PMRStats" class="stats">
+                    <div class="statsHeader padding10">@Localization.GetText("Contract with Clauses about to expire")</div>
+                    <div class="grayBorder padding10">
+                        <div class="inline-block w50">
+                            @Html.Partial("_StatisticsValueView", Model.ContractClausesExpirationStats, new ViewDataDictionary { { "filterName", "ClauseExpiration" }, { "UserName", UserName } })
+                        </div>
+                        <div class="statsChart statsPie" id="contractClausesExpireChart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="clear"></div>
+        </div>
+        @*<div class="stats-column w48 right-column statsContainer" style="display:none">
+                <div class="stats-column w48">
+                    <div id="opVisualizationStats" class="stats" style="width:550px">
+                        <div class="statsHeader padding10">
+                            <div id="widgetTitleA">@Localization.GetText("Expired/Expiring Clauses")</div>
+                        </div>
+                        <div class="grayBorder padding10">
+
+                            <div>
+                                <div style="float: left; width: 25%;">
+                                    <img style="vertical-align:middle" src="@Url.Content("~/Images/icons/red_circle_icon.png")" />
+                                    <span>@Localization.GetText("Expired")</span>
+                                </div>
+                                <div style="float: left; width: 35%;">
+                                    <img style="vertical-align:middle" src="@Url.Content("~/Images/icons/orange_circle_icon.png")" />
+                                    <span>@Localization.GetText("10 days to Expiration")</span>
+                                </div>
+                                <div style="float: left; width: 40%;">
+                                    <img style="vertical-align:middle" src="@Url.Content("~/Images/icons/yellow_circle_icon.png")" />
+                                    <span>@Localization.GetText("11 – 30 days to expiration")</span>
+                                </div>
+                            </div>
+                            <br /><br /><br />
+                            @if (Model.ExpiredClauses != null && Model.ExpiredClauses.Count() > 0)
+                            {
+                                <div id="expiredWidgetContainer">
+                                    <table id="grdExpiredClauses" class="">
+                                        <tbody id="" class="" data-role="listview">
+                                            @foreach (var expiredClause in Model.ExpiredClauses)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <div style="margin-right:10px">
+                                                            @if (expiredClause.ExpiredClauseType == 0)
+                                                            { <img src="@Url.Content("~/Images/icons/red_circle_icon.png")" /> }
+                                                            @if (expiredClause.ExpiredClauseType == 1)
+                                                            { <img src="@Url.Content("~/Images/icons/orange_circle_icon.png")" /> }
+                                                            @if (expiredClause.ExpiredClauseType == 2)
+                                                            { <img src="@Url.Content("~/Images/icons/yellow_circle_icon.png")" /> }
+
+                                                        </div>
+                                                    </td>
+                                                    <td class="clauseLink">
+                                                        <div onmouseover="wrapLink(this);" onmouseout="unWrapLink(this);" onclick="redirectToClauseDetail(this);">
+                                                            @{
+
+                                                            string linkName = expiredClause.ContractNumber + "-" + expiredClause.ClauseNumber + expiredClause.ClauseIndividualSuffix + "-" + expiredClause.ClauseDescription;
+                                                            string filledString = String.Empty;
+                                                            string remainString = String.Empty;
+
+                                                            if (linkName.Length > 59)
+                                                            {
+                                                                remainString = linkName.Substring(0, 59);
+                                                                filledString = remainString;
+                                                            }
+                                                            else
+                                                            {
+                                                                filledString = linkName;
+                                                            }
+
+                                                            }
+
+                                                            @if (expiredClause.ClauseCategory.ToLower().Contains("disbursement") || expiredClause.ClauseType.ToLower().Contains("financial"))
+                                                            {
+                                                                <div style="width: 360px; overflow: hidden; float:left" onmouseover="wrapLink(this);" onmouseout="unWrapLink(this);">
+                                                                    <span style="font-weight:bold">@filledString</span>
+                                                                </div>
+                                                                <div style="float: left; font-weight: bold">&nbsp;---------------&nbsp;&nbsp;</div>
+                                                                <div style="overflow: hidden;font-weight: bold; ">@expiredClause.ExpirationDate.Date.ToString("dd/MM/yyyy")</div>
+                                                            }
+                                                            else
+                                                            {
+                                                                <div style="width: 360px; overflow: hidden; float: left" onmouseover="wrapLink(this);" onmouseout="unWrapLink(this);">
+                                                                    <span>@filledString</span>
+                                                                </div>
+                                                                <div style="float:left">&nbsp;---------------&nbsp;&nbsp;</div>
+                                                                <div style="overflow: hidden">@expiredClause.ExpirationDate.Date.ToString("dd/MM/yyyy")</div>
+                                                            }
+                                                            <input type="hidden" id="hdnLinkPath" value="@(Url.Action("Details", "Clause", new { area = "Clauses", operationId = expiredClause.OperationId, contractId = expiredClause.ContractId, clauseId = expiredClause.ClauseId, clauseIndividualId = expiredClause.ClauseIndividualId, mainOperationNumber = expiredClause.MainOperationNumber }))" />
+                                                        </div>
+
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+
+                        </div>
+                    </div>
+                </div>
+                <div class="clear"></div>
+            </div>*@
+        <div class="clear"></div>
+    </div>
+    <!-- END STATS GRIDS -->
+</div>

@@ -1,0 +1,98 @@
+﻿@using System.Globalization
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Architecture.Language
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core
+
+
+@model TemplatePageViewModel
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+
+<input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" />
+
+<div class="format-edit-template">
+
+    <div class="row mb20">
+        <div class="col-md-12">
+            @{
+                var config = Html.RenderDataTable(Model.Templates);
+                config.Name("TemplateList")
+                .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Bound(c => "")
+                        .EditableTemplate(c => ControlTemplates.InputText(c.IsDefault.ToString(), "IsDefault"))
+                        .Hidden(true);
+                    //columns.Template(c => ControlTemplates.InputText(c.IsDefault.ToString(), "IsDefault")).Hidden(true).Persistent();
+                    columns.Template(c => VersionLink(c))
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.TemplateVersion"))
+                        .Persistent();
+                    columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+                        .OrderFormat("yyyy MM dd", x => x.Date)
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.Date"))
+                        .Persistent()
+                        .HeaderAttribute("style", "width:150px;min-width:150px;");
+                    columns.Bound(c => c.ModifyBy)
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.ModifiedBy"))
+                        .Persistent();
+                    columns.Bound(c => c.Description)
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.Description"))
+                        .Persistent();
+                    columns.Template(x => StatusDocumentRead(x))
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.Action"))
+                        .Persistent()
+                        .HeaderAttribute("style", "width:100px;min-width:100px;");
+                });
+
+                config.TableClass = "tableNormal";
+            }
+
+            @Html.Partial("Controls/DataTable", config)
+
+        </div>
+    </div>
+
+</div>
+
+
+
+@helper StatusDocumentRead(RowTemplateViewModel row)
+{
+
+    if(row.IsDefault)
+    {
+        @Confluence.Label(Localization.GetText("IM.TemplatesList.TemplateTable.TemplateDefault"), dataAttributes : new Dictionary<string, string> { { "default", "true" } })
+    }
+
+
+
+}
+
+@helper VersionLink(RowTemplateViewModel row)
+{
+    var link = new IDB.Presentation.MVC4.Areas.Indicators.Models.LinkViewModel()
+    {
+        Action = "ReadTemplate",
+        Area = "Indicators",
+        Controller = Model.ControllerName,
+        Text = row.Version
+    };
+    link.Parameters.Add("templateId", row.Id);
+
+    @Html.Partial("Display/Link", link)
+}
+
+
+
+
+

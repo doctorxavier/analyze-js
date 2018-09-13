@@ -1,0 +1,190 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.PCRModule.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using PCRFollowUpTask12ViewModel = IDB.MW.Application.PCRModule.ViewModels.FollowUpService.Tasks.PCRFollowUpTask12ViewModel
+@model IDB.MW.Application.PCRModule.ViewModels.FollowUpService.Tasks.PCRFollowUpTaskBaseViewModel
+@{  
+    bool showToolTipTask16 = false;
+    string styleDelayed = " delayed ";
+    
+    var previous = Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == Model.TaskNumber - 1);   
+    
+    var previousIsExtensionTask = (previous != null && 
+        (previous.TaskNumber == 2 || previous.TaskNumber == 8));
+
+    var lastCompletedTask = previous == null ? null : previousIsExtensionTask ?
+            Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == Model.TaskNumber - 2).CompletedDate :
+            Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == Model.TaskNumber - 1).CompletedDate;    
+    
+    var previousIsCurrent = (previousIsExtensionTask && 
+        !previous.UpdatedDeadline.HasValue && previous.IsActive);
+
+    if (Model.TaskNumber == 16) {         
+        PCRFollowUpTask12ViewModel task12 = new PCRFollowUpTask12ViewModel();
+        task12 = (PCRFollowUpTask12ViewModel)Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == Model.TaskNumber - 4);
+        if (task12.CompletedDate.HasValue)
+        {
+            showToolTipTask16 = task12.IsCommentSent.HasValue ? !task12.IsCommentSent.Value : true;
+        }    
+    }
+
+    if (Model.TaskNumber == 14 && previous == null)
+    {
+        PCRFollowUpTask12ViewModel task12 = new PCRFollowUpTask12ViewModel();
+        task12 = (PCRFollowUpTask12ViewModel)Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == Model.TaskNumber - 2);
+        if (task12.CompletedDate.HasValue)
+        {
+            lastCompletedTask = task12.CompletedDate;
+        }
+    }
+
+    if (Model.TaskNumber == 22 && previous == null)
+    {
+       var task18 = Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == Model.TaskNumber - 4);
+       lastCompletedTask = task18.CompletedDate.HasValue ? task18.CompletedDate : null;       
+    }
+
+    string pcrFollowUpStateName = Model.Parent.Header.PCRFollowUpStateName + " : ";
+    if (Model.TaskNumber == 22)
+    {
+        var task22 = Model.Parent.Tasks.FirstOrDefault(t => t.TaskNumber == 22);
+        if (task22.CompletedDate.HasValue)
+        {
+            styleDelayed = " ";
+            pcrFollowUpStateName = string.Empty;
+        } 
+    }
+}
+
+
+@if (Model.TaskNumber == 4 || Model.TaskNumber == 6 || Model.TaskNumber == 14)
+{
+    <aside class="row">
+        <div class="col-md-8">
+            <span class="no-shading">
+                <i>
+                    @switch (Model.TaskNumber)
+                    {
+                        case 4:
+                            @Localization.GetText("PCR.FollowUp.SubmissionQRR")
+                            break;
+                        case 6:
+                        @Localization.GetText("PCR.FollowUp.InputsCollection")
+                            break;
+                        case 14:
+                        @Localization.GetText("PCR.FollowUp.SubmissionSPD")
+                            break;
+                    }
+                </i>
+            </span>
+        </div>
+    </aside>
+}
+
+@{    
+    var currentTask = Model.IsCurrent ? "currentTask " : string.Empty;
+    var notActiveTask = Model.IsDisabled ? "not-active-task " : string.Empty;
+}
+<div class="row @(currentTask)@(notActiveTask)" data-id="@(Model.TaskNumber)" 
+     data-last-completed-date="@lastCompletedTask">
+    <div class="col-md-1">
+        <span class="cellContainer">&nbsp;</span>
+    </div>
+    <div class="col-md-7">
+        @if (Model.IsCurrent && Model.WasRejected.HasValue)
+        {
+            <span @(Html.Raw("class=\"current rejected cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\""))
+                  data-tooltip-showonclasspresent="current" data-tooltip-title="" data-tooltip="@Localization.GetText("PCR.FollowUp.Message.Rejected")">
+                @Model.TaskNumber. @Model.TaskName
+            </span>
+        }
+        else
+        {
+            if (showToolTipTask16)
+            {
+                <span @(Model.IsCurrent ? ViewBag.Header.PCRFollowUpTimelineStatus == PCRFollowUpTimelineStatusEnum.OnTime ?
+                Html.Raw("class=\"current onTime cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\"") :
+                Html.Raw("class=\"current delayed cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\"") :
+                showToolTipTask16? Html.Raw("class=\"notCurrent onTime cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\"") :
+                Html.Raw("class=\"cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\""))
+                @( showToolTipTask16? Html.Raw("data-tooltip-showonclasspresent=\"notCurrent\"") : Html.Raw("data-tooltip-showonclasspresent=\"current\"")) 
+                data-tooltip-title=""
+                data-tooltip="@(Model.IsCurrent ? Model.Parent.Header.PCRFollowUpStateName +": " + Model.Parent.Header.PCRFollowUpTimelineStatusName +". <br/>": "") @(
+                Model.Parent.Header.PCRFollowUpTimelineStatus == PCRFollowUpTimelineStatusEnum.Delayed ? " " +
+                Localization.GetText("PCR.FollowUp.Status.By") + " " + Model.Parent.Header.NumberofDaysDelayed + " " +
+                Localization.GetText("PCR.FollowUp.Status.Days") : showToolTipTask16? Localization.GetText("PCR.FollowUp.Tooltip.Task16.DatePicker") : "")">
+                @Model.TaskNumber. @Model.TaskName
+                </span>
+            }
+            else
+            {
+                <span @(Model.IsCurrent ? ViewBag.Header.PCRFollowUpTimelineStatus == PCRFollowUpTimelineStatusEnum.OnTime ? 
+                Html.Raw("class=\"current onTime cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\"") :
+                Html.Raw("class=\"current " + styleDelayed + " cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\"") : 
+                Html.Raw("class=\"cellContainer " + (Model.IsDisabled ? "task-disabled" : "") + "\""))
+                data-tooltip-showonclasspresent="current" 
+                data-tooltip-title=""
+                data-tooltip="@pcrFollowUpStateName @Model.Parent.Header.PCRFollowUpTimelineStatusName @(
+                Model.Parent.Header.PCRFollowUpTimelineStatus == PCRFollowUpTimelineStatusEnum.Delayed ? " " +
+                Localization.GetText("PCR.FollowUp.Status.By") + " " + Model.Parent.Header.NumberofDaysDelayed + " " +
+                Localization.GetText("PCR.FollowUp.Status.Days") : "")">
+                @Model.TaskNumber.@Model.TaskName
+                </span>
+
+            }
+
+        }
+
+
+        @if (Model.IsDisabled)
+        {
+            <span class="task-disabled-title">@Localization.GetText("PCR.FollowUp.NotApplicable")</span>
+        }
+    </div>
+    <div class="col-md-2">
+        <span class="cellContainer">@Model.RoleName</span>
+    </div>
+    <div class="col-md-2">
+        <span class="cellContainer originalPlanned" data-date="@Model.OriginalDeadline">@FormatHelper.Format(Model.OriginalDeadline)</span>
+    </div>
+    <div class="col-md-2">
+        <span class="cellContainer updatedDeadLine" data-date="@Model.UpdatedDeadline">@FormatHelper.Format(Model.UpdatedDeadline)</span>
+    </div>
+    <div class="col-md-2">
+        <span class="cellContainer completedDate" data-date="@Model.CompletedDate" data-pagemode="read">@FormatHelper.Format(Model.CompletedDate)</span>
+        @if (!previousIsCurrent && Model.IsCurrent && Model.IsEnabledCompletionDate && !Model.CompletedDate.HasValue)
+        {
+            <span class="cellContainer datepickerspan spanpicker_@(Model.TaskNumber)" data-pagemode="edit">
+                <input type="text" class="datepicker" name="txtCompletedDate"
+                       data-tasknormal="true"
+                       data-isspdcoord="@(ViewBag.SPDCoord)"
+                       data-taskidpicker="@(Model.TaskNumber)"
+                       @(!Model.IsEnabledCompletionDate ? "disabled" : "")
+                       @(ViewBag.FollowUpWriteRole ? "data-parsley-required=true" : "")
+                       @(ViewBag.FollowUpWriteRole ? "data-parsley-trigger=change" : "") />
+            </span>
+        }
+        else
+        {
+            if (ViewBag.IsModeEdit && ViewBag.SPDCoord && Model.CompletedDate.HasValue)
+            {
+                <span class="cellContainer datepickerspan spanpicker_@(Model.TaskNumber)" data-pagemode="edit">
+                    <input type="text" class="datepicker" name="txtCompletedDate_@(Model.TaskNumber)"
+                           data-tasknormal="false"
+                           data-isspdcoord="@(ViewBag.SPDCoord)"
+                           data-taskidpicker="@(Model.TaskNumber)"
+                           @(ViewBag.FollowUpWriteRole ? "data-parsley-required=true" : "")
+                           @(ViewBag.FollowUpWriteRole ? "data-parsley-trigger=change" : "")
+                           value="@(Model.CompletedDate.HasValue ? string.Format("{0:dd MMM yyyy}", Model.CompletedDate.Value) : "")" />
+                    <input class="clseditpcrcoord" type="hidden" name="editpcrcoord_@(Model.TaskNumber)" value="true" />
+                </span>
+            }
+            else
+            {
+                <span data-pagemode="edit" class="cellContainer completedDate">@FormatHelper.Format(Model.CompletedDate)</span>
+            }
+           
+
+         }
+</div>
+</div>

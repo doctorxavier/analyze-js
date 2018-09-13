@@ -1,0 +1,249 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+
+@model SupervisionReportDashboardViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@Html.Partial("_MockReadWritePermissions",
+    IDB.Presentation.MVC4.Models.Mock.MockReadWritePermissionsViewModel
+        .Create(Permission.ESG_SPECIALIST_WRITE_PERMISSIONS))
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.SupervisionReport.Dashboard.Title"))
+    </div>
+</div>
+
+@if(!string.IsNullOrEmpty(Model.SafeguardPerfomanceText))
+{
+    <div class="row mb20 float-left">
+        <div class="col-md-12">
+            @Confluence.LabelsGroup(Localization.GetText("MrBlue.SupervisionReport.SafeguardPerfomance"),
+            contentAlways : Model.SafeguardPerfomanceText)
+        </div>
+    </div>
+}
+
+@if(ViewBag.ReadRole ?? false)
+{
+    <div class="page">
+        <div id="Data"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]">
+            @MrBlue.AlertDeleteQuestionnarieModal()
+
+            @if(Model != null)
+            {
+                @Html.Partial("Partials/buttonsDashBoard")
+
+                @Html.Partial("Partials/SupervisionReportComplete", Model)
+
+                @Html.Partial("Partials/SupervisionReportDraft", Model)
+
+                @Html.Partial("Partials/SupervisionReportUploadPartial")
+            }
+        </div>
+    </div>
+}
+
+@section scripts{
+
+    @ModuleScripts.TableFunctions()
+    @ModuleScripts.AddCompareDatesValidator()
+    @MrBlue.HistoryTablesCommon()
+    @MrBlue.SelectRow()
+    @MrBlue.RadioButtonFix()
+
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+
+            window.ParsleyValidator
+            .addValidator('formatDocument', function (value, requirement) {
+
+                var validExtensions = false;
+                var inputFile = $('#uploadSupervisionReportFile input[name=File]');
+                var file = inputFile.prop('files')[0];
+                var fileName = file.name.toString();
+                var fileNameArray = fileName.split('.');
+                var fileExtension = fileNameArray[(fileNameArray.length - 1)].toLowerCase();
+
+                $.each(['pdf', 'xls', 'xlsx', 'pst', 'ppt', 'pptx', 'mpp', 'pub', 'vsd', 'vss', 'vst', 'vdx', 'vsx', 'vtx', 'doc', 'docx', 'wpd', 'msg'],
+                    function (index, value) {
+                    if (fileExtension == value) {
+                        validExtensions = true;
+                    }
+                });
+                return validExtensions;
+            }, 32).addMessage('en', 'formatDocument', 'Incorrect format. Use pdf, xls, xlsx, pst, ppt, pptx, mpp, pub, vsd, vss, vst, vdx, vsx, vtx, doc, docx, wpd, msg.');
+
+            //Reactive Parsley
+            $(document).on('change', 'input[name="DateFrom"]', function () {
+                $(this).parsley().validate();
+            });
+            $(document).on('change', 'input[name="DateTo"]', function () {
+                $(this).parsley().validate();
+            });
+            $(document).on('change', 'input[name="File"]', function () {
+                $(this).parsley().validate();
+            });
+
+            //Inicialize Upload Model
+            initParsley($('#uploadSupervisionReportFile'));
+            enterEditMode(false, $('#uploadSupervisionReportFile'), false);
+
+            //Aviable Button New From Most Recent
+            var isDisabled = isDisabledMostRecentButton('historyTable');
+            var isDisabledTypeOnline = notOnlineTypeAviable('historyTable');
+            if (isDisabled) {
+                $('button[name="buttonNewFromMostRecent"]').attr('disabled', 'disabled');
+            } else if (isDisabledTypeOnline) {
+                $('button[name="buttonNewFromMostRecent"]').attr('disabled', 'disabled');
+            }
+
+            //Inicialize Function Edit Report
+            $(document).on('click', '#supervisionReportDraft tbody tr td:not(.dataTables_empty)', editReport);
+
+            //Inicialize Function Text Alert
+            $(document).on('click', '#historyTable [name="removeStarDraftRow"]', function (source) {
+                var sourceTr = $(this).closest('tr');
+                setTextDeleteQuestionnarieDefault(sourceTr, "textDeleteAlertSupervisionReport");
+            });
+        });
+
+        // ----------------- Functions ----------------- //
+
+        // New from most recent report
+        function newReportFromMostRecent() {
+            var versionId = getMostRecentByInputRowId('historyTable');
+            if (versionId != null) {
+                var url = '@Html.Raw(Url.Action("SupervisionReportStep1", "SupervisionReport", new { area = "MrBlue", isEditable = true, isNew = true }))'
+                    + '&versionId=' + versionId;
+                window.location.assign(url);
+            }
+        }
+
+        //Aviable Button New From Most Recent
+        function notOnlineTypeAviable(idTable) {
+            var result = true;
+            var tableRows = $('#' + idTable + ' tbody tr:not(.dataTables_empty)');
+            tableRows.each(function () {
+                var tr = $(this);
+                var tdType = tr.find('td:eq(4)');
+                var content = tdType.find('span').first().html();
+                if (content != null) {
+                    if (content.toLowerCase() == "online") {
+                        result = false;
+                    }
+                }
+            });
+            return result;
+        }
+
+        // New Report
+        function newReport() {
+            var url = '@Html.Raw(Url.Action("SupervisionReportStep1", "SupervisionReport", new { area = "MrBlue", isEditable = true, isNew = true }))';
+            window.location.assign(url);
+        }
+
+        //Edit Draft report
+        function editReport(source) {
+            var versionId = $(source.currentTarget).closest('tr').attr('data-id');
+            var url = '@Html.Raw(Url.Action("SupervisionReportStep1", "SupervisionReport",
+                       new { area = "MrBlue", isEditable = true, isNew = false }))&versionId=' + versionId;
+            window.location.assign(url);
+        }
+
+        // New report from upload file
+        function SupervisionReportUpload() {
+
+            var form = $('#uploadSupervisionReportFile');
+            var buttonConfirmateFile = $('button[data-new-modal="#uploadFileCorrect"]');
+
+            var inputDateFrom = $('[name="DateFrom"]').val();
+            var inputDateTo = $('[name="DateTo"]').val();
+            var inputRationale = $('[name="Rationale"]').val();
+            var inputRating = $('[name="Rating"]').val();
+            var inputFile = form.find("input[type=file]")[0].files[0];
+
+            //Validate and Set Form Data
+            var isValid = form.parsley().validate();
+            if (isValid || isValid.length == 0) {
+
+                var dataForm = new FormData();
+                dataForm.append('DateFrom', inputDateFrom)
+                dataForm.append('DateTo', inputDateTo)
+                dataForm.append('Rating', inputRating)
+                dataForm.append('Rationale', inputRationale)
+                dataForm.append('FileName', inputFile.name.toString())
+                dataForm.append('FileDocuemnt', inputFile);
+
+                var url = '@Html.Raw(Url.Action("UploadFileSupervisionReport", "SupervisionReport", new { area = "MrBlue" }))';
+                var options = {
+                    data: dataForm,
+                    cache: false,
+                    contentType: false,
+                    processData: false,
+                    type: 'POST',
+                    async: false
+                };
+                var promise = postUrlWithOptions(url, options, dataForm);
+                promise.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid == true) {
+                        buttonConfirmateFile.click();
+                    }
+                });
+            }
+        }
+
+        function exitModal() {
+            var container = $('#uploadSupervisionReportFile');
+            var modal = container.closest('div.vex-content');
+            var buttonClose = modal.find('div.vex-close');
+            buttonClose.click();
+        }
+
+        function exitUpload() {
+            //Clean form data
+            $('#DateFromInput').val('');
+            $('#DateToInput').val('');
+            $('#uploadSupervisionReportFile .inputFileInput, #uploadSupervisionReportFile input[type="file"]').val('');
+            $('#uploadSupervisionReportFile .dropdown-menu li a:first').click();
+            $('#uploadSupervisionReportFile textarea').val('');
+
+            //Clean parsley
+            $('#uploadSupervisionReportFile .parsley-errors-list').html('');
+            $('#uploadSupervisionReportFile .parsley-errors-list.filled').removeClass('filled');
+            $('#uploadSupervisionReportFile .parsley-error').removeClass('parsley-error');
+        }
+
+        function reloadWindowDashboard() {
+            window.location.reload();
+        }
+
+        function downloadReport(source) {
+            var versionId = source.closest('tr').attr('data-id')
+            var fecha = $(source).closest('tr').find('td.fechaHistoryCreation').find('span').first().html()
+            var typeDoc = $(source).closest('tr').find('td.typeDoc').find('span').first().html()
+
+            var url = "@Url.Action("SupervisionReportDownload", "SupervisionReport", new { area = "MrBlue" })?versionId=" + versionId + "&fecha="+fecha + "&typeDoc="+typeDoc;
+            window.open(url, '_blank');
+        }
+
+
+
+    </script>
+}

@@ -1,0 +1,226 @@
+﻿@using IDB.MW.Domain.Values
+@using IDB.MW.Infrastructure.Configuration
+@model IDB.Presentation.MVC4.Areas.SupervisionPlan.Models.SPAdministrationSearchViewModel
+
+@Confluence.InputHidden(ViewBag.SerializedAdministration, "administrationSerialized")
+@if (Model != null)
+{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    <div class="col-md-12 pl0 pr0 mt10">
+        @Confluence.InputDropDown(Model.Displayed.FirstOrDefault().Value, "resultsToShow", Model.Displayed,
+                 width: "180px", required: false, orderAsc: false, showEmptyOption: false, placeholder: null, htmlClass: "mb10 floatLeft")
+
+        <div class="informationplace" id="related-operations-info-icon">
+            <div class="icoInformation">
+                <div class="information-text">
+                    <strong>@Localization.GetText("SP.Message.Related.Operations")</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="floatRight">@Confluence.ButtonColapse("AdministrationSPTable", false, null, "Expand All", "Collapse All")</div>
+
+    </div>
+
+    <div id="contentTableSP" class="col-md-12 pl0 pr0" style="padding-bottom:10px; width: 100%;">
+        <table id="AdministrationSPTable" class="tableNormal mb20">
+            <thead>
+                <tr>
+                    <th class="sort w80" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.OperationNumber")</th>
+                    <th class="sort w400" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.OperationName")</th>
+                    <th class="sort w70" order-type="number">@Localization.GetText("SP.Administration.AdministrationTable.ApprovalYear")</th>
+                    <th class="sort w60 minw60 maxw60" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.Unit")</th>
+                    <th class="sort w100" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.PMR").Replace(" PMR", " " + (ViewBag.currentYear - 1) + " PMR")</th>
+                    <th class="sort w100" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.PMR").Replace(" PMR", " " + ViewBag.currentYear + " PMR")</th>
+                    <th class="sort w90" order-type="text" title="@Localization.GetText("Sp.Admin.Header.Exceeds")">@Localization.GetText("SP.Administration.Filtert.Exceeds")</th>
+                    <th class="sort w110 minw110" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.Modality")</th>
+                    <th class="sort w100" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.ModalityAfterRevision")</th>
+                    <th class="sort w90" order-type="text">@Localization.GetText("SP.Administration.AdministrationTable.LastEditedBy")</th>
+                    <th class="w50">@Localization.GetText("SP.Administration.AdministrationTable.Action")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Model.ResultsSearch.Count; i++)
+                {
+                    var bRulesPrep = Model.ResultsSearch[i].PrevYearMarchPmrClass == SpGlobalValues.PmrProblem || Model.ResultsSearch[i].PrevYearMarchPmrClass == SpGlobalValues.PmrAlert || Model.ResultsSearch[i].ExFinanciatExtCri == SpGlobalValues.ExFinancialExCriteriaYes;
+                    var bRulesRev = Model.ResultsSearch[i].CurrYearMarchPmrClass == SpGlobalValues.PmrProblem || Model.ResultsSearch[i].CurrYearMarchPmrClass == SpGlobalValues.PmrAlert || Model.ResultsSearch[i].ExFinanciatExtCri == SpGlobalValues.ExFinancialExCriteriaYes;
+                    var preparationCoo = ViewBag.ActualCycle == SpGlobalValues.ActualPreparation && ViewBag.UserRole == ViewBag.CooRole;
+                    var preparationCr = ViewBag.ActualCycle == SpGlobalValues.ActualPreparation && ViewBag.UserRole == ViewBag.CrRole;
+                    var revisionCoo = ViewBag.ActualCycle == SpGlobalValues.ActualRevision && ViewBag.UserRole == ViewBag.CooRole;
+                    var revisionCr = ViewBag.ActualCycle == SpGlobalValues.ActualRevision && ViewBag.UserRole == ViewBag.CrRole;
+                    var relatedOperations = Model.ParentRelationship
+                        .Where(p => p.RelatedOperations.Item1 == Model.ResultsSearch[i].OperationNumber)
+                        .Select(p => p.RelatedOperations.Item2.RelatedOperationsWithStatus)
+                        .Single();
+
+                    string tooltipText = string.Empty;
+
+                    if (relatedOperations.Count() > 1)
+                    {
+                        foreach (var relatedOperation in relatedOperations)
+                        {
+                            tooltipText += relatedOperation.Item1 + " - " + relatedOperation.Item2 + Environment.NewLine;
+                        }
+                    }
+
+                    <tr data-id="@Model.ResultsSearch[i].OperationNumber" data-spstatus="@Model.ResultsSearch[i].SpStatus.ToString()" class="tableNormalBorder">
+                        <td class="text-center">
+                            <span title="@tooltipText">
+                                <a name="@Model.ResultsSearch[i].OperationNumber">&nbsp;</a>
+                                @Confluence.Label(Model.ResultsSearch[i].OperationNumber, htmlClass: "nopadding OperationNumberAdm bold")
+                                @Confluence.Label(Model.ParentRelationship.Any(p => p.IsParent &&
+                                    p.RelatedOperations.Item1 == Model.ResultsSearch[i].OperationNumber) ? "*" : "")
+                            </span>
+                        </td>
+
+                        <td class="minw400 maxw400">
+                            @Confluence.Label(Model.ResultsSearch[i].OperationName)
+                        </td>
+
+                        <td class="text-center">
+                            @Confluence.Label(Model.ResultsSearch[i].ApprovalYear.ToString())
+                            @Confluence.InputHidden(Model.ResultsSearch[i].ApprovalYear.ToString(), "approvalYear")
+                        </td>
+                        <td class="text-center">
+                            @Confluence.Label(Model.ResultsSearch[i].Unit)
+                        </td>
+                        <td class="text-center">
+                            @Confluence.Label(Model.ResultsSearch[i].PrevYearMarchPmrClass)
+                        </td>
+                        <td class="text-center">
+                            @Confluence.Label(Model.ResultsSearch[i].CurrYearMarchPmrClass)
+                        </td>
+                        <td class="text-center">
+                            @Confluence.Label(Model.ResultsSearch[i].ExFinanciatExtCri)
+                        </td>
+
+                        <td class="w110 text-center" name="spModality">
+                            @if (ViewBag.ActualCycle == SpGlobalValues.ActualRead
+|| (preparationCoo && (ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] == SpGlobalValues.SpStatusSubCooPrep
+|| ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] == SpGlobalValues.SpStatusSubCrPrep))
+|| (preparationCr && ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCooPrep)
+)
+                            {
+                                <span>@Confluence.Label(Model.ResultsSearch[i].SpModality)</span>
+                            }
+                            else
+                            {
+                                if (preparationCoo &&
+                                    (Model.ResultsSearch[i].SpStatus == 0 || (ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCooPrep && ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCrPrep)))
+                                {
+                                    if (bRulesPrep)
+                                    {
+
+                                        if (Model.ResultsSearch[i].SpModality != null)
+                                        {
+                                            <span data-pagemode="edit">@Confluence.InputDropDown(Model.ResultsSearch[i].SpModalityId.ToString(), "SpModalityTable", ViewBag.spModality, showEmptyOption: false, placeholder: null, dataAttributes: new Dictionary<string, string> { { "idOperation", Model.ResultsSearch[i].OperationNumber }, { "oldValue", Model.ResultsSearch[i].SpModalityId.ToString() } }, htmlClass: "fontSize12 inlineBlock", width: "110px; margin: 0 !important", validateOnChange: true)</span>
+
+                                            <span data-pagemode="read">@Confluence.Label(Model.ResultsSearch[i].SpModality)</span>
+                                        }
+                                        else
+                                        {
+                                            <span data-pagemode="edit">@Confluence.InputDropDown(ViewBag.DetailedId, "SpModalityTable", ViewBag.spModality, showEmptyOption: false, placeholder: null, dataAttributes: new Dictionary<string, string> { { "idOperation", Model.ResultsSearch[i].OperationNumber }, { "oldValue", Model.ResultsSearch[i].SpModalityId.ToString() } }, htmlClass: "fontSize12 inlineBlock", width: "110px")</span>
+                                            <span data-pagemode="read">@Confluence.Label(SpGlobalValues.SpDetailed)</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span>@Confluence.Label(SpGlobalValues.SpSimplified)</span>
+                                    }
+                                }
+                                else if (preparationCr && (Model.ResultsSearch[i].SpStatus == 0 ||
+                                         ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCrPrep))
+                                {
+                                    <span data-pagemode="edit">@Confluence.InputDropDown(Model.ResultsSearch[i].SpModalityId.ToString(), "SpModalityTable", ViewBag.spModality, showEmptyOption: false, placeholder: null, dataAttributes: new Dictionary<string, string> { { "idOperation", Model.ResultsSearch[i].OperationNumber }, { "oldValue", Model.ResultsSearch[i].SpModalityId.ToString() } }, htmlClass: "fontSize12 inlineBlock", width: "110px; margin: 0 !important")</span>
+                                    <span data-pagemode="read">@Confluence.Label(Model.ResultsSearch[i].SpModality)</span>
+                                }
+                                else if (revisionCoo || revisionCr)
+                                {
+                                    <span>@Confluence.Label(Model.ResultsSearch[i].SpModality)</span>
+                                }
+                            }
+
+                        </td>
+                        <td class="w100 minw100 maxw100  text-center" name="spModalityAfter">
+                            @if (ViewBag.ActualCycle == SpGlobalValues.ActualRead
+|| (revisionCoo && (ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] == SpGlobalValues.SpStatusSubCooRev
+|| ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] == SpGlobalValues.SpStatusSubCrRev))
+|| (revisionCr && ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCooRev)
+)
+                            {
+                                <span>@Confluence.Label(Model.ResultsSearch[i].SpModalityAfRev)</span>
+                            }
+                            else
+                            {
+                                if (preparationCoo || preparationCr)
+                                {
+                                    <span>@Confluence.Label(Model.ResultsSearch[i].SpModalityAfRev)</span>
+                                }
+                                else if (revisionCoo &&
+                                        (Model.ResultsSearch[i].SpStatus == 0 || (ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCooRev && ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCrRev)))
+                                {
+                                    if (Model.ResultsSearch[i].SpModality == SpGlobalValues.SpDetailed)
+                                    {
+                                        <span>@Confluence.Label(Model.ResultsSearch[i].SpModality)</span>
+                                    }
+                                    else
+                                    {
+                                        if (bRulesRev)
+                                        {
+                                            if (Model.ResultsSearch[i].SpModalityAfRev != null)
+                                            {
+                                                <span data-pagemode="edit">@Confluence.InputDropDown(Model.ResultsSearch[i].SpModalityAfRevId.ToString(), "SpModalityTable", ViewBag.spModality, showEmptyOption: false, placeholder: null, dataAttributes: new Dictionary<string, string> { { "idOperation", Model.ResultsSearch[i].OperationNumber }, { "oldValue", Model.ResultsSearch[i].SpModalityAfRevId.ToString() } }, htmlClass: "fontSize12 inlineBlock", width: "110px; margin: 0 !important")</span>
+                                                <span data-pagemode="read">@Confluence.Label(Model.ResultsSearch[i].SpModalityAfRev)</span>
+                                            }
+                                            else
+                                            {
+                                                <span data-pagemode="edit">@Confluence.InputDropDown(ViewBag.DetailedId, "SpModalityTable", ViewBag.spModality, showEmptyOption: false, placeholder: null, dataAttributes: new Dictionary<string, string> { { "idOperation", Model.ResultsSearch[i].OperationNumber }, { "oldValue", Model.ResultsSearch[i].SpModalityAfRevId.ToString() } }, htmlClass: "fontSize12 inlineBlock", width: "110px; margin: 0 !important")</span>
+                                                <span data-pagemode="read">@Confluence.Label(SpGlobalValues.SpDetailed)</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span>@Confluence.Label(SpGlobalValues.SpSimplified)</span>
+                                        }
+
+                                    }
+
+                                }
+                                else if (revisionCr &&
+                                        (Model.ResultsSearch[i].SpStatus == 0 || ViewBag.lstOperationSpStatus[Model.ResultsSearch[i].SpStatus] != SpGlobalValues.SpStatusSubCrRev))
+                                {
+                                    if (Model.ResultsSearch[i].SpModality == SpGlobalValues.SpDetailed)
+                                    {
+                                        <span>@Confluence.Label(Model.ResultsSearch[i].SpModality)</span>
+                                    }
+                                    else
+                                    {
+                                        <span data-pagemode="edit">@Confluence.InputDropDown(Model.ResultsSearch[i].SpModalityAfRevId.ToString(), "SpModalityTable", ViewBag.spModality, showEmptyOption: false, placeholder: null, dataAttributes: new Dictionary<string, string> { { "idOperation", Model.ResultsSearch[i].OperationNumber }, { "oldValue", Model.ResultsSearch[i].SpModalityAfRevId.ToString() } }, htmlClass: "fontSize12 inlineBlock", width: "110px; margin: 0 !important")</span>
+                                        <span data-pagemode="read">@Confluence.Label(Model.ResultsSearch[i].SpModalityAfRev)</span>
+
+                                    }
+                                }
+                            }
+                        </td>
+                        <td class="text-center LastEditsp" data-oldValue="@Model.ResultsSearch[i].LastEditedBy">
+                            @Confluence.Label(Model.ResultsSearch[i].LastEditedBy)
+                        </td>
+                        <td>
+                            @Confluence.ButtonShowRow()
+                        </td>
+                    </tr>
+                    <tr class="template odd" name="rowIdiom" id="rowIdiom" data-persist="true" data-row-parent-id="@Model.ResultsSearch[i].OperationNumber">
+                        <td class="custom-detail-table-row" colspan="11" id="justificationRow"></td>
+                    </tr>
+                    <tr data-row-parent-id="@Model.ResultsSearch[i].OperationNumber">
+                        <td colspan="11">
+                            <div class="text-center" data-pagemode="edit">
+                                @Confluence.ButtonAddNewRows(Localization.GetText("Add New"), "AdministrationSPTable", null, dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnAddNewConsultancies" } }, action: "addJustification")
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

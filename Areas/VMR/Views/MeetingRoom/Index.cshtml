@@ -1,0 +1,2134 @@
+﻿
+@model IDB.MW.Application.VMRModule.ViewModels.VmrViewModel
+@using IDB.MW.Domain.Values
+@using IDB.MW.Domain.Values.Vmr
+<div data-id="VmrContent"
+     data-loadurl="@Url.Action("VmrContentReload", "MeetingRoom", new { area = "VMR", instanceId = Model.InstanceId })">
+    @if (Model != null)
+    {
+        @Html.Partial("Partials/VmrContent", Model)
+    }
+</div>
+@section Scripts {
+    <script src="~/Scripts/Modules/VMR/modalDocument.js"></script>
+    @if (Model != null &&
+         Model.BasicData != null &&
+         Model.BasicData.AdditionalFieldsForm != null &&
+         string.IsNullOrEmpty(Model.BasicData.AdditionalFieldsForm.JsFile) == false)
+    {
+        <script src="~/Scripts/Modules/VMR/@(Model.BasicData.AdditionalFieldsForm.JsFile).js"></script>
+    }
+    else
+    {
+        <script type="text/javascript">
+            function binHandlersBasicData() {
+
+            }
+        </script>
+    }
+    <script type="text/javascript">
+        var aditionalFieldHelper =
+        {
+            urlDays: "@Url.Action("GetMeetingDays", "MeetingRoom", new {area = "VMR"})",
+            processFlowEndDateError: "@Localization.GetText("VMR.MM.MeetingRoom.MsgQrr.EndDateError")",
+            changeDurationMessage: "@Localization.GetText("VMR.MM.MeetingRoom.DurationOfTheMeeting")",
+            urlConcurrence: "@Url.Action("LockRegister", "MeetingRoom", new {area = "VMR"})",
+            idConcurrenceBasicData: "@VmrGlobalValues.URL_BASIC_DATA",
+            cancelMessage: "@Localization.GetText("OP.OD.Message.Cancel")",
+            circulationPeriodFailedMessage: "@Localization.GetText("VMR.MM.MeetingRoom.Change.EndDate")",
+            instanceId: "@(Model != null ? Model.InstanceId : 0)",
+            endDateCirculation: null
+        };
+
+        function removeButtonsDocuments() {
+            $('#documentsTable tbody tr').each(function() {
+                var isPrimary = $(this).find('[name="isPrimary"]').is(':checked');
+                var docNumber = $(this).find('[name="documentNumber"]').val();
+                if (docNumber.length === 0 && !isPrimary) {
+                    $(this).find('.buttonTrash').addClass('hide');
+                    $(this).find('.buttonDownload').addClass('hide');
+                }
+            });
+        }
+
+        var additionalFields = [];
+        var vmrComment;
+        var vmrError;
+        var userName;
+        var operationNumber;
+        var connection;
+        var instanceId;
+        var makePublicSecondLevel = false;
+        var reload = window.parent.frames[0] == undefined
+            ? 'reloadFromBanner()'
+            : 'window.parent.frames[0].reloadFromBanner()';
+
+        $(document).ready(function () {
+            vmrComment = $.connection.vmrComment;
+            vmrError = $.connection.vmrError;
+            userName = '@IDBContext.Current.UserName';
+            operationNumber = '@IDBContext.Current.Operation';
+            instanceId = '@(Model != null ? Model.InstanceId : 0)';
+            connection = $.connection.hub.start();
+
+            $.connection.hub.disconnected(function() {
+                setTimeout(function() {
+                    connection = $.connection.hub.start();
+                }, 2000);
+            });
+
+            vmrComment.client.showMessageNewComment = function(user, instance, msg) {
+                var validationUserInstance = user !== userName && parseInt(instance) === parseInt(instanceId);
+
+                if (validationUserInstance) {
+                    if ($('.tab-pane.active').attr('id') === 'tabOpcAgreement' ||
+                            $('.tab-pane.active').attr('id') === 'tabComments') {
+                        successBar(msg, 20, true);
+                    }
+                }
+            };
+
+            vmrComment.client.lockUnLockButtonUser = function(user, instance, controlName, commentId) {
+                if (user !== userName && parseInt(instance) === parseInt(instanceId)) {
+                    var validate = $('button[data-vmrCommentId="' + commentId + '"][name="' + controlName + '"]').first().attr('disabled');
+                    if (validate == undefined) {
+                        $('button[data-vmrCommentId="' + commentId + '"][name="' + controlName + '"]').first().attr('disabled', true);
+                    } else {
+                        $('button[data-vmrCommentId="' + commentId + '"][name="' + controlName + '"]').first().removeAttr('disabled');
+                    }
+                }
+            };
+
+            vmrError.client.showErrorMessage = function(msg, operationNumberParam) {
+                if (operationNumberParam === operationNumber){
+                    errorBar(msg, 20, false);
+                }
+            };
+        });
+
+        function reloadFromBanner() {
+            showLoaderOptional();
+            setTimeout(filterComment(), 2000);
+            hideLoaderOptional();
+        }
+
+        function commentHandlers(loadPagination, loadShowMoreLess) {
+
+            if (loadPagination == undefined) {
+                loadPagination = true;
+            }
+
+            if (loadShowMoreLess == undefined) {
+                loadShowMoreLess = true;
+            }
+
+            resizeComment();
+
+            if (loadPagination) {
+                paginationComment(
+                    $('.tab-pane.active [name="totalComments"]'),
+                    $('.tab-pane.active [name="ddlPaginationComment"]'),
+                    $('.tab-pane.active .Pagination'),
+                    $(".tab-pane.active #commentsDiv"));
+            }
+
+            if (loadShowMoreLess) {
+                showMoreLess();
+            }
+
+            $("[name='chkTransfer']").off('change').change(function(){
+                transferComment($(this));
+            });
+
+            $('.thirdLevelBox').each(function() {
+                var answerdButtons = $(this).closest('.sectionCommentGroup')
+                    .find('.secondLevelBox')
+                    .find('.buttons');
+
+                answerdButtons.find('.lineEditButtons').remove();
+                answerdButtons.prepend('<div class="lineEditButtons hide">&nbsp;</div>');
+            });
+
+            $('[dd-tab="#tabComments"],[dd-tab="#tabOpcAgreement"],[dd-tab="#tabRemarks"]').off('click').click(function() {
+                commentHandlers();
+            });
+
+            $("[name='chkMycomment']").off('change').change(function() {
+                var activeTab = $('.tab-pane.active');
+                if ($(activeTab).find("[name='chkMycomment']").prop('checked')) {
+                    $(activeTab).find("[name='txtOrgUnitFilter_text']").val("");
+                    $(activeTab).find("[name='txtOrgUnitFilter_text']").prop("disabled", true);
+                    $(activeTab).find("[name='txtUserNameFilter_text']").val("");
+                    $(activeTab).find("[name='txtUserNameFilter_text']").prop("disabled", true);
+                } else {
+                    $(activeTab).find("[name='txtOrgUnitFilter_text']").prop("disabled", false);
+                    $(activeTab).find("[name='txtUserNameFilter_text']").prop("disabled", false);
+                }
+
+            });
+
+            $("#id-cmbCommentTypeFilter").off('click').click(function() {
+                var dropdownDiv = $(this).closest('div');
+                if (dropdownDiv.hasClass('open') == false) {
+                    dropdownDiv.find('.dropdown-menu').addClass('hide');
+                    var dropdown = $(this).closest('div')
+                        .find('[name="cmbCommentTypeFilter"]')
+                        .siblings('ul.dropdown-menu');
+                    var me = this;
+                    $.ajax({
+                        type: "POST",
+                        async: true,
+                        url: "@Url.Action("GetCommentType", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})"
+                    }).done(function(data) {
+                        dropdown.html('');
+                        dropdown.html('<li><a dd-value dd-parent-id></a></li>');
+                        $(data).each(function(i, val) {
+                            dropdown.append('<li><a dd-value="' + val.Value + '" dd-parent-id>' +
+                                val.Text + '</a></li>');
+                        });
+                        cargaDropDown(me);
+                        dropdownDiv.find('.dropdown-menu').removeClass('hide');
+                    }).fail(function() {
+                        errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                    });
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            $('.icoInformation').attr('title', '@(Model != null && Model.BasicData != null ? Model.BasicData.JustificationPolicyWaived : string.Empty)');
+            policyWaivedTooltip();
+
+            EnableSortable();
+            window.moveScrollTop();
+            paginationTab(true);
+            commentHandlers();
+            $(document).on("change", "input[name='dateToFilter']", function() {
+                var dateToFilter = $(".tab-pane.active input[name = 'dateToFilter']").val();
+                validationDateComment(dateToFilter, "dateToFilter");
+            });
+
+            $(document).on("change", "input[name='dateFromFilter']", function() {
+                var dateFromFilter = $(".tab-pane.active input[name = 'dateFromFilter']").val();
+                validationDateComment(dateFromFilter, "dateFromFilter");
+            });
+            $('[name="ddlPaginationComment"]').change(function() {
+                paginationComment(
+                    $('.tab-pane.active [name="totalComments"]'),
+                    $('.tab-pane.active [name="ddlPaginationComment"]'),
+                    $('.tab-pane.active #PaginationComment'),
+                    $(".tab-pane.active #commentsDiv"));
+            });
+            var message = '@Localization.GetText("VMR.MM.MeetingRoom.TabComments.MsgOnBehalfOf")';
+            var time = 1000;
+            if (($('#derivedBy').val() != "" && $('#derivedBy').val() != null) && ($('#currentUserName').val() != "" && $('#currentUserName').val() != null)) {
+                var derivedBy = $('#derivedBy').val();
+                var currentUserName = $('#currentUserName').val();
+                var fullName = $('#derivedByFullName').val();
+
+                if (derivedBy.toUpperCase() != currentUserName.toUpperCase()) {
+                    message = message + ' ' + fullName;
+                    warningBar(message, time, false);
+                }
+            }
+        });
+
+        function downloadDocumentVmr(button) {
+            var url = '@Url.Action("VmrDownloadDocument", "MeetingRoom", new {area = "VMR"})' + '?documentId=' + $(button).attr("data-documentid");
+            window.open(url, '_blank');
+        }
+
+        function downloadDocumentZipVmr() {
+            var documents = "";
+
+            $('[name=documentNumber]')
+                .each(function() {
+                    if ($(this).val() !== "") {
+                        if (documents === "") {
+                            documents = $(this).val();
+                        } else {
+                            documents = documents + "|" + $(this).val();
+                        }
+                    }
+                });
+
+            var url = '@Url.Action("VmrDownloadZipDocument", "MeetingRoom", new {area = "VMR"})' +
+                '?instanceId=' +
+                @Model.InstanceId +
+                '&documents=' +
+                documents;
+            window.open(url, '_blank');
+        }
+
+        function ShowConfirmValidateSubmit(source) {
+            var idBtnShowModal = $(source).attr("data-idBtnShowModal");
+            var textConfirm = '@Localization.GetText("VMR.MM.MeetingRoom.MsgConfirmReprocessing")';
+            confirmAction(textConfirm).done(function(pressOk) {
+                if (pressOk) {
+                    $('div.vex-close').click();
+                    $("button[data-id='" + idBtnShowModal + "']").click();
+                }
+            });
+        }
+
+        function validateSubmit(source) {
+
+            if (!isInEditMode($(".tab-pane.active"))) {
+                var modal = $("[data-id=mainContainer]").not('.hide').find('[data-submit-popup]');
+                var isVisibleModal = modal.length > 0;
+
+                if (isVisibleModal) {
+                    if (validateContainer($(modal))) {
+                        var action = $(modal).find("[name='master-data-id']").val();
+                        var textCommentPopUp = $(modal).find("[name='@VmrGlobalValues.COMMENT_ADD_FIELD']").val();
+                        additionalFields = [];
+                        additionalFields.push({
+                            Name: 'COMMENT_ADD_FIELD',
+                            Value: textCommentPopUp,
+                            Id: "String"
+                        });
+                        $('div.vex-close').click();
+                        submitInstance(action);
+                    }
+                } else {
+                    $(source).attr('data-clicked-submit', true);
+                    var stateQrr = '@VmrInstanceStatusCode.QRR_REPRT_REQTD';
+                    var stateModel = '@(Model != null && Model.BasicData != null ? Model.BasicData.CurrentStatusCode : string.Empty)';
+                    var isStateQrr = stateQrr === stateModel;
+                    var msg = '@Localization.GetText("VMR.MM.MeetingRoom.MsgConfirmSubmit")';
+
+                    if (isStateQrr) {
+                        msg = '@Localization.GetText("VMR.MM.MeetingRoom.MsgConfirmSubmitQRR")';
+                    }
+
+                    confirmAction(msg).done(function(pressOk) {
+                        if (pressOk) {
+                            showLoaderOptional();
+                            var actionCode = $('[data-clicked-submit=true]').attr('data-submit-code');
+                            var isValidSubmit = true;
+                            $('#sectionFormSubmit').find('[data-action-parent=' + actionCode + ']').each(function() {
+                                $(this).attr('data-parsley-validate', 'data-parsley-validate');
+                                if (validateContainer($(this)) === false || validateSubmitArea() == false) {
+                                    isValidSubmit = false;
+                                    hideLoaderOptional();
+                                }
+                                $(this).removeAttr('data-parsley-validate');
+                            });
+
+                            if (isValidSubmit) {
+                                var action = $('[data-clicked-submit=true]').attr('data-master-data-id');
+                                additionalFields = [];
+                                additionalFields = processSubmitArea();
+                                submitInstance(action);
+                            }
+                        }
+                    });
+                }
+            } else {
+                showMessage("@Localization.GetText("VMR.GLOBAL.MSG.SAVE.CHANGES")");
+            }
+        }
+
+        function modalOnClose() {
+            $("[name='@VmrGlobalValues.COMMENT_ADD_FIELD']").val("");
+        }
+
+        function submitInstance(actionType) {
+            var dataTab = GetDataBytab();
+
+            showLoaderOptional();
+            postUrlWithOptions('@Url.Action("AllowSubmit", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})', { async: true }, { instanceId: '@Model.InstanceId', documents: getDataDocumentsInView(),  actionType: actionType })
+                .done(function(dataCheck) {
+                    if (dataCheck.IsValid === true) {
+                        postUrlWithOptions('@Url.Action("SubmitInstance", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})', { async: true }, { actionType: actionType, additionalData: additionalFields })
+                            .done(function(data) {
+                                if (data.IsValid === true) {
+                                    exitEditMode(true, $('[data-id=VmrContent]'), true, false);
+                                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                                    paginationTab(false, dataTab.pageSize);
+                                    disableEnableTabs(false);
+                                    if (dataTab.reloadTab !== '') {
+                                        exitEditMode(true, $(dataTab.reloadTab), true, false);
+                                    }
+                                    $('[dd-tab="#tabDocuments"]').click();
+                                    bindHandlers();
+                                    alertMinute();
+                                    commentHandlers();
+                                    binHandlersBasicData();
+                                    if(typeof InitialBasicData !== 'undefined' && jQuery.isFunction(InitialBasicData)){
+                                        InitialBasicData();
+                                    }
+                                    hideLoaderOptional();
+                                } else {
+                                    requiredDocument();
+                                    Alert.ShowWarning(data.ErrorMessage);
+                                    hideLoaderOptional();
+                                }
+                                EnableSortable();
+                            });
+                    } else {
+                        Alert.ShowWarning(dataCheck.ErrorMessage);
+                        if (dataCheck.ReloadTab === true) {
+                            reloadTab(dataCheck.TabName, dataCheck.FocusTab);
+                            requiredDocument();
+                            EnableSortable();
+                        }
+                        hideLoaderOptional();
+                    }
+                })
+				.fail(function(dataCheck){
+				    Alert.ShowWarning(dataCheck.ErrorMessage);
+				    if (dataCheck.ReloadTab === true) {
+				        reloadTab(dataCheck.TabName, dataCheck.FocusTab);
+				        requiredDocument();
+				        EnableSortable();
+				    }
+				    hideLoaderOptional();
+				});
+        }
+
+        function cancelVmrSubmit() {
+
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            var dataTab = GetDataBytab();
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    showLoaderOptional();
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "MeetingRoom", new {area = "VMR"})', { async: true }, { url: dataTab.urlConcurrence });
+                    exitEditMode(true, $('[data-id=VmrContent]'), true, false);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    disableEnableTabs(false);
+                    paginationTab(false, dataTab.pageSize);
+                    $('.btn.btn-warning.vex-dialog-button.vex-first').off('click');
+                    EnableSortable();
+                    hideLoaderOptional();
+                    if(typeof InitialBasicData !== 'undefined' && jQuery.isFunction(InitialBasicData)){
+                        InitialBasicData();
+                    }
+                }
+            });
+        }
+
+        function saveBasicData() {
+
+            var isValidSubmit = validateContainer($("#basicData")) && validateSubmitArea();
+
+            if (isValidSubmit) {
+                var msg = '@Localization.GetText("VMR.MM.MeetingRoom.MsgConfirmSubmit")';
+                confirmAction(msg).done(function(pressOk) {
+                    if (pressOk) {
+                        var fields = processSubmitArea();
+                        postUrlWithOptions('@Url.Action("SaveBasicData", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})', { async: true }, { additionalData: fields })
+                            .done(function(data) {
+                                if (data.IsValid === true) {
+                                    exitEditMode(true, $('#basicData'), true, false);
+                                    bindHandlers($('#basicData'));
+                                    exitEditMode(true, $("#tabRemarks"), true, false);
+                                    if ($('.tab-pane.active').attr('id') == "tabRemarks") {
+                                        commentHandlers();
+                                    }
+                                    binHandlersBasicData();
+                                    if(typeof InitialBasicData !== 'undefined' && jQuery.isFunction(InitialBasicData)){
+                                        InitialBasicData();
+                                    }
+                                } else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+                    }
+                });
+            }
+        }
+
+        function edit() {
+            $('[data-id="mainContainer"]').each(function() {
+                if ($(this).closest('.vex').length === 0) {
+                    $(this).remove();
+                }
+            });
+
+            var dataTab = GetDataBytab();
+            postUrlWithOptions('@Url.Action("LockRegister", "MeetingRoom", new {area = "VMR"})', { async: false }, { url: dataTab.urlConcurrence, operationNumber: @Model.InstanceId })
+                .done(function(data) {
+                    if (data.IsValid === true) {
+                        var success = enterEditMode(true, $('.tab-pane.active'), false);
+                        if (success) {
+                            disableEnableTabs(true);
+                            EnableSortable();
+                            removeButtonsDocuments();
+                            paginationTab(false, dataTab.pageSize);
+                        }
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+        }
+
+        function GetDataBytab() {
+            var data = {
+                modelSerialized: '',
+                pageSize: '',
+                table: '',
+                nameDdlPagination: '',
+                urlConcurrence: '',
+                reloadTab: ''
+            };
+
+            switch ($('.tab-pane.active').attr('id')) {
+                case "tabParticipants":
+                    data.modelSerialized = '#participantsViewModel';
+                    data.pageSize = $('[name="ddlPaginationParticipant"]').val();
+                    data.table = "#participantsTable";
+                    data.nameDdlPagination = "ddlPaginationParticipant";
+                    data.urlConcurrence = '@string.Concat(VmrGlobalValues.URL_PARTICIPANT, Model.InstanceId)';
+                    data.reloadTab = "#tabParticipants";
+                    break;
+                case "tabDocuments":
+                    data.modelSerialized = '#documentsViewModel';
+                    data.pageSize = $('[name="ddlPaginationDocuments"]').val();
+                    data.table = "#documentsTable";
+                    data.nameDdlPagination = "ddlPaginationDocuments";
+                    data.urlConcurrence = '@VmrGlobalValues.URL_DOCUMENT';
+                    break;
+            }
+
+            return data;
+        }
+
+        function cancel() {
+
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            var dataTab = GetDataBytab();
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "MeetingRoom", new {area = "VMR"})', { async: true }, { url: dataTab.urlConcurrence, operationNumber: @Model.InstanceId });
+
+                    searchDocumentForDeleteShp();
+
+                    exitEditMode(true, $('.tab-pane.active'), true, false);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    disableEnableTabs(false);
+                    paginationTab(false, dataTab.pageSize);
+                    $('.btn.btn-warning.vex-dialog-button.vex-first').off('click');
+                    EnableSortable();
+                    hideLoaderOptional();
+                }
+            });
+            $('.btn.btn-warning.vex-dialog-button.vex-first').click(function() { showLoaderOptional(); });
+        }
+
+        function searchDocumentForDeleteShp() {
+            $('[name=IsNewDocumentForSave]')
+                .each(function() {
+                    if ($(this).is(':checked')) {
+                        var docNumber = $(this).attr("data-DocumentReference");
+                        var docName = $(this).attr("data-DocumentName");
+                        var docNameTemp = $(this).attr("data-DocumentNameTemp");
+                        var isDocTemp = $(this).attr("data-isDocumentTemp");
+                        $.ajax({
+                            type: "POST",
+                            async: false,
+                            url: '@Url.Action("RemoveDocumentSharepointTemp", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                                 '&operationNumber=' + operationNumber + '&documentNumber=' + docNumber + '&documentName=' + docName + '&documentNameTemp=' + docNameTemp + '&isDocumentTemp=' + isDocTemp
+                        }).done(function(data) {
+                            if (data.IsValid === false) {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                var row = $(this).closest('tr');
+                                row.remove();
+                            }
+                        });
+                    }
+                });
+        }
+
+        function save() {
+            var isValid = false;
+            var dataTab = GetDataBytab();
+
+            if (dataTab.modelSerialized !== "") {
+                var response = saveContainer($('#' + $('.tab-pane.active').attr('id') + ''), dataTab.modelSerialized, true);
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                            showMessage(data.ErrorMessage);
+                        } else {
+                            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                            disableEnableTabs(false);
+                            isValid = true;
+                            if (dataTab.reloadTab !== '') {
+                                exitEditMode(true, $(dataTab.reloadTab), true, false);
+                            }
+                            EnableSortable();
+                            paginationTab(false, dataTab.pageSize);
+
+                            if (data.ErrorMessage != null && data.ErrorMessage !== '') {
+                                showMessage(data.ErrorMessage);
+                            }
+                        }
+                    });
+                }
+            }
+
+            return isValid;
+        }
+
+        function showBannerNewComment(commentType) {
+            var model = {
+                UserName: userName,
+                InstanceId: parseInt(instanceId),
+                CommentType: commentType,
+                UrlReload: reload
+            };
+
+            try {
+                connection.done(function() {
+                    vmrComment.server.messageNewComment(model);
+                });
+            } catch (err) {
+                console.log(err.message);
+            }
+        }
+
+        function lockUnLockButton(controlName, commentId) {
+            var model = {
+                UserName: userName,
+                InstanceId: parseInt(instanceId),
+                ControlName: controlName,
+                CommentId: parseInt(commentId)
+            }
+
+            try {
+                connection.done(function() {
+                    vmrComment.server.lockUnLockButton(model);
+                });
+            } catch (err) {
+                console.log(err.message);
+            }
+        }
+
+        $(document).on('change', '[name="ddlPaginationParticipant"],[name="ddlPaginationDocuments"]', function() {
+            paginationTab(false);
+        });
+
+        function paginationTab(firstChange, paginationSize) {
+            if (firstChange) {
+                $('#participantsTable').paginationConfluense($('[name="ddlPaginationParticipant"]').val());
+                $('#documentsTable').paginationConfluense($('[name="ddlPaginationDocuments"]').val());
+
+                resetPaginationSection("#participantsTable");
+                resetPaginationSection("#documentsTable");
+
+            } else {
+                var dataTab = GetDataBytab();
+                if (paginationSize == null) {
+                    paginationSize = dataTab.pageSize;
+                } else {
+                    if (paginationSize == "999999") {
+                        $('#id-' + dataTab.nameDdlPagination).SetValue(paginationSize, '@Localization.GetText("VMR.GLOBAL.AllResults")');
+                    } else {
+                        $('#id-' + dataTab.nameDdlPagination).SetValue(paginationSize, paginationSize + " " + '@Localization.GetText("GLOBAL.RESUTLS.PER.PAGE")');
+
+                    }
+                }
+                if (paginationSize !== undefined && paginationSize != null && paginationSize !== '' && paginationSize !== '0') {
+                    $(dataTab.table).paginationConfluense(paginationSize);
+                }
+
+                resetPaginationSection(dataTab.table);
+            }
+        }
+
+        function resetPaginationSection(element) {
+            $(element + "_wrapper").find(".Pagination").css("width", "100%");
+            $(element + "_wrapper").find(".Pagination").css("max-width", "100%");
+        }
+
+        function getTableParticipant() {
+
+            var tableArray = new Array();
+
+            $("#participantsTable tbody tr").each(function() {
+                var accessLevelCode = $(this).find('[name=accessLevelCode]').val();
+                var role = parseInt($(this).find('[name=role]').val()) ? parseInt($(this).find('[name=role]').val()) : -1;
+                var organizationalUnitId = parseInt($(this).find('[name=organizationalUnitId]').val()) ? parseInt($(this).find('[name=organizationalUnitId]').val()) : -1;
+                var userName = $(this).find('[name=username]').val();
+                var participantType = parseInt($(this).find('[name=participantType]').val()) ? parseInt($(this).find('[name=participantType]').val()) : -1;
+
+                var participants =
+                {
+                    AccessLevelCode: accessLevelCode,
+                    Role: role,
+                    OrganizationalUnitId: organizationalUnitId,
+                    Username: userName,
+                    ParticipantTypeId: participantType
+                };
+
+                tableArray.push(participants);
+
+            });
+
+            return tableArray;
+        }
+
+        function getOrgUnitByCode(orgUnit) {
+            var url = '@Url.Action("GetOrgUnitByCode", "VirtualEditingRoom", new {area = "VER"})';
+            var organizationalUnitId = -1;
+            postUrlWithOptions(url, { async: false }, { orgUnit: orgUnit }).done(function(response) {
+                if (response.IsValid) {
+                    organizationalUnitId = response.Id;
+                }
+            });
+            return organizationalUnitId;
+        }
+
+        function addParticipantRow() {
+            var roleId;
+            var organizationalUnitId;
+            var participantTypeId;
+            var userName;
+
+            if (validateContainer($("#filterParticipant"))) {
+
+                var searchBy = $('#accessType:checked').val();
+                if ('@ModuleAccessLevelCode.USER' === searchBy) {
+                    organizationalUnitId = parseInt($('input[name="orgUnitId"]').val()) ? parseInt($('input[name="orgUnitId"]').val()) : -1;
+                    roleId = -1;
+                    if (organizationalUnitId === -1) {
+                        showMessage('@Localization.GetText("VER.Homepage.TabParticipant.NoOrgUnitUser")');
+                        return false;
+                    }
+                } else {
+                    roleId = parseInt($('input[name="rolePartial"]').val()) ? parseInt($('input[name="rolePartial"]').val()) : -1;
+                    organizationalUnitId = parseInt($('[name = "organizationUnitPartial"]').val()) ? parseInt($('[name = "organizationUnitPartial"]').val()) : -1;
+                }
+                participantTypeId = parseInt($('input[name="participantTypePartial"]').val()) ? parseInt($('input[name="participantTypePartial"]').val()) : -1;
+                userName = $('[name = userName]').val();
+                var tableArray = getTableParticipant();
+
+                if (tableArray != null) {
+
+                    var url = '@Url.Action("ValidationParticipant", "MeetingRoom", new {area = "VMR"})';
+                    postUrlWithOptions(url, { async: true }, {
+                        accessLevelCode: searchBy,
+                        roleId: roleId,
+                        orgUnitId: organizationalUnitId,
+                        participantTypeId: participantTypeId,
+                        userName: userName,
+                        participants: tableArray
+                    })
+                        .done(function(response) {
+                            if (response.IsValid) {
+                                $('#participantsTable_wrapper').find('.Pagination_Number').last().click();
+                                var url = '@Url.Action("GetParticipantsNewRow", "MeetingRoom", new {area = "VMR"})';
+                                postUrlWithOptions(url, { async: true }, {
+                                    searchBy: searchBy,
+                                    participantTypeId: participantTypeId,
+                                    roleId: roleId,
+                                    userName: userName,
+                                    organizationalUnitId: organizationalUnitId
+                                })
+                                    .done(function(responseText) {
+                                        if ($("#participantsTable").find('td.dataTables_empty').length > 0) {
+                                            $("#participantsTable").find('tbody tr').remove();
+                                        }
+                                        $("#participantsTable").find('tbody').append(responseText);
+                                        enterEditMode(false, $("#participantsTable").find('tbody'), false);
+                                        $('div.vex-close').click();
+                                        bindHandlers();
+                                    });
+                            } else {
+                                showMessage(response.ErrorMessage);
+                            }
+
+                        });
+                }
+            }
+        }
+
+        function removeRow(source) {
+
+            var msg = '@Localization.GetText("VMR.MM.MeetingRoom.TabParticipants.DeleteMsg")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var row = source;
+                    row.closest("tr").remove();
+                }
+            });
+        }
+
+        function cleanMandatoryDocumentTemp(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VER.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        var docNumber = $(source).attr("data-DocumentReference");
+                        var docName = $(source).attr("data-DocumentName");
+                        var docNameTemp = $(source).attr("data-DocumentNameTemp");
+                        $.ajax({
+                            type: "POST",
+                            async: false,
+                            url: '@Url.Action("RemoveDocumentSharepointTemp", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                                 '&operationNumber=' + operationNumber + '&documentNumber=' + docNumber + '&documentName=' + docName + '&documentNameTemp=' + docNameTemp
+                        }).done(function(data) {
+                            if (data.IsValid === true) {
+                                var row = source.closest('tr');
+                                row.find('[data-DocumentNumberUpload]').text('');
+                                row.find('.LastUpdated').text('');
+                                row.find('[data-DocumentUserName]').text('');
+                                row.find('[data-DocumentIdHidden]').attr('value', '');
+                                row.find('[data-DocumentNumberHidden]').attr('value', '');
+                                row.find('[data-DocumentLastUpdatedHidden]').attr('value', '');
+                                row.find('[data-DocumentUserNameHidden]').attr('value', '');
+                                row.find('.buttonDownload').addClass('hide');
+                                row.find('.buttonLink').removeAttr('data-url');
+                                row.find('.buttonLink').removeAttr('data-action');
+                                row.find('.buttonLink').addClass('unlinkedDocument');
+                                row.find('input[name="shpUrlDocument"]').attr('value', '');
+                                row.find('[name="urlGeneratedDocument"]').attr('data-url', '');
+                                row.find('[name= "office365ButtonUpload"]').removeClass('hide');
+                                source.addClass('hide');
+                            } else {
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+                    }
+                });
+        }
+
+        function cleanMandatoryDocuments(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VER.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) { 
+                    var row = source.closest('tr');
+                    row.find('[data-DocumentNumberUpload]').text('');
+                    row.find('.LastUpdated').text('');
+                    row.find('[data-DocumentUserName]').text('');
+                    row.find('[data-DocumentIdHidden]').attr('value', '');
+                    row.find('[data-DocumentNumberHidden]').attr('value', '');
+                    row.find('[data-DocumentLastUpdatedHidden]').attr('value', '');
+                    row.find('[data-DocumentUserNameHidden]').attr('value', '');
+                    row.find('.buttonDownload').addClass('hide');
+                    row.find('.buttonLink').attr('data-url', '');
+                    row.find('input[name="shpUrlDocument"]').attr('value', '');
+                    row.find('[name="urlGeneratedDocument"]').attr('data-url', '');
+                    row.find('[name= "office365Button"]').removeClass('hide');
+                    source.addClass('hide');
+
+                    var documentForDelete = row.find('[name=verDocumentId]').val();
+                    var documentsListForDelete = $('#documentsListForDelete').val();
+
+                    if (documentsListForDelete === '') {
+                        documentsListForDelete = documentForDelete;
+                    } else {
+                        documentsListForDelete = documentsListForDelete + '|' + documentForDelete;
+                    }
+
+                    $('#documentsListForDelete').val(documentsListForDelete);
+                }
+            });
+        }
+
+        function downloadMinuteDocument() {
+            var url = '@Url.Action("SingleWindowMeetingExportMinuteToWord", "MeetingRoom", new {Area = "VMR", instanceId = Model.InstanceId})';
+            var w = window.open(url, '_blank');
+            showLoaderOptional();
+            var updateDocument = setInterval(function() {
+                if (w.closed) {
+                    clearInterval(updateDocument);
+
+                    var submityByMinute = $('[name=submitByMinute]').val();
+
+                    if (submityByMinute != undefined) {
+                        exitEditMode(true, $("#tabDocuments"), true, false);
+                        submitInstance(submityByMinute);
+                    } else {
+                        exitEditMode(true, $("#tabDocuments"), true, false);
+                        EnableSortable();
+                        hideLoaderOptional();
+                    }
+                }
+            }, 500);
+        }
+
+        function closeAllOverlay() {
+            var otherOverlays = $(".overlay .overlay-close");
+            otherOverlays.click();
+        }
+
+        function disableEnableTabs(enableOne) {
+            if (enableOne) {
+                var idTab = $('.tab-pane.active').attr('data-tab-control-id');
+                $("[dd-tab]").not('[dd-tab=' + idTab + ']').addClass('disabled');
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+            } else {
+                $("[dd-tab]").removeClass('disabled');
+            }
+            EnableSortable();
+        }
+
+        function downloadDocument(target) {
+            var docNumber = $(target.closest('tr')).find('input[name="documentNumber"]').val();
+            var url = '@Url.Action("DownloadDocument", "DocumentModal", new {area = ""})' + '?documentNumber=' + docNumber;
+            window.open(url, '_blank');
+            EnableSortable();
+        }
+
+        function removeAction(source) {
+            $(source).attr('data-isclick-remove', true);
+        }
+
+        function removeRowDocument(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VMR.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+
+                    var row = source.closest("tr");
+                    if (row.find('[name=IsNewDocumentForSave]').prop('checked') == false) {
+                        var documentForDelete = row.find('[name=verDocumentId]').val();
+                        var documentsListForDelete = $('#documentsListForDelete').val();
+
+                        if (documentsListForDelete === '') {
+                            documentsListForDelete = documentForDelete;
+                        } else {
+                            documentsListForDelete = documentsListForDelete + '|' + documentForDelete;
+                        }
+
+                        $('#documentsListForDelete').val(documentsListForDelete);
+                    }
+
+                    row.remove();
+
+                    $('#documentsTable tbody tr').each(function(counter) {
+                        var tableRowCount = $('#documentsTable tbody tr').size();
+                        if (counter < tableRowCount) {
+                            $(this).find('td:first').html(counter + 1);
+                        }
+                    });    
+                }
+                EnableSortable();
+            });
+        }
+
+        function removeRowDocumentTemp(source) {
+            removeAction(source);
+            var msg = '@Localization.GetText("VMR.Homepage.TabDocuments.DeleteMsg")';
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var docNumber = $(source).attr("data-DocumentReference");
+                    var docName = $(source).attr("data-DocumentName");
+                    var docNameTemp = $(source).attr("data-DocumentNameTemp");
+                    var isDocTemp = $(source).attr("data-isDocumentTemp");
+                    $.ajax({
+                        type: "POST",
+                        async: false,
+                        url: '@Url.Action("RemoveDocumentSharepointTemp", "VirtualEditingRoom", new {area = "VER", instanceId = Model.InstanceId})' +
+                             '&operationNumber=' + operationNumber + '&documentNumber=' + docNumber + '&documentName=' + docName + '&documentNameTemp=' + docNameTemp + '&isDocumentTemp=' + isDocTemp
+                    }).done(function(data) {
+                        if (data.IsValid === false) {
+                            showMessage(data.ErrorMessage);
+                        } else {
+                            var row = source.closest('tr');
+                            row.remove();
+                        }
+                    });
+                }
+            });
+        }
+
+        function officeOnline(source) {
+            var url = $(source).attr("data-url");
+            window.open(url, '_blank');
+        }
+
+        function uploadAction(source) {
+            $(source).attr("data-isclick-upload", true);
+        }
+
+
+        function officeOnlineMainDocument(source) {
+            var url = $(source).attr("data-url");
+            window.open(url, '_blank');
+        }
+
+        function isEmpty(el) {
+            return !$.trim(el.html());
+        }
+
+        $(document).on('change', '[name="role"]', function() {
+            var element = $(this);
+            var role = $(this).val();
+            var row = $(element).closest('tr');
+            var dropDownRole = row.find('#id-role');
+            var dropDownParticipant = row.find('#id-participantType');
+            var roleInput = element.attr('data-roleinput');
+            var labelUsers = row.find('[data-labelusername]');
+            if (role === '') {
+                labelUsers.text('');
+            }
+            if (typeof roleInput !== typeof undefined && roleInput !== false) {
+                element.attr('data-roleinput', 'changed');
+                $('input[name="role"]').each(function() {
+                    var roleInTable = $(this).val();
+                    var roles = $(this).attr('data-roleinput');
+                    if (roles !== "changed" && role !== '') {
+                        if (roleInTable === role) {
+                            showMessage("@Localization.GetText("VMR.Homepage.TabParticipant.DuplicatedRole")");
+                            dropDownRole.FirstorDefault();
+                            dropDownParticipant.FirstorDefault();
+                            labelUsers.text('');
+                        }
+                    }
+                });
+                element.attr('data-roleinput', 'oldRole');
+            }
+
+        });
+
+        function uploadAction(source) {
+            $(source).attr('data-isclick-upload', true);
+        }
+
+        function isEmpty(el) {
+            return !$.trim(el.html());
+        }
+
+        function UploadDocumentRow(documentList, source) {
+            $('form[data-id="addForm"]').trigger('reset');
+
+            var docNumber = documentList.DocumentId;
+            var docName = documentList.DocumentName;
+            var docUrl = documentList.WebUrl;
+            var docNameTemp = documentList.DocumentNameTemp;
+            var isValid = true;
+
+            $('input[name="documentNumber"]').each(function() {
+                if ($(this).val() === docNumber) {
+                    isValid = false;
+                }
+            });
+            if (isValid) {
+                var urlf = '@Url.Action("UploadNewDocument", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})';
+                postUrlWithOptions(urlf, { async: false }, { documentNumber: docNumber, documentName: docName, docWebUrl: docUrl, documentNameTemp: docNameTemp })
+                    .done(function(data) {
+                        var container = $(source).closest("tr");
+                        container.find('[data-DocumentNumberUpload]').text(data.DocumentNumber);
+                        container.find('input[name="shpUrlDocument"]').attr('value', data.ShpUrlDocument);
+                        container.find('[data-DocumentNumberHidden]').attr('value', data.DocumentNumber);
+                        container.find('[name="isVer"]').attr('checked', data.IsVer);
+                        container.find('.LastUpdated .labelNormal').html(data.LastUpdateFormat);
+                        container.find('[data-documentusername]').html(data.UserName);
+                        container.find('.buttonLink').attr("data-action", "officeOnline");
+                        container.find('.buttonLink').attr("data-url", data.ShpUrlDocument);
+                        container.find('.buttonUpload').addClass('hide');
+                        container.find('.buttonDownload').removeClass('hide');
+                        container.find('.buttonDownload').attr("data-documentid", docNumber);
+                        container.find('.buttonTrash').removeClass('hide');
+                        container.find('.buttonTrash').attr("data-action", "cleanMandatoryDocumentTemp");
+                        container.find('.buttonTrash').attr("data-documentName", data.DocumentName);
+                        container.find('.buttonTrash').attr("data-DocumentNameTemp", data.DocumentNameTemp);
+                        container.find('.buttonTrash').attr("data-DocumentReference", data.DocumentNumber);
+                        container.find('[name="DocumentNameTemp"]').attr('value', data.DocumentNameTemp);
+                        container.find('[name="IsNewDocumentForSave"]')
+                            .attr('checked', true)
+                            .attr('data-DocumentReference', data.DocumentNumber);
+                        container.find('[name="IsNewDocument"]').prop('checked', true);
+                    });
+
+            } else {
+                showMessage("@Localization.GetText("VER.Homepage.TabDocuments.AlreadyExist")");
+            }
+        }
+
+        function EnableSortable() {
+            $('#participantsTable').sortableConfluense();
+            $('#documentsTable').sortableConfluense();
+            $('#commentsTable').sortableConfluense();
+        }
+
+        function clearErrorMessage() {
+            $('.uploadContainerError li[data-name="file-empty"]').closest('ul').addClass('hide');
+            $('.uploadContainerError li[data-name="file-error"]').closest('ul').addClass('hide');
+        }
+
+        function AddDocumentRow(documentList) {
+            var docNumber = documentList.DocumentId;
+            var docName = documentList.DocumentName;
+            var docNameTemp = documentList.DocumentNameTemp;
+            var docUrl = documentList.WebUrl;
+
+            $.ajax({
+                type: "POST",
+                async: false,
+                url: '@Url.Action("AddNewDocument", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})',
+                data: { documentNumber: docNumber, documentName: docName, docWebUrl: docUrl, docNameTemp: docNameTemp }
+            }).done(function(data) {
+                var container = $('#documentsTable').find('tbody');
+                if ($(container).find('td.dataTables_empty').length > 0) {
+                    $(container).find('tr').remove();
+                }
+                $(container).append(data);
+                enterEditMode(false, $(container), false);
+                $("#documentsTable_wrapper").find('.Pagination_Number').last().click();
+            }).error(function (xhr, ajaxOptions, thrownError) {
+                Alert.ShowWarning(xhr.responseText);
+            });
+        }
+
+        function requiredDocument() {
+            $('#documentsTable tbody tr').each(function() {
+                var required = $(this).find('#isRequired').is(':checked');
+                var docNumber = $(this).find('[name="documentNumber"]').val();
+                if (required && docNumber === '') {
+                    $(this).find('.buttonLink').addClass('requiredDocument');
+                    $(this).find('.buttonLink').removeClass('unlinkedDocument');
+                }
+            });
+        }
+
+        function showParticipantModal() {
+            var url = '@Url.Action("GetParticipantSearch", "MeetingRoom", new {area = "VMR"})';
+            postUrlWithOptions(url, { async: false })
+                .done(function(data) {
+                    $('#newParticipantContentModal').html(data);
+                    $('[data-id="newParticipant"]').click();
+                });
+        }
+
+        function resetFilter() {
+            $('[name="accessType"]').removeClass("parsley-error");
+            $('[name="participantTypePartial"]').removeClass("parsley-error");
+            $('[name="participantTypePartial"]').siblings('ul').removeClass("filled");
+            $('#id-participantTypePartial').FirstorDefault();
+            var searchBy = $('#accessType:checked').val();
+
+            if ('@ModuleAccessLevelCode.USER' === searchBy) {
+                resetUSER(true);
+                resetROLE(false);
+
+            } else if ('@ModuleAccessLevelCode.ROLE' === searchBy) {
+                resetROLE(true);
+                resetUSER(false);
+            }
+            return false;
+        }
+
+        function resetROLE(required) {
+
+            $('[name="rolePartial"]').attr("data-parsley-required", required);
+            $('[name="rolePartial"]').removeClass("parsley-error");
+            $('[name="rolePartial"]').siblings('ul').removeClass("filled");
+            $('#id-rolePartial').FirstorDefault();
+
+            $('[name="organizationUnitPartial"]').attr("data-parsley-required", required);
+            $('[name="organizationUnitPartial"]').removeClass("parsley-error");
+            $('[name="organizationUnitPartial"]').siblings('ul').removeClass("filled");
+            $('#id-organizationUnitPartial').FirstorDefault();
+        }
+
+        function resetUSER(required) {
+
+            $('[name="orgUnitId"]').val("");
+            $('[name="userName"]').val("");
+            $('[name="userName_text"]').val("");
+            $('[name="userName"]').attr("data-parsley-required", required);
+            $('[name="userName"]').removeClass("parsley-error");
+            $('[name="userName"]').siblings('ul').removeClass("filled");
+        }
+
+        $(document).on("change", "[name='rolePartial']", function(source) {
+            var roleId = $(this).GetValue();
+            var selected = false;
+            var url;
+            var response;
+            var listdata;
+            var selectId;
+
+            if (roleId !== "") {
+                if ($(this).attr('name') == 'rolePartial') {
+                    url = "@Url.Action("GetOrganizationUnitListByRol", "MeetingRoom", new {area = "VMR"})";
+                    response = postUrl(url, { roleId: roleId }).responseJSON;
+                    listdata = $.map(response.Data, function(item) {
+                        return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+                    });
+
+                    listdata.unshift("<li><a dd-value>(select an option)</a></li>");
+                    $('ul.dropdown-menu[aria-labelledby="id-organizationUnitPartial"]').html(listdata.join("")).FirstorDefault();
+
+                    selectId = response.selectedId;
+                    if (response.Data.length === 1) {
+                        selectId = response.Data[0].Value;
+                        selected = true;
+
+                    } else if (selectId !== "" && selectId !== -1 && response.Data.length > 1) {
+
+                        for (var i = 0; i < response.Data.length; i++) {
+                            if (response.Data[i].Value == response.selectedId) {
+                                selected = true;
+                            }
+                        }
+                    }
+                    if (selected) {
+                        $('[name="organizationUnitPartial"]').removeClass("parsley-error");
+                        $('[name="organizationUnitPartial"]').closest('.dropdown').find('ul.filled').removeClass('filled');
+                        $('[aria-labelledby="id-organizationUnitPartial"] li a').removeAttr("dd-selected");
+                        $('[aria-labelledby=id-organizationUnitPartial] li a[dd-value="' + selectId + '"]').attr("dd-selected", "");
+                        $("#id-organizationUnitPartial").SetValue(selectId, $('[aria-labelledby=id-organizationUnitPartial] li a[dd-value="' + selectId + '"]').text());
+                        $('[aria-labelledby="id-organizationUnitPartial"] li a').closest('.dropdown').removeClass('placeholder');
+                    }
+
+                }
+            } else {
+                $('ul.dropdown-menu[aria-labelledby="id-organizationUnitUserPartial"]').html("<li><a dd-value>(select an option)</a></li>");
+                $('#id-organizationUnitUserPartial').FirstorDefault();
+                $('ul.dropdown-menu[aria-labelledby="id-organizationUnitPartial"]').html("<li><a dd-value>(select an option)</a></li>");
+                $('#id-organizationUnitPartial').FirstorDefault();
+            }
+
+        });
+
+
+        $(document).on('click', '[name="accessType"]', function() {
+            var activeForm = $('[data-type="formAccess"]').not('.hide');
+            if (activeForm == null || activeForm.attr("data-parent") !== $(this).val()) {
+                $('[data-type="formAccess"]').each(function() {
+                    $(this).addClass('hide');
+                    eval("reset" + $(this).attr('data-parent'))(false);
+                });
+                $('[data-parent="' + $(this).val() + '"]').removeClass("hide");
+                eval("reset" + $(this).val())(true);
+            }
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-userName"] a', function() {
+            $('#orgUnit').html($(this).attr('additional-data'));
+
+            if ($(this).attr('additional-data').trim() !== "") {
+                $('[name="orgUnitId"]').val(getOrgUnitByCode($(this).attr('additional-data').trim()));
+            } else {
+                $('[name="orgUnitId"]').val("");
+            }
+        });
+
+
+        $(document).on('click', '[data-comment-expand]', function() {
+            lockUnlockSmallFieldComment(this);
+        });
+
+
+        function lockUnlockSmallFieldComment(control) {
+            var row = $(control).closest('tr');
+
+            if ($(control).hasClass("active")) {
+                row.find("[data-readonly-field='false']").attr("disabled", true);
+            } else {
+                row.find("[data-readonly-field='false']").attr("disabled", false);
+            }
+        }
+
+        $(document).on('click', '.btnCollapseOne[dd-contenedor="commentsTable"]', function() {
+
+            $('#commentsTable tr').find('[data-comment-expand]').each(function() {
+                lockUnlockSmallFieldComment(this);
+            });
+        });
+
+        $(document).on('change', '[data-replica-field]', function() {
+            var row = $(this).closest("tr");
+            var value = $(this).val();
+            var replicaField = $(this).attr("data-replica-field");
+
+            if (replicaField !== "") {
+
+                if (replicaField.indexOf("Row") > 0) {
+                    row = row.next();
+                } else {
+                    row = row.prev();
+                }
+
+                if ($(this).attr('type') === 'checkbox') {
+                    $(row.find("[name='" + replicaField + "']")).prop("checked", $(this).prop("checked"));
+                } else {
+                    $(row.find("[name='" + replicaField + "']")).val(value);
+                }
+            }
+        });
+
+        function getDataDocumentsInView() {
+            var dataDocuments = [];
+
+            $('#documentsTable tbody tr').each(function() {
+                var rowId = $(this).find('[name="verDocumentId"]').val();
+                if (rowId != undefined && rowId !== '' && rowId !== 0) {
+                    var docNumber = $(this).find('[name="documentNumber"]').val();
+                    var isGenerated = $(this).find('[name="isGenerated"]').prop('checked');
+                    var isRequired = $(this).find('[name="isRequired"]').prop('checked');
+                    var incInPackage = $(this).find('[name="packageDoc"]').prop('checked');
+                    var documentType = parseInt($(this).find('[name="documentType"]').val());
+                    dataDocuments.push({
+                        VerDocumentId: rowId,
+                        DocumentNumber: docNumber,
+                        IsGenerated: isGenerated,
+                        IsRequired: isRequired,
+                        IncInPackage: incInPackage,
+                        DocumentType: documentType
+                    });
+                }
+
+            });
+
+            return dataDocuments;
+        }
+
+        function reloadTab(tab, focus) {
+            exitEditMode(true, $('#' + tab), true, false);
+
+            if ($(".tab-pane.active").attr("id") !== tab && focus) {
+                $('[dd-tab="#' + tab + '"]').click();
+            }
+        }
+
+        function resizeComment() {
+            $('.tab-pane.active').find('textarea')
+                .off('keyup')
+                .on('keyup', function() {
+                    var offset = this.offsetHeight - this.clientHeight;
+                    $(this).css('height', 'auto').css('height', this.scrollHeight + offset);
+                    $(this).css('overflow-y','hidden');
+                })
+                .each(function() {
+                    var offset = this.offsetHeight - this.clientHeight;
+                    $(this).css('height', 'auto').css('height', this.scrollHeight + offset);
+                });
+        }
+
+        function showMoreLess() {
+
+            $('.tab-pane.active .commentMainSection').each(function() {
+                var heightLess = $(this).find('[data-comment="Less"]').find('div').height();
+                var heightMore = $(this).find('[data-comment="More"]').find('div').height();
+                if (heightLess < 74 && heightMore < 74 ) {
+                    $(this).find('[data-comment="More"]').addClass('hide');
+                    $(this).find('.showlinkTree').addClass('hide');
+                    $(this).find('[data-comment="Less"]').removeClass('hide');
+                } else {
+                    if ($('.tab-pane.active .btnCollapseAll').hasClass('collapse')) {
+                        $(this).find('[data-comment="Less"]').addClass('hide');
+                        $(this).find('[data-comment="More"]').removeClass('hide');
+                        $(this).find('.showlinkTree[showless]').removeClass('hide');
+                        $(this).find('.showlinkTree[showmore]').addClass('hide');
+                    } else {
+                        $(this).find('[data-comment="More"]').addClass('hide');
+                        $(this).find('.showlinkTree[showless]').addClass('hide');
+                        $(this).find('[data-comment="Less"]').removeClass('hide');
+                        $(this).find('.showlinkTree[showmore]').removeClass('hide');
+                    }
+
+                }
+            });
+
+            $(".showlinkTree").off('click').click(function() {
+                var container = $(this).addClass('hide').closest('[data-comment]');
+                var mainContainer = $(this).closest('.commentMainSection');
+                if (container.attr("data-comment") === "More") {
+                    container.addClass('hide');
+                    mainContainer.find('[data-comment="Less"]')
+                        .hide()
+                        .removeClass('hide')
+                        .fadeIn('slow')
+                        .css('display', '')
+                        .find('.showlinkTree')
+                        .removeClass('hide')
+                } else {
+                    container.addClass('hide');
+                    mainContainer.find('[data-comment="More"]')
+                        .hide()
+                        .removeClass('hide')
+                        .fadeIn('slow')
+                        .css('display', '')
+                        .find('.showlinkTree').removeClass('hide')
+                }
+            });
+        }
+
+        function collapseComments(element) {
+            showLoaderOptional();
+            if (!element.is('.collapse')) {
+                $('.tab-pane.active .sectionCommentGroup').each(function() {
+                    var buttons = $(this).find('.buttons');
+
+                    if (buttons.find('[name="showHideThirdLevel"]').not('.Showing').length > 0) {
+                        buttons.find('[name="showHideThirdLevel"]').click();
+
+                    } else if (buttons.find('[name="showHideSecondLevel"]').not('.Showing').length > 0) {
+                        buttons.find('[name="showHideSecondLevel"]').click();
+                    }
+
+                    $(this).find('.showlinkTree[showmore]').not('.hide').click();
+                });
+
+                element.addClass('collapse')
+                .find('label')
+                .html(element.attr('dd-coll'));
+            } else {
+                $('.tab-pane.active .sectionCommentGroup').each(function() {
+                    var buttons = $(this).find('.buttons');
+
+                    if (buttons.find('[name="showHideThirdLevel"]').is('.Showing')) {
+                        buttons.find('[name="showHideThirdLevel"]').click();
+
+                    } else if (buttons.find('[name="showHideSecondLevel"]').is('.Showing')) {
+                        buttons.find('[name="showHideSecondLevel"]').click();
+                    }
+
+                    $(this).find('.showlinkTree[showless]').not('.hide').click();
+                });
+
+                element.removeClass('collapse')
+                .find('label')
+                .html(element.attr('dd-exp'));
+            }
+
+            commentHandlers(false, false);
+            hideLoaderOptional();
+        }
+
+        function paginationComment(totalComments, ddlPaginationInput, paginationNumbers, commentDiv) {
+            var total = totalComments.val() * 1;
+            var shows = ddlPaginationInput.val() * 1;
+            var pages = Math.floor(total / shows);
+            if (total % shows > 0) {
+                pages = pages + 1;
+            }
+
+            var paginationContent = paginationNumbers;
+            paginationContent.html("")
+                .attr("show-elements", shows)
+                .append('<div class="Pagination_Text Pagination_Prev NoActive">Prev</div>')
+                .append('<div dd-num="1" class="Pagination_Text Pagination_Points hide">...</div>')
+                .append('<div dd-num="1" class="Pagination_Number Pagination_Active">1</div>');
+
+            var showPoints = false;
+            for (var i = 1; i < pages; i++) {
+                var num = i + 1;
+                if (i > 4) {
+                    showPoints = true;
+                    paginationContent.append('<div dd-num="' + num + '" class="Pagination_Number hide">' + num + '</div>');
+                } else {
+                    paginationContent.append('<div dd-num="' + num + '" class="Pagination_Number">' + num + '</div>');
+                }
+
+            }
+
+            if (showPoints) {
+                paginationContent.append('<div dd-num="' + pages + '" class="Pagination_Text Pagination_Points">...</div>');
+            } else {
+                paginationContent.append('<div dd-num="' + pages + '" class="Pagination_Text Pagination_Points hide">...</div>');
+            }
+
+            paginationContent.append('<div dd-num="' + pages + '" class="Pagination_Text Pagination_Next">Next</div>');
+
+            paginationContent.find('.Pagination_Prev').off('click');
+            paginationContent.find('.Pagination_Prev').click(function() {
+                if (!$(this).is('.NoActive')) {
+                    var container = $(this).closest('.Pagination');
+                    var page = container.find('.Pagination_Number.Pagination_Active').attr('dd-num') * 1 - 1;
+                    if (page > 0) {
+                        container.find('.Pagination_Number[dd-num="' + page + '"]').click();
+                    }
+                }
+            });
+
+            paginationContent.find('.Pagination_Next').off('click');
+            paginationContent.find('.Pagination_Next').click(function() {
+                if (!$(this).is('.NoActive')) {
+                    var container = $(this).closest('.Pagination');
+                    var page = container.find('.Pagination_Number.Pagination_Active').attr('dd-num') * 1 + 1;
+                    if (page < $(this).attr('dd-num') * 1 + 1) {
+                        container.find('.Pagination_Number[dd-num="' + page + '"]').click();
+                    }
+                }
+            });
+
+            paginationContent.find('.Pagination_Points').off('click');
+            paginationContent.find('.Pagination_Points').click(function() {
+                var page = $(this).attr('dd-num');
+                $(this).closest('.Pagination').find('.Pagination_Number[dd-num="' + page + '"]').click();
+            });
+
+            paginationContent.find('.Pagination_Number').off('click');
+            paginationContent.find('.Pagination_Number').click(function() {
+                $(this).closest('.Pagination').find('.Pagination_Active').removeClass('Pagination_Active');
+                $(this).addClass('Pagination_Active');
+                var idTab = $('.tab-pane.active').attr('id');
+                if (idTab === "tabComments" || idTab === "tabRemarks") {
+                    hidePagination($(this).closest('.Pagination'));
+                }
+
+                if ($(this).attr('dd-num') * 1 === 1) {
+                    paginationContent.find('.Pagination_Prev').addClass('NoActive');
+                    paginationContent.find('.Pagination_Next').removeClass('NoActive');
+                } else if ($(this).attr('dd-num') * 1 === paginationContent.find('.Pagination_Next').attr('dd-num') * 1) {
+                    paginationContent.find('.Pagination_Prev').removeClass('NoActive');
+                    paginationContent.find('.Pagination_Next').addClass('NoActive');
+                } else {
+                    paginationContent.find('.Pagination_Prev').removeClass('NoActive');
+                    paginationContent.find('.Pagination_Next').removeClass('NoActive');
+                }
+
+                var totalIndexes = paginationContent.find('.Pagination_Number').length * 1;
+
+                if (totalIndexes > 5) {
+                    paginationContent.find('.Pagination_Number[dd-num]').addClass('hide');
+                    paginationContent.find('.Pagination_Points').removeClass('hide');
+                    var indexInterno = paginationContent.find('.Pagination_Active').attr('dd-num') * 1;
+                    if (indexInterno * 1 < 3) {
+                        paginationContent.find('.Pagination_Points').first().addClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="1"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="2"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="3"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="4"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="5"]').removeClass('hide');
+                    } else if (indexInterno * 1 > (totalIndexes - 4)) {
+                        paginationContent.find('.Pagination_Points').last().addClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 1) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 2) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 3) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (totalIndexes - 4) + '"]').removeClass('hide');
+                    } else {
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno - 2) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno - 1) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno + 1) + '"]').removeClass('hide');
+                        paginationContent.find('.Pagination_Number[dd-num="' + (indexInterno + 2) + '"]').removeClass('hide');
+                    }
+                }
+
+                var scrollPos =  commentDiv.offset().top;
+                $(window.parent).scrollTop(scrollPos);
+            });
+
+            function hidePagination(paginationContent) {
+                var showElements = paginationContent.attr('show-elements') * 1;
+                var pageActive = paginationContent.find('.Pagination_Active').attr('dd-num') * 1;
+
+                var elements = $('.tab-pane.active').find('.sectionCommentGroup');
+
+                if (elements.length > showElements) {
+                    var index = (showElements * (pageActive - 1));
+
+                    elements
+                        .addClass('hide')
+                        .slice(index, index + showElements)
+                        .removeClass("hide");
+                } else {
+                    $('.tab-pane.active')
+                        .find('.sectionCommentGroup').removeClass('hide');
+                }
+            }
+
+            hidePagination(paginationContent);
+        }
+
+        function alertMinute() {
+            var minuteMessage = $('input[name="minuteCompleteMessage"]').val();
+            if (minuteMessage !== '' && minuteMessage !== null) {
+                showMessage(minuteMessage);
+            }
+        }
+
+        function policyWaivedTooltip() {
+            var tooltipExplication = '@Model.BasicData.JustificationPolicyWaived'
+            $('[name="PolicyWaived"]').attr('title',tooltipExplication)
+        }
+
+        function linktoOperationData(){
+            url = '@Url.Action("OperationData", "View", new {area = "OPUS"})';
+            window.top.location.href = url;
+        }
+
+        function resetNewComment() {
+            var container = $('.tab-pane.active #newCommentSection');
+            var comment = container.find('[name="txtComment"]');
+            var cmb = container.find('[id="id-ddlTopicList"]');
+            comment.val('');
+            cmb.FirstorDefault();
+            comment.removeClass('parsley-error');
+            comment.next().removeClass('filled');
+            comment.css('height', '92px');
+            cmb.closest('.dropdown').children('.filled').removeClass('filled');
+        }
+
+        function saveNewComment() {
+            var activeTab = $('.tab-pane.active');
+            var container = $(activeTab).find('#newCommentSection');
+            var validateNewComment = validateContainer(container);
+            if (validateNewComment) {
+                showLoaderOptional();
+                var comment = container.find('[name="txtComment"]').val().trim();
+                var topic = container.find('[name="ddlTopicList"]').val();
+                var isNoComment = container.find('[name="txtComment"]').attr("data-noComment");
+
+                var model = {
+                    CommentText:comment,
+                    TopicId:topic,
+                    InstanceId: @Model.InstanceId,
+                    Level: 1,
+                    IsAdded: true,
+                    IsOpcAgreement: $(activeTab).find('[name=isOpcAgreement]').val() == "true",
+                    IsNoComment: isNoComment == "true",
+                    OnBehalfOfUsername: $('#derivedBy').val()
+                }
+
+                $.ajax({
+                    type: "POST",
+                    async: true,
+                    url: "@Url.Action("SaveComment", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                    data: { model: model }
+                }).done(function(data) {
+                    var countRows = parseInt($(".tab-pane.active #commentsDiv [name='totalComments']").val());
+                    countRows += 1;
+                    $(".tab-pane.active #commentsDiv [name='totalComments']").val(countRows);
+
+                    var groupComment = '<div class="sectionCommentGroup"></div>';
+                    $(".tab-pane.active #commentsDiv").prepend(groupComment)
+                        .find(".sectionCommentGroup").first().html(data);
+                    getFiltersComment();
+                    resetNewComment();
+                    commentHandlers();
+                    hideLoaderOptional();
+                    showMessage(container.find('[name="txtComment"]').attr("data-msgSave"))
+                }).fail(function()
+                {
+                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                    hideLoaderOptional();
+                });
+            }
+        }
+
+        function addLevel(source) {
+            var element = $(source);
+            var sectionGroup = $(source).closest('.sectionCommentGroup');
+            var parentCommentId = sectionGroup
+                .find('[data-comment-id]').attr('data-comment-id');
+            var paramConcurrence = "VMR_COMMENT_TAB_COMENT_ID_" + parentCommentId;
+            var level = element.attr('data-treelevel');
+            var controlName = element.attr('name');
+            lockUnLockButton(controlName, parentCommentId);
+            showLoaderOptional();
+            $.ajax({
+                type: "POST",
+                async: true,
+                url: "@Url.Action("LockRegister", "MeetingRoom", new {area = "VMR"})",
+                data: { url: paramConcurrence }
+            }).done(function(data) {
+                if (data.IsValid === true) {
+                    $.ajax({
+                        type: "POST",
+                        async: true,
+                        url: "@Url.Action("GetNewLevel", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                        data: { parentCommentId: parentCommentId, treeLevel: level  }
+                    }).done(function(data) {
+
+                        if (level === "3") {
+                            var secondLevel = sectionGroup.find('.sectionComment .secondLevelBox');
+
+                            if (secondLevel.hasClass('hide')) {
+                                showSubLevel($(sectionGroup).find('[name=showHideSecondLevel]'));
+                            }
+
+                            secondLevel.find('.buttons').remove();
+                        }
+                        $(sectionGroup).append(data);
+                        source.closest('.buttons').remove();
+                        hideLoaderOptional();
+                    }).error(function(data) {
+                        errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                        hideLoaderOptional();
+                    });
+                } else {
+                    hideLoaderOptional();
+                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                }
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                hideLoaderOptional();
+            });
+        }
+
+        function transferComment(source) {
+            showLoaderOptional();
+            var checkTransfer = $(source);
+            var selector = 'data-comment-id';
+            var commentId = $(source).closest('.sectionComment')
+                .find('['+selector+']').attr(selector);
+            var isChecked = checkTransfer.prop('checked');
+            var controlName = checkTransfer.attr('name');
+            lockUnLockButton(controlName, commentId);
+            $.ajax({
+                type: "POST",
+                async: true,
+                url: "@Url.Action("TransferComment", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                data:{
+                    commentId : commentId,
+                    isCheckTransfer : isChecked
+                },
+                isChecked: isChecked
+            }).done(function(data) {
+                if (data.IsValid) {
+                    if (data.CommentId !== 0) {
+                        getCommentTree(data.CommentId, 0, false, false, false);
+                    }
+
+                    if (data.CommentAgreementId !== 0 && this.isChecked) {
+                        getCommentTree(data.CommentAgreementId, 0, true, false, false, true);
+                    }
+                    else{
+                        deleleCommentOpcAgreement(data.CommentAgreementId);
+                    }
+
+                    hideLoaderOptional();
+                } else {
+                    hideLoaderOptional();
+                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                }
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                hideLoaderOptional();
+            });
+        }
+
+        function resetFilterComment() {
+            var activeTab = $('.tab-pane.active');
+
+            if ($(activeTab).find('[name="chkMycomment"]').prop('disabled')) {
+                $(activeTab).find('[name="chkMycomment"]').prop('checked', false);
+                $(activeTab).find('[name="txtOrgUnitFilter_text"]').val('');
+                $(activeTab).find('[name="txtOrgUnitFilter"]').val('');
+                $(activeTab).find('[name="txtOrgUnitFilter_text"]').prop("disabled", false);
+                $(activeTab).find('[name="txtUserNameFilter_text"]').val('');
+                $(activeTab).find('[name="txtUserNameFilter"]').val('');
+                $(activeTab).find('[name="txtUserNameFilter_text"]').prop("disabled", false);
+            }
+
+            $(activeTab).find('[name="txtTopicFilter_text"]').val('');
+            $(activeTab).find('[name="txtTopicFilter"]').val('');
+            $(activeTab).find('[name="cmbCommentTypeFilter"]').SelectIndex(0);
+            $(activeTab).find('[name="cmbOrderByFilter"]').SelectIndex(0);
+            $(activeTab).find('[name="dateFromFilter"]').Clean();
+            $(activeTab).find('[name="dateToFilter"]').Clean();
+
+            validationDateComment($(activeTab).find('[name="dateFromFilter"]').val(), "dateFromFilter");
+            validationDateComment($(activeTab).find('[name="dateToFilter"]').val(), "dateToFilter");
+
+            filterComment();
+
+        }
+
+        function filterComment() {
+            var dateToFilter = $(".tab-pane.active input[name = 'dateToFilter']").val();
+            var dateFromFilter = $(".tab-pane.active input[name = 'dateFromFilter']").val();
+            if ((dateToFilter.length > 0 && converToDate(dateToFilter) == false) ||
+                (dateFromFilter.length > 0 && converToDate(dateFromFilter) == false)) {
+                return;
+            }
+            showLoaderOptional();
+            var filterModel = fillFilterComment();
+
+            $.ajax({
+                type: "POST",
+                async: true,
+                url: "@Url.Action("FilterComment", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                data: { filter: filterModel }
+            }).done(function(data) {
+                $(".tab-pane.active #commentsDiv").empty();
+                $(".tab-pane.active #commentsDiv").append(data);
+                $(".tab-pane.active [name=totalComments]").val($(".tab-pane.active [name=countRowsHelper]").val());
+                commentHandlers();
+                hideLoaderOptional();
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                hideLoaderOptional();
+            });
+        }
+
+        function fillFilterComment(){
+            var activeTab = $('.tab-pane.active');
+            var isOpcAgreement = $(activeTab).find('[name=isOpcAgreement]').val() == "true";
+            var myComments = $(activeTab).find('[name="chkMycomment"]').prop('checked');
+            var topic = $(activeTab).find('[name="txtTopicFilter"]').val();
+            var organizationalUnit = $(activeTab).find('[name="txtOrgUnitFilter"]').val();
+            var userName = $(activeTab).find('[name="txtUserNameFilter"]').val();
+            var commentTypeCode = $(activeTab).find('[name="cmbCommentTypeFilter"]').val();
+            var orderBy = $(activeTab).find('[name="cmbOrderByFilter"]').val();
+            var dateFromFilter = $(activeTab).find('[name="dateFromFilter"]').val();
+            var dateToFilter = $(activeTab).find('[name="dateToFilter"]').val();
+
+            var filterData = {
+                TopicCommentId: topic,
+                OrganizationalUnitId: organizationalUnit,
+                UserName: userName,
+                CommentTypeCode: commentTypeCode,
+                OrderBy: orderBy == 1,
+                DateFrom: dateFromFilter,
+                DateTo: dateToFilter,
+                MyComments: myComments,
+                IsOpcAgreement: isOpcAgreement
+            };
+
+            return filterData;
+        }
+
+        function editComment(source) {
+            var level = $(source).attr('data-treelevel');
+            var isExpand = level != 1;
+            var selector = 'data-' + (level !== "1" ? 'parent-' : '') + 'comment-id';
+            var commentId = $(source).closest('.sectionComment')
+                .find('['+selector+']').attr(selector);
+            var paramConcurrence = "VMR_COMMENT_TAB_COMENT_ID_"+ commentId;
+            lockUnLockButton($(source).attr('name'), $(source).attr('data-vmrcommentid'));
+            $.ajax({
+                type: "POST",
+                async: false,
+                url: "@Url.Action("LockRegister", "MeetingRoom", new {area = "VMR"})",
+                data: { url: paramConcurrence }
+            }).done(function(data) {
+                if (data.IsValid === true) {
+                    getCommentTree(commentId, level, false, isExpand, true);
+                } else {
+                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                }
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                hideLoaderOptional();
+            });
+        }
+
+        function cancelCommentLevel(source) {
+            var level = $(source).attr('data-treelevel');
+            var selector = 'data-' + (level !== "1" ? 'parent-' : '') + 'comment-id';
+            var commentId = $(source).closest('.sectionComment')
+                .find('['+selector+']').attr(selector);
+            var paramConcurrence = "VMR_COMMENT_TAB_COMENT_ID_" + commentId;
+            $.ajax({
+                type: "POST",
+                async: true,
+                url: "@Url.Action("UnlockRegister", "MeetingRoom", new {area = "VMR"})",
+                data: { url: paramConcurrence }
+            }).done(function(data) {
+                if (data.IsValid === true) {
+                    getCommentTree(commentId, 0, false, false, true);
+                } else {
+                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                }
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                hideLoaderOptional();
+            });
+        }
+
+        function saveCommentLevel(source){
+            var commentDiv = source.closest('.sectionComment');
+            var validateNewComment = validateContainer(commentDiv);
+            if (validateNewComment) {
+                var model = fillCommentModel(source, commentDiv);
+                var parentId = $(source).closest('.sectionCommentGroup')
+                    .find('[data-comment-id]').attr('data-comment-id');
+                showLoaderOptional();
+                var paramConcurrence = "VMR_COMMENT_TAB_COMENT_ID_" + parentId;
+                $.ajax({
+                    type: "POST",
+                    async: true,
+                    url: "@Url.Action("SaveComment", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                    data: { model: model }
+                }).done(function(data) {
+                    $.ajax({
+                        type: "POST",
+                        async: true,
+                        url: "@Url.Action("UnlockRegister", "MeetingRoom", new {area = "VMR"})",
+                        data: { url: paramConcurrence }
+                    });
+
+                    var container = $(".tab-pane.active #commentsDiv")
+                        .find("[data-comment-id='" + parentId + "']");
+                    container.closest('.sectionCommentGroup').html(data);
+                    commentHandlers();
+                    hideLoaderOptional();
+                }).fail(function() {
+                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                    hideLoaderOptional();
+                });
+            }         
+        }
+
+        function fillCommentModel(source, commentDiv) {
+            var commentText = $(commentDiv).find('.inputTextarea').val().trim();
+            var instanceId = parseInt('@Model.InstanceId');
+            var treeLevel = source.attr('data-treelevel');
+            var onBehalfOf = $('#derivedBy').val();
+            var isPublic = $(commentDiv).find('[name= "chkPublic"]').prop('checked');
+            var parentCommentId = source.closest('div [data-parent-comment-id]').length == 0 ?
+                null :
+                source.closest('div [data-parent-comment-id]').attr('data-parent-comment-id');
+            var commentId = $(commentDiv).find('[name= "vmrCommentId"]').val();
+
+            var activeTab = $('.tab-pane.active');
+            var isOpcAgreement = $(activeTab).find('[name=isOpcAgreement]').val() == "true";
+            var isAdded = $(commentDiv).find('[name=vmrCommentAdded]').val() == "true";
+
+            var dataComments = {
+                CommentId: commentId,
+                InstanceId: instanceId,
+                Level: treeLevel,
+                CommentText: commentText,
+                ParentCommentId: parentCommentId,
+                OnBehalfOf: onBehalfOf,
+                IsPublic: isPublic,
+                IsOpcAgreement: isOpcAgreement,
+                IsAdded: isAdded
+            };
+
+            return dataComments;
+        }
+
+        function showSubLevel(source){
+            var level = $(source).attr('data-level');
+            var sectionGroup = $(source).closest('.sectionCommentGroup');
+            var secondLevel = sectionGroup.find('.sectionComment .secondLevelBox');
+            var thirdLevel = sectionGroup.find('.sectionComment .thirdLevelBox');
+
+            if (level === "2") {
+                secondLevel.find('.lineEditButtons').addClass('hide');
+
+                if (secondLevel.hasClass('hide')) {
+                    secondLevel.removeClass('hide');
+                    source.text(source.attr('data-texthide'))
+                        .addClass('Showing');
+                }else{
+                    secondLevel.addClass('hide');
+                    source.text(source.attr('data-textshow'))
+                        .removeClass('Showing');
+                }
+
+                if(!thirdLevel.hasClass('hide') ){
+                    thirdLevel.addClass('hide');
+                    var linkThirdLevel = source.closest('div').find('[name="showHideThirdLevel"]');
+                    linkThirdLevel.text(linkThirdLevel.attr('data-textshow'))
+                        .removeClass('Showing');
+                }
+            }
+            else
+            {
+                if (thirdLevel.hasClass('hide')) {
+                    thirdLevel.removeClass('hide');
+                    source.text(source.attr('data-texthide'))
+                        .addClass('Showing');
+                }else{
+                    thirdLevel.addClass('hide');
+                    source.text(source.attr('data-textshow'))
+                        .removeClass('Showing');
+                }
+
+                var btnSecondLevel = source.closest('div').find('[name="showHideSecondLevel"]');
+
+                if(thirdLevel.hasClass('hide')){
+                    secondLevel.addClass('hide');
+                    btnSecondLevel.text(btnSecondLevel.attr('data-textshow'))
+                        .removeClass('Showing');
+                    secondLevel.find('.lineEditButtons').addClass('hide');
+                }else{
+                    secondLevel.removeClass('hide');
+                    btnSecondLevel.text(btnSecondLevel.attr('data-texthide'))
+                        .addClass('Showing');
+                    secondLevel.find('.lineEditButtons').removeClass('hide');
+                }
+            }
+
+            var collapse = $('.tab-pane.active .btnCollapseAll');
+            if ($('.tab-pane.active [data-parent-comment-id]').not('.hide').length > 0) {
+                collapse
+                    .addClass('collapse')
+                    .find('label')
+                    .html(collapse.attr('dd-coll'));
+            } else {
+                collapse
+                    .removeClass('collapse')
+                    .find('label')
+                    .html(collapse.attr('dd-exp'));
+            }
+
+            commentHandlers(false, true);
+        }
+
+        function getCommentTree(commentId, level, isAgreementTransfer, isExpand, isAsync, isOpcAgreement) {
+            showLoaderOptional();
+
+            if (isOpcAgreement == undefined) {
+                isOpcAgreement = $('.tab-pane.active').find('[name=isOpcAgreement]').val() == "true";
+            }
+
+            $.ajax({
+                type: "POST",
+                async: isAsync,
+                commentId: commentId,
+                url: "@Url.Action("GetCommentTree", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                data: { commentId: commentId, level: level, isExpand: isExpand, isOpcAgreement: isOpcAgreement }
+            }).done(function(data) {
+                if (isAgreementTransfer) {
+                    var containerAgreement = $(".tab-pane#tabOpcAgreement #commentsDiv");
+                    var countRows = parseInt($(containerAgreement).find('[name=totalComments]').val());
+                    countRows += 1;
+                    $(containerAgreement).find('[name=totalComments]').val(countRows);
+
+                    var groupComment = '<div class="sectionCommentGroup"></div>';
+                    $(containerAgreement).prepend(groupComment)
+                        .find(".sectionCommentGroup").first().html(data);
+                } else {
+                    var container = $(".tab-pane.active #commentsDiv")
+                    .find("div [data-comment-id='" + commentId + "']");
+                    container.closest('.sectionCommentGroup').html(data);
+                }
+                hideLoaderOptional();
+                commentHandlers(false, true);
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+            });
+        }
+
+        function deleteCommentLevel(source){
+            var commentId = source.attr('data-vmrcommentid');
+            var parentCommentId = source.attr('data-parentid');
+            var level = source.attr('data-treelevel');
+            var sectionComment = source.closest('.sectionComment');
+            var msg = '@Localization.GetText("VMR.MM.MeetingRoom.TabComments.DeleteMsg")';
+            confirmAction(msg)
+                .done(function(pressOk) {
+                    if (pressOk) {
+                        $.ajax({
+                            type: "POST",
+                            async: true,
+                            url: "@Url.Action("DeleteComment", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                            data:{ commentId: commentId }
+                        })
+                            .done(function(data) {
+                                if (data.IsValid) {
+                                    if (level != "1") {
+                                        getCommentTree(parentCommentId, 0, false, true, true);
+                                    }
+                                    else{
+                                        var groupComment = sectionComment.closest('.sectionCommentGroup');
+                                        groupComment.remove();
+                                        getFiltersComment();
+                                    }
+                                    commentHandlers(false, true);
+                                }else{
+                                    errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+                                }
+                            });
+                    }
+                })
+            .fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+            });
+        }
+
+        function deleleCommentOpcAgreement(idComment){
+            var containerAgreement = $(".tab-pane#tabOpcAgreement #commentsDiv");
+            var countRows = parseInt($(containerAgreement).find('[name=totalComments]').val());
+            countRows = countRows > 0 ? countRows - 1 : 0;
+            $(containerAgreement).find('[name=totalComments]').val(countRows);
+            var groupComment = containerAgreement.find("[data-comment-id='"+ idComment +"']")
+                .closest('.sectionCommentGroup');
+            groupComment.remove();
+        }
+
+        function GenerateMinute() {
+            makePublicSecondLevel = false;
+            $.ajax({
+                type: "POST",
+                async: false,
+                url: "@Url.Action("ValidateGenerateMinute", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                data: { instanceId: instanceId }
+            }).done(function(data) {
+                if (data.IsValid === true) {
+                    downloadMinuteDocument();
+                } else {
+                    if (data.MessageTypeCode === "@VmrGlobalValues.MSG_CONFIRM_TYPE") {
+                        makePublicSecondLevel = data.MakePublicSecondLevel;
+                        confirmAction(data.ErrorMessage ).done(function(pressOk) {
+                            if (pressOk) {
+                                if (makePublicSecondLevel) {
+                                    makePublicAnswerAndGenerateMinute();
+                                } else {
+                                    downloadMinuteDocument();
+                                }
+                            }
+                        });
+                    } else if(data.MessageTypeCode === "@VmrGlobalValues.MSG_INFO_TYPE") {
+                        showMessage(data.ErrorMessage);
+                    }
+                }
+            });
+        }
+
+        function makePublicAnswerAndGenerateMinute() {
+            showLoaderOptional();
+            $.ajax({
+                type: "POST",
+                async: false,
+                url: "@Url.Action("CheckMakePublicMinute", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})"
+            }).done(function(data) {
+                if (data.IsValid) {
+                    downloadMinuteDocument();
+                    filterComment();
+                } else {
+                    showMessage(data.ErrorMessage);
+                    hideLoaderOptional();
+                }
+            });
+        }
+
+        function getFiltersComment(){
+            var isOpcAgreement = $('.tab-pane.active').find('[name=isOpcAgreement]').val() == "true";
+            var filterData = fillFilterComment();
+            $.ajax({
+                type: "POST",
+                async: false,
+                url: "@Url.Action("GetFiltersComment", "MeetingRoom", new {area = "VMR", instanceId = Model.InstanceId})",
+                data:
+                    {
+                        isOpcAgreement: isOpcAgreement,
+                        filter: filterData
+                    }
+            }).done(function(data) {
+                $(".tab-pane.active [name='searchComment']").parent().replaceWith(data);
+                commentHandlers();
+                bindHandlers();
+            }).fail(function()
+            {
+                errorBar('@Localization.GetText("GLOBAL.APPLICATION.ERROR")', 20, false);
+            });
+        }
+
+        function validationDateComment(componentDate, nameDate){
+            if (componentDate.length > 0 && converToDate(componentDate) == false) {
+                $('.tab-pane.active input[name="'+ nameDate +'"]').closest('span').find("#parsley-errors-list.date").remove();
+                $('.tab-pane.active input[name="'+ nameDate +'"]').closest("div").find('ul').addClass("filled").
+                    append("<li id='parsley-errors-list' class='date'>"+ '@Localization.GetText("GLOBAL.VALIDATION.INVALIDFORMAT")' +"</li>");
+            } else {
+                $('.tab-pane.active input[name="'+ nameDate +'"]').closest("div").find('ul').removeClass("filled").find("li").remove();
+            }
+        }
+    </script>
+}

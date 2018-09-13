@@ -1,0 +1,1141 @@
+﻿@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Domain.Values
+
+@{
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutSearch.cshtml";
+
+    const string SEARCH_BASIC = "basic";
+}
+
+    <div class="header">
+        <div class="row">
+            <div class="col-md-12 pull">
+                <h2 style="margin-left:0px">
+                    @Localization.GetText("OPUS.Search.Title").HtmlEncode()</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div id="PageContent"
+             @*data-parsley-validate="data-parsley-validate"*@
+             data-parsley-excluded="[disabled]">
+            @Html.Partial("Partial/Search/SearchPartial")
+        </div>
+    </div>
+
+    <input data-id="searchMode" hidden value="@SEARCH_BASIC" />
+
+    @section scripts{
+
+        @ModuleScripts.MinNumOfElementsFilled()
+
+        @ModuleScripts.AddCompareDatesValidator()
+
+        <script type="text/javascript">
+    registerCallback(function () {
+        multiFocus();
+    }, true);
+
+    function multiFocus() {
+        $(".chosen-container .chosen-choices .search-field input").css("width", "200px");
+        var multiInputs = $(".chosen-container .chosen-choices .search-field input");
+        multiInputs.each(function (index, element) {
+            var $this = $(element);
+            var value = $this.attr('value');
+            $this.val(value);
+        });
+    };
+
+    registerCallback(function () {
+        initParsley($('#PageContent'));
+        disableContainer($('#SearchAdvanced'));
+        disabledYear();
+
+        $(document).on('click', '[name=typeSearch]', searchPanelStatus);
+
+        function searchPanelStatus() {
+            disabledYear();
+            var linktypeSearch = $('[name=typeSearch]');
+            var simpleSearch = $('#SearchSimple');
+            var advancedSearch = $('#SearchAdvanced');
+
+            if (advancedSearch.hasClass('hide')) { // It's advanced mode
+
+                clearAll();
+
+                simpleSearch.addClass('hide');
+                advancedSearch.removeClass('hide');
+                enableContainer(advancedSearch);
+                disableContainer(simpleSearch);
+                linktypeSearch.attr('value', '@Localization.GetText("Simple Search").HtmlEncode()');
+                linktypeSearch.text('@Localization.GetText("Simple Search").HtmlEncode()');
+                linktypeSearch.attr('data-typeSearch', 'simpleSearch');
+
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+            else if (simpleSearch.hasClass('hide')) {
+
+                clearAll();
+
+                advancedSearch.addClass('hide');
+                simpleSearch.removeClass('hide');
+                enableContainer(simpleSearch);
+                disableContainer(advancedSearch);
+                linktypeSearch.attr('value', '@Localization.GetText("Advanced Search").HtmlEncode()');
+                linktypeSearch.text('@Localization.GetText("Advanced Search").HtmlEncode()');
+                linktypeSearch.attr('data-typeSearch', 'advanceSearch');
+
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        }
+
+
+        $(window).load(function () {
+            var keyword = '@ViewBag.Keyword';
+
+            if (keyword != "") {
+                $("[name=generalSearch_text]").val(keyword);
+                searchTable();
+                $('.even').attr('style', 'background-color: #f6f7f8');
+            }
+
+            disabledYear();
+        });
+
+        $('#tableOperations').ready(function () { $('.even').attr('style', 'background-color: #f6f7f8'); });
+
+        $(document).on('click', 'ul[aria-labelledby="id-resultPerPageFilter"]', function () {
+            var pageSize = $('[name = "resultPerPageFilter"]').val();
+            var table = $('#tableOperations').DataTable();
+
+            table.page.len(pageSize).draw();
+
+
+        });
+
+        $(document).on('click', 'a[data-operationNumber]', function (event) {
+            // Solution 1: Uncomment and comment solution 2
+            event.preventDefault();
+            var url = $(this).attr("href");
+            // Solution 2: Uncomment and comment solution 1
+            //$(this).attr("target","_parent");
+            window.top.location.href = url;
+
+        });
+
+        $(document).on('click', 'ul[aria-labelledby="id-SimpleEventFilter"]', function () {
+            var itemSelected = $('[name = "SimpleEventFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledYear();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledYear();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        $(document).on('click', 'ul[aria-labelledby="id-AdvancedEventFilter"]', function () {
+            var itemSelected = $('[name = "AdvancedEventFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledYear();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledYear();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        // Country
+        $(document).on('click', 'ul[aria-labelledby="id-CountryFilter"]', function () {
+            var itemSelected = $('[name = "CountryFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledCountry();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledCountry();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        $(document).on('click', 'ul[aria-labelledby="id-AdvancedCountryFilter"]', function () {
+            var itemSelected = $('[name = "AdvancedCountryFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledCountry();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledCountry();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        function enabledCountry() {
+            var Country;
+            if ($('#SearchSimple').hasClass('hide')) {
+                Country = $('[name="AdvancedCountryFilter"]');
+            }
+            else {
+                Country = $('[name="CountryFilter"]');
+            }
+
+            Country.prop("disabled", false);
+        }
+
+        function disabledCountry() {
+            var Country;
+            if ($('#SearchSimple').hasClass('hide')) {
+                Country = $('[name="AdvancedCountryFilter"]');
+
+            }
+            else {
+                Country = $('[name="CountryFilter"]');
+            }
+
+            Country.prop("disabled", true);
+            Country.val("");
+        }
+
+        // End Country
+
+        // Division
+        $(document).on('click', 'ul[aria-labelledby="id-DivisionFilter"]', function () {
+            var itemSelected = $('[name = "DivisionFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledDivision();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledDivision();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        $(document).on('click', 'ul[aria-labelledby="id-AdvancedDivisionFilter"]', function () {
+            var itemSelected = $('[name = "AdvancedDivisionFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledDivision();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledDivision();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        function enabledDivision() {
+            var Division;
+            if ($('#SearchSimple').hasClass('hide')) {
+                Division = $('[name="AdvancedDivisionFilter"]');
+            }
+            else {
+                Division = $('[name="DivisionFilter"]');
+            }
+
+            Division.prop("disabled", false);
+        }
+
+        function disabledDivision() {
+            var Division;
+            if ($('#SearchSimple').hasClass('hide')) {
+                Division = $('[name="AdvancedDivisionFilter"]');
+
+            }
+            else {
+                Division = $('[name="DivisionFilter"]');
+            }
+
+            Division.prop("disabled", true);
+            Division.val("");
+        }
+
+        // End Division
+
+        // Operation type
+        $(document).on('click', 'ul[aria-labelledby="id-OperationTypeFilter"]', function () {
+            var itemSelected = $('[name = "OperationTypeFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledOperationType();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            } else {
+                disabledOperationType();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+            }
+        });
+
+        $(document).on('click', 'ul[aria-labelledby="id-AdvancedOperationTypeFilter"]', function () {
+            var itemSelected = $('[name = "AdvancedOperationTypeFilter"]').val();
+
+            if (itemSelected != null && itemSelected != "" && itemSelected != undefined) {
+                enabledOperationType();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                $("#messageFilterOperationType").hide();
+            } else {
+                disabledOperationType();
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                destroyParsley($('#PageContent'));
+                initParsley($('#PageContent'));
+                $("#messageFilterOperationType").show();
+                $("#sectionAttributesSearch").empty();
+            }
+        });
+
+        function enabledOperationType() {
+            var OperationType;
+            if ($('#SearchSimple').hasClass('hide')) {
+                OperationType = $('[name="AdvancedOperationTypeFilter"]');
+            }
+            else {
+                OperationType = $('[name="OperationTypeFilter"]');
+            }
+
+            OperationType.prop("disabled", false);
+        }
+
+        function disabledOperationType() {
+            var OperationType;
+            if ($('#SearchSimple').hasClass('hide')) {
+                OperationType = $('[name="AdvancedOperationTypeFilter"]');
+
+            }
+            else {
+                OperationType = $('[name="OperationTypeFilter"]');
+            }
+
+            OperationType.prop("disabled", true);
+            OperationType.val("");
+        }
+
+        // End Operation type
+
+        $(document).on('click', 'ul[aria-labelledby="id-SubphaseFilter"] li', function () {
+            var element = $('ul[aria-labelledby="id-AdvancedEventFilter"]');
+            var value = $(this).find('a[dd-selected]').attr('dd-value');
+            atributosDependientes(value, element)
+        });
+
+        function enabledYear() {
+            var yearFrom;
+            var yearTo;
+            if ($('#SearchSimple').hasClass('hide')) {
+                yearFrom = $('[name="AdvancedYearFromFilter"]');
+                yearTo = $('[name="AdvancedYearToFilter"]');
+            }
+            else {
+                yearFrom = $('[name="YearFromFilter"]');
+                yearTo = $('[name="YearToFilter"]');
+            }
+
+            yearFrom.prop("disabled", false);
+            yearTo.prop("disabled", false);
+        }
+
+        function disabledYear() {
+            var yearFrom;
+            var yearTo;
+            if ($('#SearchSimple').hasClass('hide')) {
+                yearFrom = $('[name="AdvancedYearFromFilter"]');
+                yearTo = $('[name="AdvancedYearToFilter"]');
+
+            }
+            else {
+                yearFrom = $('[name="YearFromFilter"]');
+                yearTo = $('[name="YearToFilter"]');
+            }
+
+            yearFrom.prop("disabled", true);
+            yearTo.prop("disabled", true);
+            yearFrom.val("");
+            yearTo.val("");
+        }
+
+        $(document).on('click', '[data-id="ClearLink"]', function () {
+            clearAll();
+            clearAll();
+            $('.btn-excel').addClass("hidden");
+        });
+
+        function clearAll() {
+            var content = $('div.parsleyminelementsfilled');
+            var inputs = content.find('input[type="text"]')
+                .not('[data-name=validatorForNumElements],.default');
+
+            var dropdowns = content.find('button[data-toggle="dropdown"]');
+            var inputsCheckBox = content.find('input[type="checkbox"]');
+
+            var multis = content.find('a.search-choice-close');
+
+            multis.each(function () {
+                $(this).click();
+            });
+
+            multiFocus();
+
+            inputs.each(function () {
+                var input = $(this);
+                input.val('');
+            });
+
+            inputsCheckBox.each(function () {
+                var input = $(this);
+                input.prop('checked', input.attr('name') == 'showActiveFilter');
+            });
+
+            dropdowns.each(function () {
+                var dropdown = $(this);
+                var contentDropdown = dropdown.closest('div.dropdown');
+                if ($(contentDropdown).length) {
+                    var elemntDropdownSelector = contentDropdown.find('ul.dropdown-menu li:first');
+                    if ($(elemntDropdownSelector).length) {
+                        var aElement = elemntDropdownSelector.find('a');
+                        if ($(aElement).length) {
+                            aElement.click();
+                        }
+                    }
+                }
+            });
+
+            $("#sectionAttributesSearch").empty();
+
+            $("#tableOperations tbody").html("");
+
+            $("#numElements").text(0)
+
+            $("#tableOperations_paginate span").html("");
+
+            $("#tableOperations_previous").addClass('disabled');
+
+            $("#tableOperations_next").addClass('disabled');
+
+            var mssgEmpty = "@Localization.GetText("COMMON.Search.Related.Operation.RowsEmpty")"
+
+            $("#tableOperations tbody")
+                .append('<tr class="odd"><td valign="top" colspan="8" class="dataTables_empty">' +
+                mssgEmpty + '</td></tr>')
+        }
+
+        $(document).on('click', '[name=typeSearch]', function () {
+            $('.partialTable').hide();
+        });
+
+        $(document).on('draw.dt', function (e, result) {
+            $('#numElements').text(result._iRecordsTotal);
+            if (result._iRecordsTotal == 1) {
+                $('a[data-operationNumber]').first().click();
+            };
+
+            $('.even').attr('style', 'background-color: #f6f7f8');
+        });
+
+        $(document).on('click', '[data-id=searchButton] button,[data-id=advanceSearchButton] button', function () {
+            search();
+
+        });
+        $(document).on('click', '[name="buttonBlueSearch"]', function () {
+            search();
+            $('.btn-excel').removeClass("hidden");
+        });
+
+        $(document).on('click', '[name="buttonBlueSaveFavorite"]', function () {
+
+            var favorites = [];
+
+            favorites.push({
+                Key: 'generalSearch_text',
+                Value: $("[name=generalSearch_text]").val()
+            });
+            favorites.push({
+                Key: 'DepartamentSectorFilter',
+                Value: $("[name=DepartamentSectorFilter]").val()
+            });
+            favorites.push({
+                Key: 'AdvancedDivisionFilter',
+                Value: $("[name=AdvancedDivisionFilter]").val()
+            });
+            favorites.push({
+                Key: 'FundFilter',
+                Value: $("[name=FundFilter]").val()
+            });
+            favorites.push({
+                Key: 'CountryDepartamentFilter',
+                Value: $("[name=CountryDepartamentFilter]").val()
+            });
+            favorites.push({
+                Key: 'AdvancedCountryFilter',
+                Value: $("[name=AdvancedCountryFilter]").val()
+            });
+            favorites.push({
+                Key: 'CategoryFilter',
+                Value: $("[name=CategoryFilter]").val()
+            });
+
+            if ($("[name=AdvancedOperationYearFilter]").chosen().val() !== null) {
+                favorites.push({
+                    Key: 'AdvancedOperationYearFilter',
+                    Value: $("[name=AdvancedOperationYearFilter]").chosen().val().join()
+                });
+            }
+            else {
+                favorites.push({
+                    Key: 'AdvancedOperationYearFilter',
+                    Value: $("[name=AdvancedOperationYearFilter]").chosen().val()
+                });
+            }
+
+
+            favorites.push({ Key: 'PhaseFilter', Value: $("[name=PhaseFilter]").val() });
+
+
+            if ($("[name=AdvancedOverallStageFilter]").chosen().val() !== null) {
+                favorites.push({
+                    Key: 'AdvancedOverallStageFilter',
+                    Value: $("[name=AdvancedOverallStageFilter]").chosen().val().join()
+                });
+            }
+            else {
+                favorites.push({
+                    Key: 'AdvancedOverallStageFilter',
+                    Value: $("[name=AdvancedOverallStageFilter]").chosen().val()
+                });
+            }
+
+
+            favorites.push({
+                Key: 'AdvancedOperationTypeFilter',
+                Value: $("[name=AdvancedOperationTypeFilter]").val()
+            });
+            favorites.push({
+                Key: 'TeamMemberFilter',
+                Value: $("[name=TeamMemberFilter]").val()
+            });
+            favorites.push({
+                Key: 'advancedMyOperationsFilter',
+                Value: $("[name=advancedMyOperationsFilter]").is(':checked')
+            });
+            favorites.push({
+                Key: 'showInactiveFilter',
+                Value: $("[name=showInactiveFilter]").is(':checked')
+            });
+            favorites.push({
+                Key: 'TcTaxonomyFilter',
+                Value: $("[name=TcTaxonomyFilter]").val()
+            });
+            favorites.push({ Key: 'PhaseFilter', Value: $("[name=PhaseFilter]").val() });
+
+            postUrlWithOptions('@Url.Action(
+                "SaveSearchFavorites",
+                "Search",
+                new { area = "AdministrationSecondPhase" })',
+                { async: true },
+                { favorites: favorites })
+                    .done(function (responseText, textStatus, jqXHR) {
+                        if (responseText.IsValid) {
+
+                            showMessage('@Localization.GetText("OPUS.Search.SaveMessage")');
+
+                        } else {
+                            showMessage("Error: " + responseText.ErrorMessage);
+                        }
+
+                    });
+
+        });
+
+        $(document).on('click', '[name="buttonBlueRetrieveFavorite"]', function () {
+
+            postUrl('@Url.Action(
+                "RetrieveFavorites",
+                "Search",
+                new { area = "AdministrationSecondPhase" })')
+                    .done(function (data) {
+
+                        if (data.IsValid) {
+
+                            setValueFilters(data);
+
+                        }
+                        else {
+                            showMessage("Error: " + data.ErrorMessage);
+                        }
+
+                    });
+
+
+        });
+        function setValueFilters(data) {
+            var index;
+
+            $('.dropdown').addClass('placeholder');
+
+            for (index = 0; index < data.SearchFavoritesLists.SearchFavoritesDetail.length; index++) {
+
+                if (data.SearchFavoritesLists.SearchFavoritesDetail[index].Value != null) {
+
+                    var element = data.SearchFavoritesLists.SearchFavoritesDetail[index].Criteria;
+
+
+
+                    var ul = $('ul' + "[aria-labelledby=id-" + element + "]");
+
+                    if (ul.length > 0) {
+                        ul.find('li a[dd-selected]').removeAttr('dd-selected');
+                        ul.find('li a[dd-value=' + data.SearchFavoritesLists.SearchFavoritesDetail[index].Value + ']')
+                            .attr('dd-selected', '');
+
+                        ul.parents('div.dropdown').find('span.valueText')
+                            .html(ul.find('li a[dd-selected]').text());
+
+                        $("input[name=" + element + "]")
+                            .val(data.SearchFavoritesLists.SearchFavoritesDetail[index].Value);
+
+
+
+                        if (element === 'CountryDepartamentFilter') {
+
+                            var countryId = data.SearchFavoritesLists.SearchFavoritesDetail[index].Value;
+
+                            postUrlWithOptions('@Url.Action(
+                            "GetCountryByCountryDepartment",
+                            "Search",
+                            new { area = "AdministrationSecondPhase" })',
+                            { async: true },
+                            { countryId: countryId })
+                                .done(function (responseText, textStatus, jqXHR) {
+
+                                    $('ul[aria-labelledby=id-AdvancedCountryFilter]')
+                                        .find('li').find('a[dd-value]').addClass('hide');
+
+                                    for (var i = 0; i < responseText.length; i++) {
+
+                                        $('ul[aria-labelledby=id-AdvancedCountryFilter] li a[dd-value=' +
+                                            responseText[i].Value + ']').removeClass('hide');
+
+                                    }
+
+
+                                });
+
+                            $('ul[aria-labelledby=id-AdvancedCountryFilter] li a[dd-value=""]')
+                                .removeClass('hide');
+
+                            $('ul[aria-labelledby=id-AdvancedCountryFilter]').find('li:first')
+                                .find('a').click();
+                        }
+
+
+
+                        if (element === 'DepartamentSectorFilter') {
+
+                            var sectorId = data.SearchFavoritesLists.SearchFavoritesDetail[index].Value;
+
+                            postUrlWithOptions('@Url.Action(
+                            "GetDivisionBySector",
+                            "Search",
+                            new { area = "AdministrationSecondPhase" })',
+                            { async: true },
+                            { sectorId: sectorId })
+                                .done(function (responseText, textStatus, jqXHR) {
+
+                                    $('ul[aria-labelledby=id-AdvancedDivisionFilter]').find('li')
+                                        .find('a[dd-value]').addClass('hide');
+
+                                    for (var i = 0; i < responseText.length; i++) {
+
+                                        $('ul[aria-labelledby=id-AdvancedDivisionFilter] li a[dd-value=' +
+                                            responseText[i].Value + ']').removeClass('hide');
+
+                                    }
+                                    $('ul[aria-labelledby=id-AdvancedDivisionFilter] li a[dd-value=""]')
+                                        .removeClass('hide');
+
+                                    $('ul[aria-labelledby=id-AdvancedDivisionFilter]')
+                                        .find('li:first').find('a').click();
+                                });
+
+                            $('ul[aria-labelledby=id-AdvancedCountryFilter] li a[dd-value=""]')
+                                .removeClass('hide');
+
+                            $('ul[aria-labelledby=id-AdvancedCountryFilter]').find('li:first')
+                                .find('a').click();
+                        }
+
+                    }
+                    else {
+                        var type = $('[name=' + element + ']').prop('type');
+                        if (type === "checkbox") {
+                            var value = data.SearchFavoritesLists.SearchFavoritesDetail[index].Value;
+                            if (value === "true") {
+                                $('[name=' + element + ']').attr('checked', true);
+                            } else {
+                                $('[name=' + element + ']').attr('checked', false);
+                            }
+
+                        }
+                        else {
+                            var str = data.SearchFavoritesLists.SearchFavoritesDetail[index].Value;
+
+                            $('[name=' + element + ']').val(str.split(","));
+                            $('[name=' + element + ']').trigger("chosen:updated");
+                        }
+
+
+                    }
+
+                    if (element === 'AdvancedOperationTypeFilter') {
+                        var operationTypeId = data.SearchFavoritesLists.SearchFavoritesDetail[index].Value;
+
+                        postUrlWithOptions('@Url.Action(
+                            "GetOverallStageByOperationType",
+                            "Search",
+                            new { area = "AdministrationSecondPhase" })',
+                            { async: true },
+                            { operationTypeId: operationTypeId })
+                                .done(function (responseText, textStatus, jqXHR) {
+
+                                    $('[name=AdvancedOverallStageFilter]')
+                                        .find('option').addClass('hide')
+
+                                    for (var i = 0; i < responseText.length; i++) {
+
+                                        $('[name=AdvancedOverallStageFilter] option[value="' +
+                                            responseText[i].Value + '"]').removeClass('hide')
+
+                                    }
+                                    $('[name=AdvancedOverallStageFilter]').trigger("chosen:updated");
+                                });
+
+                        if (operationTypeId.length > 0)
+                            postUrlWithOptions('@Url.Action(
+                                "GetAttibutesSearch",
+                                "Search",
+                                new { area = "AdministrationSecondPhase" })',
+                                { async: true },
+                                { operationType: operationTypeId })
+                                    .done(function (responseText, textStatus, jqXHR) {
+                                        $("#sectionAttributesSearch").empty();
+                                        $("#sectionAttributesSearch").html(responseText);
+                                        enterEditMode(false, $("#sectionAttributesSearch"), false);
+                                        bindHandlers($("#sectionAttributesSearch"));
+                                    });
+                        }
+
+                    if (data.SearchFavoritesLists.SearchFavoritesDetail[index].Value !== "") {
+                        ul.parents('div.dropdown').removeClass('placeholder');
+                    }
+                    else {
+                        ul.parents('div.dropdown').addClass('placeholder');
+                    }
+
+                }
+
+
+
+            }
+        }
+
+        function clearFilters() {
+            $('input[type=text], textarea').val('');
+            $('select').find('option').prop("selected", false);
+            $('[name="advancedMyOperationsFilter"]').prop("checked", false);
+            $('[name="simpleMyOperationsFilter"]').prop("checked", false);
+            $('input[type=radio]').prop("checked", false);
+        }
+
+
+        function searchTable() {
+            var table = $('#tableOperations');
+
+            // Caller ajax function SearchAjaxHandler
+
+            table.data("fn-search")();
+
+        };
+
+        function search() {
+            $('.chosen-choices input').val
+
+            var success = $("[data-name=validatorForNumElements]").parsley().validate();
+            var isSuccess = (success == true) || (success.length == 0);
+
+            if ($("[name=YearFromFilter]:enabled").length) {
+                success = $("[name=YearFromFilter]:enabled").parsley().validate();
+                isSuccess = isSuccess && ((success == true) || (success.length == 0));
+                success = $("[name=YearToFilter]:enabled").parsley().validate();
+                isSuccess = isSuccess && ((success == true) || (success.length == 0));
+            }
+
+            if ($("[name=AdvancedYearFromFilter]:enabled").length) {
+                success = $("[name=AdvancedYearFromFilter]:enabled").parsley().validate();
+                isSuccess = isSuccess && ((success == true) || (success.length == 0));
+                success = $("[name=AdvancedYearToFilter]:enabled").parsley().validate();
+                isSuccess = isSuccess && ((success == true) || (success.length == 0));
+            }
+
+            if ($("[name=CountryFilter]:enabled").length) {
+                success = $("[name=CountryFilter]:enabled").parsley().validate();
+                isSuccess = isSuccess && ((success == true) || (success.length == 0));
+            }
+
+            if ($("[name=AdvancedCountryFilter]:enabled").length) {
+                success = $("[name=AdvancedCountryFilter]:enabled").parsley().validate();
+                isSuccess = isSuccess && ((success == true) || (success.length == 0));
+            }
+
+            if (isSuccess) {
+
+                $('.partialTable').show();
+
+                searchTable();
+            }
+            else {
+                $('.partialTable').hide();
+            }
+        }
+    });
+
+    function getFilters() {
+        var filterGeneralFilter = null;
+
+        var filterDivisionFilter = null;
+        var filterCountryFilter = null;
+        var filterOperationTypeFilter = null;
+
+        var filterEventSimple = null;
+        var filterYearFromSimple = null;
+        var filterYearToSimple = null;
+
+        var filterEventAdvanced = null;
+        var filterYearFromAdvanced = null;
+        var filterYearToAdvanced = null;
+
+        var filterDepartamentSectorFilter = null;
+        var filterCountryDepartamentFilter = null;
+        var filterFundFilter = null;
+        var filterTcTaxonomyFilter = null;
+        var filterSubphaseFilter = null;
+        var filterTeamMemberFilter = null;
+        var filterMyOperationsFilterAdvanced = null;
+        var filterMyOperationsFilterSimple = null;
+
+        var filterCountryFilterAdvanced = null;
+        var filterDivisionFilterAdvanced = null;
+
+        var filterOperationTypeFilterAdvanced = null;
+
+        var filterOperationYearFilterAdvanced = null;
+
+        var filterOverallStageFilterAdvanced = null;
+
+        var filterPublicPrivatePartnershipAttr = null;
+
+        filterGeneralFilter = $("[name=generalSearch_text]").val();
+
+        filterDivisionFilter = $("[name=DivisionFilter]").val();
+        filterCountryFilter = $("[name=CountryFilter]").val();
+        filterOperationTypeFilter = $("[name=OperationTypeFilter]").val();
+
+        filterEventSimple = $("[name=SimpleEventFilter]").val();
+        filterYearFromSimple = $("[name=YearFromFilter]").val();
+        filterYearToSimple = $("[name=YearToFilter]").val();
+
+        filterEventAdvanced = $("[name=AdvancedEventFilter]").val();
+        filterYearFromAdvanced = $("[name=AdvancedYearFromFilter]").val();
+        filterYearToAdvanced = $("[name=AdvancedYearToFilter]").val();
+
+        filterDepartamentSectorFilter = $("[name=DepartamentSectorFilter]").val();
+        filterCountryDepartamentFilter = $("[name=CountryDepartamentFilter]").val();
+        filterFundFilter = $("[name=FundFilter]").val();
+
+        filterSubphaseFilter = $("[name=SubphaseFilter]").val();
+        filterTeamMemberFilter = $("[name=TeamMemberFilter]").val();
+        filterMyOperationsFilterAdvanced = $("[name=advancedMyOperationsFilter]").is(':checked');
+        filterMyOperationsFilterSimple = $("[name=simpleMyOperationsFilter]").is(':checked');
+
+        filterCountryFilterAdvanced = $("[name=AdvancedCountryFilter]").val();
+
+        filterDivisionFilterAdvanced = $("[name=AdvancedDivisionFilter]").val();
+
+        filterOperationTypeFilterAdvanced = $("[name=AdvancedOperationTypeFilter]").val();
+
+        filterOperationYearFilterAdvanced = $("[name=AdvancedOperationYearFilter]").val();
+
+        filterOverallStageFilterAdvanced = $("[name=AdvancedOverallStageFilter]").val();
+        filterCategoryFilterAdvanced = $("[name=CategoryFilter]").val();
+
+        filterPhase = $('[name=PhaseFilter]').val();
+
+        filterShowActiveFilterAdvanced = $("[name=showActiveFilter]").is(':checked');
+
+        filterShowInactiveFilterAdvanced = $("[name=showInactiveFilter]").is(':checked');
+
+        filterShowExitedFilterAdvanced = $("[name=showExitedFilter]").is(':checked');
+
+        filterAttributeSearch = $("[name=" + $('.someClass').find('input').attr("name") + "]").val();
+
+        filterPublicPrivatePartnershipAttr =
+            $('.LabelsGroup div[data-pagemode="edit"] input[name="@AttributeCode.PUBLIC_PRIVATE_PARTNERSHIP"]').is(':checked');
+
+        filterAttributeSearch1 = "";
+
+        filterAttributeSearch2 = "";
+
+        filterAttributeSearch3 = "";
+
+        filterAttributeSearch4 = "";
+
+        filterAttributeSearch5 = "";
+
+        filterAttributeSearch6 = "";
+
+        var count = 0;
+
+        $('.someClass input').each(function () {
+
+            var attributeId = $(this).attr("name") == '@AttributeCode.PUBLIC_PRIVATE_PARTNERSHIP' ?
+                '' :
+                $("[name=" + $(this).attr("name") + "]").val();
+
+            switch (count) {
+                case 0:
+                    filterAttributeSearch1 = attributeId;
+                    break;
+
+                case 1:
+                    filterAttributeSearch2 = attributeId;
+                    break;
+
+                case 2:
+                    filterAttributeSearch3 = attributeId;
+                    break;
+
+                case 3:
+                    filterAttributeSearch4 = attributeId;
+                    break;
+
+                case 4:
+                    filterAttributeSearch5 = attributeId;
+                    break;
+                case 5:
+                    filterAttributeSearch6 = attributeId;
+                    break;
+            }
+
+            count++;
+
+        });
+
+        return {
+            GeneralSearch: filterGeneralFilter,
+            DivisionFilter: filterDivisionFilter,
+            CountryFilter: filterCountryFilter,
+            OperationTypeFilter: filterOperationTypeFilter,
+
+            SimpleEventFilter: filterEventSimple,
+            SimpleYearFromFilter: filterYearFromSimple,
+            SimpleYearToFilter: filterYearToSimple,
+
+            AdvancedEventFilter: filterEventAdvanced,
+            AdvancedYearFromFilter: filterYearFromAdvanced,
+            AdvancedYearToFilter: filterYearToAdvanced,
+
+            DepartmentSectorFilter: filterDepartamentSectorFilter,
+            CountryDepartmentFilter: filterCountryDepartamentFilter,
+            FundFilter: filterFundFilter,
+
+            SubphaseFilter: filterSubphaseFilter,
+            TeamMebmberFilter: filterTeamMemberFilter,
+            AdvancedMyOperationsFilter: filterMyOperationsFilterAdvanced,
+            CategoryFilter: filterCategoryFilterAdvanced,
+
+            AdvancedCountryFilter: filterCountryFilterAdvanced,
+
+            AdvancedDivisionFilter: filterDivisionFilterAdvanced,
+
+            AdvancedOperationTypeFilter: filterOperationTypeFilterAdvanced,
+
+            AdvancedOperationYearFilter: filterOperationYearFilterAdvanced,
+
+            AdvancedOverallStageFilter: filterOverallStageFilterAdvanced,
+
+            PhaseFilter: filterPhase,
+
+            AdvancedActiveFilter: filterShowActiveFilterAdvanced,
+
+            OperationStatus: filterShowInactiveFilterAdvanced,
+
+            AdvancedExitedFilter: filterShowExitedFilterAdvanced,
+
+            AttributeSearch1: filterAttributeSearch1,
+
+            AttributeSearch2: filterAttributeSearch2,
+
+            AttributeSearch3: filterAttributeSearch3,
+
+            AttributeSearch4: filterAttributeSearch4,
+
+            AttributeSearch5: filterAttributeSearch5,
+
+            AttributeSearch6: filterAttributeSearch6,
+
+            PublicPrivatePartnershipAttrFilter: filterPublicPrivatePartnershipAttr
+        };
+    };
+
+    $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-AdvancedOperationTypeFilter"] a', function () {
+        var url = '?operationType=' + $(this).attr('dd-value');
+        var operationTypeId = $(this).attr('dd-value');
+        postUrlWithOptions('@Url.Action(
+            "GetOverallStageByOperationType",
+            "Search",
+            new { area = "AdministrationSecondPhase" })',
+            { async: true },
+            { operationTypeId: operationTypeId })
+                .done(function (responseText, textStatus, jqXHR) {
+
+                    $('[name=AdvancedOverallStageFilter]').find('option').addClass('hide')
+
+                    for (var i = 0; i < responseText.length; i++) {
+
+                        $('[name=AdvancedOverallStageFilter] option[value="' + responseText[i].Value + '"]')
+                            .removeClass('hide')
+
+                    }
+                    $('[name=AdvancedOverallStageFilter]').trigger("chosen:updated");
+                });
+
+        if (operationTypeId.length > 0)
+            postUrlWithOptions('@Url.Action(
+                "GetAttibutesSearch",
+                "Search",
+                new { area = "AdministrationSecondPhase" })',
+                { async: true },
+                { operationType: operationTypeId })
+                    .done(function (responseText, textStatus, jqXHR) {
+                        $("#sectionAttributesSearch").empty();
+                        $("#sectionAttributesSearch").html(responseText);
+                        enterEditMode(false, $("#sectionAttributesSearch"), false);
+                        bindHandlers($("#sectionAttributesSearch"));
+                    });
+    });
+
+    $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-CountryDepartamentFilter"] a', function () {
+        var countryId = $(this).attr('dd-value');
+
+        postUrlWithOptions('@Url.Action(
+            "GetCountryByCountryDepartment",
+            "Search",
+            new { area = "AdministrationSecondPhase" })',
+            { async: true },
+            { countryId: countryId })
+                .done(function (responseText, textStatus, jqXHR) {
+
+                    $('ul[aria-labelledby=id-AdvancedCountryFilter]')
+                        .find('li').find('a[dd-value]').addClass('hide');
+
+                    for (var i = 0; i < responseText.length; i++) {
+
+                        $('ul[aria-labelledby=id-AdvancedCountryFilter] li a[dd-value=' + responseText[i].Value + ']')
+                            .removeClass('hide');
+                    }
+                    $('ul[aria-labelledby=id-AdvancedCountryFilter] li a[dd-value=""]')
+                        .removeClass('hide');
+
+                    $('ul[aria-labelledby=id-AdvancedCountryFilter]')
+                        .find('li:first').find('a').click();
+                });
+    });
+
+
+    $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-DepartamentSectorFilter"] a', function () {
+        var sectorId = $(this).attr('dd-value');
+        postUrlWithOptions('@Url.Action(
+            "GetDivisionBySector",
+            "Search",
+            new { area = "AdministrationSecondPhase" })',
+            { async: true },
+            { sectorId: sectorId })
+                .done(function (responseText, textStatus, jqXHR) {
+                    var advancedDivisionFilter = $('ul[aria-labelledby=id-AdvancedDivisionFilter]');
+                    advancedDivisionFilter.find('li').find('a[dd-value]').addClass('hide');
+                    for (var i = 0; i < responseText.length; i++) {
+                        $('ul[aria-labelledby=id-AdvancedDivisionFilter] li a[dd-value=' + responseText[i].Value + ']')
+                            .removeClass('hide');
+                    }
+                    $('ul[aria-labelledby=id-AdvancedDivisionFilter] li a[dd-value=""]')
+                        .removeClass('hide');
+
+                    advancedDivisionFilter.find('li:first').find('a').click();
+                });
+
+    });
+
+    function downloadSearchResult(source){
+
+        var filters = getFilters();
+        var url = '@Url.Action(
+            "DownloadReport",
+            "Search",
+            new { area = "AdministrationSecondPhase" })' +
+            '?filters=' + JSON.stringify(filters);
+        window.open(url, '_blank');
+    }
+
+</script>
+    }

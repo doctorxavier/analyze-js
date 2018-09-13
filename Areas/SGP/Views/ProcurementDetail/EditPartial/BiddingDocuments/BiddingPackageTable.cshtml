@@ -1,0 +1,84 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Application.SGPModule.Enums
+
+@model BiddingDocTabViewModel
+
+@{
+    var contractVersionTypeEnum = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("BiddingPackageStatusEnum");
+    var statusDraftId = contractVersionTypeEnum[BiddingPackageStatusEnum.BiddingDraft].MasterId;
+    
+    var config = Html.RenderDataTable(Model.BidPackages)
+    .Name("PackageTable")
+    .AddPrimaryKeyToName(false)
+    .PrimaryKey(x => x.BidPackageConfProcId.ToString(CultureInfo.InvariantCulture))
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Template(LinkPackageTemplate)
+        .Orderable(false)
+        .Header(Localization.GetText("SGP.Label.Package"))
+        .Hidden(false);
+
+        columns.Template(c => DatePackageTemplate(c, statusDraftId))
+        .Orderable(false)
+        .CssClass("textalign-center colActualDate")
+        .CssHeaderClass("colActualDate")
+        .Header(Localization.GetText("SGP.Label.ActualDate"))
+        .Hidden(false);
+
+        columns.Bound(c => c.StatusName)
+        .Orderable(false)
+        .CssClass("textalign-center")
+        .Header(Localization.GetText("COMMON.Status"))
+        .Hidden(false);
+
+    });
+    config.TableClass = "tableNormal";
+}
+
+@Html.Partial("Controls/DataTable", config)    
+    
+@helper LinkPackageTemplate(BidPackagesRowViewModel row)
+{
+    @Confluence.Label(row.Package)
+    @Confluence.LabelLink(text: row.Package, name : "link-bidPackage", htmlClass: "hide", dataAttributes: new Dictionary<string, string> { {"id-package", row.BidPackageConfProcId.ToString()}})
+}
+
+@helper DatePackageTemplate(BidPackagesRowViewModel row, int statusDraftId)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    //// Actual Date is today when packake is Draft, it is the first package and it had not actual date.
+
+    if (row.StatusId == statusDraftId && row.CanEditDate)
+    {
+        var actualDate = row.ActualDate;
+
+        if (row.Order == 1 && actualDate == null)
+        {
+            actualDate = DateTime.Today;
+        }
+        
+       @Confluence.InputDatePicker(actualDate , name : "actualDate-bidding", width: "100%")    
+    }
+    else
+    {
+       @Confluence.Label(FormatHelper.Format(row.ActualDate, formatDate))
+       @Confluence.InputDatePicker(row.ActualDate, name : "actualDate-bidding", width: "100%", disabled: false, required: false, htmlClass: "hide")    
+    }       
+}

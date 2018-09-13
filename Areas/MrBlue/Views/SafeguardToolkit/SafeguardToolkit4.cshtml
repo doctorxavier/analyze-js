@@ -1,0 +1,134 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.Enums
+
+@model IDB.MW.Application.MrBlueModule.ViewModels.SafeguardToolkit.SafeguardToolkitStep4ViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+<div class="page">
+    <div id="Data"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-loadurl="@Url.Action( "SafeguardToolkit4" , "View" , new { area = "MrBlue" } )"
+         data-url="@Url.Action("SaveSafeguardToolkit4", "SafeguardToolkit", new { area = "MrBlue" })">
+        @if(Model != null)
+        {
+            @Html.Partial("Partials/Step4/SafeguardToolkit4Partial", Model);
+        }
+    </div>
+</div>
+
+@section scripts{
+
+    @MrBlue.ParsleyOptionalFunctions()
+    @ModuleScripts.KeyWordsToolkit(Url)
+    @ModuleScripts.TableFunctions()
+    @MrBlue.RadioButtonFix()
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+            $('div.esgQuestionContainer').removeClass('subCuestionStyle');
+            enterEditMode(false, $('#Data'), false);
+        });
+
+        function clickModelDashboard() {
+            var button = $('button[name="buttonCancelRedirect"]');
+            var buttonLink = button.attr('data-url');
+            window.location.assign(buttonLink);
+        }
+
+
+        function save() {
+            var container = $('#Data');
+            transformRequiredToOptional(container);
+            var response = saveContainer(container, '#hidViewModel', false, null, null, false);
+            if (response !== false) {
+                response
+                    .done(function (data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        else if (data.IsValid) {
+                            var url = '@Html.Raw(Url.Action("SafeguardToolkitRedirect", "SafeguardToolkit",
+                            new {
+                                area = "MrBlue",
+                                fromStep = SafeguardToolkitStepEnum.Dashboard,
+                                navigator = StepNavigatorEnum.Cancel
+                            }))&versionId=' + data.VersionId;
+                            window.location.assign(url);
+                        }
+                    });
+            }
+        }
+
+        function next() {
+            var container = $('#Data');
+            transformOptionalRequiredToRequired(container);
+            var response = saveContainer(container, '#hidViewModel', false, null, null, false);
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid == true) {
+                        var url = '@Html.Raw(Url.Action("SafeguardToolkitRedirect", "SafeguardToolkit", new { area = "MrBlue", versionId = Model.SafeguardToolkitId, fromStep = SafeguardToolkitStepEnum.Step4, navigator = StepNavigatorEnum.Next, creationMode = ViewBag.CreationMode }))';
+                        window.location.assign(url);
+                    }
+                });
+
+                return response;
+            }
+        }
+        $(document).ready(function () {
+
+            var matrixJson = {};
+            matrixJson['Seismic events'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixSeismicEvents")";
+            matrixJson['Tsunamis'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixTsunamis")";
+            matrixJson['Coastal flooding'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixCoastalFlooding")";
+            matrixJson['Inland flooding'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixInlandFlooding")";
+            matrixJson['Hurricanes or other tropical storms'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixHurricanes")";
+            matrixJson['Landslides'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixLandslides")";
+            matrixJson['Drought'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixDrought")";
+            matrixJson['Volcanic activity'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixVolcanicActivity")";
+            matrixJson['Other natural hazards'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixOtherNaturalHazards")";
+            matrixJson['Sea level rise'] = "@IDB.Architecture.Globals.GetSetting("MapDisasterMatrixSeaLevelRise")";
+
+            $('h4').each(function () {
+
+                var $this = $(this);
+                var title = $this.text().trim();
+
+                if (matrixJson[title]) {
+
+                    $this.parent().find('.esgQuestionContainer').each(function () {
+                        var buttonExcel = $("<button type='button' />").addClass('buttonExcel').css({ 'margin': '-12px 0 0 10px' }).attr('title', 'Sensibility Matrix');
+                        buttonExcel.on('click', function () {
+
+                            if (window.parent && window.parent.$) {
+                                window.parent.open(matrixJson[title], '_blank');
+                            } else {
+                                window.open(matrixJson[title], '_blank');
+                            }
+                        });
+                        $(this).find('p').append(buttonExcel);
+                    });
+
+                }
+            });
+
+
+        });
+
+    </script>
+
+}

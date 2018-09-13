@@ -1,0 +1,268 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Architecture.DataTables.Common
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+
+@model ParticipantTabViewModel
+
+@{
+    var isTechnicalScoreRequired = Model.TechnicalScoreRequired;
+    var isFinancialScoreRequired = Model.FinancialScoreRequired;
+    var isOverallScoreRequired = Model.OverallScoreRequired;
+    var isAwardedAmountRequired = Model.AwardedAmountRequired;
+
+    if (Model.NumberColumn == null)
+    {
+        Model.NumberColumn = 0;
+    }
+    
+    var config = Html.RenderDataTable(Model.Bidders)
+        .Name("BidderTable")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.BidderId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .RowAttributes("data-bidder","true" )
+        .Columns(columns =>
+        {
+            columns.Template(c => BidderTemplate(c, false))
+            .Orderable(false)
+            .Header(Localization.GetText("SGP.Label.Bidder"))
+            .HeaderAttribute("style", "min-width: 183px")
+            .Hidden(false);
+
+            columns.Template(ConsortiumTemplate)
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 100px;")
+            .Header(Localization.GetText("SGP.Label.Consortium?"))
+            .Hidden(false);
+
+            columns.Template(c => NationalityTemplate(c, false))
+            .Orderable(false)
+            .CssClass("colNationalityParticipant")
+            .CssHeaderClass("colNationalityParticipant")
+            .Header(Localization.GetText("COMMON.SVQ.Nationality"))
+            .Hidden(false);
+
+            if (Model.TechnicalScoreVisible)
+            {
+                columns.Template(c => TechnicalScoreTemplate(c, false, isTechnicalScoreRequired))
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 50px")
+                .Header(Localization.GetText("SGP.Label.TechnicalScore"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1;
+            }
+
+            if (Model.FinancialScoreVisible)
+            {
+                columns.Template(c => FinancialScoreTemplate(c, false, isFinancialScoreRequired))
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .HeaderAttribute("style", "width: 50px")
+                .Header(Localization.GetText("SGP.Label.FinancialScore"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1;
+            }
+
+            if (Model.OverallScoreVisible)
+            {
+                columns.Template(c => OverallScoreTemplate(c, false, isOverallScoreRequired))
+                .Orderable(false)
+                .CssClass("textalign-center")
+                .Attribute("name", c => "overallScore-bidder")
+                .HeaderAttribute("style", "width: 50px;")
+                .Header(Localization.GetText("SGP.Label.OveralScore"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1;
+            }
+
+            if (Model.AwardedAmountVisible)
+            {
+                columns.Template(c => AwardedAmountTemplate(c, false, isAwardedAmountRequired))
+                .Orderable(false)
+                .CssClass("text-right")
+                .HeaderAttribute("style", "width: 130px")
+                .Header(Localization.GetText("SGP.Label.AwardedAmount"))
+                .Hidden(false);
+                Model.NumberColumn = Model.NumberColumn + 1;
+            }
+            
+            columns.Template(c => ResultsTemplate(c, false))
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 100px;")
+            .Header(Localization.GetText("SGP.Label.Results"))
+            .Hidden(false);
+
+            columns.Template(DetailsTemplate)
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 60px;")
+            .Header(Localization.GetText("COMMON.SVQ.Details"))
+            .Hidden(false);
+
+            columns.Template(ActionTrashTemplate)
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 40px;")
+            .Header(Localization.GetText("COMMON.Action"))
+            .Hidden(false);
+            
+            columns.Template(ActionCollapseTemplate)
+            .Orderable(false)
+            .CssClass("columnActionOnlyCollapse")
+            .HeaderAttribute("style", "width: 20px;")
+            .Header(string.Empty)
+            .Hidden(false);
+
+        })
+        .RowTemplates(x => x.Create(RowTemplateType.AllRows, i => (i.Consortium.HasValue && i.Consortium.Value == true) ? RowParticipants(i) : null))
+        .RowTemplates(x => x.Create(RowTemplateType.FirstRow, i => DrawRowTemplateBidder(new BidderRowViewModel() { Consortium = false, Details = new BidderDetailsViewModel() })));
+        config.TableClass = "tableNormal";
+}
+
+@Html.Partial("Controls/DataTable", config)
+
+<div class="mt30 textalign-center" style="padding-left:5px;">
+    @Confluence.ButtonAddNewRows(text: Localization.GetText("SGP.Label.NewBidder"), tableid: "BidderTable", name: "addNewRow-Bidder")
+</div> 
+
+@helper DrawRowTemplateBidder(BidderRowViewModel row)
+{
+    <tr class="template hide" data-bidder="true">
+        <td>@BidderTemplate(row, true)</td>
+        <td class="textalign-center">@ConsortiumTemplate(row)</td>
+        <td class="colNationalityParticipant">@NationalityTemplate(row, true)</td>
+        @if (Model.TechnicalScoreVisible)
+        { 
+            <td>@TechnicalScoreTemplate(row, true, Model.TechnicalScoreRequired)</td>
+        }
+        
+        @if (Model.FinancialScoreVisible)
+        { 
+            <td>@FinancialScoreTemplate(row, true, Model.FinancialScoreRequired)</td>
+        }
+        
+        @if (Model.OverallScoreVisible)
+        { 
+            <td class="textalign-center" name="overallScore-bidder"></td>
+        }
+        @if (Model.AwardedAmountVisible) 
+        {
+            <td class="text-right">@AwardedAmountTemplate(row, true, Model.AwardedAmountRequired)</td>
+        }
+       
+        <td>@ResultsTemplate(row, true)</td>
+        <td class="textalign-center">@DetailsTemplate(row)</td>
+        <td class="textalign-center">@ActionTrashTemplate(row)</td>
+        <td class="textalign-center"></td>
+    </tr>
+}
+
+@helper BidderTemplate(BidderRowViewModel row, bool isDisabled)
+{
+    @Confluence.InputDropDownAsync(
+            value: row.NameBidderId.ToString(),
+            textSelected: row.NameBidderText,
+            name: "name-bidder",
+            searchUrl: Url.Action("FindBiddersNameNationality", "ProcurementDetail", new { area = "SGP" }),
+            disabled: isDisabled,
+            width: "100%",
+            resetOnClick: false,
+            dataAttributes: new Dictionary<string, string> { { "parsley-required", "true" }, { "force-parsley-validation", "true" }, { "parsley-nameBidderUnique", row.BidderId.ToString() } },
+            required: false)
+    
+    @Confluence.InputText(row.Details.GenderTypeId.ToString(), name: "gender-bidder", htmlClass: "hide", disabled: false, required: false);
+    @Confluence.InputText(row.Details.EconomicSectorId.ToString(), name: "economicSector-bidder", htmlClass: "hide", disabled: false, required: false);
+    @Confluence.InputText(row.Details.Address, name: "address-bidder", htmlClass: "hide", disabled: false, required: false);
+  
+        @Confluence.InputText(row.Details.Country, name: "country-bidder", htmlClass: "hide", disabled: false, required: false);
+        @Confluence.InputText(row.Details.State, name: "state-bidder", htmlClass: "hide", disabled: false, required: false);
+        @Confluence.InputText(row.Details.District, name: "district-bidder", htmlClass: "hide", disabled: false, required: false);
+   
+}
+
+@helper ConsortiumTemplate(BidderRowViewModel row)
+{
+    @Confluence.InputCheckbox(row.Consortium, name: "consortium-bidder")
+}
+
+@helper NationalityTemplate(BidderRowViewModel row, bool isDisabled)
+{
+    var disabledNationalilty = !string.IsNullOrEmpty(row.NationalityTypeId.ToString());
+    @Confluence.InputDropDown(row.NationalityTypeId.ToString(), name: "nationality-bidder", disabled: isDisabled || disabledNationalilty, elements: ViewBag.CountryAllList, width: "100%")
+}
+
+@helper TechnicalScoreTemplate(BidderRowViewModel row, bool isDisabled, bool isRequired)
+{
+    @Confluence.InputDecimal(row.TechnicalScore, name: "technicalScore-bidder", maxValue: "100", required: isRequired, disabled: isDisabled, width: "50px")
+}
+
+@helper FinancialScoreTemplate(BidderRowViewModel row, bool isDisabled, bool isRequired)
+{
+    @Confluence.InputDecimal(row.FinancialScore, name: "financialScore-bidder", maxValue: "100", required: isRequired, disabled: isDisabled, width: "50px")
+}
+
+@helper OverallScoreTemplate(BidderRowViewModel row, bool isDisabled, bool isRequired)
+{
+    @Confluence.Label(row.OverallScore.ToString());
+    @Confluence.InputDecimal(row.OverallScore, name: "overallScore-bidder", required: isRequired, htmlClass: "hide")
+}
+
+@helper AwardedAmountTemplate(BidderRowViewModel row, bool isDisabled, bool isRequired)
+{
+  @Confluence.InputDecimal(row.AwardedAmount, name: "awardedAmount-bidder", width: "100%", disabled: isDisabled, required: isRequired, maxValue: "9999999999.99", minValue: "0.00")
+}
+
+@helper ResultsTemplate(BidderRowViewModel row, bool isDisabled)
+{
+    @Confluence.InputDropDown(row.ResultsTypeId.ToString(), name: "results-bidder", disabled: isDisabled, elements: ViewBag.ParticipantsResultList, width: "100px")
+}
+
+@helper DetailsTemplate(BidderRowViewModel row)
+{
+    @Confluence.LabelLink(Localization.GetText("SGP.Button.EditDetails"), name: "view-bidder-details", dataAttributes: new Dictionary<string, string>() { { "type", "bidder" } })
+}
+
+@helper ActionTrashTemplate(BidderRowViewModel row)
+{
+    @Confluence.ButtonTrash("", "RemoveRowBidder", htmlClass: "mt0")
+}
+
+@helper ActionCollapseTemplate(BidderRowViewModel row)
+{
+    if (row.Consortium.HasValue && row.Consortium.Value == true)
+    {
+        <div class="textalign-center collapse-container wh0">
+            @(Html.CollapseSingle("collapseParticipantDetailsEdit")
+                .HtmlClass("arrow vat")
+                .TargetRegionSelector(x => x.Closest("tr").Next())
+                .UseClassToHide("custom-hide")
+                .AsociatedCollapseAllSelector("[data-name=\"collapseAllParticipantEdit\"]"))
+           
+        </div>
+    }
+}
+
+@helper RowParticipants(BidderRowViewModel row)
+{
+    var finalColspan = 6 + Model.NumberColumn;
+    <tr>
+        <td colspan="@finalColspan" class="tab-detail-row">
+            @Html.Partial("EditPartial/Participants/ParticipantsBidderSubTablePartial", row) 
+        </td>
+    </tr>
+}
+

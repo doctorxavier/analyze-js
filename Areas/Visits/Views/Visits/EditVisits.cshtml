@@ -1,0 +1,288 @@
+﻿@using Microsoft.Ajax.Utilities
+@model IDB.MW.Domain.Models.Visit.VisitPlanModel
+@{
+    var counter = 0;
+    var visitTypesValues = ((Dictionary<int, string>)ViewBag.LocalizedMainVisits).Select(a => new SelectListItem { Value = a.Key.ToStringInvariant(), Text = a.Value }).ToList();
+    var canEdit = true;
+    var canEditActual = true;
+    var isNewEntity = false;
+    object htmlSimpleAttribs = new { data_view = "Visit", @class = "grayBorder w40" };
+    object htmlComboAttribs = new { data_view = "visit", @class = "optionSelect kendoDropDown" };
+    object htmlIntegerAttribs = new { data_view = "visit", @class = "grayBorder w40 integer-edit-field numberOnly", @maxlength = "9" };
+    var year = Model.Year;
+    var operationNumber = Model.OperationNumber;
+
+}
+<script type="text/javascript" src="@Url.Content("~/Scripts/concurrence.js"  + @System.Configuration.ConfigurationManager.AppSettings["cache"].ToString())"></script>
+<script type="text/javascript">
+    
+    $(function () {
+        $(document).tooltip({
+            items: ".input-validation-error",
+            content: function () {
+                if ($(this).attr('data-val-required') && $(this).val().length <= 0)
+                    return $(this).attr('data-val-required');
+                if ($(this).attr('data-val-range') && parseInt($(this).val()) <= 0)
+                    return $(this).attr('data-val-range');
+            }
+        });
+    });
+
+    $(document).ready(function () {
+        $("#Delete").click(function () {
+            idbg.lockUi(null, true);
+            $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+            $("body").find(".ui-widget-overlay").remove();
+        });
+    });
+
+</script>
+
+
+@using (Html.BeginForm("Save1", "Visits", FormMethod.Post, new { area = "Visits", id = "save-form" })){
+
+    if (canEdit){
+        <div class="verticalMargin20 rightAlign">
+            <a href="#" class="horizontalPadding10 ac-CancelEdit" data-route="@Url.Action("VisitsPlanSummary","Visits")"  onclick="javascript:idbg.lockUi(null, true);deletemodal__()">@Localization.GetText("Cancel")</a>
+            @if (Html.HasPermission("Visit Plan Write")){
+                 <input type="submit" id="saveVisit"  class="button yellowButton" value=" @Localization.GetText("Save")"/>
+            }
+        </div>
+        <div class="verticalMargin20 rightAlign">
+            <input type="button" id="newVisit" class="button blueButton" value=" @Localization.GetText("New Visit")"/>
+        </div>
+    }
+
+    
+    @Html.Hidden("versionPlanId", Model.VisitPlanId)
+    @Html.Hidden("ReturnToEdit", true)
+    @Html.Hidden("OperationNumber", Model.OperationNumber)
+    @Html.Hidden("Year", (int)ViewBag.SelectedYear)
+    @Html.Hidden("IsNew", Model.ActualVersionIsNew)
+    @Html.Hidden("RequestAfterSave", "false")           
+        
+    <div id="VisitsPanel" class="verticalMargin40 font08em">
+        @Html.HiddenFor(m => m.VisitPlanId)
+        @for (var i = 0; i < Model.Visits.Count; i++){
+            @Html.Hidden("messageDelete", @Localization.GetText("This action cannot be undone, are you sure you wish to continue?"))
+            @Html.Hidden("titleDeleteVisit", @Localization.GetText("Delete Visit"))
+            @Html.Hidden("rutaVisit", @Url.Action("DeleteDocumentByVisit", "Visits", new { area = "Visits" }))
+            @Html.Hidden("rutaDeleteVisit", @Url.Action("DeleteVisitComponent", "Visits", new { area = "Visits" }))
+            @Html.Hidden("IndexDeleteVisitsUrl", "", new { data_title = "Delete Visit", data_route = Url.Action("_WarningOnDeleteVisits", "Visits", new { area = "Visits" }) })
+            counter++;
+            visitTypesValues.Find(a => a.Value == Model.Visits[i].TypeVisits.ConvergenceMasterDataId.ToStringInvariant()).Selected = true;
+            <div class="verticalMargin40 visitComponent">
+                
+                @Html.HiddenFor(m => m.Visits[i].VisitPlanId)
+                @Html.HiddenFor(m => m.Visits[i].VisitId)
+
+                <div class="leftMargin40 relative borderLeft paddingLeft20 marginBottom2">
+                    <div class="verticalMargin20 paddingTop10px">
+                        <div class="componentNumber grayColor absolute visit-counter">@counter</div>
+                        <div class="minMaxButtonContainer absolute">
+                            <input class="minMaxButton cursorPointer plus" type="button" value="" onclick="showHideVisitDetail(this);" />
+                        </div>
+                        <div class="relative" style="font-size:16px">
+                            <div class="absolute w80 boldFont">
+                                @if (canEdit)
+                                {
+                                    <div id="ActivitiesPanel">
+                                        <div class="absolute w80" id="SupervisionPlanPanel">
+                                            @Html.DropDownListFor(m => m.Visits[i].TypeVisitId, visitTypesValues, new { @class = "optionSelect kendoDropDown" })
+                                        </div>
+	                                </div>
+                                }
+                                else
+                                {
+                                    @Html.HiddenFor(m => m.Visits[i].TypeVisitId)
+                                    @(((Dictionary<int, string>)ViewBag.LocalizedMainVisits)[Model.Visits[i].TypeVisits.ConvergenceMasterDataId])
+                                }
+                            </div>
+                            <div class="absRight absolute">
+                                @if (canEdit)
+                                { 
+                                    <input type="button"  id="Save" value=" @Localization.GetText("Delete")" class="deleteTextButton verticalAlignTop absolute absRight" onclick="deleteVisit(this,@Model.Visits[i].VisitId);"/>
+                                }
+                            </div>
+                        </div>
+                        <div class="verticalMargin40" style="height:30px">
+                            <div class="inline-block w20 leftAlign" style="padding:0 0 0 35px;">
+                                <div class="grayColor">@Localization.GetText("Planned")</div>
+                                <div class="boldFont verticalMargin10">
+                                    @if (canEdit)
+                                    {
+                                        Dictionary<string, object> htmlPlannedFieldProperties = null;
+                                        htmlPlannedFieldProperties = new Dictionary<string, Object> 
+                                        { 
+                                            { "data-view", "visit" }, 
+                                            { "class", "grayBorder w40 integer-edit-field numberOnly" }, 
+                                            { "maxlength", "9" }, 
+                                            { "data-val-range",Localization.GetText("Enter a value greater than zero")},
+                                            { "data-val-range-max", int.MaxValue},
+                                            { "data-val-range-min", 1},
+                                            { "data-val-required", Localization.GetText("The Planned field is required.")}
+                                        };
+                                        
+                                        @* @Html.TextBoxFor(m => m.Visits[i].Planned,htmlIntegerAttribs)*@
+                                        @Html.TextBoxFor(m => m.Visits[i].Planned,htmlPlannedFieldProperties)
+                                        @Html.HiddenFor(m => m.Visits[i].Planned)
+                                        Html.ValidateFor(m => m.Visits[i].Planned);
+                                    }
+                                    else
+                                    {
+                                        @Html.HiddenFor(m => m.Visits[i].Planned)
+                                        @Html.DisplayFor(m => m.Visits[i].Planned)
+                                    }
+                                </div>
+                            </div>
+                            <div class="inline-block w20 leftAlign" style="padding:0 0 0 35px;">
+                                <div class="grayColor">@Localization.GetText("Actual")</div>
+                                <div class="boldFont verticalMargin10">
+                                    @if (canEditActual)
+                                    {
+                                        @Html.TextBoxFor(m => m.Visits[i].Actual, htmlIntegerAttribs)
+                                        @Html.HiddenFor(m => m.Visits[i].Actual)
+                                    }
+                                    else
+                                    {
+                                        @Html.HiddenFor(m => m.Visits[i].Actual)
+                                        @Html.DisplayFor(m => m.Visits[i].Actual)
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!isNewEntity)
+                    {
+                        
+                    <h3 class="font1-5em verticalMargin10 boldFont" style="font-size:18px;padding:0 0 0 35px;">@Localization.GetText("Documents")</h3>
+                    <!-- inicio tabla -->
+                    <div class='marginBottom2' style="padding:0 0 0 35px;">
+                        <table class="grid w100" style="font-size:12px;">
+                            <thead>
+                                <tr>
+                                    <th>@Localization.GetText("User")</th>
+                                    <th>@Localization.GetText("Date")</th>
+                                    <th>@Localization.GetText("IDB Doc. Number")</th>
+                                    <th>@Localization.GetText("Content")</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (var j = 0; j < Model.Visits[i].Documents.Count; j++)
+                                {
+                                    <tr>
+                                        <td>@Html.DisplayFor(m => m.Visits[i].Documents[j].CreatedBy)</td>
+                                        <td>
+                                            @Model.Visits[i].Documents[j].Created.Value.ToString("dd MMM yyyy")
+                                        </td>
+                                        <td><a href="#">@Model.Visits[i].Documents[j].DocumentReference</a></td>
+                                        <td>
+                                            @Model.Visits[i].Documents[j].Description
+                                            <!--@Html.TextAreaFor(m => m.Visits[i].Documents[j].Description, new { @class = "h30px disabled", data_view = "document", @maxlength = "500" })-->
+                                        </td>
+                                        <td>
+
+                                            @Html.HiddenFor(m => m.Visits[i].Documents[j].DocumentId, new { data_view = "document" })
+                                            
+                                            @{
+                                                var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(Model.Visits[i].Documents[j].DocumentReference);
+                                            }
+                                            <a href=@secureUrl target="_blank">
+                                                <input type="button" class="noBorder operationButton documentSupportDownloadIcon cursorPointer" />
+                                            </a>
+                                            <input type="button" value="" class="operationButton removeIcon" onclick="deleteDocument(this,@Model.Visits[i].Documents[j].DocumentId);" >
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        
+                        <div class="centerAlign addOneWrapper centerContent verticalMargin20 w40">
+                            <div class="addOneContainer w100 h100">
+                                <input type="button" value=" @Localization.GetText("New") " class=" noBorder h100 addOne cursorPointer w100 lnkModal" data-title=" @Localization.GetText("Add a document") " data-route=" @Html.Raw(Url.Action("IndexDocumentRelationship", "Document", new { area = "", operationId = (int)ViewBag.OperationId, mainOperationNumber = (string)ViewBag.OperationNumber, parentEntityId = 0, subParentEntityId = (int)ViewBag.SelectedYear, subsubParentEntityId = 0, entityRelated = "VISIT", entityRegisterId = Model.Visits[i].VisitId, isFirstTime = true, errorMessage = string.Empty, businessAreaCode = "BA_VISITS" })) " />
+                            </div>
+                        </div>
+                    </div>
+                    }
+            </div>
+        </div>
+        
+                    visitTypesValues.ForEach(a => a.Selected = false);
+
+        }
+     
+</div>
+    
+        if (canEdit)
+        {
+        <div class="verticalMargin20 rightAlign">
+            <a href="#" class="horizontalPadding10 ac-CancelEdit" data-route="@Url.Action("VisitsPlanSummary","Visits")" onclick="javascript:idbg.lockUi(null, true);deletemodal__()">@Localization.GetText("Cancel")</a>
+            @if (Html.HasPermission("Visit Plan Write"))
+            {
+                <input type="submit" id="saveVisit"  class="button yellowButton" value=" @Localization.GetText("Save")"/>
+            }
+        </div>
+        }
+}
+
+<div id="footer_"></div>
+
+<script id="newVisit-template" type="text/x-handlebars-template">
+    {{#each this}}
+    <div class="verticalMargin40 visitComponent">
+        <input data-val="true" data-val-required="The VisitPlanId field is required." id="Visits_{{visitIndex}}__VisitPlanId" name="Visits[{{visitIndex}}].VisitPlanId" type="hidden" value="@Model.VisitPlanId">
+        <input data-val="true" data-val-required="The VisitId field is required." id="Visits_{{visitIndex}}__VisitId" name="Visits[{{visitIndex}}].VisitId" type="hidden" value="-1">
+          
+        <div class="leftMargin40 relative borderLeft paddingLeft20 marginBottom2">
+            <div class="verticalMargin20 paddingTop10px">
+                <div class="componentNumber grayColor absolute visit-counter">{{viewVisitIndex}}</div>
+                <div class="minMaxButtonContainer absolute">
+                    <input class="minMaxButton cursorPointer plus" type="button" value="" onclick="showHideVisitDetail(this);">
+                </div>
+            <div class="relative" style="font-size:16px">
+            <div class="absolute w80 boldFont">
+                <div id="ActivitiesPanel">
+                    <div class="absolute w80" id="SupervisionPlanPanel">
+                        <select class="optionSelect kendoDropDown valid" data-val="true" data-val-required="The TypeVisitId field is required." data-view="activity" id="Visits_{{visitIndex}}__TypeVisitId" name="Visits[{{visitIndex}}].TypeVisitId">
+                            @for (int i = 0; i < visitTypesValues.Count(); i++)
+                            {
+                                if (i == 0)
+                                {
+                                    <option selected="selected" value="@visitTypesValues[i].Value">@visitTypesValues[i].Text</option>
+                                }
+                                else
+                                {
+                                    <option value="@visitTypesValues[i].Value">@visitTypesValues[i].Text</option>
+                                }
+                            }
+                        </select> 
+                    </div>
+                </div>
+            </div>
+            <div class="absRight absolute">
+                <input type="button" value="Delete" class="deleteTextButton verticalAlignTop absolute absRight" onclick="deleteVisit(this);">
+            </div>
+        </div>
+        <div class="verticalMargin40" style="height:30px">
+            <div class="inline-block w20 leftAlign" style="padding:0 0 0 35px;">
+                <div class="grayColor">Planned</div>
+                    <div class="boldFont verticalMargin10">
+                        <input class="grayBorder w40 integer-edit-field numberOnly valid" data-val="true" data-val-range="@Localization.GetText("Enter a value greater than zero")" data-val-range-max="2147483647" data-val-range-min="1" data-val-required="@Localization.GetText("The Planned field is required.")" data-view="visit" id="Visits_{{visitIndex}}__Planned" maxlength="9" name="Visits[{{visitIndex}}].Planned" type="text" value="">
+                        <input id="Visits_{{visitIndex}}__Planned" name="Visits[{{visitIndex}}].Planned" type="hidden" value="" >                            
+                    </div>
+                </div>
+                <div class="inline-block w20 leftAlign" style="padding:0 0 0 35px;">
+               <div class="grayColor"> Actual</div>
+                   <div class="boldFont verticalMargin10">
+                        <input class="grayBorder w40 integer-edit-field numberOnly valid" data-view="visit" id="Visits_{{visitIndex}}__Actual" maxlength="9" name="Visits[{{visitIndex}}].Actual" type="text" value="">
+                        <input id="Visits_{{visitIndex}}__Actual" name="Visits[{{visitIndex}}].Actual" type="hidden" value="">                            </div>
+                   </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+     {{/each}}
+</script>
+

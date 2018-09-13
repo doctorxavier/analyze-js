@@ -1,0 +1,177 @@
+﻿@using System.Activities.Statements
+@using System.Globalization
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Domain.Models.FindingRecomendations
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Presentation.MVC4.Helpers
+
+
+@model FindingRecommendationHeaderModel
+        
+@{
+
+    var findingRecomendationList = Model.FindingRecommendations.ToList();
+} 
+
+@if (findingRecomendationList != null)
+{
+    <div class="row row-body-20">
+        <div class="col-md-12">
+            <input type="hidden" id="hidOverallProjectManagementModel" value="@ViewBag.SerializedOverallProjectManagement" />
+            @{
+    var config = Html.RenderDataTable(findingRecomendationList);
+    config.Name("OverallProjectTable")
+        .PrimaryKey(m => m.FindingRecommendationId.Value.ToString())
+        .AddPrimaryKeyToName(false)
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.FindingRecommendationId).EditableTemplate(@<input type="hidden"
+                                                                                   class="hide"
+                                                                                   name="FindingRecommendationId"
+                                                                                   value="@item.FindingRecommendationId.ToString()" />).Hidden(true);
+
+            columns.Template(c => Confluence.Label(c.CycleName)).CssClass("w160")
+                .Header(Localization.GetText("Cycle")).CssHeaderClass("w160");
+
+            columns.Template(c => Confluence.Label(c.Stage)).CssHeaderClass("w150")
+                .EditableTemplate(row => Confluence.InputDropDown(row.StageId.ToString(),
+                                                                "typeStages",
+                                                                ViewBag.ListStages,
+                                                                width: "100%",
+                                                                showEmptyOption: false,
+                                                                dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlStages" } }))
+                                                        .CssHeaderClass("w150")
+                                                        .Header(Localization.GetText("Stage"));
+
+            columns.Template(c => Confluence.Label(c.Dimension)).CssHeaderClass("w250")
+                .EditableTemplate(row => Confluence.InputDropDown(row.DimensionId.ToString(),
+                                                                "typeDimensions",
+                                                                ViewBag.ListDimensions,
+                                                                width: "100%",
+                                                                showEmptyOption: false,
+                                                                dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlDimensions" } }))
+                                                        .CssHeaderClass("w250")
+                                                        .Header(Localization.GetText("Dimension"));
+            if (SecurityHelper.IsVisible(Model.FieldAccessList, "ddlCategories")) {
+                columns.Template(c => Confluence.Label(c.Category)).CssHeaderClass("w220")
+               .EditableTemplate(row => Confluence.InputDropDown(row.CategoryID.ToString(),
+                                                               "typeCategories",
+                                                               ViewBag.ListItemsCategory,
+                                                               width: "90%",
+                                                               parentValue: true,
+                                                               showEmptyOption: false,
+                                                               dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "ddlCategories" } }))
+                                                       .CssHeaderClass("w220")
+                                                       .Header(Localization.GetText("Category"));
+            }
+
+
+            columns.Template(c => Confluence.LabelGetDate(c.LastUpdate != DateTime.MinValue ? c.LastUpdate : null))
+                                                        .CssHeaderClass("w150")
+                                                        .Header(Localization.GetText("Last update")).Persistent();
+            if (SecurityHelper.IsVisible(Model.FieldAccessList, "btnRemoveStories"))
+            {
+                columns.Template(c => GetRelatedExpandedButton()).Persistent()
+                .EditableTemplate(row => Confluence.ButtonTrash(null, null, "removeRowOverall",
+                                                                dataAttributes: new Dictionary<string, string>()
+                                                                {
+                                                                    { "idb-fieldname", "btnRemoveStories" },
+                                                                    { "findingRecomendationId", row.FindingRecommendationId.ToString() }
+                                                                })).CssHeaderClass("w100");
+            }
+            
+
+        }).RowTemplates(row => row.Create(RowTemplateType.AllRows, OverallTableRow));
+                config.TableClass = "tableNormal endSpacing";
+
+    @Html.Partial("Controls/DataTable", config)
+
+    if (findingRecomendationList.Count == 0)
+    {
+        <div name="msgOverall"></div>
+    }
+            }
+        </div>
+
+        <div class="col-md-12">
+            <div data-pagemode="edit" class="text-center">
+                @Confluence.ButtonAddNewRows(Localization.GetText("New"),
+                                             "OverallProjectTable",
+                                             null,
+                                             "newRowOverallProjectManagement",
+                                             dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnAddNewOverall" } })
+            </div>
+        </div>
+
+        <div class="col-md-12">
+            <span data-pagemode="edit">
+                @Confluence.InputHidden(value: "", name: "deleteFindingsAndRecommendations", required: false)
+            </span>
+        </div>
+
+        @helper OverallTableRow(IDB.MW.Domain.Models.FindingRecomendations.FindingRecommendationModel row)
+{
+        <tr class="template odd" name="rowIdiom" id="rowIdiom" data-persist="true" data-row-parent-id=@row.FindingRecommendationId>
+            <td class="custom-detail-table-row" colspan="6">
+                <div class="col-md-6">
+                    <div class="col-md-12">
+                        <span>
+                            @Confluence.LabelBold(Localization.GetText("Findings"))
+                        </span>
+                    </div>
+                    <div class="col-md-12">
+                        <span data-pagemode="read">
+                            @Confluence.Label(@row.Finding)
+                        </span>
+                        @if (SecurityHelper.IsVisible(Model.FieldAccessList, "txtSubTableFindings"))
+                        {
+                            <span data-pagemode="edit">
+                                @Confluence.InputTextArea(@row.Finding,
+                                                        "FindingsArea",
+                                                        width: "100%",
+                                                        height: "100px",
+                                                        required: true,
+                                                        dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "txtSubTableFindings" } },
+                                                                 placeholder: Localization.GetText("TCM.FR.FindingsAndRecommendations.FindingsPlace"))
+                            </span>
+                        }
+                        
+                    </div>
+
+                </div>
+                <div class="col-md-6">
+                    <div class="col-md-12">
+                        <span>@Confluence.LabelBold(Localization.GetText("Recommendations"))</span>
+                    </div>
+                    <div class="col-md-12">
+                        <span data-pagemode="read">
+                            @Confluence.Label(@row.Recommendation)
+                        </span>
+                        @if (SecurityHelper.IsVisible(Model.FieldAccessList, "txtSubTableRecommendations"))
+                        {
+                            <span data-pagemode="edit">
+                                @Confluence.InputTextArea(@row.Recommendation,
+                                                            "RecommendationsArea",
+                                                            width: "100%",
+                                                            height: "100px",
+                                                            required: true,
+                                                            dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "txtSubTableRecommendations" } },
+                                                                     placeholder: Localization.GetText("TCM.FR.FindingsAndRecommendations.RecommendationPlace"))
+                            </span>
+                        }
+                       
+                    </div>
+                </div>
+            </td>
+        </tr>
+}
+    </div>
+
+    @helper GetRelatedExpandedButton()
+{
+    @Confluence.ButtonShowRow()
+}
+}
+
+

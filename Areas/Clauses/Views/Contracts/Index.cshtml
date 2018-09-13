@@ -1,0 +1,1402 @@
+﻿@using IDB.MW.Domain.Values
+@using IDB.MW.Domain.Values.ConvergenceMasterData
+
+@model List<IDB.MW.Domain.Models.Clauses.OperationRelatedModel>
+@{
+    ViewBag.Title = "Index";   
+    var clauseId = string.IsNullOrEmpty(Request["clauseId"]) ? null : Request["clauseId"];
+    bool isRedirect = !string.IsNullOrEmpty(clauseId);
+}
+
+@section JavaScript {
+    @*<script type="text/javascript" src="@Url.Content("~/Scripts/grid/main.js")"></script>*@
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/foldingTable/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/foldingTable/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/Filter/filter.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Contract/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/menuLateral.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/kendo/kendo.web.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/modal/modal.js")"></script>
+    <link href="@Url.Content("~/Content/Modules/Clauses/contracts.css")" rel="stylesheet" />
+}
+
+@Html.Hidden("isSpecial", (object)ViewBag.isSpecial)
+@Html.Hidden("FilterClauseType", (object)ViewBag.clauseTypeId)
+@Html.Hidden("FilterClauseStatus", (object)ViewBag.clauseStatusId)
+@Html.Hidden("FilterClauseCategory", (object)ViewBag.clauseCategoryId)
+@Html.Hidden("FilterClauseNumber", (object)ViewBag.clauseNumber)
+@Html.Hidden("FilterClauseIsSpecial", (object)ViewBag.isSpecial)
+@Html.Hidden("FilterClauseExpirationDateFrom", (object)ViewBag.expirationDateFrom)
+@Html.Hidden("FilterClauseExpirationDateTo", (object)ViewBag.expirationDateTo)
+@(Html.Hidden("no-contract-data-error-text", Localization
+        .GetText("ContractsAndClauses.Warning.NoContractData.ModalBody")))
+
+<script>
+
+    $(document).ready(function () {
+        console.log("redirecting");
+        if (@isRedirect.ToString().ToLower() == true) {
+            var redirect = $('td a[href*="clauseId=@clauseId"]').prop('href');
+
+            console.log("loading clause @clauseId");
+            location.href=redirect;
+        }
+
+        $(document).on(
+            'click', 
+            'a.newindicator, a.btn-primary:not(.filter-clauses), a[name="details"]', 
+            function (){
+                idbg.lockUi(null, true);
+            });
+
+        top.$("iframe[name=someFrame]").css("height", "100%");
+        pageChangeWindowResize()
+    });
+
+    function Changelocation(val) {
+        var Object = val.parentNode;
+        while (Object.nodeName != "TABLE") {
+            Object = Object.parentNode;
+        }
+        idbg.lockUi(null, true);
+        location.href = val.value + "&locatetop=" + document.getElementById('locatetop').innerHTML + "|" + Object.id + "|" + $("#" + Object.id).data("kendoGrid").dataSource.page();
+    }
+
+    var execute = setTimeout(function () {
+        try {
+            if ('@ViewBag.locatetop.Split('|')[1]' != "NO") {
+                $("#" + '@ViewBag.locatetop.Split('|')[1]').data("kendoGrid").dataSource.page(parseInt('@ViewBag.locatetop.Split('|')[2]'));
+            }
+            execute = null;
+        } catch (Exception) { }
+    }, 1000);
+
+    function pageChangeWindowResize() {
+        $(".k-pager-numbers a.k-link").click(function() {
+            top.$("iframe[name=someFrame]").css("height", "100%");
+        });
+    }
+
+</script>
+
+<body onscroll="_Scroll()">
+    @* ---------------------Section of elements Hidden --------------------------------------------------*@
+    <form>
+
+        @{int cont = 0;}
+        @if (ViewBag.locatetop != "|NO|NO")
+        {
+            <p id="locatetop" style="position:absolute;top:-100%;">@ViewBag.locatetop.Split('|')[0]</p>
+        }
+        else
+        {
+            <p id="locatetop" style="position:absolute;top:-100%;">0</p>
+        }
+        <!--/** End Fix **/-->
+        @if (ViewData["LastDisbursment"] != null)
+        {
+            @Html.Hidden("lastDisbursment", (bool)ViewBag.LastDisbursment);
+            @Html.Hidden("mensajeLastDisbursment", @Localization.GetText("Please, be aware that the last disbursement clause cannot be created until the disbursement expiration date is registered"))
+            @Html.Hidden("Cancel", @Localization.GetText("Cancel"))
+        }
+       
+        <section class="central">
+            <h2 class="hide">Seccion central</h2>
+            <div class="mod_contenido_central contracts_and_clauses">
+                @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                {
+                    <h3 class="headingh2">@Localization.GetText("CL.ClausesAndConditions")</h3>
+                }
+                else
+                {
+                    <h3 class="headingh2">@Localization.GetText("CL.ContractsClauses")</h3>
+                }
+
+                <div class="filterContracts">
+
+                    <div class="btn-action-group activo">
+                        <label class="btn-action-fondo" for="btn-actionid">
+                            <span class="btn-action-punto">@Localization.GetText("Punto Blanco")</span>
+                        </label>
+                        <input type="button" class="btn-action" value=" @Localization.GetText("CL.CollapseContracts") " id=" btn-actionid">
+                    </div>
+
+
+
+                    <div class="botonRadio w30">
+                        <span class="tituloBotonRadio">@Localization.GetText("Operations")</span>
+                        <form>
+                            <div id="radio" onchange="selectedOperation()" data-mainoperation="@Model[0].mainOperationNumber">
+                                <input type="radio" id="radio1" name="radio" />
+                                <label id="labelForRadio1" class="ui-state-active" for="radio1"> 
+                                    @Localization.GetText("Selected")
+                                </label>
+                                <input type="radio" id="radio2" name="radio" />
+                                <label id="labelForRadio2" for="radio2"> 
+                                    @Localization.GetText("Group")
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="filterDropDown">
+                        <ul class="optionList small">
+                            <li class="small">
+                                <select class="optionSelect" name="Departament" onchange="loansToSee(this)">
+                                    <option value="All" selected>@Localization.GetText("CL.SeeContracts")</option>
+                                    @foreach (var loans in Model)
+                                    {
+                                        foreach (var contract in loans.Contracts)
+                                        {
+                                            <option value="@contract.ContractId">@contract.ContractNumber</option>
+                                        }
+                                    }
+                                </select>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="editingButtonsEdit">
+                        @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                        {
+                            <a href="javascript:void(0)" class="btn-primary filter-clauses" title="@Localization.GetText("CL.FilterConditions")">
+                                @Localization.GetText("CL.FilterConditions")
+                            </a>
+                        }
+                        else
+                        {
+                            <a href="javascript:void(0)" class="btn-primary filter-clauses" title="@Localization.GetText("Filter Clauses")">
+                                @Localization.GetText("Filter Clauses")
+                            </a>
+                        }
+                    </div>
+
+                    <div class="clearBoth"></div>
+                </div>
+
+                <div class="filter" style="display: none;">
+                    <div class="cajaGeneralFilter2">
+                        <form class="filter2Content" id="formulario2" name="fil">
+                            <div class="contenidoFilter5">
+                                <legend class="hide">@Localization.GetText("CL.FilterData")</legend>
+                                <ul class="optionList">
+
+                                    <li class="smallFilter2 dataTitle">
+                                        <select class="optionSelect" name="ClausesType" id="clauseTypeFilter">
+                                            @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                            {
+                                                <option>@Localization.GetText("CL.ConditionType")</option>
+                                            }
+                                            else
+                                            {
+                                                <option>@Localization.GetText("CL.ClauseType")</option>
+                                            }                                            
+                                            @foreach (var masterData in ViewBag.ListClauseType)
+                                            {
+                                                <option value="@masterData.ConvergenceMasterDataId" 
+                                                    @if (@ViewBag.clauseTypeId == @masterData.ConvergenceMasterDataId) {
+                                                        <text> selected="selected" </text>  }>
+                                                    
+                                                    @Localization.GetText(masterData.NameEn)
+                                                </option>
+                                            }
+                                        </select>
+                                    </li>
+
+
+                                    <li class="smallFilter2 dataTitle">
+                                        <select class="optionSelect" name="Clause Status" id="clauseStatusFilter">
+                                            @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                            {
+                                                <option>@Localization.GetText("CL.ConditionStatus")</option>
+                                            }
+                                            else
+                                            {
+                                                <option>@Localization.GetText("CL.Status")</option>
+                                            }
+                                            
+                                            @foreach (var masterData in ViewBag.ListClauseStatus)
+                                            {
+                                                <option value="@masterData.ConvergenceMasterDataId" 
+                                                    @if (@ViewBag.clauseStatusId == @masterData.ConvergenceMasterDataId) {
+                                                        <text> selected="selected" </text>  }>
+                                                    @Localization.GetText(masterData.NameEn)
+                                                </option>
+                                            }
+                                        </select>
+                                    </li>
+
+
+                                    <li class="smallFilter2 dataTitle">
+                                        <select class="optionSelect" name="Clause category" id="clauseCategoryFilter">
+                                            @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                            {
+                                                <option>@Localization.GetText("CL.ConditionCategory")</option>
+                                            }
+                                            else
+                                            {
+                                                <option>@Localization.GetText("CL.ClauseCategory")</option>
+                                            }
+                                            
+                                            @foreach (var masterData in ViewBag.ListClauseCategory)
+                                            {
+                                                <option value="@masterData.ConvergenceMasterDataId" 
+                                                    @if (@ViewBag.clauseCategoryId == @masterData.ConvergenceMasterDataId) {
+                                                        <text> selected="selected" </text>  }>
+                                                    @masterData.NameEn
+                                                </option>
+                                            }
+                                        </select>
+                                    </li>
+
+                                    <li class="smallFilter2">
+                                        <label for="clauseNumber">
+                                            <input class="textoGrandeFilter2 no-margin dataTitle" 
+                                                   type="text" 
+                                                   name="clauseNumber" 
+                                                   id="clauseNumberFilter" 
+                                                   placeholder="@if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank) { @Localization.GetText("CL.ConditionNumber") }
+                                                                else {@Localization.GetText("Clause Number")}"
+                                                   @if (@ViewBag.clauseNumber != null && @ViewBag.clauseNumber != "") { <text> value="@ViewBag.clauseNumber" </text>  }>
+                                        </label>
+                                    </li>
+
+                                </ul>
+
+                                <ul class="optionList">
+                                    <li class="smallFilter2">
+                                        <div class="custom operationData checkDown">
+                                            <label for="specialclause2" class="editLabel">
+                                                <input type="checkbox" style="display: none;" id="specialclause2" name="specialclause2" class="hidden-field" onchange="isSpecialClick()">
+                                                <span id="chk_1" class="custom checkbox">
+                                                @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                                {
+                                                    @Localization.GetText("CL.SpecialConditionClass")
+                                                }
+                                                else
+                                                {
+                                                    @Localization.GetText("CL.SpecialClauseClass")
+                                                }
+                                                </span>
+
+                                            </label>
+                                        </div>
+                                    </li>
+                                    <li class="bigFilter2 datePicker">
+                                        <div class="dateSelect">
+                                            <label for="datePicker5">
+                                                <span class="textoDatepicker">@Localization.GetText("CL.ExpirationDateFrom")</span>
+                                                <input class="datepicker" name="datePicker5" id="datePicker5" placeholder="DD MMM YY" @if (@ViewBag.expirationDateFrom != null) { <text> value="@String.Format("{0:dd MMM yyy}", ViewBag.expirationDateFrom)" </text>  }>
+                                            </label>
+                                        </div>
+                                    </li>
+
+                                    <li class="bigFilter2 datePicker">
+                                        <div class="dateSelect">
+                                            <label for="datePicker6">
+                                                <span class="textoDatepicker">@Localization.GetText("To")</span>
+                                                <input class="datepicker" name="datePicker6" id="datePicker6" placeholder="DD MMM YY" @if (@ViewBag.expirationDateTo != null) { <text> value="@String.Format("{0:dd MMM yyy}", ViewBag.expirationDateTo)" </text>  }>
+                                            </label>
+                                        </div>
+                                    </li>
+                                </ul>
+
+                                <ul class="optionList">
+                                    <li class="smallFilter2">
+                                        <div class="pie">
+                                            <label for="FilterForm">
+                                                <input class="btn-primary ftr marginRight3" type="button" value="@Localization.GetText("Clear All")" id="clearBtn">
+                                            </label>
+                                            <label for="FilterForm">
+                                                <input class="btn-primary ftr marginRight3" type="button" value="@Localization.GetText("Filter")"
+                                                       id="filterBtn" data-route="@Url.Action("Index", "Contracts", new { area = "Clauses" , operationNumber = Model[0].mainOperationNumber })">
+                                            </label>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                @{int Validator = 0;}
+                @if (Model != null)
+                {
+                    int counterLoans = 1;
+                    for (int operationIndex = 0; operationIndex < Model.Count; operationIndex++)
+                    {
+
+                        for (int contractIndex = 0; contractIndex < Model.ElementAt(operationIndex).Contracts.Count; contractIndex++)
+                        {
+                            Validator = 1;
+                            var Contract = @Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex);
+
+                            <div class="minimizeTable loanTables @Model.ElementAt(operationIndex).OperationNumber" id="@Model.ElementAt(operationIndex).Contracts[contractIndex].ContractId">
+                                <div class="minimizeBar">
+                                    <div class="trackOrder">
+                                        @counterLoans @{counterLoans++;}
+                                    </div>
+                                    <div data-contractindex="@contractIndex" class="tableOperator">@Localization.GetText("Minimize/Maximize")</div>
+                                </div>
+                                <div class="operatorBar"></div>
+                                <h4 class="headingh3 plegableTitle">@Model.ElementAt(operationIndex).Contracts[contractIndex].ContractNumber</h4>
+
+                                <span class="reformulationTitle">
+                                    @Model.ElementAt(operationIndex).Contracts[contractIndex].ReformulationName
+                                </span>
+
+                                <div class="normative">
+                                    <span class="title">
+                                        @Localization.GetText("Rule")
+                                    </span>
+                                    OA-@Model.First().Normative
+                                </div>
+
+                                <div class="filterDropDown btnTrack">
+
+                                    @for (var masterData = 0; masterData < ViewBag.ListContractStatus.Count; masterData++)
+                                    {
+                                        if (ViewBag.ListContractStatus[masterData].ConvergenceMasterDataId == Contract.ContractClauseStatId)
+                                        {
+                                            if (ViewBag.ListContractStatus[masterData].Code == "TRACK")
+                                            {
+                                                <a class="btn btn-primary" href="@Url.Action("DetailsRevolvingFund", "Contracts", new { area = "Clauses", operationId = Model.ElementAt(operationIndex).OperationId, contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber })">@Localization.GetText("CL.RevolvingFund")</a>
+                                                    <a class="btn btn-primary" href="@Url.Action("DetailsEligibilityRequest", "Contracts", new { area = "Clauses", operationId = Model.ElementAt(operationIndex).OperationId, contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber })">@Localization.GetText("CL.ProcessOfEligibility")</a>
+                                            }
+                                            else if (ViewBag.ListContractStatus[masterData].Code == "RECORD")
+                                            {
+                                                <p>@Localization.GetText("Record")</p>
+                                            }
+                                            break;
+                                        }
+                                    }
+                                </div>
+
+                                <div class="operationBlock">
+                                    <h5 class="headingh4 plegableSubtitle">
+                                        @Model.ElementAt(operationIndex).OperationNumber
+                                    </h5>
+                                    <div class="clearBoth"></div>
+                                </div>
+
+                                <table class="tableInfo contractHeader">
+                                    <tbody>
+                                        <tr class="headers">
+                                            <th>@Localization.GetText("CL.ContractStage")</th>
+                                            <th class="border-right">UDR</th>
+                                            <th>@Localization.GetText("CL.ApprovalDate")</th>
+                                            <th class="border-right pl0">
+                                                @Localization.GetText("CL.LegalEfectivenessDate")
+                                            </th>
+                                            <th>@Localization.GetText("CL.OriginalExpirationDate")</th>
+                                        </tr>
+
+                                        <tr>
+                                            <td>
+                                                @foreach (var masterData in ViewBag.ListLoanStatus)
+                                                {
+                                                    if (masterData.ConvergenceMasterDataId ==
+                                                        Contract.LoanStatusId)
+                                                    {
+                                                        @masterData.Code
+
+                                                        break;
+                                                    }
+                                                }
+                                            </td>
+                                            <td class="border-right">
+                                                @{var country = string.IsNullOrEmpty(
+                                                    Model.ElementAt(operationIndex)
+                                                        .Contracts[contractIndex].UdrName) ? 
+                                                            "{Not Set}" : 
+                                                            Model.ElementAt(operationIndex)
+                                                                .Contracts[contractIndex].UdrName;}
+
+                                                <p>@country</p>
+                                            </td>
+                                            <td>
+                                                @if (Model.ElementAt(operationIndex).Contracts
+                                                    .ElementAt(contractIndex).ApprovalDate.HasValue)
+                                                {
+                                                    <p>@string.Format(
+                                                        "{0:dd MMM yyy}",
+                                                        Model.ElementAt(operationIndex)
+                                                            .Contracts
+                                                            .ElementAt(contractIndex)
+                                                            .ApprovalDate)</p>
+                                                }
+                                                else
+                                                {
+                                                    <p>---------</p>
+                                                }
+                                            </td>
+                                            <td class="border-right pl0">
+                                                @if (Model.ElementAt(operationIndex).Contracts
+                                                    .ElementAt(contractIndex).LegalEffectivenessDate.HasValue)
+                                                {
+                                                    <p>@string.Format(
+                                                        "{0:dd MMM yyy}",
+                                                        Model.ElementAt(operationIndex)
+                                                            .Contracts
+                                                            .ElementAt(contractIndex)
+                                                            .LegalEffectivenessDate)</p>
+                                                }
+                                                else
+                                                {
+                                                    <p>---------</p>
+                                                }
+                                            </td>
+                                            <td>
+                                                <p>@string.Format(
+                                                    "{0:dd MMM yyy}",
+                                                    Model.ElementAt(operationIndex)
+                                                        .Contracts
+                                                        .ElementAt(contractIndex)
+                                                        .OriginalExpirationDate)</p>
+                                            </td>
+                                        </tr>
+
+                                        <tr class="headers">
+                                            <th>@Localization.GetText("CL.Executor")</th>
+                                            <th class="border-right">@Localization.GetText("Elegible")</th>
+                                            <th>@Localization.GetText("CL.SignatureDate")</th>
+                                            <th class="border-right pl0">@Localization.GetText("Elegibility Date")</th>
+                                            <th>@Localization.GetText("CL.CurrentExpirationDate")</th>
+                                        </tr>
+
+                                        <tr>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(Model.ElementAt(operationIndex)
+                                                    .Contracts.ElementAt(contractIndex).Executor))
+                                                {
+                                                    @Contract.ExecutorAcronym
+                                                }
+                                            </td>
+                                            <td class="border-right">
+                                                @if (Model.ElementAt(operationIndex).Contracts
+                                                    .ElementAt(contractIndex).IsEligible)
+                                                {
+                                                    @Localization.GetText("Yes")
+                                                }
+                                                else
+                                                {
+                                                    @Localization.GetText("No")
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (Model.ElementAt(operationIndex).Contracts
+                                                    .ElementAt(contractIndex).SignatureDate.HasValue)
+                                                {
+                                                    <p>@string.Format(
+                                                        "{0:dd MMM yyy}",
+                                                        Model.ElementAt(operationIndex).Contracts
+                                                            .ElementAt(contractIndex).SignatureDate)</p>
+                                                }
+                                                else
+                                                {
+                                                    <p>---------</p>
+                                                }
+                                            </td>
+                                            <td class="border-right pl0">
+                                                @if (Model.ElementAt(operationIndex).Contracts
+                                                    .ElementAt(contractIndex).EligibilityDate.HasValue)
+                                                {
+                                                    <p>@string.Format(
+                                                        "{0:dd MMM yyy}",
+                                                        Model.ElementAt(operationIndex).Contracts
+                                                            .ElementAt(contractIndex).EligibilityDate)</p>
+                                                }
+                                                else
+                                                {
+                                                    <p>---------</p>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (Model.ElementAt(operationIndex).Contracts
+                                                    .ElementAt(contractIndex)
+                                                    .CurrentDisbursementExpirationDate.HasValue)
+                                                {
+                                                    <p>@string.Format(
+                                                      "{0:dd MMM yyy}",
+                                                      Model.ElementAt(operationIndex).Contracts
+                                                          .ElementAt(contractIndex)
+                                                          .CurrentDisbursementExpirationDate)</p>
+                                                }
+                                                else
+                                                {
+                                                    <p>---------</p>
+                                                }
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <div class="selectContainer">
+                                    <div id="@Model.ElementAt(operationIndex).OperationId" class="filterDropDown">
+                                        <ul class="optionList small">
+                                            <li class="small">
+                                                @for (var masterData = 0; masterData < ViewBag.ListContractStatus.Count; masterData++)
+                                                {
+                                                    if (ViewBag.ListContractStatus[masterData].ConvergenceMasterDataId == Contract.ContractClauseStatId)
+                                                    {
+                                                        if (ViewBag.ListContractStatus[masterData].Code == "DRAFT")
+                                                        {
+                                                            <select class="optionSelect dropDownChangeToTrack" data-route="@Url.Action("IndexWarningMessageSendToTrack", "Contracts", new { area = "Clauses", contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, mainOperationNumber = Model[0].mainOperationNumber })">
+                                                                <option>@Localization.GetText("Draft")</option>
+                                                                @if (Html.HasPermission("Clauses Write"))
+                                                                {
+                                                                    <option id="track">@Localization.GetText("CL.SendToTrack")</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else if (ViewBag.ListContractStatus[masterData].Code == "TRACK")
+                                                        {
+                                                            <select class="optionSelect dropDownChangeToRecord" data-currentvalue="Index" data-route="@Url.Action("IndexWarningMessageSendToRecord", "Contracts", new { area = "Clauses", contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, mainOperationNumber = Model[0].mainOperationNumber })">
+                                                                <option value="Index">@Localization.GetText("CL.Track")</option>
+                                                                @if (Html.HasPermission("Clauses Write"))
+                                                                {
+                                                                    <option value="Record">@Localization.GetText("CL.SendToRecord")</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else if (ViewBag.ListContractStatus[masterData].Code == "RECORD")
+                                                        {
+                                                            <p>@Localization.GetText("Record")</p>
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                </div>
+
+                                <div class="clearfix"></div>
+                                
+
+                                <div class="mod_style mod_tabla_plegable mod_style_plegable">
+
+                                    @Html.Hidden("ConstantSentToTrack", Localization.GetText("CL.SendToTrack"))
+                                    @Html.Hidden("ConstantSentToTrackWidthDraw", Localization.GetText("Send to Track Withdraw"))
+                                    @Html.Hidden("ConstantDelete", Localization.GetText("Delete Clause"))
+                                    @Html.Hidden("ConstantCreateClause", Localization.GetText("Create Extension"))
+                                    <!--**
+                                    * Jira ID: CON-711
+                                    * Fix Description: Clauses - stay on the same page on the clause table
+                                    * Attended by: Harold Betancourt
+                                    * Date: 22/09/2014
+                                    * Begin Fix
+                                    **/-->
+                                    @{cont++;}
+                                    <table class="grid2" data-contractindex="@contractIndex" id="@string.Concat("TABLE",cont)">
+                                        <!--/** End Fix **/-->
+                                        <thead>
+                                            <tr>
+                                                @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                                {
+                                                    <th class="btn_azul_oscuro_flecha" style="width:130px">@Localization.GetText("CL.Conditions")</th>
+                                                }
+                                                else
+                                                {
+                                                    <th class="btn_azul_oscuro_flecha" style="width:130px">@Localization.GetText("Clauses")</th>
+                                                }
+                                                <th class="btn_azul_oscuro_flecha fixedLimitColumnForText">@Localization.GetText("Description")</th>
+                                                <th class="btn_azul_oscuro_flecha" style="word-wrap:normal;width:40px;">@Localization.GetText("LDC Dep.")</th>
+                                                <th class="btn_azul_oscuro_flecha fixedLimitColumnForText">@Localization.GetText("Category")</th>
+                                                <th class="btn_azul_oscuro_flecha">@Localization.GetText("Type")</th>
+                                                <th class="btn_azul_oscuro_flecha" style="text-align:center;">@Localization.GetText("Special")</th>
+                                                <th class="btn_azul_oscuro_flecha">@Localization.GetText("Location")</th>
+                                                @**
+                                                    * Jira ID: CON-735
+                                                    * Fix Description: remove unnecessary meta-data
+                                                    * Attended by: Jhon Astaiza
+                                                    * Date: 10/09/2014
+                                                    * Begin Fix
+                                                    **@
+                                                <th class="btn_azul_oscuro_flecha">@Localization.GetText("Expiration")</th>
+                                                <th class="btn_azul_oscuro_flecha">@Localization.GetText("Submission")</th>
+                                                <th class="btn_azul_oscuro_flecha">@Localization.GetText("Approval")</th>
+                                                @**
+                                                    * End Fix
+                                                    **@
+
+                                                <th class="btn_azul_oscuro_flecha">@Localization.GetText("Status")</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="k-alt">
+                                            @foreach (var Clause in Model.ElementAt(operationIndex).Contracts[contractIndex].Clauses)
+                                            {
+                                                foreach (var clauseIndividual in Clause.ClauseIndividuals)
+                                                {
+
+                                                    TimeSpan tsDifference = clauseIndividual.CurrentExpirationDate != null ? (DateTime)clauseIndividual.CurrentExpirationDate - DateTime.Today : (DateTime)clauseIndividual.OriginalExpirationDate - DateTime.Today;
+                                                    int dateExpDifference = tsDifference.Days;
+
+                                                    <tr style="background-color: white">
+                                                        <td style="padding-left: 10px;vertical-align:middle">
+
+                                                            @foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                            {
+                                                                if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                {
+                                                                    if (masterData2.Code == "CL_TR")
+                                                                    {
+                                                                        if (dateExpDifference < 0)
+                                                                        {
+                                                                            <div class="expire-clause-icon expired-icon" style="width: 6px; height: 6px; float: left; position: relative; top: 4px;"></div>
+                                                                        }
+                                                                        else if (dateExpDifference >= 0 && dateExpDifference < 11)
+                                                                        {
+                                                                            <div class="expire-clause-icon expire-10-days-icon" style="width: 6px; height: 6px; float: left; position: relative; top: 4px;"></div>
+                                                                        }
+                                                                        else if (dateExpDifference >= 11 && dateExpDifference <= 30)
+                                                                        {
+                                                                            <div class="expire-clause-icon expire-beyond-11-days-icon" style="width: 6px; height: 6px; float: left; position: relative; top: 4px;"></div>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <div class="expire-clause-icon" style="width: 6px; height: 6px; float: left; border-color: transparent; position: relative; top: 4px;"></div>
+                                                                        }
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <div class="expire-clause-icon" style="width: 6px; height: 6px; float: left; border-color: transparent; position: relative; top: 4px;"></div>
+                                                                    }
+                                                                    if (masterData2.Code == "CL_TR_W")
+                                                                    {
+                                                                        if (Html.HasPermission("Clauses Write"))
+                                                                        {
+                                                                            <a name="details" style="float:left;margin-left:10px" href="@(Url.Action("Edit", "Clause", new { area = "Clauses", operationId = Model.ElementAt(operationIndex).OperationId, contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, clauseId = Clause.ClauseId, clauseIndividualId = clauseIndividual.ClauseIndividualId, mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber }))">@Clause.ClauseNumber@clauseIndividual.Suffix</a>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <a name="details" style="float:left;margin-left:10px" href="@(Url.Action("Details", "Clause", new { area = "Clauses", operationId = Model.ElementAt(operationIndex).OperationId, contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, clauseId = Clause.ClauseId, clauseIndividualId = clauseIndividual.ClauseIndividualId, mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber }))">@Clause.ClauseNumber@clauseIndividual.Suffix</a>
+                                                                        }
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <a name="details" style="float:left;margin-left:10px" href="@(Url.Action("Details", "Clause", new { area = "Clauses", operationId = Model.ElementAt(operationIndex).OperationId, contractId = Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractId, clauseId = Clause.ClauseId, clauseIndividualId = clauseIndividual.ClauseIndividualId, mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber }))">@Clause.ClauseNumber@clauseIndividual.Suffix</a>
+                                                                    }
+                                                                    break;
+                                                                }
+                                                            }
+                                                        </td>
+
+                                                        @foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                        {
+                                                            if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                            {
+                                                                foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                {
+                                                                    if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                    {
+                                                                        string itemValidationStageCode = itemValidationStage.Code;
+                                                                        if (itemValidationStageCode.Contains("CL_REV"))
+                                                                        {
+                                                                            <td>@Clause.Description</td>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                            {
+                                                                                <td class="fixedLimitColumnForText" style="color:red">@Clause.Description</td>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <td class="fixedLimitColumnForText">@Clause.Description</td>
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        @if (Clause.ExpirationToDependencyCode == "LASTCD" || Clause.ExpirationFromDependencyCode == "LASTCD")
+                                                        {
+                                                            <td style="padding-left: 10px;vertical-align:middle">
+                                                                <div class="lcd-Dependency-clause-icon lcd-dependency-icon"
+                                                                     style="width: 6px; height: 6px;float:left;
+                                                                     position: relative; top: 4px;
+                                                                     margin-left:25%;
+                                                                     vertical-align:middle;">
+                                                                </div>
+                                                            </td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td></td>
+                                                        }
+
+                                                        @foreach (var masterData1 in ViewBag.ListClauseCategory)
+                                                        {
+                                                            if (masterData1.ConvergenceMasterDataId == Clause.CategoryId)
+                                                            {
+                                                                foreach (var masterData in ViewBag.ListClauseLocation)
+                                                                {
+                                                                    if (masterData.ConvergenceMasterDataId == Clause.LocationId)
+                                                                    {
+                                                                        foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                                        {
+                                                                            if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                            {
+                                                                                foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                                {
+                                                                                    if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                                    {
+                                                                                        string itemValidationStageCode = itemValidationStage.Code;
+                                                                                        if (itemValidationStageCode.Contains("CL_REV"))
+                                                                                        {
+                                                                                            <td class="fixedLimitColumnForText">@Localization.GetText(masterData1.NameEn)</td>
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                                ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                                            {
+                                                                                                <td class="fixedLimitColumnForText" style="color:red">@Localization.GetText(masterData1.NameEn)</td>
+                                                                                            }
+                                                                                            else
+                                                                                            {
+                                                                                                <td class="fixedLimitColumnForText">@Localization.GetText(masterData1.NameEn)</td>
+                                                                                            }
+                                                                                        }
+                                                                                    }
+
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        @foreach (var masterData1 in ViewBag.ListClauseType)
+                                                        {
+                                                            if (masterData1.ConvergenceMasterDataId == Clause.ClauseTypeId)
+                                                            {
+                                                                foreach (var masterData in ViewBag.ListClauseLocation)
+                                                                {
+                                                                    if (masterData.ConvergenceMasterDataId == Clause.LocationId)
+                                                                    {
+                                                                        foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                                        {
+                                                                            if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                            {
+                                                                                foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                                {
+                                                                                    if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                                    {
+                                                                                        string itemValidationStageCode = itemValidationStage.Code;
+                                                                                        if (itemValidationStageCode.Contains("CL_REV"))
+                                                                                        {
+                                                                                            <td>@Localization.GetText(masterData1.NameEn)</td>
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                                ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                                            {
+                                                                                                <td style="color:red">@Localization.GetText(masterData1.NameEn)</td>
+                                                                                            }
+                                                                                            else
+                                                                                            {
+                                                                                                <td>@Localization.GetText(masterData1.NameEn)</td>
+                                                                                            }
+                                                                                        }
+                                                                                    }
+
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        @*Special*@
+
+                                                        @if (Clause.IsSpecial)
+                                                        {
+                                                            foreach (var masterData in ViewBag.ListClauseLocation)
+                                                            {
+                                                                if (masterData.ConvergenceMasterDataId == Clause.LocationId)
+                                                                {
+                                                                    foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                                    {
+                                                                        if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                        {
+                                                                            foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                            {
+                                                                                if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                                {
+                                                                                    string itemValidationStageCode = itemValidationStage.Code;
+                                                                                    if (itemValidationStageCode.Contains("CL_REV"))
+                                                                                    {
+                                                                                        <td class="fixedTextCenter">@Localization.GetText("Yes")</td>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                            ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                                        {
+                                                                                            <td class="fixedTextCenter" style="color:red; text-align:center;">@Localization.GetText("Yes")</td>
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            <td class="fixedTextCenter">@Localization.GetText("Yes")</td>
+                                                                                        }
+                                                                                    }
+                                                                                }
+
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            foreach (var masterData in ViewBag.ListClauseLocation)
+                                                            {
+                                                                if (masterData.ConvergenceMasterDataId == Clause.LocationId)
+                                                                {
+                                                                    foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                                    {
+                                                                        if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                        {
+                                                                            foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                            {
+                                                                                if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                                {
+                                                                                    string itemValidationStageCode = itemValidationStage.Code;
+                                                                                    if (itemValidationStageCode.Contains("CL_REV"))
+                                                                                    {
+                                                                                        <td class="fixedTextCenter">@Localization.GetText("No")</td>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                            ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                                        {
+                                                                                            <td class="fixedTextCenter" style="color:red;text-align:center;">@Localization.GetText("No")</td>
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            <td class="fixedTextCenter">@Localization.GetText("No")</td>
+                                                                                        }
+                                                                                    }
+                                                                                }
+
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+
+                                                        @foreach (var masterData in ViewBag.ListClauseLocation)
+                                                        {
+                                                            if (masterData.ConvergenceMasterDataId == Clause.LocationId)
+                                                            {
+                                                                foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                                {
+                                                                    if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                    {
+                                                                        foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                        {
+                                                                            if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                            {
+                                                                                string itemValidationStageCode = itemValidationStage.Code;
+                                                                                if (itemValidationStageCode.Contains("CL_REV"))
+                                                                                {
+                                                                                    <td>@Localization.GetText(masterData.NameEn)</td>
+                                                                                }
+                                                                                else
+                                                                                {
+                                                                                    if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                        ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                                    {
+                                                                                        <td style="color:red">@Localization.GetText(masterData.NameEn)</td>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <td>@Localization.GetText(masterData.NameEn)</td>
+                                                                                    }
+                                                                                }
+                                                                            }
+
+                                                                        }
+                                                                    }
+                                                                }
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        @foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                        {
+                                                            if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                            {
+                                                                foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                {
+                                                                    if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                    {
+                                                                        string itemValidationStageCode = itemValidationStage.Code;
+                                                                        if (itemValidationStageCode.Contains("CL_REV"))
+                                                                        {
+                                                                            <td>@String.Format("{0:dd MMM yyy}", clauseIndividual.CurrentExpirationDate)</td>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                            {
+                                                                                <td style="color:red">@String.Format("{0:dd MMM yyy}", clauseIndividual.CurrentExpirationDate)</td>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <td>@String.Format("{0:dd MMM yyy}", clauseIndividual.CurrentExpirationDate)</td>
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        @foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                        {
+                                                            if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                            {
+                                                                foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                {
+                                                                    if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                    {
+                                                                        string itemValidationStageCode = itemValidationStage.Code;
+                                                                        if (itemValidationStageCode.Contains("CL_REV"))
+                                                                        {
+                                                                            <td>@String.Format("{0:dd MMM yyy}", clauseIndividual.SubmissionDate)</td>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                            {
+                                                                                <td style="color:red">@String.Format("{0:dd MMM yyy}", clauseIndividual.SubmissionDate)</td>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <td>@String.Format("{0:dd MMM yyy}", clauseIndividual.SubmissionDate)</td>
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        @if (clauseIndividual.ValidateDate != null)
+                                                        {
+                                                            foreach (var masterData2 in ViewBag.ListClauseStatus)
+                                                            {
+                                                                if (masterData2.ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                {
+                                                                    foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                    {
+                                                                        if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                        {
+                                                                            string itemValidationStageCode = itemValidationStage.Code;
+                                                                            if (itemValidationStageCode.Contains("CL_REV"))
+                                                                            {
+                                                                                <td>@String.Format("{0:dd MMM yyy}", clauseIndividual.ValidateDate)</td>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                if ((DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) > 0 || DateTime.Compare(DateTime.Now, Convert.ToDateTime(clauseIndividual.CurrentExpirationDate)) == 0) &&
+                                                                                    ((masterData2.Code == "CL_TR_W") || (masterData2.Code == "CL_TR") || (masterData2.Code == "CL_DRAFT")))
+                                                                                {
+                                                                                    <td style="color:red">@String.Format("{0:dd MMM yyy}", clauseIndividual.ValidateDate)</td>
+                                                                                }
+                                                                                else
+                                                                                {
+                                                                                    <td>@String.Format("{0:dd MMM yyy}", clauseIndividual.ValidateDate)</td>
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <td></td>}
+
+                                                        <td>
+                                                            @for (var CountClauseStatus = 0; CountClauseStatus < ViewBag.ListClauseStatus.Count; CountClauseStatus++)
+                                                            {
+                                                                if (ViewBag.ListClauseStatus[CountClauseStatus].ConvergenceMasterDataId == clauseIndividual.StatusId)
+                                                                {
+                                                                    switch ((string)ViewBag.ListClauseStatus[CountClauseStatus].Code)
+                                                                    {
+                                                                        case "CL_DRAFT":
+                                                                            foreach (var itemClauseCategory in ViewBag.ListClauseCategory)
+                                                                            {
+                                                                                if (itemClauseCategory.ConvergenceMasterDataId == Clause.CategoryId)
+                                                                                {
+                                                                                    if (itemClauseCategory.Code != "LASTD")
+                                                                                    {
+                                                                                        <select class="optionSelect innerSelect innerSelect" name="track" onchange="DeleteClause(this)">
+                                                                                            <option>@Localization.GetText("Draft")</option>
+                                                                                            @if (Html.HasPermission("Clauses Write"))
+                                                                                            {
+                                                                                                <option title="@Localization.GetText("CL.SendToTrack")" data-action="Send to Track" value="@Url.Action("EditClauseToTrack", "Clause",
+                                                                                new
+                                                                                {
+                                                                                    area = "Clauses",
+                                                                                    clauseId = Clause.ClauseId,
+                                                                                    clauseIndividualId = clauseIndividual.ClauseIndividualId,
+                                                                                    mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                })">
+                                                                                                    @Localization.GetText("CL.SendToTrack")
+                                                                                                </option>
+                                                                                                if (itemClauseCategory.Code != ClauseConstants.SIGNATURE_CATEGORY)
+                                                                                                {
+                                                                                                    <option title="@Localization.GetText("Delete")"
+                                                                                                            data-action="Delete Clause" value="@Url.Action("DeleteItem", "Clause", new { area = "Clauses", operationId = Model.ElementAt(operationIndex).OperationId, contractId = Model.ElementAt(operationIndex).Contracts[contractIndex].ContractId, clauseId = Clause.ClauseId, clauseIndividualId = clauseIndividual.ClauseIndividualId, extensionId = 0, RevolvingFund = 0, entityRelated = "", year = 0, entityRegisterId = 0, visualProjectId = 0, visualProjectVersionId = 0, documentId = 0, userCommentId = 0, itemToDelete = "Clause", mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber })">
+                                                                                                        @Localization.GetText("Delete Clause")
+                                                                                                    </option>
+                                                                                                }
+                                                                                            }
+                                                                                        </select>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <select class="optionSelect innerSelect" name="track" data-action="Send to Track" onchange="Changelocation(this)">
+                                                                                            <option>@Localization.GetText("Draft")</option>
+                                                                                            @if (Html.HasPermission("Clauses Write"))
+                                                                                            {
+                                                                                                <option value="@Url.Action("EditClauseToTrack", "Clause",
+                                                                                new
+                                                                                {
+                                                                                    area = "Clauses",
+                                                                                    clauseId = Clause.ClauseId,
+                                                                                    clauseIndividualId = clauseIndividual.ClauseIndividualId,
+                                                                                    mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                })">
+                                                                                                    @Localization.GetText("CL.SendToTrack")
+                                                                                                </option>
+                                                                                            }
+                                                                                        </select>
+                                                                                    }
+                                                                                    break;
+                                                                                }
+                                                                            }
+
+                                                                            break;
+
+                                                                        case ClauseConstants.TR_CLAUSE_STATUS:
+                                                                            foreach (var itemClauseCategory in ViewBag.ListClauseCategory)
+                                                                            {
+                                                                                if (itemClauseCategory.ConvergenceMasterDataId == Clause.CategoryId)
+                                                                                {
+                                                                                    foreach (var itemValidationStage in ViewBag.ListValidationStage)
+                                                                                    {
+                                                                                        if (itemValidationStage.ConvergenceMasterDataId == clauseIndividual.ValidationStageId)
+                                                                                        {
+                                                                                            if (itemValidationStage.Code == ClauseConstants.CLAUSE_STAGE_REVIEW ||
+                                                                                                itemValidationStage.Code == ClauseConstants.CLAUSE_STAGE_REV_LMS ||
+                                                                                                itemValidationStage.Code == ClauseConstants.CLAUSE_STAGE_REV_EXT)
+                                                                                            {
+                                                                                                <p>@Localization.GetText(itemValidationStage.NameEn)</p>
+                                                                                            }
+                                                                                            else
+                                                                                            {
+                                                                                                <select class="optionSelect innerSelect" name="track" onchange="Changelocation(this)">
+                                                                                                    <option>@Localization.GetText("CL.Track")</option>
+
+                                                                                                    @if (Html.HasPermission(Permission.CLAUSES_WRITE) &&
+                                                                                                        itemClauseCategory.Code != ClauseConstants.LAST_DISBURMENT &&
+                                                                                                        itemClauseCategory.Code != ClauseConstants.SIGNATURE_CATEGORY)
+                                                                                                    {
+                                                                                                        <option data-action="Send to Track Withdraw"
+                                                                                                            value="@Url.Action("EditClauseToTrackWithdraw", "Clause",
+                                                                                                            new
+                                                                                                            {
+                                                                                                                area = "Clauses",
+                                                                                                                clauseIndividualId = clauseIndividual.ClauseIndividualId,
+                                                                                                                mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                                            })">
+                                                                                                            @Localization.GetText("Send to Track Withdraw")
+                                                                                                        </option>
+                                                                                                    }
+
+                                                                                                    @if (Html.HasPermission(Permission.EXTENSION_WRITE))
+                                                                                                    {
+                                                                                                        <option value="@(Url.Action("CreateExtension", "Clause",
+                                                                                                            new
+                                                                                                            {
+                                                                                                                area = "Clauses",
+                                                                                                                operationId = Model.ElementAt(operationIndex).OperationId,
+                                                                                                                contractId = Model.ElementAt(operationIndex).Contracts[contractIndex].ContractId,
+                                                                                                                clauseId = Clause.ClauseId,
+                                                                                                                clauseIndividualId = clauseIndividual.ClauseIndividualId,
+                                                                                                                mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                                            }))">
+                                                                                                            @Localization.GetText("Create Extension")
+                                                                                                        </option>
+                                                                                                    }
+                                                                                                </select>
+                                                                                            }
+                                                                                            break;
+                                                                                        }
+                                                                                    }
+                                                                                    break;
+                                                                                }
+                                                                            }
+
+                                                                            break;
+                                                                        case "CL_TR_W":
+                                                                            foreach (var itemClauseCategory in ViewBag.ListClauseCategory)
+                                                                            {
+                                                                                if (itemClauseCategory.ConvergenceMasterDataId == Clause.CategoryId)
+                                                                                {
+                                                                                    if (itemClauseCategory.Code != "LASTD")
+                                                                                    {
+                                                                                        <select class="optionSelect estemalo1 innerSelect" name="track" onchange="DeleteClause(this)">
+                                                                                            <option>@Localization.GetText("Track Withdraw")</option>
+                                                                                            @if (Html.HasPermission("Clauses Write"))
+                                                                                            {
+                                                                                                <option data-action="Send to Track" value="@Url.Action("EditClauseToTrack", "Clause", new
+                                                                                                                      {
+                                                                                                                          area = "Clauses",
+                                                                                                                          clauseId = @Clause.ClauseId,
+                                                                                                                          clauseIndividualId = @clauseIndividual.ClauseIndividualId,
+                                                                                                                          mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                                                      })">
+                                                                                                    @Localization.GetText("CL.SendToTrack")
+                                                                                                </option>
+
+                                                                                                if (itemClauseCategory.Code != ClauseConstants.SIGNATURE_CATEGORY)
+                                                                                                {
+                                                                                                    <option data-action="Delete Clause" value="@Url.Action("DeleteItem", "Clause", new
+                                                                                                                                      {
+                                                                                                                                          area = "Clauses",
+                                                                                                                                          operationId = Model.ElementAt(operationIndex).OperationId,
+                                                                                                                                          contractId = Model.ElementAt(operationIndex).Contracts[contractIndex].ContractId,
+                                                                                                                                          clauseId = Clause.ClauseId,
+                                                                                                                                          clauseIndividualId = clauseIndividual.ClauseIndividualId,
+                                                                                                                                          extensionId = 0,
+                                                                                                                                          RevolvingFund = 0,
+                                                                                                                                          entityRelated = string.Empty,
+                                                                                                                                          year = 0,
+                                                                                                                                          entityRegisterId = 0,
+                                                                                                                                          visualProjectId = 0,
+                                                                                                                                          visualProjectVersionId = 0,
+                                                                                                                                          documentId = 0,
+                                                                                                                                          userCommentId = 0,
+                                                                                                                                          itemToDelete = "Clause",
+                                                                                                                                          mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                                                                      })">
+                                                                                                        @Localization.GetText("Delete Clause")
+                                                                                                    </option>
+                                                                                                }
+                                                                                            }
+                                                                                        </select>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <select class="optionSelect estemalo2 innerSelect" name="track" onchange="Changelocation(this)">
+                                                                                            <option>@Localization.GetText("Track Withdraw")</option>
+                                                                                            @if (Html.HasPermission("Clauses Write"))
+                                                                                            {
+                                                                                                <option data-action="Send to Track" value="@Url.Action("EditClauseToTrack", "Clause",
+                                                                                new
+                                                                                {
+                                                                                    area = "Clauses",
+                                                                                    clauseId = Clause.ClauseId,
+                                                                                    clauseIndividualId = @clauseIndividual.ClauseIndividualId,
+                                                                                    mainOperationNumber = Model.ElementAt(operationIndex).mainOperationNumber
+                                                                                })">
+                                                                                                    @Localization.GetText("CL.SendToTrack")
+                                                                                                </option>
+                                                                                            }
+                                                                                        </select>
+                                                                                    }
+                                                                                    break;
+                                                                                }
+                                                                            }
+                                                                            break;
+                                                                        case "CL_REV":
+                                                                        <p>@Localization.GetText("Review")</p>
+                                                                            break;
+                                                                        case "CL_FULFIL":
+                                                                        <p>@Localization.GetText(ViewBag.ListClauseStatus[CountClauseStatus].NameEn)  @*@Localization.GetText("Fulfillment")*@</p>
+                                                                            break;
+                                                                        case ClauseStatusConstants.UNFULLFILLED:
+                                                                        case ClauseStatusConstants.WAIVED:
+                                                                        <p>@ViewBag.ListClauseStatus[CountClauseStatus].GetNameLanguage(Localization.CurrentLanguage)</p>
+                                                                            break;
+                                                                        case "CL_REV_EXT":
+                                                                        <p>@Localization.GetText("Reviewed (Extension)")</p>
+                                                                            break;
+                                                                        case "CL_REV_LMS":
+                                                                        <p>@Localization.GetText("Reviewed (Extension)")</p>
+                                                                            break;
+                                                                        case "RECORD":
+                                                                        <p>@Localization.GetText("Record")</p>
+                                                                            break;
+                                                                    }
+                                                                }
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                    @for (var masterData = 0; masterData < ViewBag.ListContractStatus.Count; masterData++)
+                                    {
+                                        if (ViewBag.ListContractStatus[masterData].ConvergenceMasterDataId == @Model.ElementAt(operationIndex).Contracts.ElementAt(contractIndex).ContractClauseStatId)
+                                        {
+                                            if ((ViewBag.ListContractStatus[masterData].Code == "DRAFT") || (ViewBag.ListContractStatus[masterData].Code == "TRACK"))
+                                            {
+                                                <div class="k-toolbar">
+                                                    @if (@Model.ElementAt(operationIndex).Contracts[contractIndex].Clauses.Count > 0)
+                                                    {
+                                                        if (Html.HasPermission("Clauses Write"))
+                                                        {
+                                                            if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                                            {
+                                                                <a href="@(Url.Action("Create", "Clause",
+                                                                         new { area = "Clauses",
+                                                                             operationId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .OperationId,
+                                                                             contractId = @Model
+                                                                                .ElementAt( operationIndex)
+                                                                                .Contracts[contractIndex]
+                                                                                .ContractId,
+                                                                             mainOperationNumber = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .mainOperationNumber }))"
+                                                                    title="@Localization.GetText("CL.NewCondition")" 
+                                                                    class="newIndicator">
+                                                                    <span class="k-button-"><span class="k-button-left-x">+</span>@Localization.GetText("CL.NewCondition")<span class="k-button-right-x">+</span></span>
+                                                                </a>
+                                                            }
+                                                            else
+                                                            {
+                                                                <a href="@(Url.Action("Create", "Clause",
+                                                                         new { area = "Clauses",
+                                                                             operationId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .OperationId,
+                                                                             contractId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .Contracts[contractIndex]
+                                                                                .ContractId,
+                                                                             mainOperationNumber = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .mainOperationNumber }))"
+                                                                    title="@Localization.GetText("New Clause")" 
+                                                                    class="newindicator">
+                                                                    <span class="k-button-"><span class="k-button-left-x">+</span>@Localization.GetText("New Clause")<span class="k-button-right-x">+</span></span>
+                                                                </a>
+                                                            }
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        if (Html.HasPermission("Last Disbursement Clause Write"))
+                                                        {
+                                                            if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                                            {
+                                                                <a href="@(Url.Action("Create", "Clause",
+                                                                         new { area = "Clauses",
+                                                                             operationId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .OperationId,
+                                                                             contractId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .Contracts[contractIndex]
+                                                                                .ContractId,
+                                                                             mainOperationNumber = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .mainOperationNumber }))" 
+                                                                   title="@Localization.GetText("CL.NewCondition")" 
+                                                                   class="newIndicator">
+                                                                    <span class="k-button-"><span class="k-button-left-x">+</span>@Localization.GetText("CL.NewCondition")<span class="k-button-right-x">+</span></span>
+                                                                </a>
+                                                            }
+                                                            else
+                                                            {
+                                                                <a href="@(Url.Action("Create", "Clause",
+                                                                         new { area = "Clauses",
+                                                                             operationId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .OperationId,
+                                                                             contractId = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .Contracts[contractIndex]
+                                                                                .ContractId,
+                                                                             mainOperationNumber = @Model
+                                                                                .ElementAt(operationIndex)
+                                                                                .mainOperationNumber }))"
+                                                                 title="@Localization.GetText("New Clause")" 
+                                                                 class="newindicator">
+                                                                    <span class="k-button-"><span class="k-button-left-x">+</span>@Localization.GetText("New Clause")<span class="k-button-right-x">+</span></span>
+                                                                </a>
+                                                            }
+                                                        }
+                                                    }
+                                                </div>
+                                            }
+                                            break;
+                                        }
+                                    }
+
+                                    <div class="plegableSeparator"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+        </section>
+        @if (Validator == 1)
+        {<br />
+            <div style="text-align:right;width:97%;">
+                <a title="Export PDF" style="color:white;border-radius:4px;" class="exportdata pdf" href='@(Url.Action("DownloadReport", "Contracts", new { area = "Clauses", format = "pdf", operationNumber = @Model[0].OperationNumber }))'></a>
+                <a title="Export Excel" style="color:white;border-radius:4px;" class="exportdata excel" href='@(Url.Action("DownloadReport", "Contracts", new { area = "Clauses", format = "xls", operationNumber = @Model[0].OperationNumber }))'></a>
+            </div>   <br />
+        }
+
+        @*Legend icon expired*@
+        <div>
+            <table style="margin-left:50px">
+                <tr style="background-color: white">
+                    <td style="padding-left: 10px;vertical-align:middle"><div class="expire-clause-icon expired-icon" style="width: 6px; height: 6px"></div></td>
+                    <td style="padding-left: 10px; padding-bottom: 6px; vertical-align: middle; font-size: small">@Localization.GetText("Expired")</td>
+                </tr>
+                <tr style="background-color: white;">
+                    <td style="padding-left: 10px; vertical-align: middle"><div class="expire-clause-icon expire-10-days-icon" style="width: 6px; height: 6px;"></div></td>
+                    <td style="padding-left: 10px; padding-bottom: 6px; vertical-align: middle; font-size:small">@Localization.GetText("10 days to Expiration")</td>
+                </tr>
+                <tr style="background-color: white;">
+                    <td style="padding-left: 10px; vertical-align: middle"><div class="expire-clause-icon expire-beyond-11-days-icon" style="width: 6px; height: 6px;"></div></td>
+                    <td style="padding-left: 10px; padding-bottom: 6px; vertical-align: middle;font-size:small">@Localization.GetText("11 – 30 days to expiration")</td>
+                </tr>
+            </table>
+        </div>
+
+    </form>
+</body>

@@ -1,0 +1,506 @@
+﻿@model IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Outcomes.OutcomesDataViewModel
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+}
+<input hidden data-idb-pagename="UI-OC-001-Outcome" />
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Messages/jquery_notification.css")" />
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery-1.10.2.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Messages/jquery_notification.js")"></script>
+<script src="~/Scripts/Mainframe/fixIframe.js"></script>
+<script type="text/javascript">
+
+    function EditValidation() {
+        showLoader();
+        var disaggregationValue = $(".square-button.collapse-disaggregations").data("expanded");
+        var url = ('@Url.Action("Edit", "Outcomes", new { area = "TCM" })');
+        location.href = url + "?isDisaggregation=" + disaggregationValue;
+    }
+
+    function isDisaggregation() {
+        var disaggregation = $(".square-button.collapse-disaggregations").data("expanded");
+        if (Boolean(getUrl) !== Boolean(disaggregation)) {
+            $(".square-button.collapse-disaggregations").click();
+        }
+    };
+
+    $(document).ready(function () {
+        decimalNumber();
+        $('#outcomes-container').closest('section').addClass('containerOutcomeDetail');
+        $(".btn-action-group").click(function (e) {
+            $(this).hasClass("activo")
+            ? $(this).removeClass("activo")
+            : $(this).addClass("activo");
+
+            var collapsableClass = $(this).data("collapsable-element");
+            var spanIcons = $("." + collapsableClass + ".icon");
+            $.each(spanIcons, function (index, spanIcon) {
+                CollapseTable(spanIcon);
+            });
+        });
+
+        $(".square-button.collapse-disaggregations").click(function (e) {
+            var collapsableElement = $(this).data("collapsable-element");
+            var isExpanded = $(this).data("expanded");
+            if (isExpanded) {
+                $(this).val('@Localization.GetText("TCM.Outcome.ShowDisaggregation")');
+                $(this).addClass("pressed");
+                $(this).data("expanded", false);
+                $('tr.row-disaggregation').hide();
+                $('[name="tableDisaggregation"]').addClass('hide');
+                $('.tree.disaggregation').find('.icon').attr("style", "margin-top: 5px;");
+                $('.tree.disaggregation').find('.icon').removeAttr("style", "margin-top: 50%;");
+                $('.tree.disaggregation').find('.icon').text("-");
+            } else {
+                $(this).val('@Localization.GetText("TCM.Outcome.HideDisaggregation")');
+                $(this).removeClass("pressed");
+                $(this).data("expanded", true);
+                $('tr.row-disaggregation').removeAttr('style', 'display: table-row;');
+                $('tr.row-disaggregation').show();
+                $('[name="tableDisaggregation"]').removeClass('hide');
+                $('.tree.disaggregation').find('.icon').attr("style", "margin-top: 50%;");
+                $('.tree.disaggregation').find('.icon').removeAttr("style", "margin-top: 5px;");
+                $('.tree.disaggregation').find('.icon').text("+");
+            }
+
+            var spanIcons = $("." + collapsableElement)
+                .find("th.disaggregation span.icon");
+
+            $.each(spanIcons, function (index, spanIcon) {
+                $("." + collapsableElement).show();
+                CollapseTable(spanIcon);
+                if (isExpanded == true) {
+                    $('tr.row-disaggregation').hide();
+                } else {
+                    $('tr.row-disaggregation').show();
+                }
+            });
+        });
+
+        $(".btnCollapseAll.buttonExpand.collapse").click(function () {
+
+            $("th.disaggregation").each(function () {
+                if ($(this).find('span.hide').length > 0) {
+                    $(this).closest("table").find("tbody tr[data-id]").addClass("hide");
+                }
+            });
+
+        });
+        isDisaggregation();
+        $(".disaggregation").click(function () {
+            validateDisaggregationButton();
+        });
+
+        $(document).on('click', '.showCRFInformation', function () {
+            var $crf = $('.block-crf-information');
+
+            if ($crf.hasClass('hide'))
+                $crf.removeClass('hide');
+            else
+                $crf.addClass('hide');
+        })
+
+    });
+
+    function validateDisaggregationButton() {
+        var totalDisaggregationElements = $(".disaggregation").length;
+        if ($(".disaggregation").find("span.hide").length === totalDisaggregationElements && $("input.collapse-disaggregations.pressed").length === 0 && totalDisaggregationElements > 0) {
+            $("input.collapse-disaggregations").click();
+        }
+        if ($(".disaggregation").find("span.hide").length === 0 && $("input.collapse-disaggregations.pressed").length === 1 && totalDisaggregationElements > 0) {
+            $("input.collapse-disaggregations").click();
+        }
+    };
+
+    function verifyContent() {
+        var url = '@Url.Action("VerifyContent", "VerifyContent", new { area = "TCM", resultsMatrixId = Model.ResultsMatrixId })';
+
+        postUrlWithOptions(url, { async: false })
+            .done(function (data) {
+                $('#verifyContentModal').html(data);
+                $('[data-id="buttonVerifyContent"]').click();
+                allowMultiPopUp();
+                resizeIframeCloud(0, 1000);
+            })
+            .fail(function (jqXhr, textStatus, errorThrown) {
+                showMessage(errorThrown);
+            });
+    }
+
+    function decimalNumber() {
+        $("[name='decimal-number']").each(function () {
+            var elem = parseFloat($(this).html()).toFixed(2);
+            if (elem != "NaN") {
+                $(this).html(elem);
+            }
+        });
+    }
+
+    function DownloadOutcomeDocument(source) {
+        var disaggregationO = false;
+        var buttoninactive = ('input.buttonWhite');
+        if ($(buttoninactive).hasClass('pressed')) {
+            disaggregationO = true;
+        }
+        var formatDoc = source.attr('name');
+        var url = '@Url.Action("DownloadFileOutcomes", "Outcomes", new { area = "TCM" })' + "?formatType=" + formatDoc + "&disaggregation=" + disaggregationO;
+        var data = { formatType: formatDoc, disaggregation: disaggregationO };
+        postUrlWithOptions(url, null, data).done(function () {
+            window.open(url, '_blank');
+        });
+    }
+
+    function getUrlVars() {
+        var vars = [], hash;
+        var hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+        for (var i = 0; i < hashes.length; i++) {
+            hash = hashes[i].split('=');
+            vars.push(hash[0]);
+            vars[hash[0]] = hash[1];
+        }
+        return vars;
+    }
+    var getUrl = getUrlVars()["isDisaggregation"];
+
+</script>
+
+<div id="divVerifyContent" hidden="hidden">
+    <button data-id="buttonVerifyContent" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="verifyContentModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("TCM.VerifyContent.Header")"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="verifyContentModal" class="hide modalBody"></div>
+</div>
+<span id="outcomes-container">
+    @{
+        var list = (Model != null && Model.Outcomes.Any() ? Model.Outcomes.Select(outcome => string.Format("tableTreeRowTitle{0}", outcome.OutcomeId)).ToList() : null);
+        int content = 0;
+    }
+    <div class="col-md-9">
+        <h2 class="titlePrincipal ml15">@Localization.GetText("TCM.Outcomes")</h2>
+    </div>
+@if (Model.IsCndOperation)
+{
+    <div class="col-md-12 text-center mt20">
+        @Confluence.LabelMainSubTitle(
+            Localization.GetText("TCM.Outcomes") +
+            Localization.GetText("GLOBAL.PAGE.NOT.AVAILABLE.CND"))
+    </div>
+}
+else
+{
+        <div class="col-md-6 floatRight pl0">
+            <div class="floatRight">
+                @Confluence.ButtonWhite(Localization.GetText("TCM.VerifyContent"), action: "verifyContent")
+                @if (Model.ShowEdit)
+                {
+                    <button class="buttonBlue" onclick="EditValidation()" data-idb-fieldname="btnEditOutcome" data-expanded="true">@Localization.GetText("TCM.Edit")</button>
+                }
+            </div>
+        </div>
+        <div id="partial-header-container">
+            @if (Model != null && Model.OperationInfo != null)
+            {
+                @Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/SharedHeader.cshtml", Model.OperationInfo)
+            }
+        </div>
+
+        if (Model != null)
+        {
+            if (Model.Outcomes.Any())
+            {
+                <div class=" contentFloats" style="overflow: visible">
+                    <div class="col-md-6 floatRight">
+                        <div class="floatRight">
+                            @Confluence.ButtonColapseAll(list, expandText: Localization.GetText("TCM.Outcome.ExpandOutcomes"), collapseText: Localization.GetText("TCM.Outcome.CollapseOutcomes"))
+                            <input type="button" class="buttonWhite square-button collapse-disaggregations" data-expanded="true" data-collapsable-element="row-disaggregation"
+                                   data-show-title="@Localization.GetText("TCM.Outcome.ShowDisaggregation")" data-hide-title="@Localization.GetText("TCM.Outcome.HideDisaggregation")"
+                                   value="@Localization.GetText("TCM.Outcome.HideDisaggregation")"/>
+                            <input name="btn-edit-show-disaggregations" type="button"
+                                   class="buttonWhite square-button narrow showCRFInformation"
+                                   value="@Localization.GetText("PI.BtnText.CRFInformation")" />
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="col-md-12 text-center">
+                    @Confluence.LabelMainSubTitle(Localization.GetText("TCM.Outcome.NoOutcomesFound"))
+                </div>
+            }
+
+            <div class="overflow col-md-12">
+                @foreach (var outcome in Model.Outcomes)
+                {
+                    <span>
+                        <table id="@string.Format("tableTreeRowTitle{0}", outcome.OutcomeId)" class="tableNormal lineNonStop tablePrincipal">
+                            <thead>
+                                <tr>
+                                    <td class="treeNumber">@outcome.OrderNumber</td>
+                                    <th class="tree icon">@ControlTemplatesTCM.ButtonExpandTable("Outcome Indicator Name")<div class="number">@outcome.OrderNumber</div></th>
+                                    <td class="tcmTitleTable" ng-form="Outcome_Statement" colspan="@(5 + Model.ExistingPlannedYears.Count())">
+                                        <div class="textBreakOutcome">@Localization.GetText("TCM.Outcome.OutcomeStatement"): @outcome.Statement</div>
+                                        <span></span>
+                                    </td>
+                                </tr>
+                                @if (outcome.OutcomeIndicators.Count != 0)
+                                {
+                                    content += outcome.OutcomeIndicators.Count;
+                                    <tr>
+                                        <td class="treeNumber"></td>
+                                        <td class="tree"><span></span><div class="number"></div></td>
+                                        <th class="wOutcomeHeader">@Localization.GetText("TCM.Outcome.IndicatorName")</th>
+                                        <th class="w80">@Localization.GetText("TCM.Outcome.UnitOfMeasure")</th>
+                                        <th class="w120">@Localization.GetText("TCM.Outcome.Baseline")</th>
+                                        <th class="w85">@Localization.GetText("TCM.Outcome.BaselineYear")</th>
+                                        <th class="outputPPaA"></th>
+                                        @foreach (var existingPlannedYear in Model.ExistingPlannedYears)
+                                        {
+                                            <th class="tcmHeaderYear">
+                                                <div class="floatLeft" style="width: calc(100% - 20px)">@existingPlannedYear.Year</div>
+                                            </th>
+                                        }
+                                        <th class="tcmHeaderYear">@Localization.GetText("TCM.Outcome.Eop") @Model.EndOfProjectYear</th>
+                                    </tr>
+                                }
+                            </thead>
+                            <tbody>
+                                @{
+                    var countIndicators = 0;
+                                }
+                                @foreach (var outcomeIndicator in outcome.OutcomeIndicators)
+                                {
+                                    string rowStyle = "";
+                                    if (Math.Pow(-1, countIndicators) < 0)
+                                    {
+                                        rowStyle = "custom-odd";
+                                    }
+                                    <tr class="@(rowStyle)">
+                                        <td class="treeNumber">@(outcome.OrderNumber + "." + outcomeIndicator.OrderNumber)</td>
+                                        <td class="tree"><span></span><div class="number">@(outcome.OrderNumber + "." + outcomeIndicator.OrderNumber)</div></td>
+                                        <td ng-form="OutcomeIndicator_Definition" class=" td-padding">
+                                            @foreach (var CRFIndicatorLinked in outcomeIndicator.CRFIndicatorsLinked)
+                                            {
+                                                <span class='predefined-indicator-icon crf-indicator-edit-mode'>&#9873</span>
+                                            }
+                                            <a href="@Url.Action("OutcomeDetail", "Outcomes", new { area = "TCM", paramsDetail = Html.Raw(Json.Encode(new IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Common.ParamsDetailViewModel { Id = outcomeIndicator.OutcomeIndicatorId, Interval = Model.Interval, TcmPeriodYear = (Model != null && Model.OperationInfo != null)? Model.OperationInfo.ReportingPeriod : 0})) })">
+                                                @(IDBContext.Current.CurrentLanguage == Language.ES ?
+                                                    outcomeIndicator.AlternativeDefinition :
+                                                    outcomeIndicator.Definition)
+                                            </a>
+
+                                            @if (outcomeIndicator.PredefinedIndicators.Count > 0)
+                                            {
+                                                <div class="pl10 pt10 block-crf-information hide">
+                                                    <span class="bold">@Localization.GetText("CRF:")</span>
+                                                    @foreach (var indicator in outcomeIndicator.PredefinedIndicators)
+                                                    {
+                                                        <p>
+                                                            <span class='predefined-indicator-icon crf-indicator-edit-mode'>&#9873</span>
+                                                            @indicator.IndicatorName
+                                                        </p>
+                                                    }
+                                                </div>
+                                            }
+
+                                        </td>
+                                        <td ng-form="OutcomeIndicator_UnitOfMeasure" class=" td-padding text-center">
+                                            @(IDBContext.Current.CurrentLanguage == Language.ES ?
+                                                    outcomeIndicator.AlternativeUnitOfMeasure :
+                                                    outcomeIndicator.UnitOfMeasure)
+                                        </td>
+                                        <td ng-form="OutcomeIndicator_BaseLine" class=" td-padding text-center" name="decimal-number">
+                                            @Confluence.LabelDecimal(outcomeIndicator.BaseLine)
+                                        </td>
+                                        <td ng-form="OutcomeIndicator_BaseLineYear" class=" td-padding text-center">
+                                            @outcomeIndicator.BaseLineYear
+                                        </td>
+                                        <td>
+                                            <table class="non-border-table wp100">
+                                                <tr class="input-text-Outcome">
+                                                    <td class="original-value-row text-center input-text-Outcome">@Localization.GetText("TCM.Outcome.P")</td>
+                                                </tr>
+                                                <tr class="input-text-Outcome">
+                                                    <td class="annual-value-row text-center input-text-Outcome">@Localization.GetText("TCM.Outcome.Pa")</td>
+                                                </tr>
+                                                <tr class="input-text-Outcome">
+                                                    <td class="actual-value-row text-center input-text-Outcome">@Localization.GetText("TCM.Outcome.A")</td>
+                                                </tr>
+                                            </table>
+                                        </td>
+
+                                        @foreach (var outcomeIndicatorYearPlan in outcomeIndicator.OutcomeIndicatorYearPlans)
+                                        {
+                                            <td>
+                                                <table class="non-border-table wp100">
+                                                    <tr class="input-text-Outcome">
+                                                        <td class="original-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                            @Confluence.LabelDecimal(outcomeIndicatorYearPlan.OriginalPlan)
+                                                        </td>
+                                                    </tr>
+                                                    <tr class="input-text-Outcome">
+                                                        <td class="annual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                            @Confluence.LabelDecimal(outcomeIndicatorYearPlan.AnnualPlan)
+                                                        </td>
+                                                    </tr>
+                                                    <tr class="input-text-Outcome">
+                                                        <td class="actual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                            @Confluence.LabelDecimal(outcomeIndicatorYearPlan.ActualValue)
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        }
+                                        <td>
+                                            <table class="non-border-table wp100">
+                                                <tr class="input-text-Outcome">
+                                                    <td class="original-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                        @Confluence.LabelDecimal(outcomeIndicator.EndOfProject.OriginalPlan)
+                                                    </td>
+                                                </tr>
+                                                <tr class="input-text-Outcome">
+                                                    <td class="annual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                        @Confluence.LabelDecimal(outcomeIndicator.EndOfProject.AnnualPlan)
+                                                    </td>
+                                                </tr>
+                                                <tr class="input-text-Outcome">
+                                                    <td class="actual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                        @Confluence.LabelDecimal(outcomeIndicator.EndOfProject.ActualValue)
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                    if (outcomeIndicator.OutcomeDisaggregations.Any())
+                                    {
+                                        var countDisaggregation = 0;
+                                        <tr class="row-disaggregation" ng-if="">
+                                            <td class="treeNumber"></td>
+                                            <td class="tree noNumber"><span></span><div class="number"></div></td>
+                                            <td colspan="@(7 + Model.ExistingPlannedYears.Count())" class="subnivel">
+                                                <div>
+                                                    <table class="tableNormal lineNonStop" name="tableDisaggregation">
+                                                        <thead>
+                                                            <tr>
+                                                                <th class="tree icon noCreateNumber disaggregation">@Confluence.ButtonExpandTable("", true)</th>
+                                                                <th class="w1600Disaggregation">@Localization.GetText("TCM.Outcome.DisaggregationCategories")</th>
+                                                                <th class="outputPPaA"></th>
+                                                                @foreach (var existingPlannedYear in Model.ExistingPlannedYears)
+                                                                {
+                                                                    <th class="tcmHeaderYear">
+                                                                        <span>@existingPlannedYear.Year</span>
+                                                                    </th>
+                                                                }
+                                                                <th class="tcmHeaderYear">@Localization.GetText("TCM.Outcome.Eop") @Model.EndOfProjectYear</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var OutcomeDisaggregation in outcomeIndicator.OutcomeDisaggregations)
+                                                            {
+                                                                string rowStyleDisaggregation = "";
+                                                                if (Math.Pow(-1, countDisaggregation) < 0)
+                                                                {
+                                                                    rowStyleDisaggregation = "custom-odd";
+                                                                }
+                                                                <tr data-id class="@(rowStyleDisaggregation)">
+                                                                    <td class="tree noCreateNumber"><span></span></td>
+                                                                    <td class="td-padding">
+                                                                        @OutcomeDisaggregation.DisaggregationName
+                                                                    </td>
+                                                                    <td>
+                                                                        <table class="non-border-table wp100">
+                                                                            <tr class="input-text-Outcome">
+                                                                                <td class="original-value-row text-center input-text-Outcome">@Localization.GetText("TCM.Outcome.P")</td>
+                                                                            </tr>
+                                                                            <tr class="input-text-Outcome">
+                                                                                <td class="annual-value-row text-center input-text-Outcome">@Localization.GetText("TCM.Outcome.Pa")</td>
+                                                                            </tr>
+                                                                            <tr class="input-text-Outcome">
+                                                                                <td class="actual-value-row text-center input-text-Outcome">@Localization.GetText("TCM.Outcome.A")</td>
+                                                                            </tr>
+                                                                        </table>
+                                                                    </td>
+                                                                    @foreach (var disaggregationYearPlan in OutcomeDisaggregation.OutcomeDisaggregationYearPlans)
+                                                                    {
+                                                                        <td>
+                                                                            <table class="non-border-table wp100">
+                                                                                <tr class="input-text-Outcome">
+                                                                                    <td class="original-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                                                        @Confluence.LabelDecimal(disaggregationYearPlan.OriginalPlan)
+                                                                                    </td>
+                                                                                </tr>
+                                                                                <tr class="input-text-Outcome">
+                                                                                    <td class="annual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                                                        @Confluence.LabelDecimal(disaggregationYearPlan.AnnualPlan)
+                                                                                    </td>
+                                                                                </tr>
+                                                                                <tr class="input-text-Outcome">
+                                                                                    <td class="actual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                                                        @Confluence.LabelDecimal(disaggregationYearPlan.ActualValue)
+                                                                                    </td>
+                                                                                </tr>
+                                                                            </table>
+                                                                        </td>
+                                                                    }
+                                                                    <td>
+                                                                        <table class="non-border-table wp100">
+                                                                            <tr class="input-text-Outcome">
+                                                                                <td class="original-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                                                    @Confluence.LabelDecimal(OutcomeDisaggregation.EndOfProject.OriginalPlan)
+                                                                                </td>
+                                                                            </tr>
+                                                                            <tr class="input-text-Outcome">
+                                                                                <td class="annual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                                                    @Confluence.LabelDecimal(OutcomeDisaggregation.EndOfProject.AnnualPlan)
+                                                                                </td>
+                                                                            </tr>
+                                                                            <tr class="input-text-Outcome">
+                                                                                <td class="actual-value-row td-padding text-right input-text-Outcome" name="decimal-number">
+                                                                                    @Confluence.LabelDecimal(OutcomeDisaggregation.EndOfProject.ActualValue)
+                                                                                </td>
+                                                                            </tr>
+                                                                        </table>
+                                                                    </td>
+                                                                </tr>
+                                                                    countDisaggregation++;
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                    countIndicators++;
+                                }
+                            </tbody>
+                        </table>
+                    </span>
+                }
+            </div>
+            <div class="col-md-6 floatRight">
+                <div class="floatRight mt20 pr15">
+                    @Confluence.ButtonExcel("xls", "DownloadOutcomeDocument")
+                    @Confluence.ButtonWord("doc", "DownloadOutcomeDocument")
+                    @Confluence.ButtonPdf("pdf", "DownloadOutcomeDocument")
+                </div>
+            </div>
+        }
+        <div class="col-md-6 ml55 mt20 positionFlag">
+            @Confluence.FlagBlack(Localization.GetText("TCM.IndicatorFlag.CRFIndicator"))
+        </div>
+
+    <div class="col-md-6 mt15 floatRight">
+        <div class="floatRight">
+            @Confluence.ButtonWhite(Localization.GetText("TCM.VerifyContent"), action: "verifyContent")
+            @if (Model != null && Model.ShowEdit)
+            {
+                <button class="buttonBlue" onclick="EditValidation()" data-idb-fieldname="btnEditOutcome" data-expanded="true">@Localization.GetText("TCM.Edit")</button>
+            }
+
+        </div>
+    </div>
+}
+</span>

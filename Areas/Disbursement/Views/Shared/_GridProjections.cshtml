@@ -1,0 +1,115 @@
+﻿@using IDB.MW.Domain.Models.Disbursement
+@using IDB.MW.Domain.Values
+@model IDB.MW.Domain.Models.Disbursement.IProjectionViewModel
+@{
+    Layout = null;
+    int countYellowRows = DisbursementValues.ZERO_NUMB;
+    int CurrentExpirationDateRule = int.Parse(Model.CurrentDisbursementExpirationDate.Year.ToString() +
+        Model.CurrentDisbursementExpirationDate.Month.ToString("00"));
+    decimal currentMonthActual = DisbursementValues.ZERO_NUMB;
+    decimal cellValue = DisbursementValues.ZERO_NUMB;
+    string css = string.Empty;
+    string currentCss = string.Empty;
+    List<ActualsFromEdwViewModel> currentFromEdw = Model.OldProjection;
+}
+
+<div class="informationplace" style="width: 300px;">
+    <div class="icoInformation"></div>
+    <div class="information-text">
+        <label>@Localization.GetText("Disbursement.GridProject.AmountsInThousandUSD")</label>
+        <label class="information-text ml0" data-id="expressedCurrency">@Model.CurrCode</label>
+    </div>
+</div>
+
+<input type="hidden" value="@CurrentExpirationDateRule" />
+<table class="tableNormal">
+    <thead>
+        <tr>
+            <th>@Localization.GetText("Year")</th>
+            <th>@Localization.GetText("Jan")</th>
+            <th>@Localization.GetText("Feb")</th>
+            <th>@Localization.GetText("Mar")</th>
+            <th>@Localization.GetText("Apr")</th>
+            <th>@Localization.GetText("May")</th>
+            <th>@Localization.GetText("Jun")</th>
+            <th>@Localization.GetText("Jul")</th>
+            <th>@Localization.GetText("Aug")</th>
+            <th>@Localization.GetText("Sep")</th>
+            <th>@Localization.GetText("Oct")</th>
+            <th>@Localization.GetText("Nov")</th>
+            <th>@Localization.GetText("Dec")</th>
+            <th>@Localization.GetText("Total")</th>
+            <th>%</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var current_year in Model.ProjectedYears)
+        {
+            decimal total = 0;
+            <tr>
+                <td class="text-center">@Confluence.LabelBold(current_year.Year.ToString())</td>
+                @foreach (var projected_month in current_year.ProjectedMonths)
+                {
+                    css = string.Empty;
+                    currentCss = string.Empty;
+                    int currentDateValue = int.Parse(current_year.Year.ToString() + projected_month.Month.ToString("00"));
+                    if (currentDateValue > CurrentExpirationDateRule && countYellowRows < 12 && Model.IsExecution)
+                    {
+                        css += "yellow ";
+                        currentCss += "yellow ";
+                        countYellowRows++;
+                    }
+
+                    if (currentDateValue < int.Parse(DateTime.Now.Year.ToString() + Model.CurrentProjectionMonth.ToString("00")))
+                    {
+                        cellValue = currentFromEdw.Where(x => x.Year == current_year.Year && x.Month == projected_month.Month).
+                        Select(x => x.Value).FirstOrDefault() / 1000;
+                        css += "disabled ";
+                    }
+                    else if (projected_month.ProjectedAmount == decimal.MinValue)
+                    {
+                        cellValue = 0;
+                        css += "disabled ";
+                    }
+                    else
+                    {
+                        cellValue = projected_month.ProjectedAmount;
+                    }
+                    total += cellValue;
+
+                    if (currentDateValue == int.Parse(DateTime.Now.Year.ToString() + Model.CurrentProjectionMonth.ToString("00")))
+                    {
+                        currentMonthActual = currentFromEdw.Where(x => x.Year == current_year.Year && x.Month == projected_month.Month).
+                        Select(x => x.Value).FirstOrDefault() / 1000;
+                        <td class="text-right noPadding">
+                            <div class="disabled heigth50p">
+                                @Html.Hidden("actualDisbursementProjection", currentMonthActual)
+                                @Confluence.LabelDecimal(currentMonthActual, htmlClass: "pr10 pl10")
+                            </div>
+                            <div class="heigth50p @currentCss">
+                                @Confluence.LabelDecimal(cellValue, htmlClass: "pr10 pl10")
+                            </div>
+                        </td>
+                    }
+                    else
+                    {
+                        <td class="@css text-right">
+                            @Confluence.LabelDecimal(cellValue)
+                        </td>
+                    }
+
+
+                }
+                <td class="text-right total">@Confluence.LabelDecimal(total, true)</td>
+                @if (Model.Total != decimal.Zero)
+                {
+                    <td class="text-right">@Confluence.LabelDecimalPercent(total / Model.Total * 100, true)</td>
+                }
+                else
+                {
+                    <td class="text-right">@Confluence.LabelDecimalPercent(decimal.Zero, true)</td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>

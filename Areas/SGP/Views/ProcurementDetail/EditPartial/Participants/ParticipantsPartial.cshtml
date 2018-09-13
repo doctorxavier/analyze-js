@@ -1,0 +1,782 @@
+﻿@using System.Web.Mvc
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Architecture.DataTables.Common
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model ProcurementDetailViewModel
+
+@{
+    var participantsResultList = Model.ParticipantTab.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ParticipantsResultList").ConvertToSelectListItems();
+    ViewBag.ParticipantsResultList = participantsResultList;
+    var ParticipantsResultAwardedId = Model.ParticipantTab.ViewContainer.GetValue<string>("ParticipantsResultAwardedId");
+    ViewBag.ParticipantsResultRejectedId = Model.ParticipantTab.ViewContainer.GetValue<string>("ParticipantsResultRejectedId");
+    var countryAllList = Model.ParticipantTab.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("CountryAllList").ConvertToSelectListItems();
+    ViewBag.CountryAllList = countryAllList;
+    var IsProcurementTypeFirms = Model.ParticipantTab.ViewContainer.GetValue<bool>("IsProcurementTypeFirms");
+}
+
+@if (Model != null)
+{
+    @Html.Partial("EditPartial/Participants/Modals/ParticipantsNotificationsModal")
+
+    <div class="row">
+        <div class="col-xs-3">
+            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.BidderParticipants"), htmlClass: "subTitleSG mb10")
+        </div>
+        <div class="col-xs-9">
+            @Html.Partial("EditPartial/Participants/Buttons")
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            <div class="float-right" style="margin-top: -10px !important;">
+                @(Html.CollapseAll("collapseAllParticipantEdit").CollapseSingleSelector("tr:not(.template) [data-name=\"collapseParticipantDetailsEdit\"]"))
+            </div>
+            <div>
+                @Confluence.LabelBold(Localization.GetText("SGP.Label.Note"))
+                @Confluence.Label(Localization.GetText("SGP.Label.TechnicalScoreAndFinancial"))
+                @Confluence.Label(Localization.GetText("SGP.Label.WeightedScores"), htmlClass: "fontCursive")
+            </div>
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-xs-12 hide">
+            <table>
+                <tr data-section="row-template-Participant">
+                    <td colspan="10" class="tab-detail-row">
+                        @Html.Partial("EditPartial/Participants/ParticipantsBidderSubTablePartial", new BidderRowViewModel() { Details = new BidderDetailsViewModel() })
+                    </td>
+                </tr>
+            </table>
+            <div class="hide" data-section="collapse-template">
+                @(Html.CollapseSingle("collapseParticipantDetailsEdit")
+                    .HtmlClass("arrow")
+                    .AnimationDuration(0)
+                    .TargetRegionSelector(x =>
+                    {
+                        x.Closest("tr");
+                        x.Next();
+                    })
+              .AsociatedCollapseAllSelector("[data-name=\"collapseAllParticipantEdit\"]")
+                )
+            </div>
+        </div>
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Participants/ParticipantsBidderTablePartial", Model.ParticipantTab)
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Participants/Buttons")
+        </div>
+    </div>
+
+    @Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        var razorEditParticipants = {
+            Urls: {
+                CancelParticipants: '@Url.Action("Read", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS})'
+                                       + '&procurementId=' + '@Model.ProcurementId',
+                GetBidderInCurrentUser: '@Url.Action("GetBidderIsCurrentUsed", "ProcurementDetail", new { area = "SGP" })',
+            },
+            Ids: {
+                AwarderId: '@ParticipantsResultAwardedId',
+                ProcurementId: '@Model.ProcurementId',
+            },
+            Text: {
+                BidderInContractDelete: '@Localization.GetText("SGP.Message.BidderInContractDelete")',
+            }
+        };
+
+        /* ---------------------- Validation ---------------------- */
+        registerCallback(function () {
+            window.ParsleyValidator.addValidator('nameBidderUnique', function (value, requirement) {
+                var row = $('tr[data-id="' + requirement + '"][data-bidder="true"]');
+                var nameValue = row.find('input[name="name-bidder_text"]').val().split("-")[0];
+                var nationalityValue = row.find('input[name="nationality-bidder"]').val();
+                var rows = $('#BidderTable tbody tr:not(.template):not([data-id="' + requirement + '"])[data-bidder="true"]');
+                var result = true;
+
+                rows.each(function () {
+                    var rowItem = $(this);
+                    var itemNameValue = rowItem.find('input[name="name-bidder_text"]').val().split("-")[0];
+                    var itemNationalityValue = rowItem.find('input[name="nationality-bidder"]').val();
+                    if ($.trim(nameValue.toLowerCase()) == $.trim(itemNameValue.toLowerCase()) && $.trim(nationalityValue) == $.trim(itemNationalityValue)) {
+                        result = false;
+                    }
+                });
+
+                return result;
+            }, 32).addMessage('en', 'nameBidderUnique', '@Localization.GetText("SGP.Label.ValidationNameNationality")');
+
+            window.ParsleyValidator.addValidator('nameParticipantUnique', function (value, requirement) {
+                var row = $('input[name="name-participant_text"][data-parsley-nameparticipantunique="' + requirement + '"]').closest('tr');
+                row.attr("row-evaluated", "true");
+                var nameValue = row.find('input[name="name-participant_text"]').val().split("-")[0];
+                var nationalityValue = row.find('input[name="nationality-participant"]').val();
+                var rows = $('#BidderTable tbody tr:not(.template):not([row-evaluated="true"])[data-participant="true"]');
+                var result = true;
+
+                rows.each(function () {
+                    var rowItem = $(this);
+                    var itemNameValue = rowItem.find('input[name="name-participant_text"]').val().split("-")[0];
+                    var itemNationalityValue = rowItem.find('input[name="nationality-participant"]').val();
+                    if ($.trim(nameValue.toLowerCase()) == $.trim(itemNameValue.toLowerCase()) && $.trim(nationalityValue) == $.trim(itemNationalityValue)) {
+                        result = false;
+                    }
+                });
+                row.removeAttr("row-evaluated");
+                return result;
+            }, 32).addMessage('en', 'nameParticipantUnique', '@Localization.GetText("SGP.Label.ValidationNameNationality")');
+
+            window.ParsleyValidator.addValidator('localizationRequired', function (value, requirement) {
+                var result = true;
+
+                var modal = $('[data-name="modal-view-bidder-details"]');
+                var countryEmpty = (modal.find('input[name="country"]').val() == "" || modal.find('input[name="country"]').val() == null);
+                var stateEmpty = (modal.find('input[name="state"]').val() == "" || modal.find('input[name="state"]').val() == null);
+                var districtEmpty = (modal.find('input[name="district"]').val() == "" || modal.find('input[name="district"]').val() == null);
+
+                if (countryEmpty && stateEmpty && districtEmpty) {
+                    result = false;
+                }
+
+                return result;
+            }, 32).addMessage('en', 'localizationRequired', '@Localization.GetText("COMMON.SVQ.ThisValueIsRequired")');
+        });
+
+        /* ---------------------- Events Navigation ---------------------- */
+        registerCallback(function () {
+
+            /* ---- Save ---- */
+            $(document).on('click', '[name="save-Participants"]', function () {
+                if (ValidateInputsAwarded()) {
+                    var promise = $.Deferred();
+                    var response = saveContainer($('[name="formParticipant"]'), $('[name="serializedModel"]'), false, null, null, false, true, null);
+                    if (response !== false) {
+                        response.done(function (data) {
+                            if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                showMessage(data.ErrorMessage)
+                            }
+                        });
+                    }
+                    promise.resolve();
+                    return promise;
+                }
+                else {
+                    var modalBtn = $('[name="btn-open-popup-awarded-validation-detail"]');
+                    modalBtn.click();
+                }
+            });
+
+            /* ---- Cancel ---- */
+            $(document).on('click', '[name="cancel-Participants"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel-participant"]');
+                modalBtn.click();
+            });
+        });
+
+        /* ---------------------- Functions Navigation ---------------------- */
+        function ValidateInputsAwarded() {
+            var result = true;
+            var rowsBidder = $('tr[data-bidder="true"]:not(.template)');
+
+            rowsBidder.each(function () {
+                var rowSource = $(this);
+                var isAwarded = rowSource.find('[name="results-bidder"]').val() == razorEditParticipants.Ids.AwarderId.toString();
+                if (isAwarded) {
+                    var isGenderEmpty = rowSource.find('[name="gender-bidder"]').val() == "";
+                    var isEconomicSectorEmpty = rowSource.find('[name="economicSector-bidder"]').val() == "";
+                    var isAdressEmpty = rowSource.find('[name="address-bidder"]').val() == "";
+
+                    var countryEmpty = rowSource.find('input[name="country-bidder"]').val() == "";
+                    var stateEmpty = rowSource.find('input[name="state-bidder"]').val() == "";
+                    var districtEmpty = rowSource.find('input[name="district-bidder"]').val() == "";
+
+                    if (isGenderEmpty || isEconomicSectorEmpty || isAdressEmpty || (countryEmpty && stateEmpty && districtEmpty)) {
+                        result = false;
+                    }
+
+                    var nextTr = rowSource.next();
+                    var rowsParticipants = nextTr.find('tr[data-participant="true"]:not(.template)');
+
+                    rowsParticipants.each(function () {
+                        var rowSourceP = $(this);
+                        var isGenderEmpty = rowSourceP.find('[name="gender-participant"]').val() == "";
+                        var isEconomicSectorEmpty = rowSourceP.find('[name="economicSector-participant"]').val() == "";
+                        var isAdressEmpty = rowSourceP.find('[name="address-participant"]').val() == "";
+
+                        var countryEmpty = rowSourceP.find('input[name="country-participant"]').val() == "";
+                        var stateEmpty = rowSourceP.find('input[name="state-participant"]').val() == "";
+                        var districtEmpty = rowSourceP.find('input[name="district-participant"]').val() == "";
+
+                        if (isGenderEmpty || isEconomicSectorEmpty || isAdressEmpty || (countryEmpty && stateEmpty && districtEmpty)) {
+                            result = false;
+                        }
+                    });
+                }
+            });
+
+            return result;
+        }
+
+
+        function okCancelParticipants() {
+            var promise = $.Deferred();
+            url = razorEditParticipants.Urls.CancelParticipants
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+
+        function disableNationality(tr) {
+            var nationalityHidden = tr.find('[name="nationality-bidder"],[name="nationality-participant"]');
+            var buttonNationality = nationalityHidden.siblings('button');
+
+            nationalityHidden.removeAttr('disabled');
+            buttonNationality.removeAttr('disabled');
+
+            destroyParsleyField(nationalityHidden);
+            initParsleyField(nationalityHidden);
+            destroyParsleyField(nationalityHidden);
+            initParsleyField(nationalityHidden);
+        }
+
+        /* ---------------------- Events Bidder ---------------------- */
+        registerCallback(function () {
+
+            /* ---- Collapse Bidder ---- */
+            $(document).on('click', 'td.columnActionOnlyCollapse', function (e) {
+                var source = $(this);
+                if (e.currentTarget == e.target) {
+                    var collapse = source.find('[data-role="collapse-single"]');
+                    var data = collapse.data('CollapseSingle');
+                    data.SlideContent();
+                    data.RedrawCollapseAll();
+                }
+            });
+
+            /* ---- Calculate Score ---- */
+            $(document).on('change', '[name="technicalScore-bidder"],[name="financialScore-bidder"]', function (e) {
+                var row = $(this).closest('tr');
+
+                var technicalScoreInput = row.find('[name="technicalScore-bidder"]').first();
+                var financialScoreInput = row.find('[name="financialScore-bidder"]').first();
+
+                var overallScoreTd = row.find('[name="overallScore-bidder"]').first();
+
+                var technicalScore = parseFloat(technicalScoreInput.val());
+                var financialScore = parseFloat(financialScoreInput.val());
+
+                /* ---- Calculate Max Score (Columns: Technical Score and Financial Score) ---- */
+
+                var maxFinancialScoreValue = 100 - technicalScore;
+                var maxTechnicalScoreValue = 100 - financialScore;
+
+                technicalScoreInput.attr('data-max', 100);
+                technicalScoreInput.attr('data-v-max', 100);
+                technicalScoreInput.data('vMax', 100);
+                technicalScoreInput.attr('data-min', 0);
+                technicalScoreInput.attr('data-v-min', 0);
+                technicalScoreInput.data('vMin', 0);
+                financialScoreInput.attr('data-max', 100);
+                financialScoreInput.attr('data-v-max', 100);
+                financialScoreInput.data('vMax', 100);
+                financialScoreInput.attr('data-min', 0);
+                financialScoreInput.attr('data-v-min', 0);
+                financialScoreInput.data('vMin', 0);
+
+
+                if (!isNaN(technicalScore)) {
+                    if (technicalScore != 0 || technicalScore != '') {
+                        financialScoreInput.attr('data-max', maxFinancialScoreValue.toFixed(2));
+                        financialScoreInput.attr('data-v-max', maxFinancialScoreValue.toFixed(2));
+                        financialScoreInput.data('vMax', maxFinancialScoreValue.toFixed(2));
+                    }
+                }
+
+                if (!isNaN(financialScore)) {
+                    if ((financialScore != 0 || financialScore != '')) {
+                        technicalScoreInput.attr('data-max', maxTechnicalScoreValue.toFixed(2));
+                        technicalScoreInput.attr('data-v-max', maxTechnicalScoreValue.toFixed(2));
+                        technicalScoreInput.data('vMax', maxTechnicalScoreValue.toFixed(2));
+                    }
+                }
+
+                technicalScoreInput.autoNumeric('destroy');
+                technicalScoreInput.autoNumeric('init');
+                financialScoreInput.autoNumeric('destroy');
+                financialScoreInput.autoNumeric('init');
+
+                /* ---- Overall Score Value Column ---- */
+                var overallScore = technicalScore + financialScore;
+
+                if (isNaN(technicalScore)) {
+                    overallScore = financialScore;
+                }
+                if (isNaN(financialScore)) {
+                    overallScore = technicalScore;
+                }
+                if (isNaN(overallScore)) {
+                    overallScore = 0;
+                }
+                
+                if (overallScore == 0) {
+                    overallScoreTd.html("");
+                } else {
+                    overallScoreTd.html(convertFloatToStringWithFormat(overallScore.toFixed(2)));
+                }
+            });
+
+            /* ---- Firms Result Validation ---- */
+            $(document).on('change', '[name="results-bidder"]', function (e) {
+                var isProcurementTypeFirms = '@IsProcurementTypeFirms' == 'True';
+                if (isProcurementTypeFirms) {
+                    var source = $(this);
+                    var row = source.closest('tr');
+                    var selectedResult = source.val();
+
+                    var count = 0;
+                    var results = $('input[name="results-bidder"]');
+
+                    results.each(function () {
+                        var dropdown = $(this);
+                        if (dropdown.val() == razorEditParticipants.Ids.AwarderId) {
+                            count++;
+                        }
+                    });
+
+                    if (count > 1) {
+                        if (selectedResult == razorEditParticipants.Ids.AwarderId) {
+                            var dataId = row.attr('data-id');
+                            selectDropDownItem(source, null);
+                            var modalBtn = $('[name="btn-open-popup-check-unique-awarded"]');
+                            modalBtn.data('pressed-by', source);
+                            modalBtn.click();
+                            return false;
+                        }
+                    }
+                }
+            });
+
+            /* ---- Bidder Details ---- */
+            $(document).on('click', '[name="view-bidder-details"]', function () {
+                var source = $(this);
+                var row = source.closest('tr');
+
+                var nameBidder = row.find('[name="name-bidder_text"]');
+                var nationalityBidder = row.find('[name="nationality-bidder"]');
+                var search = $('input[name="subnationalSearch_text"]');
+
+                nationalityBidder.parsley().reset();
+                nameBidder.parsley().reset();
+
+                var resultNationality = nationalityBidder.parsley().validate() == true;
+                var resultParticipant = nameBidder.parsley().validate() == true;
+
+                if (resultNationality && resultParticipant) {
+                    var modal = $('[data-name="modal-view-bidder-details"]');
+                    modal.find('[data-name="name"]').html(row.find('[name="name-bidder_text"]').val());
+
+                    if (nationalityBidder.val() != "" && nationalityBidder.val() != null) {
+                        modal.find('[data-name="nationality"]').html(nationalityBidder.parent().find('.valueText').html());
+                    }
+                    else {
+                        modal.find('[data-name="nationality"]').html("");
+                    }
+
+                    modal.find('[data-name="address"]').val(row.find('[name="address-bidder"]').val());
+
+                    modal.find('[data-name="country"]').html(row.find('[name="country-bidder"]').val());
+                    modal.find('input[name="country"]').val(row.find('[name="country-bidder"]').val());
+
+                    modal.find('[data-name="state"]').html(row.find('[name="state-bidder"]').val());
+                    modal.find('input[name="state"]').val(row.find('[name="state-bidder"]').val());
+
+                    modal.find('[data-name="district"]').html(row.find('[name="district-bidder"]').val());
+                    modal.find('input[name="district"]').val(row.find('[name="district-bidder"]').val());
+
+                    // Hide Clear button trash to location
+                    var buttonSubnationalTrash = modal.find('button[name="clear-subnational-data"]');
+
+                    if (modal.find('input[name="country"]').val() == "" && modal.find('input[name="state"]').val() == "" && modal.find('input[name="district"]').val() == "") {
+                        buttonSubnationalTrash.addClass('hide');
+                    } else {
+                        buttonSubnationalTrash.removeClass('hide');
+                    }
+
+                    selectDropDownItem(modal.find('input[data-name="gender"]'), row.find('[name="gender-bidder"]').val());
+                    selectDropDownItem(modal.find('input[data-name="economicSector"]'), row.find('[name="economicSector-bidder"]').val());
+                    search.val("");
+                    modal.parsley().reset();
+
+                    var AdministrationLevelOfBidder = $('[data-name="AdministrationLevelOfBidder"]');
+                    var AdministrationLevelOfParticipants = $('[data-name="AdministrationLevelOfParticipants"]');
+                    AdministrationLevelOfBidder.removeClass('hide');
+                    AdministrationLevelOfParticipants.addClass('hide');
+
+                    var modalBtn = $('[name="btn-open-popup-view-bidder-details"]');
+                    modalBtn.data('pressed-by', source);
+                    modalBtn.click();
+                }
+            });
+
+            /* ---- New Row ---- */
+            $(document).on('click', '[name="addNewRow-Bidder"]', function () {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var tbody = $('#BidderTable tbody:first');
+                var lastr = tbody.find('tr:last');
+                var trTemplate = tbody.find('tr:first');
+                var clonedTr = trTemplate.clone(false).appendTo(tbody);
+                clonedTr.find('input,.dropdown button,div.inputSearch.lupa > button').removeAttr('disabled');
+                clonedTr.find('input[data-id],button[data-id]').attr('data-participant-id', String.format('new-{0}', newId));
+                clonedTr.attr('data-id', String.format('new-{0}', newId));
+                clonedTr.find('input[name="name-bidder_text"]').attr('data-parsley-nameBidderUnique', String.format('new-{0}', newId));
+                clonedTr.removeClass('hide');
+                clonedTr.removeClass('template');
+                bindHandlers(clonedTr);
+                initializeParlsey();
+            });
+
+            /* ---- New Participants Details ---- */
+            $(document).on('click', '[name="consortium-bidder"]', function (e) {
+                var source = $(this);
+                if (source.is(':checked')) {
+                    var trTemplate = $('tr[data-section="row-template-Participant"]');
+                    var collapseTemplate = $('div[data-section="collapse-template"]');
+                    var clonedTr = trTemplate.clone(false);
+                    var collapseTemplateClone = collapseTemplate.clone(false);
+
+                    var trToAppend = source.closest('tr');
+                    var idTrToAppend = trToAppend.attr('data-id');
+                    clonedTr.insertAfter(trToAppend);
+                    trToAppend.find('td:last').append(collapseTemplateClone);
+
+                    clonedTr.find('tr:not(.template) input, tr:not(.template) .dropdown button').removeAttr('disabled');
+                    clonedTr.removeAttr('data-section');
+                    clonedTr.find('data-id', idTrToAppend);
+
+                    collapseTemplateClone.removeAttr('data-section');
+                    collapseTemplateClone.removeClass('hide');
+                    collapseTemplateClone.find('span').attr('id', "collapse-single-new-" + idTrToAppend);
+
+                    bindHandlers(trToAppend);
+                    trToAppend.find('[data-name="collapse-participant-detail"]').click().click();
+
+                    clonedTr.find('[name="addNewRow-Participant"]').click();
+                    clonedTr.find('table tbody tr:not(.template):first button.buttonTrash').remove();
+                    initializeParlsey();
+                }
+                else {
+                    e.preventDefault();
+                    var modalBtn = $('[name="btn-open-popup-row-check-consortium"]');
+                    modalBtn.data('pressed-by', source);
+                    modalBtn.click();
+                }
+            });
+
+            /* ---- Remove Row ---- */
+            $(document).on('click', '[name="RemoveRowBidder"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-bidder-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            /* Find Bidder and Nationality */
+            $(document).on("keypress", '[name="name-bidder_text"],[name="name-participant_text"]', function (e) {
+                var source = $(this);
+                var tr = source.closest('tr');
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+
+                disableNationality(tr);
+            });
+
+            $(document).on("focusout", '[name="name-bidder_text"],[name="name-participant_text"]', function (e) {
+                var source = $(this);
+                var tr = source.closest('tr');
+
+                disableNationality(tr);
+            });
+
+            $(document).on('change', '[name="name-bidder"],[name="name-participant"]', function (e, additionalDataStr) {
+                var source = $(this);
+                var tr = source.closest('tr');
+
+                var nationalityHidden = tr.find('[name="nationality-bidder"],[name="nationality-participant"]');
+                var buttonNationality = nationalityHidden.siblings('button');
+
+                if (source.val() == '') {
+                    nationalityHidden.removeAttr('disabled');
+                    buttonNationality.removeAttr('disabled');
+                } else if ((additionalDataStr != null) && (additionalDataStr.trim() != '')) {
+                    nationalityHidden.attr('disabled', 'disabled');
+                    buttonNationality.attr('disabled', 'disabled');
+                    var additionalData = JSON.parse(additionalDataStr);
+                    selectDropDownItem(nationalityHidden, additionalData.NationalityId);
+
+                }
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+
+            $(document).on('change', '[name="nationality-bidder"],[name="nationality-participant"]', function (e) {
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+
+        });
+
+        /* ---------------------- Functions Bidder ---------------------- */
+        /* ---- Remove Bidder Trash ---- */
+        function removeRowBidderTrash(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            var trId = tr.attr('data-id');
+            $.ajax({
+                url: razorEditParticipants.Urls.GetBidderInCurrentUser,
+                type: 'GET',
+                data: { bidderId: trId },
+                contentType: 'application/json; charset=utf-8',
+                success: function (response) {
+                    var canDelete = response.IsValid;
+                    if (canDelete) {
+                        var trNext = tr.next();
+                        if (trNext.length > 0) {
+                            var haveId = trNext.attr('data-id');
+                            if (typeof haveId == typeof undefined || haveId == false) {
+                                trNext.remove();
+                            }
+                        }
+                        tr.remove();
+                    } else {
+                        showMessage(razorEditParticipants.Text.BidderInContractDelete);
+                    }
+                }
+            });
+            promise.resolve();
+            return promise;
+        }
+
+        /* ---- Remove Participants Details ---- */
+        function removeRowParticipantsBidderFromCheckbox(e, source) {
+            source.prop("checked", false);
+            var promise = $.Deferred();
+            var trContain = source.closest('tr');
+            trContain.find('td:last').empty();
+            trContain.next().remove();
+            trContain.removeClass('buttonCollapseExpandedTop');
+            promise.resolve();
+            return promise;
+        }
+
+        /* ---------------------- Events Participants ---------------------- */
+        registerCallback(function () {
+            /* Bidder Participant Detail */
+            $(document).on('click', '[name="view-participant-details"]', function () {
+                var source = $(this);
+                var row = source.closest('tr');
+
+                var nameParticipant = row.find('[name="name-participant_text"]');
+                var nationalityParticipant = row.find('[name="nationality-participant"]');
+                var search = $('[name="subnationalSearch_text"]');
+
+                nationalityParticipant.parsley().reset();
+                nameParticipant.parsley().reset();
+
+                var resultNationality = nationalityParticipant.parsley().validate() == true;
+                var resultParticipant = nameParticipant.parsley().validate() == true;
+
+                if (resultNationality && resultParticipant) {
+                    var modal = $('[data-name="modal-view-bidder-details"]');
+                    modal.find('[data-name="name"]').html(row.find('[name="name-participant_text"]').val());
+
+                    if (nationalityParticipant.val() != "" && nationalityParticipant.val() != null) {
+                        modal.find('[data-name="nationality"]').html(nationalityParticipant.parent().find('.valueText').html());
+                    }
+                    else {
+                        modal.find('[data-name="nationality"]').html("");
+                    }
+                    modal.find('[data-name="address"]').val(row.find('[name="address-participant"]').val());
+
+                    modal.find('[data-name="country"]').html(row.find('[name="country-participant"]').val());
+                    modal.find('input[name="country"]').val(row.find('[name="country-participant"]').val());
+
+                    modal.find('[data-name="state"]').html(row.find('[name="state-participant"]').val());
+                    modal.find('input[name="state"]').val(row.find('[name="state-participant"]').val());
+
+                    modal.find('[data-name="district"]').html(row.find('[name="district-participant"]').val());
+                    modal.find('input[name="district"]').val(row.find('[name="district-participant"]').val());
+
+                    // Hide Clear button trash to location
+                    var buttonSubnationalTrash = modal.find('button[name="clear-subnational-data"]');
+
+                    if (modal.find('input[name="country"]').val() == "" && modal.find('input[name="state"]').val() == "" && modal.find('input[name="district"]').val() == "") {
+                        buttonSubnationalTrash.addClass('hide');
+                    } else {
+                        buttonSubnationalTrash.removeClass('hide');
+                    }
+
+                    selectDropDownItem(modal.find('input[data-name="gender"]'), row.find('[name="gender-participant"]').val());
+                    selectDropDownItem(modal.find('input[data-name="economicSector"]'), row.find('[name="economicSector-participant"]').val());
+
+                    var AdministrationLevelOfBidderLabel = $('[data-name="AdministrationLevelOfBidder"]');
+                    var AdministrationLevelOfParticipantsLabel = $('[data-name="AdministrationLevelOfParticipants"]');
+                    AdministrationLevelOfBidderLabel.addClass('hide');
+                    AdministrationLevelOfParticipantsLabel.removeClass('hide');
+                    search.val("");
+                    modal.parsley().reset();
+                    var modalBtn = $('[name="btn-open-popup-view-bidder-details"]');
+                    modalBtn.data('pressed-by', source);
+                    modalBtn.click();
+                }
+            });
+
+            /* ---- New Row ---- */
+            $(document).on('click', '[name="addNewRow-Participant"]', function () {
+                var source = $(this);
+                var newId = $('button[name="addNewRow-Bidder"]').GenerateNewId();
+                var container = source.closest('div[data-contain="subtable-Participants"]');
+                var tbody = container.find('tbody');
+                var lastr = container.find('tbody tr:last');
+                var trTemplate = container.find('tbody tr:first');
+                var idBidder = container.closest('tr').prev().attr('data-id');
+                var clonedTr = trTemplate.clone(false).appendTo(tbody);
+                clonedTr.find('input,.dropdown button,div.inputSearch.lupa > button').removeAttr('disabled');
+                clonedTr.attr('data-id', idBidder);
+                clonedTr.find('input').attr('data-persist-participantId', String.format('new-{0}', newId));
+                clonedTr.find('input[name="name-participant_text"]').attr('data-parsley-nameParticipantUnique', String.format('new-{0}', newId));
+                if (container.find('tr').length == 4) {
+                    var participantFirstRow = container.find('tr').last().prev();
+                    if (participantFirstRow.find('button.buttonTrash').length == 0) {
+                        var buttonTrash = container.find('button.buttonTrash').first().clone(false);
+                        participantFirstRow.find('td').last().append(buttonTrash);
+                    }
+                }
+                clonedTr.removeClass('template');
+                clonedTr.removeClass('hide');
+                bindHandlers(clonedTr);
+                initializeParlsey();
+            });
+
+            /* ---- Delete Row ---- */
+            $(document).on('click', '[name="RemoveRowParticipant"]', function () {
+                var source = $(this);
+                var modal = $('[name="btn-open-popup-row-participant-remove"]');
+                modal.data('pressed-by', source);
+                modal.click();
+            });
+
+            $(document).ready(function () {
+                var source = $('#BidderTable tbody tr:not(.template)')
+                var score = source.find('[name="technicalScore-bidder"]');
+                score.change();
+
+                var participants = $('[name="name-participant"]');
+                participants.each(function () {
+                    var source = $(this);
+                    var inputText = source.prevAll('[name="name-participant_text"][data-persist-participantid]');
+                    var participantid = inputText.attr('data-persist-participantid');
+                    source.attr('data-persist-participantid', participantid);
+                });
+            });
+        });
+
+        /* ---------------------- Functions Participants ---------------------- */
+        function removeRowParticipantTrash(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+            var table = source.closest('table');
+            var container = table.closest('div[data-contain="subtable-Participants"]');
+            tr.remove();
+            if (container.find('tbody tr').length == 2) {
+                var participantFirstRow = container.find('tbody tr').last();
+                if (participantFirstRow.find('button.buttonTrash').length > 0) {
+                    participantFirstRow.find('td button.buttonTrash').remove();
+                }
+            }
+            promise.resolve();
+            return promise;
+        }
+
+        /* ---------------------- Functions Common ---------------------- */
+        /* Update Row Details */
+        function updateRowFromDetails(e, source) {
+            var row = source.closest("tr");
+            var modal = $('[data-name="modal-view-bidder-details"]');
+            var promise = $.Deferred();
+            var resultValidation = true;
+            var isResultAwarded = false;
+
+            var bidderGenderId = modal.find('input[data-name="gender"]').val();
+            var bidderEconomicSectorId = modal.find('input[data-name="economicSector"]').val();
+            var bidderAddress = modal.find('[data-name="address"]').val();
+            var bidderCountry = modal.find('[data-name="country"]').html();
+            var bidderState = modal.find('[data-name="state"]').html();
+            var bidderDistrict = modal.find('[data-name="district"]').html();
+
+            if (source.attr('data-type') == 'bidder') {
+                isResultAwarded = row.find('[name="results-bidder"]').val() == razorEditParticipants.Ids.AwarderId;
+            } else {
+                isResultAwarded = row.closest('[data-contain="subtable-Participants"]').closest('tr').prev().find('[name="results-bidder"]').val() == razorEditParticipants.Ids.AwarderId;
+            }
+
+            modal.parsley().reset();
+            if (isResultAwarded) {
+                resultValidation = validateContainer(modal);
+            }
+
+            if (resultValidation) {
+                if (source.attr('data-type') == 'bidder') {
+                    row.find('[name="gender-bidder"]').val(bidderGenderId);
+                    row.find('[name="economicSector-bidder"]').val(bidderEconomicSectorId);
+                    row.find('[name="address-bidder"]').val(bidderAddress);
+                    row.find('[name="country-bidder"]').val(bidderCountry);
+                    row.find('[name="state-bidder"]').val(bidderState);
+                    row.find('[name="district-bidder"]').val(bidderDistrict);
+                }
+                else {
+                    row.find('[name="gender-participant"]').val(bidderGenderId);
+                    row.find('[name="economicSector-participant"]').val(bidderEconomicSectorId);
+                    row.find('[name="address-participant"]').val(bidderAddress);
+                    row.find('[name="country-participant"]').val(bidderCountry);
+                    row.find('[name="state-participant"]').val(bidderState);
+                    row.find('[name="district-participant"]').val(bidderDistrict);
+                }
+
+                promise.resolve();
+                return promise;
+            }
+        }
+
+        function initializeParlsey() {
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+            initParsley();
+        }
+
+    </script>)
+}

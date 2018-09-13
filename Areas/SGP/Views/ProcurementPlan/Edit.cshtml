@@ -1,0 +1,391 @@
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Business.DocumentManagement.Enums
+
+@model ProcurementPlanViewModel
+
+@if (Model != null && (Model.ViewContainer != null) && Model.ViewContainer.GetValue<bool>("IsValid"))
+{
+    var isOperationApproved = Model.ViewContainer.GetValue<bool>("isOperationApproved");
+    var isFidAgraVisible = Model.ViewContainer.GetValue<bool>("isFidAgraVisible");
+    var visibleTabs = new Dictionary<string, string>() { { ProcurementPlanNavigation.TAB_NAME_OPERATION_LEVEL, Localization.GetText("SGP.Label.OperationLevel") } };
+
+    if (isOperationApproved)
+    {
+        visibleTabs.Add(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_LEVEL, Localization.GetText("SGP.Label.ProcurementLevel"));
+    }
+
+    if (isFidAgraVisible)
+    {
+        visibleTabs.Add(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_PARAMETRIZATION, Localization.GetText("SGP.Label.FiduciaryArrangement"));
+    }    
+    
+    <div data-section="modals" class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-modal\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+    .AddButton(name: "btn-cancel-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+    .AddButton(name: "btn-cancel-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okCancel",
+                    closeAtEnd: true))
+        <div data-name="cancel-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.CommonCancel")
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"common-remove-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-common-remove",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+        .AddButton(name: "btn-common-remove-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+        .AddButton(name: "btn-common-remove-ok",
+                    text: Localization.GetText("Common.OK"),
+                    type: CssClass.Button05,
+                    callback: "removeRowNoticeDocument",
+                    closeAtEnd: true))
+        <div data-name="common-remove-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.ThisActionCannotBeUndone")
+        </div>
+
+        @*/*---------Modal Document Plan-----------------*/*@
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"documentTablePlanDoc\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-popup-add-doc-plan",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "documentTablePlanDoc",
+            CanMultiSelect = true,
+            TargetFunction = "AddIDBDocProc",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+        @*/*---------Modal Document General Notice------------------*/*@
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"documentTableGenNotice\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-popup-add-doc-gen-notice",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "documentTableGenNotice",
+            CanMultiSelect = false,
+            TargetFunction = "AddIDBDocProc",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Buttons")
+            @Confluence.LabelMainTitle(Localization.GetText("SGP.Label.ProcurementPlan"))
+        </div>
+    </div>
+
+    <div name="form"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="false"
+         data-url="@Url.Action("Save", "ProcurementPlan", new { area = "SGP", tabName = Model.ViewContainer["ActiveTab"] })">
+
+        <div data-fake-pagemode="edit">
+            @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "serializedModel")
+
+            <div class="page">
+
+                @Confluence.Tabs(visibleTabs)
+
+                <div class="tab-content">
+                    @if (Model.OperationLevel != null)
+                    {
+                        <div class="tab-pane" id="@(ProcurementPlanNavigation.TAB_NAME_OPERATION_LEVEL)">
+                            @Html.Partial("EditPartial/OperationLevel", Model.OperationLevel)
+                        </div>
+                    }
+                    @if (Model.ProcurementLevel != null)
+                    {
+                        <div class="tab-pane" id="@(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_LEVEL)">
+                            @Html.Partial("EditPartial/ProcurementLevel", Model.ProcurementLevel)
+                        </div>
+                    }
+                    @if (Model.Parametrization != null)
+                    {
+                        <div class="tab-pane" id="@(ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_PARAMETRIZATION)">
+                            @Html.Partial("EditPartial/Parameterization", Model.Parametrization)
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="row mb30">
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons")
+        </div>
+    </div>
+
+    @section scripts{
+        <script type="text/javascript">
+
+            var razor = {
+                ActiveTab: '@Model.ViewContainer["ActiveTab"]',
+                Tabs: {
+                    OperationLevel: '#@ProcurementPlanNavigation.TAB_NAME_OPERATION_LEVEL',
+                    ProcurementLevel: '#@ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_LEVEL',
+                    Parameterization: '#@ProcurementPlanNavigation.TAB_NAME_PROCUREMENT_PARAMETRIZATION'
+                },
+                URLs: {
+                    Read: '@Url.Action("Read", "ProcurementPlan", new { area = "SGP", tabName = Model.ViewContainer["ActiveTab"] })',
+                    GetProcurementsProcLevelByFilter: '@Url.Action("GetProcurementsProcLevelByFilter", "ProcurementPlan", new { area = "SGP" })',
+                    GetProcurementsOperationLevelByFilter: '@Url.Action("GetProcurementsOperationLevelByFilter", "ProcurementPlan", new { area = "SGP" })',
+                    DownloadDocument: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })',
+                    Cancel: '@Url.Action("Cancel", "ProcurementPlan", new { area = "SGP", tabName = Model.ViewContainer["ActiveTab"] })'
+                },
+                Texts: {
+                    ShowFilter: '@Localization.GetText("COMMON.SVQ.ShowFilter")',
+                    HideFilter: '@Localization.GetText("SGP.Button.HideFilter")',
+                }
+            };
+
+            function okCancel() {
+                var promise = $.Deferred();
+
+                var url = razor.URLs.Cancel;
+                window.location.assign(url);
+
+                promise.resolve();
+                return promise;
+            }
+
+            function removeRowNoticeDocument(event, source) {
+                var promise = $.Deferred();
+
+                var tr = source.closest('tr');
+                var tableId = tr.closest('table').attr('id');
+                tr.remove();
+
+                if (tableId != 'ProcurementPlanTable') {
+                    $('[name="addDocumentNotice"]').parent().removeClass('hide');
+                }
+
+
+
+                promise.resolve();
+                return promise;
+            }
+
+
+            function RemoveRowProcurementPlan(event, source) {
+                var promise = $.Deferred();
+
+                var tr = source.closest('tr');
+                tr.remove();
+
+                $('[name="addProcurementPlanDocument"]').parent().removeClass('hide');
+
+                promise.resolve();
+                return promise;
+            }
+
+
+            /*  FUNCTION WHICH CALL HIDDEN BUTTON TO ADD NEW DOCUMENT TO TABLE OF DOCUMENT */
+            function AddIDBDocProc(items, type, filenames, source) {
+                var tableId = '#' + source.attr('data-linked-table');
+                var table = $(tableId);
+                var tbody = table.children('tbody');
+                var template = tbody.children(':first');
+                var tableName = source.attr('data-linked-table');
+                var divButtonParent = source.parent();
+
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+
+                var firstTR = table.find('tbody tr:not(.template):first');
+
+                docs.forEach(function (elem, index, list) {
+                    var newId = table.GenerateNewId();
+
+                    var newTr = template.clone(false);
+
+                    newTr.removeClass('hide');
+                    newTr.removeClass('template');
+                    newTr.attr('data-id', 'new-' + newId);
+
+                    var inputs = newTr.find('input, select, textarea, div.inputSearch.lupa > button, div.dropdown > button');
+                    inputs = inputs.filter(function () {
+                        var input = $(this);
+                        return input.attr('disabled') == 'disabled';
+                    });
+                    inputs.removeAttr('disabled');
+
+                    $(newTr).find('.document-number').text(elem.DocumentNumber);
+                    $(newTr).find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                    $(newTr).find('input[name*="Description"]').val(elem.Description);
+
+                    var choosens = newTr.find('[data-role="drop-multiple"]');
+                    choosens.attr('data-bind', 'true');
+
+                    var datepickers = newTr.find('.hasDatepicker');
+                    datepickers.removeAttr('id');
+
+                    newTr.appendTo(tbody);
+                    if (tableId != '#ProcurementPlanTable') {
+                        divButtonParent.addClass('hide');
+                    }
+                    bindHandlers(newTr);
+                    initParsley($('[name="form"]'));
+                    destroyParsley($('[name="form"]'));
+                    initParsley($('[name="form"]'));
+                    destroyParsley($('[name="form"]'));
+                });
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            registerCallback(function () {
+
+                function SelectTab(tabName) {
+                    $(String.format('[dd-tab="#{0}"]', tabName)).click();
+                }
+
+                $('[data-fake-pagemode]').each(function () {
+                    var source = $(this);
+                    var value = source.attr('data-fake-pagemode');
+                    source.removeAttr('data-fake-pagemode');
+                    source.attr('data-pagemode', value);
+                });
+
+                $('div[data-name="collapseAllProcurementsEdit"],[data-name="collapseAllProcLevelProcurements"]').click();
+
+                $(document).on('click', '[name="save-Plan"], [name="save-Parameterization"]', function () {
+                    var promise = $.Deferred();
+                    var response = saveContainer($('[name="form"]'), '[name="serializedModel"]', false, null, null, false, true, null);
+                    if (response !== false) {
+                        response.done(function (data) {
+                            if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                                showMessage(data.ErrorMessage)
+                            }
+                        });
+                    }
+                    promise.resolve();
+                    return promise;
+                });
+
+                $(document).on('click', '[name="cancel-Plan"]', function () {
+                    var modalBtn = $('[name="btn-open-popup-cancel"]');
+                    modalBtn.click();
+                });
+
+                $(document).on('click', '[name="RemoveRowGeneralNotice"]', function () {
+                    var source = $(this);
+                    var button = $('[name="btn-open-popup-common-remove"]');
+                    button.data('pressed-by', source);
+                    button.click();
+                });
+
+                $(document).on('click', '[name="DownLoadDoc"]', function () {
+                    var source = $(this);
+                    var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                    var url = razor.URLs.DownloadDocument + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                });
+
+                $(document).on('click', '[name="documentNumberLink"]', function () {
+                    var source = $(this);
+                    var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                    var url = razor.URLs.DownloadDocument + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                });
+
+                $(document).on('click', '[name="addDocumentNotice"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-doc-gen-notice"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                $(document).on('click', '[name="addProcurementPlanDocument"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-doc-plan"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                $(document).on('click', '[name="RemoveRowProcurementPlan"]', function () {
+                    var source = $(this);
+                    var button = $('[name="btn-open-popup-common-remove"]');
+                    button.data('pressed-by', source);
+                    button.click();
+                });
+
+                $(document).ready(function () {
+                    SelectTab(razor.ActiveTab);
+                    $('[dd-tab]:not(.active)').addClass('disabled');
+                });
+            });
+        </script>
+    }
+}

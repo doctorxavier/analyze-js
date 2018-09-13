@@ -1,0 +1,437 @@
+﻿@using IDB.MW.Domain.Values;
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model IDB.MW.Domain.Models.Clauses.OperationRelatedModel
+@{
+    ViewBag.Title = "CreateNewExtension";
+
+    var FechaCurrentExpirationDate = this.ViewBag.CurrentExpirationDate;
+    bool popupNoSpecialExtension = false;
+}
+
+<link href="@Url.Content("~/Content/kendo/kendo.common.min.css")" rel="stylesheet" />
+<link href="@Url.Content("~/Content/esmartGeneral.css")" rel="stylesheet" />
+
+@Styles.Render("~/Content/ModalConfluenceCss")
+
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/clausesCustomScript.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+
+<script type="text/javascript" src="@Url.Content("~/Scripts/datepicker/datepicker.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/extension.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/BlockExtension.js")"></script>
+
+@Scripts.Render("~/bundles/ModalConfluenceScripts")
+
+<script type="text/javascript">
+
+	function adjustCalendarWidth() {
+		setTimeout(function() {
+			$('.k-calendar .k-content').attr('style', 'table-layout: auto !important')
+			$('.k-calendar .k-content td').attr('style', 'font-size: 12px');
+		}, 500);
+	}
+
+	$(document).ready(adjustCalendarWidth);
+	$(document).on('click', adjustCalendarWidth);
+
+	$(document).on('click', '.k-i-calendar', function() {
+		$('.k-calendar .k-content').attr('style', 'table-layout: auto !important')
+		$('.k-calendar .k-content td').attr('style', 'font-size: 12px');
+	});
+
+    $(window).load(function () {
+        $("#target").on("submit", function () {
+            $('#idbRequest, #executorRequestedMonths').prop('disabled', false);
+        });
+
+        $('.k-calendar .k-content').attr('style', 'table-layout: auto !important')
+        $('.k-calendar .k-content td').attr('style', 'font-size: 12px');
+
+        var isChecked = false;
+        $('#Contracts_0__Clauses_0__ClauseIndividuals_0__ClauseExtension_0__IsSpecial').val(isChecked);
+        $('#IsSpecialExtensionCheck').val(isChecked);
+
+        $('#Is_Special_Extension_Id').click(function () {
+            isChecked = $(this).is(':checked');
+            $(this).attr('data-value',
+                "@System.Configuration.ConfigurationManager.AppSettings["ExtensionClauseIsSpecialMonths"]");
+
+            $('#Contracts_0__Clauses_0__ClauseIndividuals_0__ClauseExtension_0__IsSpecial').val(isChecked);
+            $('#IsSpecialExtensionCheck').val(isChecked);
+
+            if (isChecked) {
+                var monthSpecial = "@System.Configuration.ConfigurationManager.AppSettings["ExtensionClauseIsSpecialMonths"]";
+                $('#TypeRequest_2Label').hide();
+                $('#idbRequest, #executorRequestedMonths').val(monthSpecial);
+                $('#idbRequest, #executorRequestedMonths').prop('disabled', isChecked);
+                $('#informativeMessage').show();
+                $("#TypeRequest_1Label").click();
+            }
+            else {
+                isChecked = false;
+                $('#Contracts_0__Clauses_0__ClauseIndividuals_0__ClauseExtension_0__IsSpecial').val(isChecked);
+                $('#TypeRequest_2Label').show();
+                $('#informativeMessage').hide();
+                $('#idbRequest, #executorRequestedMonths').val('');
+                $('#Contracts_0__Clauses_0__ClauseIndividuals_0__ClauseExtension_0__ExecutorRequest').val('');
+                $('#Contracts_0__Clauses_0__ClauseIndividuals_0__ClauseExtension_0__IdbRequest').val('');
+                $('#idbRequest, #executorRequestedMonths').prop('disabled', false);
+            }
+        });
+
+        $('#saveandrequest, #saveandrequest2').click(function () {
+            var targetUrl= '@Url.Action("CreateExtensionSpecial", "Clause", "Clause")';
+            var confirmMessage="@Localization.GetText("Clause.Create.Special.Extension.Confirm.Message")";
+            var noSpecialMessage= "@Localization.GetText("Clause.Create.NoSpecial.Extension.Informative.Message")";
+            @if (ViewBag.Normative == ClauseNormative.OA_421 &&
+                ViewBag.category==ClauseConstants.LAST_DISBURMENT)
+            {
+                popupNoSpecialExtension = true;
+            }
+            isSpecialClausePopupBuilder(
+                @popupNoSpecialExtension.ToString().ToLower(),
+                confirmMessage,
+                noSpecialMessage,
+                targetUrl);
+
+        });
+    });
+
+    $(document).ready(function () {
+        $(document).on('click', 'a[title="Cancel"]', function (){
+            idbg.lockUi(null, true);
+        });
+    });
+
+</script>
+
+
+@Html.Hidden("RequestedDate", (object)ViewBag.RequestedDate)
+@(Html.Hidden(
+    "determine-validator-udr", 
+    Url.Action("DetermineLASTDExtensionMandatoryValidator", "Clause")))
+
+    <section class="central">
+
+        <h2 class="hide">@Localization.GetText("Content Main Section")</h2>
+
+        <div class="mod_contenido_central contracts_and_clauses clause304">
+
+
+            <div class="messages message-warning" id="AlertDateLess">
+                <span>
+                    @Localization.GetText("Request date cannot be less or equal than the original expiration date: ") @(Model.Contracts[0].Clauses[0].ClauseIndividuals[0].OriginalExpirationDate.ToString("dd/MM/yyyy"))
+                </span>
+            </div>
+
+
+            @using (Html.BeginForm("EditExtension", "Clause", FormMethod.Post, new { area = "Clauses", id = "target" }))
+            {
+                @Html.Hidden("CurrentExpirationDate", (object)ViewBag.CurrentExpirationDate)
+                @Html.HiddenFor(x => x.OperationId)
+                @Html.HiddenFor(x => x.mainOperationNumber)
+                @Html.HiddenFor(x => x.Contracts[0].ContractId)
+                @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseId)
+                @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId)
+                @(Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0]
+                       .ClauseExtension[0].ClauseExtensionId))
+                @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].CurrentExpirationDate)
+                @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].ValidationStageId)
+                @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].IsSpecial)
+                @Html.HiddenFor(x => x.IsSpecialExtensionCheck)
+                <input type="hidden" id="ExistRequestExtensionDate" value="@(((DateTime)ViewBag.CurrentExpirationDateRequest).ToString("dd MMM yyyy"))" />
+                <h3 class="headingh2 w50">
+                    <a href="@(Url.Action("Index", "Contracts", new { area = "Clauses", operationNumber = Model.mainOperationNumber }))" title=" @Localization.GetText("CL.ContractsClauses") " class=" tipo1">@Localization.GetText("CL.ContractsClauses")</a>
+                </h3>
+
+                <div class="editingButtonsEdit up">
+                    <a class="cancel auto-lock-ui" id="Cancelar1" href="@(Url.Action("Edit", "Clause", new { area = "Clauses", operationId = Model.OperationId, contractId = Model.Contracts[0].ContractId, clauseId = Model.Contracts[0].Clauses[0].ClauseId, clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId, mainOperationNumber = Model.mainOperationNumber }))" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+                    <label for="saveandrequest">
+                        <input type="button" class="btn-primary_2 saveandrequest"
+                               value="@Localization.GetText("CL.CreateExtension.ButtonLabel.FirstSaveAndRequest")" id="saveandrequest">
+                    </label>
+                    <label for="save">
+                        <input type="submit" class="btn-primary_2 save" name="action:EditExtension" value="@Localization.GetText("Save")" id="save">
+                    </label>
+                </div>
+
+                <div class="desheadingh3 w65">
+
+                    <p class="title">
+                        @Model.OperationNumber <span class="draft">
+                            @foreach (var masterData in ViewBag.ListContractStatus)
+                            {
+                                if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].ContractClauseStatId)
+                                {
+                                    @Localization.GetText(masterData.NameEn)
+                                    break;
+                                }
+                            }
+                        </span>
+                        @if (Model.Contracts[0].LegalEffectivenessDate.HasValue && Model.Contracts[0].CurrentDisbursementExpirationDate.HasValue)
+                        {
+                            @String.Format("{0:dd MMM yyy}", Model.Contracts[0].LegalEffectivenessDate)<span class="titleTo"> @Localization.GetText("to") </span>@String.Format("{0:dd MMM yyy}", Model.Contracts[0].CurrentDisbursementExpirationDate)
+                        }
+                    </p>
+
+                    <p class="description"><span class="descriptionBold">@Model.Contracts[0].ContractNumber</span>&nbsp @Model.OperationNameEn</p>
+
+                </div>
+
+                <h4 class="headingh3 min_bottom_headingh3">@Localization.GetText("New extension")</h4>
+
+                <fieldset>
+                    <legend class="hide">@Localization.GetText("Dates")</legend>
+
+                    <div class="operationData">
+                        <div class="data1">
+                            <div class="verticalMargin20">
+                                <span class="grayColor">@Localization.GetText("Type Request")</span>
+                            </div>
+                            <div class="w100 verticalMargin10">
+                                @Html.RadioButtonFor(x => x.TypeRequestDate, "Month", new
+                       {
+                           @class = "fancy-radio verticalAlignMiddle",
+                           @checked = "checked",
+                           @id = "TypeRequest_1"
+                       })
+                                <label id="TypeRequest_1Label" for="TypeRequest_1"
+                                       class="fancy-label-radio-circle verticalAlignMiddle">
+                                    @Localization.GetText("Months")
+                                </label>
+
+                                @Html.RadioButtonFor(x => x.TypeRequestDate, "Date", new
+                       {
+                           @class = "fancy-radio verticalAlignMiddle",
+                           @id = "TypeRequest_2"
+                       })
+                                <label id="TypeRequest_2Label" for="TypeRequest_2"
+                                       class="@(Model.IsSignatureDeadline ? "hide" : null)
+                                   fancy-label-radio-circle marginLeft5 verticalAlignMiddle">
+                                    @Localization.GetText("Date")
+                                </label>
+                            </div>
+                        </div>
+                        @if (Model.IsSpecialExtensionCheck.HasValue)
+                        {
+                            if (Model.IsSpecialExtensionCheck.Value)
+                            {
+                                <div class="verticalMargin20">
+                                    @Confluence.InputCheckbox(
+                                    Model.Contracts[0]
+                                    .Clauses[0]
+                                    .ClauseIndividuals[0]
+                                    .ClauseExtension[0]
+                                    .IsSpecial,
+                                    id: "Is_Special_Extension_Id",
+                                    name: "Is_Special_Extension_Id",
+                                    disabled: (!Model.IsSpecialExtensionCheck.Value || Model.IsSignatureDeadline),
+                                    label: @Localization.GetText("Clause.Create.Special.Extension.Check.Label"),
+                                    htmlClass: "pr10")
+                                </div>
+                            }
+
+                            if (!Model.IsSpecialExtensionCheck.Value)
+                            {
+                                <div class="data1">
+                                    <div class="verticalMargin20 marginLeft5">
+                                        <p class="description">@Localization.GetText("Clause.Create.Special.Extension.NotCreate.Message") </p>
+                                    </div>
+                                </div>
+                            }
+
+                        }
+
+                        <div class="data1 hideNI" id="informativeMessage">
+                            <div class="verticalMargin20 marginLeft5">
+                                <p class="description">@Localization.GetText("Clause.Create.Special.Extension.Informative.Message") </p>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="operationData custom" id="monthsSelected">
+                        <label class="editLabel input" for="requestedMonths">
+                            <span class="dataTitle inputTitle">@Localization.GetText("Requested months")</span>
+                            @{
+                                var disabledClass = Model.IsSignatureDeadline ? " disabled" : string.Empty;
+                            }
+                            @Html.TextBoxFor(x =>
+                            x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].IdbRequest,
+                            new Dictionary<string, Object>
+                            {
+                                { "class", "input normal integer numberOnly" + disabledClass },
+                                { "id", "idbRequest" },
+                                { "name", "Requested months" },
+                                { "placeholder", Localization.GetText("Requested months") },
+                                { "maxlength", "4" },
+                                { Model.IsSignatureDeadline ? "readonly" : "data-notdisabled", "disabled" }
+                            })
+                        </label>
+                        <label class="editLabel input" for="executorRequestedMonths">
+                            <span class="dataTitle inputTitle">@Localization.GetText("CL.ExecutorRequestedMonths")</span>
+                            @Html.TextBoxFor(x =>
+                            x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].ExecutorRequest,
+                            new Dictionary<string, Object>
+                            {
+                                { "class", "input normal integer numberOnly" + disabledClass },
+                                { "id", "executorRequestedMonths" },
+                                { "name", "Executor Requested Months" },
+                                { "placeholder", Localization.GetText("Executor Requested months") },
+                                { "maxlength", "4" },
+                                { Model.IsSignatureDeadline ? "readonly" : "data-notdisabled", "disabled" }
+                            })
+                        </label>
+                        <div class="data4">
+                            <p class="dataTitle">@Localization.GetText("Requested expiration date")</p>
+                            <p id="requestedDate">@String.Format("{0:dd MMM yyy}", FechaCurrentExpirationDate)</p>
+                        </div>
+                    </div>
+
+                    <div class="operationData custom" id="dateRequestSelected" style="display: none">
+
+                        <label class="editLabel" for="RequestExtensionDate">
+
+                            <span class="dataTitle inputTitle">@Localization.GetText("CL.RequestedDate")</span>
+                            @Html.TextBoxFor(
+                            x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].
+                                RequestExtensionDate, new
+                                {
+                                    @class = "kendoDatePicker typeDatepicker",
+                                    @placeholder = "dd/MM/yyyy",
+                                    @id = "RequestExtensionDate",
+                                    @Value = String.Format("{0:dd MMM yyy}",
+                                        @Model.Contracts[0].Clauses[0].ClauseIndividuals[0]
+                                            .ClauseExtension[0].RequestExtensionDate)
+                                }
+                        )
+                        </label>
+                    </div>
+
+                </fieldset>
+
+                <fieldset>
+                    <legend class="hide">@Localization.GetText("Extensions")</legend>
+                    <div class="operationData custom">
+                        <label class="editLabel input" for="communicationNumber">
+                            <span class="dataTitle inputTitle">@Localization.GetText("CL.CommunicationNumber")</span>
+                            @Html.TextBoxFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].CommunicationNumber, new Dictionary<string, Object> { { "class", "input normal large" }, { "id", "communicationNumber" }, { "name", "Communication number" }, { "placeholder", Localization.GetText("Communication number") } })
+                        </label>
+                        <label class="editLabel input" for="requestedBy">
+                            <span class="dataTitle inputTitle">@Localization.GetText("Requested by")</span>
+                            @Html.TextBoxFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].RequestedBy, new Dictionary<string, Object> { { "class", "input normal large" }, { "id", "requestedBy" }, { "name", "Requested by" }, { "placeholder", Localization.GetText("Requested by") } })
+                        </label>
+                        <div class="data4">
+                            <p class="dataTitle">@Localization.GetText("Extension status")</p>
+                            <p>@Localization.GetText(ViewBag.ValidationStageDraft)</p>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend class="hide">@Localization.GetText("Description")</legend>
+                    <div class="operationData custom marginBottom2Con8">
+                        <div class="operationData">
+                            <label class="editLabel input w100" for="description">
+                                <span class="dataTitle inputTitle">@Localization.GetText("Description")</span>
+                                @Html.TextAreaFor(
+                    x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].Description,
+                    new Dictionary<string, Object> {
+                        { "class", "input normal large" },
+                        { "title", "Description" },
+                        { "id", "description" },
+                        { "cols", "55" },
+                        { "rows", "10" },
+                        { "placeholder", Localization.GetText("Description") }
+                    })
+                            </label>
+                        </div>
+                        <div class="operationData">
+                            <label class="editLabel input w100" for="justification">
+                                <span class="dataTitle inputTitle">@Localization.GetText("Justification")</span>
+                                @Html.TextAreaFor(
+                    x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].Justification,
+                    new Dictionary<string, Object> {
+                        { "class", "input normal large" },
+                        { "title", "Justification" },
+                        { "id", "justification" },
+                        { "cols", "55" },
+                        { "rows", "10" },
+                        { "placeholder", Localization.GetText("Justification") }
+                    })
+                            </label>
+                        </div>
+                        <div class="operationData">
+                            <label class="editLabel input w100" for="recomendation">
+                                <span class="dataTitle inputTitle">@Localization.GetText("Recomendation")</span>
+                                @Html.TextAreaFor(
+                    x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension[0].Recommendation,
+                    new Dictionary<string, Object> {
+                        { "class", "input normal large" },
+                        { "title", "Recommendation" }, { "id", "recommendation" },
+                        { "cols", "55" },
+                        { "rows", "10" },
+                        { "placeholder", Localization.GetText("Recommendation") }
+                    })
+                            </label>
+                        </div>
+                    </div>
+                </fieldset>
+                <div class="editingButtonsEdit">
+                    <a class="cancel auto-lock-ui"
+                       id="Cancelar2"
+                       href="@(Url.Action("Edit", "Clause",
+                       new { area = "Clauses",
+                       operationId = Model.OperationId,
+                       contractId = Model.Contracts[0].ContractId,
+                       clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                       clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                       mainOperationNumber = Model.mainOperationNumber }))"
+                       title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+                    <label for="saveandrequest2">
+                        <input type="button" class="btn-primary_2 saveandrequest"
+                               name="action:Save&RequestExtension"
+                               value="@Localization.GetText("CL.CreateExtension.ButtonLabel.FirstSaveAndRequest")"
+                               id="saveandrequest2" name="action:Save&RequestExtension">
+                    </label>
+                    <label for="save">
+                        <input type="submit" class="btn-primary_2 save" name="action:EditExtension" value="@Localization.GetText("Save")" id=" save2">
+                    </label>
+                </div>
+
+                <div class="editingButtonsEdit paddingTop0Con3 hideNI" id="editingSpecial">
+                    <a class="ftl margin5"
+                       id="Cancelar3"
+                       href="@(Url.Action("Edit", "Clause",new { area = "Clauses",
+                                                            operationId = Model.OperationId,
+                                                            contractId = Model.Contracts[0].ContractId,
+                                                            clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                                            clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                                            mainOperationNumber = Model.mainOperationNumber }))"
+                       title="@Localization.GetText("Cancel")">
+                        @Localization.GetText("Cancel")
+                    </a>
+                    <label for="continue">
+                        <input type="button"
+                               class="btn-primary_2 saveandrequest"
+                               value="@Localization.GetText("Continue")"
+                               id="saveandrequest3"
+                               onclick="isSpecialEvent('@Url.Action("CreateExtensionSpecial", "Clause", "Clause")')">
+                    </label>
+                </div>
+                <div class="editingButtonsEdit paddingTop0Con3 hideNI" id="editingSpecial2">
+                    <label for="continue">
+                        <input type="button"
+                               class="btn-primary_2 saveandrequest"
+                               value="@Localization.GetText("OK")"
+                               onclick="isSpecialEvent('@Url.Action("CreateExtensionSpecial", "Clause", "Clause")')">
+                    </label>
+                </div>
+            }
+        </div>
+    </section>

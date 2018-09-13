@@ -1,0 +1,878 @@
+﻿@*AnnualAllocation*@
+
+@using IDB.Presentation.MVC4.Helpers;
+@using IDB.Architecture.Language
+
+@using IDB.MW.Application.ESW_CIPModule.ViewModels;
+
+
+@model AnnualAllocationContainerViewModel
+@{
+    ViewBag.fixLoad = true;
+}
+
+    <input hidden data-idb-pagename="UI-ESWCIP-AnnualAllocation" />
+
+    <div id="annualAllocation" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="false"
+     data-url="@Url.Action("AnnualAllocation", "Save", new { area = "ESW_CIP" })">
+
+     <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+
+    <div class="row" id="header-section">
+
+        <div class="col-md-12">
+
+            @Html.Partial("Partials/AnnualAllocation/AAHeader", Model)
+
+        </div>
+
+    </div>
+
+    <div class="row" id="grid-section">
+
+        <div class="col-md-12">
+
+            @Html.Partial("Partials/AnnualAllocation/AAGrid", Model.AnnualAllocations)
+
+        </div>
+
+        <div class="col-md-12">
+
+            <div data-pagemode="edit" class="text-center">
+
+                @Confluence.ButtonAddNewRows(Localization.GetText("R6.Proposal.AnnualAllocation.AddOperation"), "tblAllocation", "Allocation", "showRelatedOperationModal", dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnNewOperation" } })
+               
+            </div>
+
+        </div>
+
+    </div>
+
+    <br />
+
+    <div class="row" id="footer-section">
+
+        <div class="col-md-12 text-right">
+
+            @Html.Partial("Partials/AnnualAllocation/AAButton", Model)
+
+        </div>
+
+    </div>
+
+    <div data-id="ModalRegion" class="hide">
+        <button data-id="butttonNewRelatedOperationModal"
+                data-modal-allowclose="true"
+                data-custom-modal="newRelatedOperationModal"
+                data-custom-modal-style=""
+                data-custom-modal-title='@Localization.GetText("R6.Proposal.AnnualAllocation.OperationSelection")'
+                data-custom-modal-validate="false"
+                data-custom-modal-onclose="addNewRelatedOperation"
+                data-custom-modal-closeonoverlayclick="false"></button>
+
+        <div id="newRelatedOperationModal" class="hide modalBody newRelatedOperationModal"></div>
+
+    </div>
+
+</div>
+
+    @section scripts{
+
+    <script type="text/javascript" src="~/Scripts/ESWCIP/AAGridFilter.js"></script>
+    
+    <script type="text/javascript">
+
+        var filterTableRows;
+        var annualAllocationTable = $("#tblAllocation");
+        var resultPerPageElement = $('[name=resultsPerPageAllocations]');
+        var resultPerPage = parseInt(resultPerPageElement.val());
+
+    registerCallback(function () {
+
+        $(document).ready(function () {
+            initializeGlobalLoader();
+            diabledDismissedRows();
+            annualAllocationTable.paginationConfluense(resultPerPage).sortableConfluenseESWCIP();
+            updateResultsPerPageAllocation();
+            orderAnnualAllocationByYearDesc();
+            cleanUnnecessaryZeroesOnReadMode();
+            maskAnnualAllocationAmountsOnReadMode();
+            centerButtonTrash();
+            $(".hideContent").removeClass('hide');
+        });
+    });
+
+    resultPerPageElement.bind('change', function () {
+        resultPerPage = parseInt(resultPerPageElement.val());
+    });
+
+    function downloadAnnualAllocation(source) {
+        var formatType = source.attr('name').toString();
+        var url = '@Url.Action("DownloadAAExcelReport", "View", new { area = "ESW_CIP" })';
+        window.open(url, '_blank');
+    }
+
+    function editAllocation(source) {
+        enterEditMode(false, $('#annualAllocation'), false);
+        enterEditMode(false, $('#header-section'), true);
+        enterEditMode(false, $('#footer-section'), true);
+        updateResultsPerPageSearch();
+        updateResultsPerPageAllocation();
+        annualAllocationTable.paginationConfluense(resultPerPage).sortableConfluenseESWCIP();
+        orderAnnualAllocationByYearDesc();
+        requestProposalClick();
+        //deleteClick();
+        approvalClick();
+        dismissClick();
+        studiesCommitteClick();
+        evaluateRowCheckBoxesStatus();
+        bindCheckboxes();
+        enableSubmitButtonWhenChange();
+        enableSubmitButton();
+        cleanUnnecessaryZeroesFromInputsOnEditMode();
+        bindHandlers();
+        setHasChangesWhenEnterEditMode();
+        setHasChanges();
+    }
+
+    function cancelRequestAllocation(source) {
+        exitEditMode(false, $('#annualAllocation'), false, false);
+        exitEditMode(false, $('#header-section'), true, true);
+        exitEditMode(false, $('#footer-section'), true, true);
+        cleanEmptyRows($("#tblAllocation tr.rowContent"));
+        cleanUnnecessaryZeroesOnReadMode();
+        maskAnnualAllocationAmountsOnReadMode();
+        setHasChangesWhenEnterReadMode();
+        disableCheckBoxesOnReadMode();
+    }
+
+    function showRelatedOperationModal() {
+        var addedOperationNumbers = loadAlreadyAddedOperationNumbers();
+        var url = '@Url.Action("GetPartialView", "View", new {area = "ESW_CIP", partial = "_AddRelatedOperation"})';
+        var response = $.get(url + "&addedOperationNumbers=" + addedOperationNumbers);
+        response.done(function (data) {
+            $('#newRelatedOperationModal').html(data);
+            $('[data-id="butttonNewRelatedOperationModal"]').click();
+        });
+
+        $("#tblAASearch").paginationConfluense(10).sortableConfluenseESWCIP();
+        filterTableRows = $("#tblAASearch tbody").html();
+        orderSearchTableByOperationNumber();
+        checkAllInputCheckBoxes();
+        unCheckCheckAll();
+        allowOnlyNumbersOnYear();
+        $('#newRelatedOperationModal').parents('.vex-content').attr("style", "");
+
+        correctAnnualHeight();
+
+        cleanCheckboxes();
+        updateResultsPerPageSearch();
+    }
+
+    function relatedOperationSearch() {
+        updateResultsPerPageSearch();
+
+        $("#tblAASearch tbody").html(filterTableRows);
+        var tableBody = $("#tblAASearch > tbody");
+        var tableRows = tableBody.find('tr');
+
+        var division = $('ul[aria-labelledby=id-OrgUnitJointProposal] li a[dd-selected]').html().trim();
+        var opNumber = $('#operationNumber').val().trim();
+        var opYear = $('[name=relatedOperationYear]').val().trim();
+
+        if (division !== "" && division !== "(select option)") {
+            tableRows.each(function () {
+                var row = $(this);
+                if (division.trim().toLowerCase() !== row.find('td').eq(-2).find('label').text().trim().toLowerCase()) {
+                    row.remove();
+                }
+            });
+        }
+
+        if (opNumber !== "") {
+            tableRows.each(function () {
+                var row = $(this);
+                if (row.find('td:first').find('label').text().trim().toLowerCase().indexOf(opNumber.trim().toLowerCase()) < 0) {
+                    row.remove();
+                }
+            });
+        }
+
+        if (opYear !== "") {
+            tableRows.each(function () {
+                var row = $(this);
+                if (row.find('td').eq(2).find('label').text().trim() !== opYear) {
+                    row.remove();
+                }
+            });
+        }
+
+        if ($('[name=checkAll]').is(':checked')) {
+            $('[name=checkAll]').click();
+        }
+
+        $("#tblAASearch").paginationConfluense(10).sortableConfluenseESWCIP();
+        checkAllInputCheckBoxes();
+        allowOnlyNumbersOnYear();
+        bindHandlers();
+
+    }
+
+    function cancelSearchOperationRelated() {
+        cleanSearchInputs();
+        cleanSearchDropdowns();
+        $("#tblAASearch tbody").html(filterTableRows);
+        $("#tblAASearch").paginationConfluense(10).sortableConfluenseESWCIP();
+        checkAllInputCheckBoxes();
+        $('[name=checkAll]').attr('checked', false);
+        cleanCheckboxes();
+    }
+
+    function cleanSearchInputs() {
+        $('input[name=relatedOperation]').val("");
+        $('input[name=relatedOperationYear]').val("");
+        $('input[name=resultsPerPage]').val("");
+        $('input[name=OrgUnitJointProposal]').val("");
+    }
+
+    function cleanSearchDropdowns() {
+        $('ul[aria-labelledby=id-resultsPerPage] li').find('a[dd-selected]').removeAttr('dd-selected');
+        $('ul[aria-labelledby=id-resultsPerPage] li:first').find('a').attr('dd-selected', '');
+        $('ul[aria-labelledby=id-resultsPerPage]').parents('div.dropdown').find('span.valueText').html($('ul[aria-labelledby=id-resultsPerPage] li').find('a[dd-selected]').text().trim());
+        $('ul[aria-labelledby=id-OrgUnitJointProposal] li').find('a[dd-selected]').removeAttr('dd-selected');
+        $('ul[aria-labelledby=id-OrgUnitJointProposal] li:first').find('a').attr('dd-selected', '');
+        $('ul[aria-labelledby=id-OrgUnitJointProposal]').parents('div.dropdown').find('span.valueText').html($('ul[aria-labelledby=id-OrgUnitJointProposal] li').find('a[dd-selected]').text().trim());
+    }
+
+    function saveNewAllocation(source) {
+        $('#annualAllocation').attr('data-url', $('#annualAllocation').attr('data-base-url'));
+        cleanSavingActions();
+        if (source.attr('name') !== "saveNewAllocation") {
+            savingActions();
+        }
+        showLoader();
+        var response = saveContainer(
+            $('#annualAllocation'),
+            '#hiddenModel',
+            false,
+            null,
+            null,
+            false,
+            null,
+            null,
+            false);
+
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage !== null && data.ErrorMessage !== '') {
+                    showMessage(data.ErrorMessage);
+                } else if (data.IsValid) {
+                    $("#PLGridProposal").load(location.href + " #tblAllocation");
+                    exitEditMode(false, $('#annualAllocation'), false, false);
+                    exitEditMode(false, $('#header-section'), true, true);
+                    exitEditMode(false, $('#footer-section'), true, true);
+                    diabledDismissedRows();
+                    maskAnnualAllocationAmountsOnReadMode();
+                    if (source.attr('name') === "saveNewAllocation") {
+                        var msg = '@Localization.GetText("R6.Proposal.AnnualAllocation.Message.Save")';
+                        showMessage(msg);
+                    }
+                    annualAllocationTable.paginationConfluense(resultPerPage).sortableConfluenseESWCIP();
+                }
+            });
+        } else {
+            cleanSavingActions();
+            if ($('li.parsley-data-max').length > 0) {
+                var msg = '@Localization.GetText("R6.Proposal.AnnualAllocation.ExceededAmount")';
+                showMessage(msg);
+            }
+        }
+        hideLoader();
+    }
+
+    function closeModal() {
+        var vexModal = $('.modalBody').parents('.vex');
+        if (vexModal.length > 0)
+            vex.closeByID(vexModal.data().vex.id);
+    }
+
+    function addSelectedRows(source) {
+        var table = $('#tblAllocation > tbody');
+
+        var checkedRows = $('#tblAASearch tbody tr').filter(function () {
+            if ($(this).find('td:last input').is(":checked")) {
+                return $(this);
+            }
+        });
+
+        $.each(checkedRows, function (i, item) {
+            var operationNumber = $(item).find('td').eq(0).find('span label').text();
+            var operationName = $(item).find('td').eq(1).find('span label').text();
+            var departmentDivision = $(item).find('td').eq(2).find('span label').text();
+            var operationYear = $(item).find('td').eq(3).find('span label').text();
+            var statusRow = $(item).find('td').eq(3).find('span input[name=ProposalStatus]').val();
+            var statusCode = $(item).find('td').eq(3).find('span input[name=ProposalStatusCode]').val();
+            var modalityRow = $(item).find('td').eq(3).find('span input[name=Modality]').val();
+            var teamLeaderRow = $(item).find('td').eq(3).find('span input[name=TeamLeader]').val();
+
+            var newRow = '@ESWCIP.RowElement(editContent: new List<HelperResult>
+                    {
+                        Confluence.Label(text: "Replace"),
+                        Confluence.Label(text: "ModalityRow"),
+                        Confluence.Label(text: "Replace"),
+                        Confluence.Label(text: "Replace"),
+                        Confluence.Label(text: "Replace"),
+                        Confluence.Label(text: ""),
+                        Confluence.InputDecimal(null, "AllocatedAmount", maxValue: "99999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtAllocatedAmount" } }, required: false, htmlClass: "inputDecimal"),
+                        Confluence.InputDecimal(null, "RevisedAmount", maxValue: "99999999.99", numberSeparator: ",", decimalSeparator: ".", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtRevisedAmount" } }, required: false, htmlClass: "inputDecimal"),
+                        Confluence.Label(text: "TeamLeaderRow"),
+                        Confluence.InputCheckbox(false, "RequestProposal", disabled: false),
+                        Confluence.InputCheckbox(false, "StudiesCommite", disabled: false),
+                        Confluence.InputCheckbox(false, "Approval", disabled: false),
+                        Confluence.InputCheckbox(false, "Dismiss", disabled: false),
+                        Confluence.ButtonTrash(text: string.Empty, action: "deleteRow", name: "Delete"),
+                        Confluence.Label(text: "proposalStatusRow")
+                    }, trClass: "text-center", editOnly: true).ToString().Replace("\r\n", "").Replace("\n", "")';
+
+            addNewRow(table, newRow.replace(/&amp;#59177/g, '&#59177'));
+
+            jQuery.each($('#tblAllocation > tbody tr:last td span label:contains("Replace")'), function (i, element) {
+                $(element).text($(item).find('td').eq(i).find('span label').text());
+            });
+
+            var lastRow = $('#tblAllocation > tbody tr:last');
+
+            lastRow.find('td span label:contains("ModalityRow")').text(modalityRow);
+            lastRow.find('td span label:contains("TeamLeaderRow")').text(teamLeaderRow);
+            lastRow.find('td span label:contains("proposalStatusRow")').text(statusRow);
+
+            var hiddenID = '@Confluence.InputHidden(value: "0", name: "AnnualAllocationID", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "inputHiddenAnnualAllocationID" } }).ToString().Replace("\r\n", "").Replace("\n", "")';
+            var hiddenOperationNumber = '@Confluence.InputHidden(value: "itemOperationNumber", name: "OperationNumber", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "inputHiddenOperationNumber" } }).ToString().Replace("\r\n", "").Replace("\n", "")';
+            var hiddenProposalStatus = '@Confluence.InputHidden(value: "PENDING_CREATION", name: "ProposalStatusCode").ToString().Replace("\r\n", "").Replace("\n", "")';
+            var hiddenActions = '@Confluence.InputHidden(value: "|", name: "Actions").ToString().Replace("\r\n", "").Replace("\n", "")';
+            var hiddenHasChanges = '@Confluence.InputHidden(value: "true", name: "HasChanges").ToString().Replace("\r\n", "").Replace("\n", "")';
+
+            hiddenID = hiddenID.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+            hiddenOperationNumber = hiddenOperationNumber.replace("itemOperationNumber", operationNumber).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+            hiddenProposalStatus = hiddenProposalStatus.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+            hiddenActions = hiddenActions.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+            hiddenHasChanges = hiddenHasChanges.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+
+            $(hiddenID).appendTo($('#tblAllocation > tbody tr:last td').eq(-2).find("span[data-pagemode=edit] button"));
+            $(hiddenOperationNumber).appendTo($('#tblAllocation > tbody tr:last td').eq(-2).find("span[data-pagemode=edit] button"));
+            $(hiddenProposalStatus).appendTo($('#tblAllocation > tbody tr:last td').eq(-2).find("span[data-pagemode=edit] button"));
+            $(hiddenActions).appendTo($('#tblAllocation > tbody tr:last td').eq(-2).find("span[data-pagemode=edit] button"));
+            $(hiddenHasChanges).appendTo($('#tblAllocation > tbody tr:last td').eq(-2).find("span[data-pagemode=edit] button"));
+
+            $('#tblAllocation > tbody tr:last td input[name=AllocatedAmount]').attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+            $('#tblAllocation > tbody tr:last td input[name=RevisedAmount]').attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+            $('#tblAllocation > tbody tr:last').evaluateStatus();
+            $('#tblAllocation > tbody tr:last').find('td').eq(1).removeClass('text-center').addClass('text-left');
+            $('#tblAllocation > tbody tr:last').find('td').eq(2).removeClass('text-center').addClass('text-left');
+            $('#tblAllocation > tbody tr:last').find('td').eq(5).removeClass('text-center').addClass('text-right');
+            $('#tblAllocation > tbody tr:last').find('td').eq(6).removeClass('text-center').addClass('text-right');
+            $('#tblAllocation > tbody tr:last').find('td').eq(7).removeClass('text-center').addClass('text-right');
+            $('#tblAllocation > tbody tr:last').find('td:last').removeClass('text-center').addClass('text-left');
+
+            if ('@ViewBag.OperationModality' !== "ESW") {
+                $('#tblAllocation > tbody tr:last').find('input[name=StudiesCommite]').parents('td').remove();
+            }
+
+        });
+
+        closeModal();
+        //vex.close();
+        enterEditMode(false, $('#PLGridProposal'), true);
+        annualAllocationTable.paginationConfluense(resultPerPage).sortableConfluenseESWCIP();
+        bindHandlers();
+        $('#tblAllocation > tbody tr:last').evaluateStatus();
+        requestProposalClick();
+        evaluateRowCheckBoxesStatus();
+        //deleteClick();
+        approvalClick();
+        dismissClick();
+        studiesCommitteClick();
+        enableSubmitButtonWhenChange();
+        enableSubmitButton();
+        cleanUnnecessaryZeroesFromInputsOnEditMode();
+        centerButtonTrash();
+        $('#tblAllocation > tbody tr').find('[name=AnnualAllocationID][value=0]').parents('tr').find('span.showDataEdit [name=StudiesCommite]').attr('disabled', 'disabled');
+    }
+
+    $.fn.evaluateStatus = function () {
+        var currentRow = $(this);
+        var statusCode = currentRow.find('[name=ProposalStatusCode]').val();
+        var row = currentRow.find('span.showDataEdit');
+
+        switch (statusCode) {
+            case "PENDING_CREATION":
+                row.find('[name=RequestProposal]').attr("disabled", false);
+                row.find('[name=Delete]').attr("disabled", false);
+                row.find('[name=Approval]').attr("disabled", "disabled");
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                break;
+            case "IN_CREATION":
+                enableStudiesCommite(row);
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                break;
+            case "VPS_REVIEW":
+                enableStudiesCommite(row);
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                break;
+            case "DEPARMENT_REVIEW":
+                enableStudiesCommite(row);
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                break;
+            case "VALIDATED":
+                row.find('[name=Approval]').attr("disabled", false);
+                row.find('[name=Dismiss]').attr("disabled", false);
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                disableStudiesCommite(currentRow);
+                break;
+            case "DISMISSED":
+                currentRow.disableWhenDismissed();
+                row.find('[name=Approval]').attr("disabled", "disabled");
+                row.find('[name=Dismiss]').removeAttr("disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                disableStudiesCommite(currentRow);
+                break;
+            case "COMPLETED":
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                row.find('[name=AllocatedAmount]').attr("disabled", "disabled");
+                row.find('[name=AllocatedAmount]').css("color", '#333');
+                disableStudiesCommite(currentRow);
+                break;
+            case "VPS_VALIDATION":
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                disableStudiesCommite(currentRow);
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                break;
+            case "DEPARMENT_RETURNED":
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                break;
+            case "IN_EXECUTION":
+                row.find('[name=Approval]').attr("disabled", "disabled");
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=AllocatedAmount]').attr("disabled", "disabled");
+                row.find('[name=AllocatedAmount]').css("color", '#333');
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                disableStudiesCommite(currentRow);
+                break;
+            case "VPS_RETURNED":
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                break;
+            case "COMMITTEE_REVIEW":
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                disableStudiesCommite(currentRow);
+                break;
+            case "COMMITTEE_RETURNED":
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                disableStudiesCommite(currentRow);
+                break;
+            case "CANCELLED":
+                row.find('[name=Approval]').attr("disabled", "disabled");
+                row.find('[name=Dismiss]').attr("disabled", "disabled");
+                row.find('[name=Delete]').attr("disabled", "disabled");
+                row.find('[name=RevisedAmount]').attr("disabled", "disabled");
+                row.find('[name=AllocatedAmount]').attr("disabled", "disabled");
+                row.find('[name=AllocatedAmount]').css("color", '#333');
+                disableStudiesCommite(currentRow);
+                break;
+        }
+    }
+
+    function enableStudiesCommite(rowElement) {
+        if (rowElement.find('[name=StudiesCommite]').length > 0) {
+            rowElement.find('[name=StudiesCommite]').attr("disabled", false);
+        }
+    }
+
+    function disableStudiesCommite(rowElement) {
+        if (rowElement.find('[name=StudiesCommite]').length > 0) {
+            rowElement.find('[name=StudiesCommite]').attr("disabled", "disabled");
+        }
+    }
+
+    function requestProposalClick() {
+        $('input[name=RequestProposal]').change(function () {
+            if ($(this).is(':checked')) {
+                $(this).attr("checked", "checked");
+                $(this).parents('tr').find('span.showDataEdit [name=StudiesCommite]').attr("disabled", false);
+                $(this).parents('tr').find('span.showDataEdit [name=Delete]').attr('disabled', 'disabled');
+            }
+            else {
+                $(this).removeAttr("checked");
+                $(this).parents('tr').find('span.showDataEdit [name=StudiesCommite]').attr('disabled', 'disabled');
+                $(this).parents('tr').find('span.showDataEdit [name=StudiesCommite]').attr('checked', false);
+                $(this).parents('tr').find('span.showDataEdit [name=Delete]').removeAttr('disabled');
+            }
+        });
+    }
+
+    function evaluateRowCheckBoxesStatus() {
+        $('#tblAllocation tr[data-id]').each(function () {
+            $(this).evaluateStatus();
+        });
+    }
+
+    function submitAllocation(source) {
+        var msg = '@Localization.GetText("R6.Proposal.AnnualAllocation.Message.Submit")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                saveNewAllocation(source);
+            }
+        });
+    }
+
+    function savingActions() {
+        $('#tblAllocation tbody tr').each(function () {
+            var tr = $(this);
+            tr.find('span.showDataEdit input[type=checkbox]:enabled:checked').each(function () {
+                switch ($(this).attr("name")) {
+                    case "RequestProposal":
+                        tr.find('input[name=Actions]').val(tr.find('input[name=Actions]').val() + "RequestProposal|");
+                        break;
+                    case "Approval":
+                        tr.find('input[name=Actions]').val(tr.find('input[name=Actions]').val() + "Approval|");
+                        break;
+                    case "Dismiss":
+                        tr.find('input[name=Actions]').val(tr.find('input[name=Actions]').val() + "Dismiss|");
+                        break;
+                }
+            });
+
+            if (tr.find('[name=ProposalStatusCode]').val() === "DISMISSED" && !tr.find('span.showDataEdit input[name=Dismiss]').is(":checked") && !tr.find('span.showDataEdit input[name=Approval]').is(":checked")) {
+                tr.find('input[name=Actions]').val(tr.find('input[name=Actions]').val() + "Revalidate|");
+            }
+        });
+    }
+
+    $.fn.deleteSpecialCharacters = function () {
+        $(this).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace("\r\n", "").replace("\n", "");
+    }
+
+    $.fn.addDecimalValidationPattern = function () {
+        $(this).attr("data-parsley-pattern", '^((\\d{1,3}|(\\d{1,3}(\\,\\d{3})+))(\\.\\d{1,2})?)$');
+    }
+
+    function enableSubmitButtonWhenChange() {
+        $('span.showDataEdit input[type=checkbox]').change(function () {
+            var checkboxes = $('span.showDataEdit input[type=checkbox]');
+
+            var dismissStatus = false;
+            $('#tblAllocation tbody tr').each(function () {
+                if (!$(this).find('span.showDataEdit[name=Dismiss]').is(':checked') && $(this).find('[name=ProposalStatusCode]').val() === "DISMISSED") {
+                    dismissStatus = true;
+
+                }
+            });
+
+            if (checkboxes.filter(':checked').filter(':enabled').length > 0 || dismissStatus) {
+                $('[name=submitNewAllocation]').each(function () {
+                    $(this).removeAttr('disabled');
+                    $(this).css('color', '#fff');
+                });
+            } else {
+                $('[name=submitNewAllocation]').each(function () {
+                    $(this).attr('disabled', 'disabled');
+                    $(this).css('color', 'grey');
+                });
+            }
+        });
+    }
+
+    function enableSubmitButton() {
+        if ($('span.showDataEdit input[type=checkbox]:checked:enabled').length > 0) {
+            $('[name=submitNewAllocation]').each(function () {
+                $(this).removeAttr('disabled');
+                $(this).css('color', '#fff');
+            });
+        } else {
+            $('[name=submitNewAllocation]').each(function () {
+                $(this).attr('disabled', 'disabled');
+                $(this).css('color', 'grey');
+            });
+        }
+
+        $('#tblAllocation tbody tr').each(function () {
+            var tr = $(this);
+            if (tr.find('[name=ProposalStatusCode]').val() === "DISMISSED" && !tr.find('span.showDataEdit span[name=Dismiss]').is(":checked")) {
+                $('[name=submitNewAllocation]').each(function () {
+                    $(this).removeAttr("disabled");
+                });
+            }
+        })
+    }
+
+    function approvalClick() {
+        $('input[name=Approval]').change(function () {
+            if ($(this).is(':checked')) {
+                $(this).attr("checked", "checked");
+                $(this).parents('tr').find('span.showDataEdit [name=Dismiss]').attr('checked', false);
+                $(this).parents('tr').enableWhenNotDismissed();
+            }
+            else {
+                $(this).removeAttr("checked");
+            }
+        });
+    }
+
+    function dismissClick() {
+        $('input[name=Dismiss]').change(function () {
+            if ($(this).is(':checked')) {
+                $(this).attr("checked", "checked");
+                $(this).parents('tr').find('span.showDataEdit [name=Approval]').attr('checked', false);
+                $(this).parents('tr').disableWhenDismissed();
+            } else {
+                $(this).removeAttr("checked");
+                $(this).parents('tr').enableWhenNotDismissed();
+                $(this).parents('tr').find('span.showDataEdit [name=Approval]').removeAttr('disabled');
+            }
+        });
+    }
+
+    function deleteClick() {
+        $('input[name=Delete]').change(function () {
+            if ($(this).is(':checked')) {
+                $(this).attr("checked", "checked");
+                $(this).parents('tr').find('span.showDataEdit [name=StudiesCommite]').attr("checked", false);
+                $(this).parents('tr').find('span.showDataEdit [name=StudiesCommite]').attr("disabled", "disabled");
+                $(this).parents('tr').find('span.showDataEdit [name=RequestProposal]').attr('checked', false);
+            } else {
+                $(this).removeAttr("checked");
+            }
+        });
+    }
+
+    $.fn.disableWhenDismissed = function () {
+        $(this).find('td').css("color", "#AAA");
+        $(this).find('td label').css("color", "#AAA");
+        $(this).find('[name=AllocatedAmount]').attr('disabled', 'disabled');
+        $(this).find('[name=RevisedAmount]').attr('disabled', 'disabled');
+    }
+
+    $.fn.enableWhenNotDismissed = function () {
+        $(this).find('td').css("color", "#333");
+        $(this).find('td label').css("color", "#333");
+        $(this).find('[name=AllocatedAmount]').removeAttr('disabled');
+        $(this).find('[name=RevisedAmount]').removeAttr('disabled');
+    }
+
+    function diabledDismissedRows() {
+        $('#tblAllocation > tbody > tr').each(function () {
+            if ($(this).find('[name=Dismiss]').is(':checked')) {
+                $(this).disableWhenDismissed();
+            }
+        });
+    }
+
+    function loadAlreadyAddedOperationNumbers() {
+        var operationNumbers = $('[name=OperationNumber]').map(function () {
+            return $(this).val();
+        }).get().join(",");
+        return operationNumbers;
+    }
+
+    function bindCheckboxes() {
+        $('span.showDataEdit input[type=checkbox]').each(function () {
+            var check = $(this);
+            var currentRow = $(this).parents('tr');
+            var row = currentRow.find('span.showDataEdit');
+            var studieesComitteeStatus = ["COMMITTEE_REVIEW", "VPS_VALIDATION", "VALIDATED", "IN_EXECUTION", "COMMITTEE_RETURNED", "COMPLETED", "DISMISSED", "CANCELLED"];
+            var studieesComitteeEnabled = $.inArray(currentRow.find('[name=ProposalStatusCode]').val(), studieesComitteeStatus) > -1;
+
+            switch ($(this).attr('name')) {
+                case "RequestProposal":
+                    if (!check.is(':checked') || studieesComitteeEnabled) {
+                        disableStudiesCommite(currentRow);
+                    } else {
+                        enableStudiesCommite(currentRow);
+                    }
+
+                    if (check.is(':checked')) {
+                        row.find('[name=Delete]').attr("disabled", "disabled");
+                    }
+
+                    if (currentRow.find('[name=ProposalStatusCode]').val() === "VPS_RETURNED") {
+                        disableStudiesCommite(currentRow);
+                    }
+                    break;
+                case "Delete":
+                    if (check.is(':checked')) {
+                        disableStudiesCommite(currentRow);
+                    }
+                    break;
+            }
+        });
+    }
+
+    function updateResultsPerPageSearch() {
+        updateResultsPerPage($('ul[aria-labelledby=id-resultsPerPage] li'), $("#tblAASearch"));
+    }
+
+    function updateResultsPerPageAllocation() {
+        updateResultsPerPage($('ul[aria-labelledby=id-resultsPerPageAllocations] li'), $("#tblAllocation"));
+    }
+
+    function orderAnnualAllocationByYearDesc() {
+        $("#tblAllocation th").eq(3).click();
+        $("#tblAllocation th").eq(3).click();
+    }
+
+    function unCheckCheckAll() {
+        $('div.Pagination_Number').click(function () {
+            if ($('[name=checkAll]').is(':checked')) {
+                $('[name=checkAll]').attr('checked', false);
+            }
+        });
+        checkAllInputCheckBoxes();
+    }
+
+    function orderSearchTableByOperationNumber() {
+        $("#tblAASearch th").eq(0).click();
+        $("#tblAASearch th").eq(0).click();
+    }
+
+    function deleteAnnualAllocation(source) {
+        showLoader();
+        window.setTimeout(function () {
+            showLoader();
+            var msg = '@Localization.GetText("R6.AnnualAllocation.Warning.Delete")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    var annualAllocationID = source.data('annualallocationid');
+                    var urlDelete = '@Url.Action("DeleteAnnualAllocation", "Save")' + '?annualAllocationID=' + annualAllocationID;
+                    var result = postUrl(urlDelete)
+                            .success(function (data) {
+                                if (data.IsValid) {
+                                    deleteRow(source);
+                                    $("#PLGridProposal").load(location.href + " #tblAllocation");
+                                    exitEditMode(false, $('#annualAllocation'), false, false);
+                                    exitEditMode(false, $('#header-section'), true, true);
+                                    exitEditMode(false, $('#footer-section'), true, true);
+                                } else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            })
+                            .error(function (response) {
+                                showMessage(response.ErrorMessage);
+                            });
+                }
+            });
+        }, 10);
+    }
+
+    function deleteRow(source) {
+        if (source.data("annualallocationid") === undefined) {
+            var msg = '@Localization.GetText("R6.AnnualAllocation.Warning.Delete")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    source.parents("tr").remove();
+                }
+            });
+        } else {
+            source.parents("tr").remove();
+        }
+        
+    }
+
+    function correctAnnualHeight() {
+        if ($("#newRelatedOperationModal").outerHeight() > top.$("iframe[name=someFrame]").height())
+            top.$("iframe[name=someFrame]").css("height", $("#newRelatedOperationModal").outerHeight() + 80);
+    }
+
+    function showScroll() {
+        top.$("iframe[name=someFrame]").attr("scrolling", "yes");
+        top.$("iframe[name=someFrame]").css("overflow", "visible");
+        top.$("iframe[name=someFrame]").contents().find("body").css("cssText", "overflow: auto !important;");
+    }
+
+    function cleanCheckboxes() {
+        $('#tblAASearch thead tr th').not(':last').click(function () {
+            checkAllInputCheckBoxes();
+            $('[name=checkAll]').attr('checked', false);
+        });
+    }
+
+
+    function cleanSavingActions() {
+        $('#tblAllocation tbody tr').each(function () {
+            $(this).find('input[name=Actions]').val("|");
+        });
+    }
+
+    function setHasChanges() {
+        $('span[data-pagemode="edit"] input[type="text"]').change(function () {
+            $(this).parents('tr').find('input[name="HasChanges"]').val("true");
+        });
+
+        $('span[data-pagemode="edit"] input[type="checkBox"]').change(function () {
+            $(this).parents('tr').find('input[name="HasChanges"]').val("true");
+        });
+    }
+
+    function setHasChangesWhenEnterEditMode() {
+        $('span[data-pagemode="edit"] input[type="checkBox"]:enabled').each(function () {
+            if ($(this).is(":checked")) {
+                $(this).parents('tr').find('input[name="HasChanges"]').val("true");
+            }
+        });
+    }
+
+    function setHasChangesWhenEnterReadMode() {
+        $('span[data-pagemode="edit"] input[type="checkBox"]:enabled').each(function () {
+            if ($(this).not(":checked")) {
+                $(this).parents('tr').find('input[name="HasChanges"]').val("false");
+            }
+        });
+    }
+
+    function disableCheckBoxesOnReadMode() {
+        $('span[data-pagemode="read"] input[type="checkBox"]:enabled').attr('disabled', 'disabled');
+    }
+
+    function studiesCommitteClick() {
+        $('input[name=StudiesCommite]').change(function () {
+            if ($(this).is(':checked')) {
+                $(this).attr("checked", "checked");
+            } else {
+                $(this).removeAttr("checked");
+            }
+        });
+    }
+
+    AAGridFilter.text('yes', '@Localization.GetText("Yes")');
+    AAGridFilter.text('no', '@Localization.GetText("No")');
+
+    AAGridFilter.init('#tblAllocation', '[idb-fieldname=ddlRltdOpRltnshipType]');
+    AAGridFilter.bindDropdownAutocomplete("[name=OperationNumber_text]", 0);
+    AAGridFilter.bindDropdownAutocomplete("[name=TeamLeader_text]", 8);
+    AAGridFilter.bindDropdownAutocomplete("[name=OperationYear_text]", 3);
+    AAGridFilter.bindDropdownAutocomplete("[name=DepartmentDivision_text]", 4);
+    AAGridFilter.bindListDropdown("#id-ProposalStatus", 14 - (isESW ? 0 : 1));
+
+    if (isESW) {
+        AAGridFilter.bindBooleanDropdown("#id-StudiesCommittee", 10);
+    }
+
+    AAGridFilter.bindBooleanDropdown("#id-Dismiss", 11 - (isESW ? 0 : 1));
+    AAGridFilter.filterUpdate();
+
+    </script>
+}

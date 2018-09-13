@@ -1,0 +1,108 @@
+﻿@using IDB.Architecture.BusinessRules
+@using IDB.Architecture.Extensions
+
+@model BusinessContext
+
+@{
+    Layout = null;    
+}
+<style>
+    .rules-tree ul { margin: 0; padding: 0; }
+    .rules-tree .round4 { }
+    .rules-tree li { padding: 5px 5px 5px 5px; margin: 5px 5px 5px 15px; border: solid 1px; float: left; clear: left; cursor: pointer; -webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px; }
+    .rules-tree .container { border: none; margin: 0 0 0 15px; padding: 0; }
+    .rules-tree .only-container { background-color: #e8e8e8; border-color: #ccc; }
+    .rules-tree .orruleset.rule,
+    .rules-tree .andruleset.rule { background-color: #80E5FF; border-color: #4FC9F8; }
+    .rules-tree .logicrule.rule { background-color: #CAF4FF; border-color: #4FC9F8; }
+    .rules-tree .productionrule.rule { background-color: #FFF5DF; border-color: #FDDE98; }
+    .rules-tree .resultspan { -webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px; padding: 0px 5px; font-size: 80%; margin-left: 4px; border: solid 2px #FFF; background-color: #ECECEC; }
+    .rules-tree .true.resultspan { background-color: #54FF5B; }
+    .rules-tree .false.resultspan { background-color: #FFA8A8; }
+    .rules-tree .rule-detail { width: 400px; background-color: #F0FFF5; border-color: #C0E2CC; margin-left: 30px; font-size: 90%; display: none; }
+</style>
+
+<script>
+    $(document).ready(function () {
+        $('.rule').click(function () {
+            var infoDiv = $(this).next();
+            if (infoDiv.hasClass('rule-detail')) {
+                $('.rule-detail').hide();
+                infoDiv.animate({
+                    height: "toggle"
+                });
+            }
+        });
+    });
+
+</script>
+@helper renderChildrens(BusinessContext context) {
+    @Html.Raw("<ul class=\"rules-tree\">\n");
+    foreach (var rule in context.ExecutedRules) {
+        @renderTree(rule.RulesTree.RootNode, rule);
+    }
+    @Html.Raw("</ul>\n");
+}
+@helper renderTree(ExecutionTree tree, RuleContext context) {
+    if (tree.Rule != null) {
+        List<string> elements = new List<string>();
+        var enums = tree.Rule.Definition.Type.GetAssignedValues();
+        var cssclass = string.Join(" ", enums.Select(e => e.ToLower()));
+        enums = tree.Rule.Definition.ExecutionConditions.GetAssignedValues();
+        cssclass += " ";
+        cssclass += string.Join(" ", enums.Select(e => e.ToLower()));
+        elements.Add(string.Format("<span>{0}</span>", tree.LeveKey));
+
+        if (tree.Rule.Definition.Type.HasFlag(RuleType.LogicRule) ||
+            tree.Rule.Definition.Type.HasFlag(RuleType.OrRuleSet) ||
+            tree.Rule.Definition.Type.HasFlag(RuleType.AndRuleSet)) {
+            var result = context.GetResult<bool>(tree.Rule.Definition.RuleKey);
+            elements.Add(string.Format("<span class=\"{0}\">{1}</span>",
+                result ? "true resultspan" : "false resultspan",
+                result ? "T" : "F"));
+        }
+        if (tree.Rule.Definition.ExecutionConditions
+            .HasFlag(ExecutionCondition.SequentialStopIfFalse)) {
+            elements.Add(string.Format("<span class=\"resultspan\" title=\"{0}\">SSF</span>",
+                ExecutionCondition.SequentialStopIfFalse.GetStringValue()));
+        }
+        if (tree.Rule.Definition.ExecutionConditions
+            .HasFlag(ExecutionCondition.MustBeTrue)) {
+            elements.Add(string.Format("<span class=\"resultspan\" title=\"{0}\">MBT</span>",
+                ExecutionCondition.MustBeTrue.GetStringValue()));
+        }
+        if (tree.Rule.Definition.Type.HasFlag(RuleType.OrRuleSet) ||
+            tree.Rule.Definition.Type.HasFlag(RuleType.AndRuleSet)) {
+            if (tree.Rule.Definition.Type
+                .HasFlag(RuleType.OrRuleSet)) {
+                elements.Add(string.Format("<span class=\"resultspan\" title=\"{0}\">OrRS</span>",
+                    RuleType.OrRuleSet.GetStringValue()));
+            } else {
+                elements.Add(string.Format("<span class=\"resultspan\" title=\"{0}\">RS</span>",
+                    RuleType.AndRuleSet.GetStringValue()));
+
+            }
+        }
+            
+        
+    @Html.Raw(string.Format("<li class=\"rule {1}\" title=\"{2}\">{0}</li>\n",
+            string.Join("", elements), cssclass, tree.Rule.Definition.Description));    
+    <li class="rule-detail">@tree.Rule.Definition.Description<br />
+        <b>Duation</b> : @tree.Duration (ms)<br />
+        <b>Duation</b> : 
+    </li>
+    } else {
+    @Html.Raw(string.Format("<li class=\"only-container\">{0}</li>\n", tree.LeveKey));
+    }
+    if (tree.Childrends.Any()) {
+    @Html.Raw("<li class=\"container\"><ul>\n");
+                                               foreach (var item in tree.Childrends) {
+    @renderTree(item, context);
+                                               }
+    @Html.Raw("</ul></li>\n");
+    }
+}
+
+@renderChildrens(Model)
+
+

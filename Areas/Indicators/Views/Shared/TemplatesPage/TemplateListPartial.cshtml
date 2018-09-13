@@ -1,0 +1,131 @@
+﻿@using System.Globalization
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Architecture.Language
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model TemplatePageViewModel
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+
+<div class="format-edit-template" data-parsley-validate="true" name="submitForm" data-ignore-nullable-values="true">
+    <input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" name="serializeModel" />
+
+    <div class="row mb20" data-pagemode="edit">
+        <div class="col-md-12">
+            @{
+                var config = Html.RenderDataTable(Model.Templates);
+                config.Name("TemplateList")
+                .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Bound(c => "")
+                        .Orderable(true)
+                        .EditableTemplate(c => ControlTemplates.InputText(c.IsDefault.ToString(), "IsDefault"))
+                        .Hidden(true);
+                    columns.Template(c => VersionLink(c))
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.TemplateVersion"))
+                        .Persistent();
+                    columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+                        .OrderFormat("yyyy MM dd", x => x.Date)
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.Date"))
+                        .Persistent()
+                        .HeaderAttribute("style", "width:150px;min-width:150px;");
+                    columns.Bound(c => c.ModifyBy)
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.ModifiedBy"))
+                        .Persistent();
+                    columns.Bound(c => c.Description)
+                        .Orderable(true)
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.Description"))
+                        .Persistent();
+                    columns.Template(x => GroupButtonDocumentEdit(x))
+                        .Header(Localization.GetText("IM.TemplatesList.TemplateTable.Action"))
+                        .Persistent()
+                        .HeaderAttribute("style", "width:200px;min-width:200px;");
+                });
+
+                config.TableClass = "tableNormal";
+            }
+
+            @Html.Partial("Controls/DataTable", config)
+
+        </div>
+
+        <div class="col-md-12">
+            <input type="text" class="hide" value="check" data-parsley-checkappearvalue="[name=IsDefault];True;1" />
+
+            <div id="warning-remove" class="hide modalBody">
+                @Localization.GetText("IM.TemplatesList.WarningRemove")
+            </div>
+            @Display.AddModalButton(new ModalViewModel(contentSelector : "#warning-remove",
+                            title : Localization.GetText("COMMON.Warning"),
+                            type : CssClass.ModalWarningNoIcon,
+                            moveOriginalContent : true,
+                            name : "open-warning-btn",
+                            closeOnOverlay : false,
+                            allowClose : true,
+                            actionOnClose : "")
+            .AddButton(name : "cancel-save",
+                            text : Localization.GetText("COMMON.Cancel"),
+                            type : CssClass.ButtonLink,
+                            callback : "")
+            .AddButton(name : "confirm-save",
+                            text : Localization.GetText("COMMON.Ok"),
+                            type : CssClass.Button01,
+                            callback : "confirmRemove",
+                            closeAtEnd : true))
+        </div>
+    </div>
+
+</div>
+
+
+@helper GroupButtonDocumentEdit(RowTemplateViewModel row)
+{
+    var classMakeDefaultButton = "";
+    var classDefaultText = "hide";
+    if(row.IsDefault)
+    {
+        classMakeDefaultButton = "hide";
+        classDefaultText = "";
+    }
+
+
+    <span>
+        <span data-default="false" class="@classMakeDefaultButton">@Confluence.ButtonBlue(Localization.GetText("IM.TemplatesList.TemplateTable.MakeDefaultButton"), name : "makeDefault")</span>
+        <span data-default="true" class="@classDefaultText">@Confluence.Label(Localization.GetText("IM.TemplatesList.TemplateTable.TemplateDefault"))</span>
+    </span>
+
+    if(row.CanRemove)
+    {
+        <span class="button-trash-templeate">
+            @Confluence.ButtonTrash(null, name : "removeTemplate")
+        </span>
+    }
+}
+
+@helper VersionLink(RowTemplateViewModel row)
+{
+    var link = new IDB.Presentation.MVC4.Areas.Indicators.Models.LinkViewModel()
+    {
+        Action = "ReadTemplate",
+        Area = "Indicators",
+        Controller = Model.ControllerName,
+        Text = row.Version
+    };
+    link.Parameters.Add("templateId", row.Id);
+
+    @Html.Partial("Display/Link", link)
+}
+
+
+

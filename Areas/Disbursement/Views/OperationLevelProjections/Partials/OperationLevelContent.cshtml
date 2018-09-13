@@ -1,0 +1,134 @@
+﻿@using IDB.Presentation.MVC4.Models
+@using Newtonsoft.Json
+@model IDB.MW.Domain.Models.Disbursement.OperationLevelProjectionsViewModel
+<div class="verticalMargin20">
+    <div class="inline-block w100">
+        @Confluence.LabelMainTitle(Localization.GetText("Disbursement.Main.DisbursementProjections"))
+        @Html.Partial("~/Areas/Disbursement/Views/OperationLevelProjections/Partials/Buttons.cshtml", Model)
+    </div>
+</div>
+
+<div class="tabsContainer verticalMargin20">
+    <div id="operation" class="inline-block tabItem active"
+         data-target-url="@Url.Action("Index", "OperationLevelProjections", new { operationNumber = Model.OperationNumber, group = Model.Group, IsFromSharePoint=false })">
+        @Localization.GetText("Operation Level")
+    </div>
+    @if (Model.HasLoans)
+    {
+        <div id="loan" class="inline-block tabItem click-action"
+             data-target-url="@Url.Action("Index", "LoanLevelProjections", new { operationNumber = Model.OperationNumber, group = Model.Group })">
+            @Localization.GetText("Disbursement.ContractLevel")
+        </div>
+    }
+</div>
+
+<input type="hidden" id="hidModel" data-json="@JsonConvert.SerializeObject(Model, Formatting.None)"  data-url-2="@Url.Action("ReferenceInformation", "OperationLevelProjections")" />
+
+<div id="grouping-section">
+    @Html.Partial("~/Areas/Disbursement/Views/OperationLevelProjections/Partials/GroupingSection.cshtml", Model)
+</div>
+    @Html.Partial("_mvc_messages", Model)
+
+    <div class="col-md-9 pl0 pt10">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("Disbursement.Title.CurrentProjection"))
+    </div>
+    @if (!Model.EditMode)
+    {
+        <div id="grid_projections" class="col-md-12 pl0 pr0">
+            @Html.Partial("_GridProjections", Model)
+        </div>
+    }
+    else
+    {
+        <div class="col-md-3 pt5 hidden">
+            @Confluence.ButtonBlue(Localization.GetText("Disbursement.retrieve.financial.plan"), "btnRetriveFinnancial", "retriveFinnancial", dataAttributes: new Dictionary<string, string>() { { "url", Url.Action("RetrieveFinancialData", "OperationLevelProjections", new { operationNumber = Model.OperationNumber, isExecution = Model.IsExecution }) } }, htmlClass: "pull-right")
+        </div>
+
+        <div id="grid_projections_edit">
+            @Html.Partial("_GridProjectForm", (IDB.MW.Domain.Models.Disbursement.IProjectionViewModel)Model)
+        </div>
+    }
+    <div class="col-md-12 mb20">
+        <div class="col-md-10">
+            @if (Model.IsExecution)
+            {
+                @Html.Partial("~/Areas/Disbursement/Views/Shared/DisbursementLegends.cshtml")
+            }
+        </div>
+        @if (Model.Download)
+        {
+            <div class="col-md-2 text-right">
+                <a title="Export PDF" style="color:white;border-radius:4px;" class="exportdata pdf" href='@(Url.Action("DownloadReport", "OperationLevelProjections", new { area = "Disbursement", format = "pdf", operationNumber = Model.OperationNumber, group = Model.Group }))'></a>
+                <a title="Export Excel" style="color:white;border-radius:4px;" class="exportdata excel" href='@(Url.Action("DownloadReport", "OperationLevelProjections", new { area = "Disbursement", format = "xls", operationNumber = Model.OperationNumber, group = Model.Group }))'></a>
+            </div>
+        }
+    </div>
+    @if (Model.IsExecution)
+    {
+        @Html.Partial("~/Areas/Disbursement/Views/Shared/_GraphValuesButtons.cshtml")
+
+        <div data-id="graphpanel" class="hide col-md-12 pl0 pr0">
+            @{
+                if (Model.ProjectedYears.Count() != 0)
+                {
+                    var graphModel = new GraphModel
+                    {
+                        OperationNumber = Model.OperationNumber,
+                        Group = Model.Group,
+                        IsExecution = Model.IsExecution,
+                        CurrentDisbursementExpirationDate = Model.CurrentDisbursementExpirationDate,
+                        ProjectedMonths = Model.ProjectedMonths.Select(x => new ProjectedMonthYearModel
+                        {
+                            Month = x.Month,
+                            Year = x.Year,
+                            ProjectedAmount = x.ProjectedAmount == decimal.MinValue
+                            ? default(decimal?) : x.ProjectedAmount
+                        }).ToList(),
+                        AllLoansProjectedMonths = null
+                    };
+
+                    var agreedActualGraphModel = new GraphViewModel
+                    {
+                        OperationNumber = Model.OperationNumber,
+                        ActualAgreed = Model.EdwData,
+                        CurrentProjectionMonth = Model.CurrentProjectionMonth,
+                        CurrentDisbursementExpirationDate = Model.CurrentDisbursementExpirationDate,
+                        Group = Model.Group,
+                        ExchangeRate = Model.ExchangeRate,
+                        ExchangeRates = Model.ExchangeRates,
+                        IsExecution = Model.IsExecution,
+                        LoanNumber = null,
+                        LoanNumbers = Model.LoanNumbers,
+                        ProjectedYears = Model.ProjectedYears.Select(x =>
+                        new ProjectedYearModel
+                        {
+                            Percentage = x.Percentage,
+                            Total = x.Total,
+                            Year = x.Year,
+                            ProjectedMonths = x.ProjectedMonths.Select(y =>
+                            new ProjectedMonthModel
+                            {
+                                Month = y.Month,
+                                ProjectedAmount = y.ProjectedAmount == decimal.MinValue
+                                ? default(decimal?) : y.ProjectedAmount
+                            }).ToList()
+                        }).ToList(),
+                        AllLoansProjectedMonths = null
+                    };
+
+                    <input type="hidden" id="hidGraph" data-json="@JsonConvert.SerializeObject(graphModel, Formatting.None)" />
+                    <input type="hidden" id="hidGraphModel" data-json="@JsonConvert.SerializeObject(agreedActualGraphModel, Formatting.None)" />
+
+                    @Html.Partial("~/Areas/Disbursement/Views/Shared/_ProjectedGraph.cshtml")
+                    @Html.Partial("~/Areas/Disbursement/Views/Shared/_EarlyAcumulatedGraph.cshtml")
+                    @Html.Partial("~/Areas/Disbursement/Views/Shared/_MonthlyAcumulatedGraph.cshtml")
+                }
+            }
+        </div>
+
+        <div data-id="valuespanel">
+            @{ Model.IsOperationLevel = true;}
+            @Html.Partial("~/Areas/Disbursement/Views/Shared/_GridReferenceInformationContent.cshtml", (IDB.MW.Domain.Models.Disbursement.IProjectionViewModel)Model)
+        </div>
+                }
+    @Html.Partial("~/Areas/Disbursement/Views/OperationLevelProjections/Partials/Buttons.cshtml", Model)

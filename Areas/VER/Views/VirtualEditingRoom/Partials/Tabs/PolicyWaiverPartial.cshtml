@@ -1,0 +1,271 @@
+﻿@using IDB.Architecture.Extensions
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.VERModule.ViewModels
+@using IDB.MW.Domain.Values.Ver
+@using IDB.Presentation.MVC4.Helpers
+
+
+@model PolicyWaiverViewModel
+
+@Confluence.InputHidden(ViewBag.SerializedPolicyWaiverViewModel, id: "policyWaiverViewModel")
+@Confluence.InputHidden(Model.NoOpcList, id: "listForNoOpc")
+<span data-pagemode="edit">
+    @Confluence.InputHidden("", VerSecurityValues.POLICY_WAIVER_FOR_DELETE)
+    @Confluence.InputHidden("false", VerSecurityValues.POLICY_WAIVER_REQUEST_POLICY)
+    @Confluence.InputHidden("false", VerSecurityValues.POLICY_WAIVER_SEND_RESPONSE_POLICY)
+</span>
+
+
+@{
+    var categoryList = Model.PolicyWaiverCategory != null ?
+           Html.BuildSelectItemList(Model.PolicyWaiverCategory,
+               o => o.Text,
+               o => o.Value).ToList() :
+           new List<SelectListItem>();
+
+    var statusList = Model.PolicyWaiverStatus != null ?
+           Html.BuildSelectItemList(Model.PolicyWaiverStatus,
+               o => o.Text,
+               o => o.Value).ToList() :
+           new List<SelectListItem>();
+
+    ViewBag.IsVisibleRequest = Model.IsVisibleRequest;
+    ViewBag.IsVisibleSendResponse = Model.IsVisibleSendResponse;
+}
+
+<div class="mb15">
+    <div class=" col-md-12">
+        <div class="row">
+            <div class="col-md-8">
+                @Confluence.Label(Localization.GetText("VER.GLOBAL.Instructions"))
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12 mt10">
+                @Html.Raw(Localization.GetText("VER.GLOBAL.PolicyWaiverInstruction"))
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-12 mt50">
+    <div class="pull-left">
+        @Confluence.Label(Localization.GetText("GLOBAL.RESUTLS.PER.PAGE"))
+        @Confluence.InputDropDown("999999", "ddlPaginationPolicyWaived",
+            (List<SelectListItem>) ViewBag.ResultsPerPageList, placeholder: null, showEmptyOption: false,
+            orderAsc: false, required: false)
+    </div>
+
+    @if (Model.IsEditableTab)
+    {
+        <div class="pull-right" data-button-container="PolicyWaived">
+            @Html.Partial("Partials/DataTables/Buttons/PolicyWaivedButtonsPartial")
+        </div>
+    }
+</div>
+    @if (Model.IsVisibleSendResponse && Model.OpcTypeList.HasAny())
+    {
+        <div class="col-md-12 mb20 mt20" data-pagemode="edit">
+            @foreach (var opcType in Model.OpcTypeList)
+            {
+                @Confluence.InputRadioButton(
+                    opcType.Value,
+                    VerSecurityValues.POLICY_WAIVER_OPC_TYPE,
+                    label: opcType.Text,
+                    htmlClass: "mr20",
+                    isChecked: opcType.Value == Model.OpcTypeId.ToString(),
+                    required: false,
+                    isInLine: true,
+                    dataAttributes: new Dictionary<string, string>
+                    {
+                        {"code", opcType.AdditionalData},
+                        {
+                            "default-message", opcType.AdditionalData != VerGlobalValues.NO_OPC ?
+                                Localization.GetText(string.Concat("VER.Homepage.TabPolicyWaiver.", opcType.AdditionalData)) : ""
+                        }
+                    })
+            }
+        </div>
+    }
+
+    <div class="col-md-12 mb20 mt10">
+        @{
+            var policyTable = Html.RenderDataTable(Model.PolicyWaiverList.ToList());
+            policyTable.Name("policyWaiverTable")
+                .AddPrimaryKeyToName(false)
+                .PrimaryKey(m => m.OperationPolicyWaiverId.ToString())
+                .Columns(columns =>
+                {
+                    columns.Template(c => Confluence.LabelInteger(c.Index))
+                        .Center()
+                        .CssClass("SLno")
+                        .Header(Localization.GetText("VER.Homepage.TabDocuments.SL.No"))
+                        .CssHeaderClass("w70 sort")
+                        .HeaderAttribute("order-type", "numeric")
+                        .EditableTemplate(c => Confluence.LabelInteger(c.Index));
+
+                    columns.Template(c => GetCategory(c, categoryList))
+                        .Header(Localization.GetText("VER.Homepage.TabPolicyWaiver.WaiverCategory"))
+                        .CssHeaderClass("w200 sort")
+                        .HeaderAttribute("order-type", "text")
+                        .EditableTemplate(c => GetCategory(c, categoryList, true));
+
+                    columns.Template(c => GetPolicyWaiver(c))
+                        .Header(Localization.GetText("VER.Homepage.TabPolicyWaiver.Policy"))
+                        .CssHeaderClass("w400")
+                        .EditableTemplate(c=> GetPolicyWaiver(c, true));
+
+                    columns.Template(c => GetPolicyJustification(c))
+                        .Header(Localization.GetText("VER.Homepage.TabPolicyWaiver.Justification"))
+                        .CssHeaderClass("w400")
+                        .EditableTemplate(c => GetPolicyJustification(c, true));
+
+                    columns.Template(c => GetPolicyResponse(c))
+                        .Header(Localization.GetText("VER.Homepage.TabPolicyWaiver.Response"))
+                        .CssHeaderClass("w400")
+                        .EditableTemplate(c => GetPolicyResponse(c, true));
+
+                    columns.Template(c => GetStatus(c, statusList))
+                        .Header(Localization.GetText("VER.Homepage.TabPolicyWaiver.Status"))
+                        .CssHeaderClass("w145 sort")
+                        .CssClass("policyStatus")
+                        .HeaderAttribute("order-type", "text")
+                        .EditableTemplate(c => GetStatus(c, statusList, true));
+
+                    columns.Template(c => Confluence.LabelGetDate(c.PolicyWaiverResponseDate))
+                        .CssHeaderClass("minw145 w145 sort")
+                        .Header(Localization.GetText("VER.Homepage.TabTasks.ResponseDate"))
+                        .HeaderAttribute("order-type", "date")
+                        .EditableTemplate(c => Confluence.LabelGetDate(c.PolicyWaiverResponseDate))
+                        .Center();
+
+                    columns.Template(c => Confluence.Label(""))
+                        .EditableTemplate(row => row.IsRequested == false ? Confluence.ButtonTrash("", action: "removeRowPolicy") : Confluence.Label("")).Right()
+                        .Header(Localization.GetText("VER.Homepage.TabPartcipants.Action")).CssHeaderClass("w100")
+                        .Attribute("data-pagemode", y => "edit").HeaderAttribute("data-pagemode", "edit");
+                });
+
+            policyTable.TableClass = "tableNormal endSpacing";
+
+            @Html.Partial("Controls/DataTable", policyTable)
+
+            if (Model.IsVisibleRequest)
+            {
+                <div class="col-md-12" data-pagemode="edit">
+                    <div class="text-center">
+                        @Confluence.ButtonAddNewRows(Localization.GetText("VER.Homepage.TabPolicyWaiver.RequestWaiver"), null, null, "addPolicyWavier")
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    @if (Model.IsEditableTab)
+    {
+        <div class="col-md-12">
+            <div class="pull-right" data-button-container="PolicyWaived">
+                @Html.Partial("Partials/DataTables/Buttons/PolicyWaivedButtonsPartial")
+            </div>
+        </div>
+    }
+    
+@helper  GetCategory(PolicyWaiverRowViewModel row, List<SelectListItem> categoryList, bool isEdit = false)
+{
+    if (row.IsRequested == false && row.PolicyWaiverCategory.IsReadOnly == false && isEdit)
+    {
+        @Confluence.InputDropDown(
+            row.PolicyWaiverCategory.IntValue.GetValueOrDefault().ToString(),
+            row.PolicyWaiverCategory.FieldName,
+            categoryList,
+            orderAsc: false)
+    }
+    else
+    {
+        @Confluence.LabelGetDropDown(
+            row.PolicyWaiverCategory.IntValue.GetValueOrDefault().ToString(),
+            categoryList)
+    }
+}
+
+@helper  GetPolicyWaiver(PolicyWaiverRowViewModel row, bool isEdit = false)
+{
+    if (row.IsRequested == false && row.PolicyWaiver.IsReadOnly == false && isEdit)
+    {
+        @Confluence.InputTextArea(
+            row.PolicyWaiver.TextValue,
+            row.PolicyWaiver.FieldName,
+            placeholder: row.PolicyWaiver.Placeholder,
+            width: "100%",
+            height: "100px",
+            maxLength: 1000)
+    }
+    else
+    {
+        @Confluence.Label(row.PolicyWaiver.TextValue)
+    }
+}
+
+@helper  GetPolicyJustification(PolicyWaiverRowViewModel row, bool isEdit = false)
+{
+    if (row.IsRequested == false && row.PolicyWaiverJustification.IsReadOnly == false && isEdit)
+    {
+        @Confluence.InputTextArea(
+            row.PolicyWaiverJustification.TextValue,
+            row.PolicyWaiverJustification.FieldName,
+            placeholder: row.PolicyWaiverJustification.Placeholder,
+            width: "100%",
+            height: "100px",
+            maxLength: 1000)
+    }
+    else
+    {
+        @Confluence.Label(row.PolicyWaiverJustification.TextValue)
+    }
+}
+
+@helper  GetPolicyResponse(PolicyWaiverRowViewModel row, bool isEdit = false)
+{
+    if (row.PolicyWaiverResponse.IsVisible)
+    {
+        if (row.IsRequested &&
+            row.IsResponded == false &&
+            row.PolicyWaiverResponse.IsReadOnly == false &&
+            isEdit)
+        {
+            @Confluence.InputTextArea(
+                row.PolicyWaiverResponse.TextValue,
+                row.PolicyWaiverResponse.FieldName,
+                width: "100%",
+                height: "100px",
+                maxLength: 1000)
+        }
+        else
+        {
+            @Confluence.Label(row.PolicyWaiverResponse.TextValue)
+        }
+    }
+}
+
+@helper  GetStatus(PolicyWaiverRowViewModel row, List<SelectListItem> statusList, bool isEdit = false)
+{
+    if (row.IsRequested &&
+        row.IsResponded == false &&
+        row.PolicyWaiverStatus.IsReadOnly == false &&
+        isEdit)
+    {
+        @Confluence.InputDropDown(
+            row.PolicyWaiverStatus.IntValue.GetValueOrDefault().ToString(),
+            row.PolicyWaiverStatus.FieldName, statusList)
+    }
+    else
+    {
+        if (isEdit && row.IsRequested == false)
+        {
+                @Confluence.InputHidden(
+                    row.PolicyWaiverStatus.IntValue.GetValueOrDefault().ToString(),
+                    row.PolicyWaiverStatus.FieldName)
+        }
+
+        @Confluence.LabelGetDropDown(row.PolicyWaiverStatus.IntValue.ToString(), statusList)
+    }
+}

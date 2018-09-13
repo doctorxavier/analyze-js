@@ -1,0 +1,218 @@
+﻿@using IDB.MW.Application.TCAbstractModule.ViewModels.ReviewTCAbstract
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model ReviewTCAbstractViewModel
+
+<div class="header">
+    @Html.Partial("Partials/Headers/TCReviewTitle", Model.TCAbstract.Header)
+</div>
+<div data-pagemode="edit">
+    <input type="hidden"
+           name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"
+           value="@SaveControllerTypeEnum.Save" />
+</div>
+
+@if (ViewBag.ReadRole)
+{
+    <h3 class="leftmarginh3">
+        @Localization.GetText("TC.TCAbstract.Comments.Title").HtmlEncode()
+    </h3>
+
+    @Html.Partial("Partials/TCCommentsReadOnly", Model.Comments)
+
+    <div data-id="header-tcAbstract"
+         data-loadurl="@Url.Action("TCAbstractHeader", "View", new { area = "TC" })">
+        @Html.Partial("_TCHeader", Model.TCAbstract.Header)
+    </div>
+    <div id="ReviewTCData"
+         class="tcCollapsibleMargin row-body-40 font-body"
+         data-custom-validate="true"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-loadurl="@Url.Action("ReviewTCAbstractEdit", "View", new { area = "TC" })"
+         data-url="@Url.Action("ReviewTCAbstract", "Save", new { area = "TC" })">
+        @Html.Partial("Partials/TCAbstract", Model.TCAbstract)
+    </div>
+
+    @Html.Partial("Partials/Controls/TCAbstractWordExcelButtonsDownload")
+
+    <div id="ReviewTCButtons">
+        <span class="text-right">@Html.Partial("Partials/Controls/ReviewTCAbstractButtons")</span>
+    </div>
+    <div id="dataMemberModal" class="hide">
+        @Html.Partial("Partials/Modals/TCMemberDataModal", Model.TCAbstract.MembersData)
+    </div>
+    <div id="saveModal" class="hide modalBody">
+        @Localization.GetText("TC.ReviewTC.Save.Message").HtmlEncode()
+    </div>
+    <div id="sendModal" class="hide modalBody">
+        @Localization.GetText("TC.ReviewValidationTC.Send.Message").HtmlEncode()
+    </div>
+    <div data-id="ModalRegion" class="hide">
+        <div id="changeStatusModalGood" class="hide">
+        </div>
+    </div>
+    <div data-id="HiddenButtonRegion" class="hide">
+        @Display.AddModalButton(
+            new ModalViewModel(
+                name: "buttonChangeStatusModal",
+                allowClose: true,
+                contentSelector: "#changeStatusModalGood",
+                type: CssClass.ModalInformation,
+                title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+                validateForm: false))
+    </div>
+}
+
+@section scripts{
+
+    @ModuleScripts.TCAbstractCommon()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.MinNumOfElementsFilled()
+    @ModuleScripts.NonZero()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript"
+            src="@Url.Content("~/Scripts/Modules/TC/TCAbstract/TCAbstractElementsValidation.js")">
+    </script>
+    
+    <script type="text/javascript">
+        var containerTCA = $('#ReviewTCData');
+
+        function disableExport()
+        {
+            var buttons = $('.export-buttons button');
+            buttons.attr("disabled", "disabled");
+        }
+
+        function enableExport() {
+            var buttons = $('.export-buttons button');
+            buttons.removeAttr("disabled");
+        }
+
+        function editReviewTCAbstract(source) {
+            var sucess = enterEditMode(true, containerTCA, true);
+            if (sucess) {
+                disableExport();
+                setInitialTCAbstractState();
+                enterEditMode(false, $('.reviewTCAbstract-headerButtons'), false);
+                reloadContainer($('[data-id=header-tcAbstract]'), false);
+                setDataLabbelAttribute(containerTCA);
+                firstCounterpartFinancingValidation();
+            }
+        }
+
+        function cancelEditReviewTCAbstract(source) {
+            exitEditMode(true, containerTCA, true, true);
+            enableExport();
+            exitEditMode(false, $('.reviewTCAbstract-headerButtons'), false, false);
+            reloadContainer($('[data-id=header-tcAbstract]'), false);
+            setInitialTCAbstractState();
+        }
+
+        function saveReviewTCAbstract(source) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.Save');
+            disableValidations();
+            var resp = $.Deferred();
+            var response = saveContainer(
+                containerTCA,
+                '#hidViewModel',
+                true,
+                $('.reviewTCAbstract-headerButtons'),
+                $(source.target));
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid == true) {
+                        enableExport();
+                    }
+                    resp.resolve();
+
+                }).always(function () {
+                    reloadContainer($('[data-id=header-tcAbstract]'), false);
+                    setInitialTCAbstractState();
+                });
+            }
+
+            return resp;
+        }
+
+        function saveAndSendReviewTCAbstract(source) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+
+            var resp = $.Deferred();
+            var response = saveContainer(
+                containerTCA,
+                '#hidViewModel',
+                true,
+                $('.reviewTCAbstract-headerButtons'),
+                $(source.target));
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+                        if (data.ContentHTML != null) {
+                            addContentToModal(data.ContentHTML);
+                        }
+
+                        if (data.UrlRedirect != null) {
+                            setModalRedirectUrl(data.UrlRedirect);
+                        }
+                    }
+
+                    resp.resolve();
+                }).always(function () {
+                    reloadContainer($('[data-id=header-tcAbstract]'), false);
+                    setInitialTCAbstractState();
+                });
+            }
+
+            return resp;
+        }
+
+        function addContentToModal(content) {
+            $("#changeStatusModalGood").html(content);
+        }
+
+        function setModalRedirectUrl(url) {
+            $("#changeStatusModalGood").attr('data-new-modal-redirectOnCloseToUrl', url);
+        }
+
+        function openModalSendToSingleWindow(target) {
+            if ((target === "ReadReviewTCAbstract_SSW_Send") || (target === "EditReviewTCAbstract_SSW_Send")) {
+                $("[name=buttonChangeStatusModal]").first().click();
+            }
+        }
+
+        function downloadWord(source) {
+            var url = '@Url.Action("TCAbstractExportToWord", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadPdf(source) {
+            var url = '@Url.Action("TCAbstractExportToPDF", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadXls(source) {
+            console.log('Download Xls');
+        }
+
+        function setDataLabbelAttribute(container) {
+            container.find('[id="financingTable"]')
+                .attr('data-label', '@Localization.GetText("TC.TCAbstract.Financing.Title")');
+        }
+    </script>
+}

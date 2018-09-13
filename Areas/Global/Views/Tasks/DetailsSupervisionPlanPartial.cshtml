@@ -1,0 +1,103 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Clauses
+
+@using IDB.MW.Domain.Models.Supervision.SupervisionPlan
+@using IDB.Presentation.MVC4.Areas.SupervisionPlan.Controllers
+@model List<SupervisionPlanModel>
+@{
+    ViewBag.Title = "Supervision Plan Summary";
+    var view = (SupervisionPlanView)ViewBag.EditableView;
+    var isInEdit = (bool)ViewBag.EditMode;
+    var selectedYear = (int)ViewBag.SelectedYear;
+
+    var isEmpty = !(Model != null && Model.Count > 0);
+    var yearToCreate = isEmpty ? DateTime.Today.Year : (Model.Count == 1 ? DateTime.Today.Year + 1 : 0);
+    Layout = null;
+}
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")"/>
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/SupervisionPlan/module.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/SupervisionPlan/general.css")" />
+    <style>
+        .plan-row {
+            background: #ffffff !important;
+        }
+
+        .selected {
+            background: #F6F7F9 !important;
+        }
+    </style>
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablesorter.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/plugins/jquery.tablednd.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Supervisionplan/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Document/addDocument.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+
+
+<div id="ui_sp_001" class="padding20" style="clear:left">
+
+    @using (Html.BeginForm("Summary", "SupervisionPlan", FormMethod.Post, new { id = "main-form" }))
+    {
+        @Html.Hidden("OperationNumber", !isEmpty ? Model.First().OperationNumber : "")
+        @Html.Hidden("Year", selectedYear)
+        @Html.Hidden("View", view, new { @class = "view-selector" })
+        @Html.Hidden("SelectedPlanId", !isEmpty ? Model.First(m => m.Year == selectedYear).SupervisionPlanId : -1)
+        @Html.Hidden("IsInEdit", isInEdit, new { data_route_save_warning = Url.Action("_SaveFirstOnTabChange", "SupervisionPlan"), data_window_title = Localization.GetText("Warning") })
+        @Html.Hidden("PlanVersionId", !isEmpty && Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.SupervisionPlanVersionId : -1)
+        @Html.Hidden("CreateNew", false)
+
+        if (!isEmpty)
+        {
+        <div class="relative h50px verticalMargin40" style="margin-bottom: 0;">
+            <h3 class="font2em">@Localization.GetText("Supervision Plan")<span id="TitleYear" style="font-weight: bold">@selectedYear</span></h3>
+        </div>
+        }
+
+    }
+
+    @if (!isEmpty)
+    {
+        <!-- Tab menu -->
+        <div class="tabsContainer verticalMargin20" style="margin-top: 100px;">
+            <div class="inline-block tabItem@(view == SupervisionPlanView.CriticalProducts ? " active" : "")" data-id="@SupervisionPlanView.CriticalProducts" data-route="@Url.Action("CriticalProductsPartial", "SupervisionPlan")"> @Localization.GetText("Critical products")</div>
+            <div class="inline-block tabItem@(view == SupervisionPlanView.Activities ? " active" : "")" data-id="@SupervisionPlanView.Activities" data-route="@Url.Action("ActivitiesPartial", "SupervisionPlan")"> @Localization.GetText("Activities")</div>
+            <div class="inline-block tabItem@(view == SupervisionPlanView.Budget ? " active" : "")" data-id="@SupervisionPlanView.Budget" data-route="@Url.Action("BudgetPartial", "SupervisionPlan")"> @Localization.GetText("Budget")</div>
+        </div>
+    }
+    <div id="loadingContainer" style="position: absolute; display: none; height: 200px; width: 97%;"></div>
+
+    @if (!isEmpty)
+    {
+        <div id="SupervisionPlanPanel">
+            @{
+        var viewName = string.Empty;
+        object model = null;
+        switch (view)
+        {
+            case SupervisionPlanView.CriticalProducts:
+                viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/CriticalProductsPartial.cshtml";
+                model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.CriticalProducts : new List<CriticalProductModel>();
+                break;
+            case SupervisionPlanView.Activities:
+                viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/ActivitiesPartial.cshtml";
+                model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.Activities : new List<ActivityModel>();
+                break;
+            case SupervisionPlanView.Budget:
+                viewName = "~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/BudgetPartial.cshtml";
+                model = Model.First(p => p.Year == selectedYear).ActualVersion != null ? Model.First(p => p.Year == selectedYear).ActualVersion.Costs : (List<CostModel>)ViewBag.EmptyCosts;
+                break;
+        }
+                @Html.Partial(viewName, model)
+            }
+
+        </div>
+        <div class="hide" id="modalWindow">
+            @{
+                var PriorVersionModel = new PriorVersionModel();
+                PriorVersionModel.SupervisionPlanList = Model;
+                PriorVersionModel.SupervisionPlanVersionList = Model.First(m => m.Year == selectedYear).SupervisionPlanVersions; 
+            }
+            @Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlanLegacy/PriorPlanVersionPartial.cshtml", PriorVersionModel)
+        </div>
+    }
+</div>

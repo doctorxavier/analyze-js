@@ -1,0 +1,124 @@
+﻿@using Microsoft.Ajax.Utilities
+@model List<IDB.MW.Domain.Models.Supervision.SupervisionPlan.CriticalProductModel>
+@{
+    var quarterValues = new List<SelectListItem>();
+    if (ViewBag.LocalizedQuarterValue != null)
+    {
+        quarterValues = ((Dictionary<int, string>)ViewBag.LocalizedQuarterValue).Select(v => new SelectListItem { Value = v.Key.ToStringInvariant(), Text = v.Value }).ToList();
+    }
+    var selectYesNo = new List<SelectListItem>
+                        {
+                            new SelectListItem {Value = false.ToString(), Text = Localization.GetText("No")},
+                            new SelectListItem {Value = true.ToString(), Text = Localization.GetText("Yes")} 
+                        };
+
+    var canEdit = ((bool)ViewBag.DraftOrModified || (bool)ViewBag.IsNewPlan);
+    var canEditCompliance = (bool)ViewBag.Approved || (bool)ViewBag.Modified;
+    object htmlSimpleAttribs = new { data_view = "criticalproduct" };
+    object htmlComboAttribs = new { data_view = "criticalproduct", @class = "kendoDropDown" };
+}
+
+@if (canEdit)
+{
+    <div class="verticalMargin20 rightAlign">
+        <input type="button" id="newProduct" class="button blueButton" title="@Localization.GetText("SP.Summary.NewProduct")" value="@Localization.GetText("SP.Summary.NewProduct")">
+    </div>
+}
+<div id="ProductsPanel" class="verticalMargin40 font08em">
+    <div class="verticalMargin10 grayColor">
+        <div class="inline-block w65"> @Localization.GetText("SP.Summary.CriticalProductTable.Description")</div>
+        <div class="inline-block w10 marginLeft3"> @Localization.GetText("SP.Summary.CriticalProductTable.Quarter")</div>
+        <div class="inline-block w10"> @Localization.GetText("SP.Summary.CriticalProductTable.Compliance")</div>
+    </div>
+    <div id="CriticalProductEditableRows" class="body">
+        @for (int i = 0; i < Model.Count; i++)
+        {
+            quarterValues.Find(q => int.Parse(q.Value) == Model[i].QuarterId).Selected = true;
+            var complianceValue = Model[i].Compliance.HasValue && Model[i].Compliance.Value;
+            selectYesNo.Find(s => s.Value == complianceValue.ToString()).Selected = true;
+            <div class="row">
+                @Html.HiddenFor(p => p[i].CriticalProductId, htmlSimpleAttribs)
+                <div class="inline-block w65 boldFont">
+                    @if (canEdit) {
+                        @Html.TextAreaFor(p => p[i].Description,
+                            new
+                            {
+                                data_view = "criticalproduct",
+                                @class = "desc-critical-product",
+                                @maxlength = "500"})
+                        Html.ValidateFor(p => p[i].Description);
+                    } else {
+                        @Html.HiddenFor(p => p[i].Description)
+                        @Model[i].Description
+                    }
+                </div>
+                <div class="relative inline-block w10 boldFont marginLeft3">
+                    <div class="absolute w60">
+                        @if (canEdit) {
+                            @Html.DropDownListFor(p => p[i].QuarterId, quarterValues, htmlComboAttribs)
+                        } else {
+                            @Html.HiddenFor(p => p[i].QuarterId)
+                            @(((Dictionary<int, string>) ViewBag.LocalizedQuarterValue)[Model[i].QuarterId.Value])
+                        }
+                    </div>
+                </div>
+                <div class="relative inline-block w10 boldFont">
+                    <div class="absolute  w60">
+                        @if (canEditCompliance) {
+                            @Html.DropDownListFor(p => p[i].Compliance, selectYesNo, new {data_view = "criticalproduct", @class = "kendoDropDown"})
+                        } else {
+                            @Html.HiddenFor(p => p[i].Compliance, htmlSimpleAttribs)
+                             @Localization.GetText("No")
+                        }
+                    </div>
+                </div>
+                <div class="inline-block">
+                    @if (canEdit)
+                    {
+                        <input type="button" value=" @Localization.GetText("Delete")" class="deleteTextButton verticalAlignTop deleteProductBtn"/>
+                    }
+                </div>
+            </div>
+                    selectYesNo.ForEach(s => s.Selected = false);
+                    quarterValues.ForEach(q => q.Selected = false);
+        }
+
+    </div>
+    <div class="hide" id="CriticalProductEditTemplate">
+        <div class="row">
+            @Html.Hidden("[#rowCount#].CriticalProductId", "-1", new { data_view = "criticalproduct" })
+            <div class="inline-block w65 boldFont">@Html.TextArea("[#rowCount#].Description", new { data_view = "criticalproduct", @class = "desc-critical-product1", data_val = "false", data_val_required = "Please, complete the mandatory fields", id="newCriticalProductDesc" })</div>
+            <div class="relative inline-block w10 boldFont marginLeft3">
+                <div class="absolute  w60">@Html.DropDownList("[#rowCount#].QuarterId", quarterValues, new {id="quarterCombo", data_view = "criticalproduct" })</div>
+            </div>
+            <div class="relative inline-block w10 boldFont">
+                <div class="absolute  w60">
+                    @if (canEditCompliance) {
+                        @Html.DropDownList("[#rowCount#].Compliance", selectYesNo, new {data_view = "criticalproduct"})
+                    } else {
+                        @Html.Hidden("[#rowCount#].Compliance", false.ToString(), htmlSimpleAttribs)
+                         @Localization.GetText("No")
+                    }
+                </div>
+            </div>
+            <div class="inline-block">
+                <input type="button" value=" @Localization.GetText("Delete")" class="deleteTextButton verticalAlignTop">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/ecmascript">
+
+    $(document).ready(function () {
+        jQuery.validator.addMethod("desc-critical-product", function (value, element) {
+            var ValueDesc = value.toString().trim();
+
+            if (ValueDesc.length == 0) {
+                return false;
+            }
+            return true;
+        });
+    });
+
+</script>

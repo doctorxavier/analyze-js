@@ -1,0 +1,187 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Presentation.MVC4.Areas.MrBlue.Models
+@using IDB.MW.Application.MrBlueModule.Enums
+
+@model SupervisionReportStep1ViewModel
+
+@{
+    var buttonsViewModel = new SupervisionReportButtonsViewModel
+    {
+        VersionId = Model.SupervisionReportId,
+        Step = SupervisionReportStepEnum.Step1,
+        ShowCancel = true,
+        ShowBack = false,
+        ShowPDF = false,
+        ShowSave = true,
+        ShowNext = true,
+        ShowFinalize = false
+    };
+}
+
+@if(Model != null)
+{
+    <div data-pagemode="edit">
+        <div class="row mb20">
+            <div class="col-md-12">
+                @Html.Partial("Partials/buttons", buttonsViewModel)
+                @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.SupervisionReport.Dashboard.Title"))
+            </div>
+        </div>
+        <input type="hidden" id="hidViewModel" value="@ViewBag.SerializedViewModel" />
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="row row-header">
+                    <div class="col-md-12">
+                        @Confluence.Label(Localization.GetText("MrBlue.SupervisionReport.SupervisionDates"))
+                        @Confluence.LabelAsterisk()
+                    </div>
+                </div>
+                <div class="row row-header">
+                    <div class="col-md-3">
+                        @Confluence.Label(Localization.GetText("From"))
+                    </div>
+                    <div class="col-md-3">
+                        @Confluence.Label(Localization.GetText("To"))
+                    </div>
+                </div>
+                <div class="row mb20">
+                    <div class="col-md-3" data-pagemode="edit">
+                        @Confluence.InputDatePicker(
+                        Model.DateFrom,
+                        "DateFrom",
+                        required : true,
+                        dataAttributes : new Dictionary<string, string> { { "parsley-lessOrEqualDate", "[name=DateTo]" } })
+                    </div>
+                    <div class="col-md-3" data-pagemode="edit">
+                        @Confluence.InputDatePicker(
+                        Model.DateTo,
+                        "DateTo",
+                        required : true,
+                        dataAttributes : new Dictionary<string, string> { { "parsley-greaterOrEqualDate", "[name=DateFrom]" } })
+                    </div>
+                </div>
+                <div class="row row-header">
+                    <div class="col-md-6">
+                        @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.SupervisionReport.Participants"))
+                    </div>
+                </div>
+                <div class="row mb20">
+                    <div class="col-md-6">
+                        @{
+    var config = Html.RenderDataTable(Model.SupervisionReportParticipants);
+
+    config.Name("esgPersonTable")
+        .PrimaryKey(c => c.RowId.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .Columns(columns =>
+        {
+            columns.Template(ParticipantsMembers).Persistent()
+            .Header(Localization.GetText("Name"));
+
+            columns.Template(ParticipantsActionButtons)
+            .Persistent()
+            .Header(Localization.GetText("Action"))
+            .ColumnName("participantsActionButtons")
+            .CssHeaderClass("tamFixedCol100")
+            .Center();
+        });
+
+    config.TableClass = "tableNormal";
+
+
+    config.RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow,
+            @<tr class="hide" style="vertical-align:top;" data-name="templateParticipants">
+                <td data-pagemode="edit">
+                    @Confluence.InputDropDownAsync(
+                        string.Empty,
+                        "esgPersonRow",
+                        Url.Action("FindUserAD", "SupervisionReport", new { area = "MrBlue" }),
+                        width : "100%",
+                        required : true,
+                        textSelected : string.Empty,
+                        disabled : true,
+                        dataAttributes : new Dictionary<string, string> {
+                        {"persist-is-active-directory", "False"},
+                        {"parsley-noRepeatValue", "[name=esgPersonRow_text]"}
+                    })
+                </td>
+                <td data-pagemode="edit" class="text-center">
+                    @Confluence.ButtonTrash(
+                        string.Empty,
+                        name : "removeParticipant",
+                        action : "removeRow")
+                </td>
+            </tr>);
+    });
+
+                        }
+                        @Html.Partial("Controls/DataTable", config)
+                    </div>
+                </div>
+                <div class="row mb20">
+                    <div class=" col-md-6 text-center">
+                        <div class="col-md-12" style="margin-bottom:10px;">
+                            @Confluence.InputText("x", name : "validatorParticipants",
+                            required : false,
+                            htmlClass:"hidden",
+                            dataAttributes : new Dictionary<string, string> 
+                            { { "parsley-minnumberParticipants", "esgPersonRow_text" } })
+                        </div>
+                            @Confluence.ButtonAddNewRows(
+                            Localization.GetText("New"),
+                            "newParticipant",
+                            action : "newParticipant")
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div class="row mb20">
+            <div class="col-md-12">
+                @Html.Partial("Partials/buttons", buttonsViewModel)
+            </div>
+        </div>
+    </div>
+}
+
+@helper ParticipantsMembers(SupervisionReportParticipantsRowViewModel model)
+{
+    var datas = new Dictionary<string, string> {
+        {"persist-login-name",  model.ADUserName},
+        {"persist-full-name", model.ADFullName},
+        {"persist-is-active-directory", model.IsActiveDirectory.ToString()},
+        {"data-persist-old", model.RowId.ToString()}
+    };
+    @Confluence.InputDropDownAsync(
+    model.ADFullName,
+    "esgPersonRow",
+    Url.Action("FindUserAD", "SupervisionReport", new { area = "MrBlue" }),
+    width : "100%",
+    required : true,
+    textSelected : model.ADFullName,
+    dataAttributes : new Dictionary<string, string> {
+        {"persist-login-name",  model.ADUserName},
+        {"persist-full-name", model.ADFullName},
+        {"persist-is-active-directory", model.IsActiveDirectory.ToString()},
+        {"data-persist-old", model.RowId.ToString()}
+    })
+}
+
+@helper ParticipantsActionButtons(SupervisionReportParticipantsRowViewModel model)
+{
+    @Confluence.ButtonTrash(
+        string.Empty,
+        name : "removeParticipant-" + model.RowId,
+        action : "removeRow")
+}

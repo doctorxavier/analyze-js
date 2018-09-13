@@ -1,0 +1,625 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Enumerations;
+@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Impacts.ResultsMatrixModel
+@{
+    ViewBag.Title = "Index";
+    bool isLessTaskFive = ViewBag.isLessTaskFive ?? false;
+    string CRFTemplateName = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory
+        .Current.GetApplicationSettings().CRFTemplateName;
+}
+
+@Styles.Render("~/Content/BootstrapTooltip")
+@section CSS
+{
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/VerifyContent.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/Common.css")" />
+}
+
+@Styles.Render("~/Content/Confluence")
+@Styles.Render("~/Content/ModalConfluenceCss")
+@Scripts.Render("~/bundles/ModalConfluenceScripts")
+@Scripts.Render("~/bundles/BootstrapTooltip")
+
+@section JavaScript
+{
+    <script type="text/javascript" src="@Url.Content("~/Scripts/botonActivo/Impacts/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Impacts/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Impacts/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/edit/editData.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/datepicker/datepicker.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/dropdown/dropdown.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/radio/jquery.ui.core.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/radio/jquery.ui.widget.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/radio/jquery.ui.button.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/radio/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/autoNumeric.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/VerifyContent/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/jquery.blockUI.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Common/common.js")"></script>
+}
+
+@Html.Hidden("hdnLinkPredefinedIndicatorUrl", Url.Action("New", "Impact", new { area = "ResultsMatrix", resultsMatrixId = 1 }))
+@Html.Hidden("hdnDisaggCategLabel", Localization.GetText("Disaggregation categories"))
+@Html.Hidden("hdnDisaggCategTooltip", Localization.GetText("Same unit of measure as indicator / output"))
+@Html.Hidden("urlRouteIndex", Url.Action("Index", "Impacts", new
+{
+    area = "ResultsMatrix",
+    OperationNumber = Model.Operation.OperationNumber
+}))
+
+@using (Html.BeginForm("Edit", "Impacts", FormMethod.Post))
+{
+    @Html.Hidden("filter", @ViewData["filter"])
+    @Html.Hidden("hdnVerifyContentUrl", Url.Action("VerifyContent", "VerifyContent", new { area = "ResultsMatrix" }))
+    @Html.Hidden("hdnIntervalId", Model.Interval.IntervalId)
+    @Html.Hidden("hdnCycleId", Model.Interval.CycleId)
+    @Html.Hidden("hdnResultsMatrixId", Model.ResultsMatrixId)
+
+    <div class="mod_contenido_central impacts">
+        <h3 class="headingh2">@Localization.GetText("Impacts")</h3>
+        <div class="editingButtonsEdit">
+            @if (!Model.DEMLockReviewProcessData.IsLockReviewProcessDEM)
+            {
+                <a id="lnkVerifyContent"
+                   href="javascript:void(0);"
+                   class="verify"
+                   title="@Localization.GetText("Verify content")">
+                    @Localization.GetText("Verify content")
+                </a>
+
+                if (Model.isEditable && Html.HasPermission(Permission.RESULTS_MATRIX_WRITE) &&
+                    (Model.AccessedByAdministrator || isLessTaskFive))
+                {
+                    <a id="lnkEditImpact"
+                        href="@(Url.Action(
+                            "Edit",
+                            "Impacts",
+                            new
+                            {
+                                area = "ResultsMatrix",
+                                operationId = Model.OperationId,
+                                resultsMatrixId = Model.ResultsMatrixId
+                            }))"
+                        class="btn-secondary"
+                        title="@Localization.GetText("Edit")">
+                            @Localization.GetText("Edit")
+                    </a>
+                }
+            }
+            else
+            {
+                <div id="dem-block-description">
+                    @Html.Raw(Model.DEMLockReviewProcessData.LockDescription)
+                </div>
+                @:&nbsp;
+            }
+        </div>
+
+        @Html.Partial("../Partials/_HeaderOperationDataPartial", Model.HeaderModel)
+
+        <div class="operationData">
+            <div class="listWrapper">
+                @if (!Model.IsThirdInterval && Model.Interval.IntervalId != ResultsMatrixCodes.ThirdInterval && Model.isElegible)
+                {
+                    <dl class="ftl">
+                        <dt class="dataTitle">@Localization.GetText("Days remaining to validate plan at start-up")</dt>
+                        <dd class="dataText">@Model.DaysRemaining</dd>
+                    </dl>
+                }
+            </div>
+        </div>
+        @if (Model.Impacts.Count() > 0)
+        {
+            <div class="editingButtonsEdit">
+                <table>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="btn-action-group activo">
+                                    <label class="btn-action-fondo" for="btn-actionid">
+                                        <span class="btn-action-punto">Punto Blanco</span>
+                                    </label>
+                                    <input type="button" class="btn-action"
+                                           value="@Localization.GetText("Collapse Components")" id="btn-actionid">
+                                </div>
+                            </td>
+                            <td style="vertical-align: middle; padding-left: 5px; font-size: 0.75em;">
+                                @Localization.GetText("Show")
+                            </td>
+                            <td>
+                                <div id="radio">
+                                    <input type="checkbox" @(Model.showInactiveImpacts ? "checked=checked" : "")
+                                           id="showInactive" name="showInactive" />
+                                    <label for="showInactive" style="border: 1px solid #CBDCF2 !important;">
+                                        @Localization.GetText("Inactive Impacts")
+                                    </label>
+                                    <input type="checkbox" checked="checked" )
+                                           id="showDisaggregation" name="showDisaggregation" />
+                                    <label for="showDisaggregation" style="border: 1px solid #CBDCF2 !important;">
+                                        @Localization.GetText("Show Disaggregation")
+                                    </label>
+                                    <input type="checkbox" id="btnCRFInformation" name="btnCRFInformation" />
+                                    <label for="btnCRFInformation" style="border: 1px solid #CBDCF2 !important;">
+                                        @Localization.GetText("PI.BtnText.CRFInformation")
+                                    </label>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @* Inicio Grillas Impacts *@
+        <div id="impactsContainer" class="">
+            @{int impactTrackOrder = 1; int Validator = 0; }
+            @for (int i = 0; i < @Model.Impacts.Count(); i++)
+            {
+                // Sort impact Indicators
+                Model.Impacts[i].ImpactIndicators.Sort((x1, x2) => x1.OrderNumber.CompareTo(x2.OrderNumber));
+                Validator = 1;
+                int yearsPlanCount = Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count();
+                <div class="mod_tabla_impacts">
+                    <div class="minimizeTable">
+                        <div class="minimizeBar">
+                            <div class="trackOrder">@impactTrackOrder</div>
+                            <div class="tableOperator">Minimize/Maximize</div>
+                        </div>
+                        <div class="operatorBar parent" style="height: 795px;"></div>
+                        <div class="plegableHeader">
+                            <h4 class="headingh3 plegableTitle  fll">@Model.Impacts[i].Statement</h4>
+                            <div class="operationData dataDetails detailsExpanded" style="display: none;">
+                                <div class="data8">
+                                    <p class="dataTitle">@Localization.GetText("Observations")</p>
+                                    <p>@Model.Impacts[i].Observations</p>
+                                </div>
+                                <p><a class="hideComments" href="javascript:void(0)" style="font-size: 12px;">@Localization.GetText("Less")</a></p>
+                            </div>
+                            <div class="operationData dataDetails detailsMin flr">
+                                <div class="data8 preview">
+                                    <div class="commentsIcon"></div>
+                                    <p class="commentsPreview">@Model.Impacts[i].Observations</p>
+                                </div>
+                                <a class="showComments" href="javascript:void(0)">@Localization.GetText("More")</a>
+                            </div>
+                        </div>
+                        @* Inicio Grilla Impact Indicators*@
+                        <div class="tableGrid">
+                            <table class="grid">
+                                <thead>
+                                    <tr>
+                                        <th class="btn_azul_oscuro dato00">@Localization.GetText("Indicator")</th>
+                                        <th class="btn_azul_oscuro dato06">@Localization.GetText("Unit of measure")</th>
+                                        <th class="btn_azul_oscuro dato06">@Localization.GetText("Baseline")</th>
+                                        <th class="btn_azul_oscuro dato06">@Localization.GetText("Baseline year")</th>
+                                        <th class="btn_azul_oscuro dato04"></th>
+                                        @if (yearsPlanCount > 0)
+                                        {
+                                            for (int m = 0; m < @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count(); m++)
+                                            {
+                                                <th class="btn_azul_oscuro dato06">@Model.Impacts[i].GetMaxIndicatorYearPlanRows()[m].Item1</th>
+                                            }
+                                        }
+                                        <th class="btn_azul_oscuro dato05">@Localization.GetText("EOP") @Model.EndProjectYear</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{int indicatorTrackOrder = 1; }
+                                    @for (int j = 0; j < @Model.Impacts[i].ImpactIndicators.Count(); j++)
+                                    {
+                                        string rowStyle = "nivel01";
+                                        if (Math.Pow(-1, j) < 0) { rowStyle = "nivel01 impar"; }
+                                        <tr class="trackOrderRow">
+                                            <td>@impactTrackOrder . @indicatorTrackOrder</td>
+                                        </tr>
+                                        <tr class="@rowStyle @(Model.Impacts[i].ImpactIndicators[j].IsDeactivated ? "inactiveIndicator" : "")" id="">
+                                            <td class="dato01">
+                                                <div style="text-align: left">
+                                                    @if (Model.Impacts[i].ImpactIndicators[j].IsProgender)
+                                                    {
+                                                        <span class="ico_badge_flag purple"></span>
+                                                    }
+                                                    @if (Model.Impacts[i].ImpactIndicators[j].UsedForStrategicAlignment)
+                                                    {
+                                                        <span class="ico_badge_flag lime"></span>
+                                                    }
+                                                    @if (Model.Impacts[i].ImpactIndicators[j].IsProethnicity)
+                                                    {
+                                                        <span class="ico_badge_flag grey"></span>
+                                                    }
+                                                    @if (Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator != null)
+                                                    {
+                                                        <span class="@Model.Impacts[i].ImpactIndicators[j].PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                    }
+                                                    <a href="@Url.Action("Detail", "ImpactIndicator", new
+                                                        {
+                                                            area = "ResultsMatrix",
+                                                            resultsMatrixId = Model.ResultsMatrixId,
+                                                            impactId = Model.Impacts[i].ImpactId,
+                                                            impactIndicatorId = Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorId
+                                                        })" class="" title="">
+                                                        @Model.Impacts[i].ImpactIndicators[j].Definition
+                                                    </a>
+                                                    @if (Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorPredefinedIndicators.Any())
+                                                    {
+                                                        <div class="blockCRF displayNone">
+                                                            <div class="setTitleBlockCRF">@Localization.GetText("CRF:")</div>
+                                                            <div class="setTDBlockCRF">
+                                                                @foreach (var item in Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorPredefinedIndicators)
+                                                                {
+                                                                    <p class="flagCrfStyle">
+                                                                        @if (Model.PmrCycle.IsClosed)
+                                                                        {
+                                                                            string indicatorTemplateVersionName = item.PredefinedIndicator.IndicatorTemplate.VersionName;
+                                                                            <span class="@item.PredefinedIndicator.flagColorIndicator(indicatorTemplateVersionName)"></span>
+                                                                            <span class="setTextCRF">
+                                                                                @(string.Format("{0} {1} {2}",
+                                                                                item.PredefinedIndicator.IndicatorNumber,
+                                                                                item.PredefinedIndicator.NameEn,
+                                                                                item.PredefinedIndicator.IsContribution == true ? " (C)" : ""))
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="@item.PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                                            <span class="setTextCRF">
+                                                                                @(string.Format("{0} {1} {2}",
+                                                                                item.PredefinedIndicator.IndicatorNumber,
+                                                                                item.PredefinedIndicator.NameEn,
+                                                                                item.PredefinedIndicator.IsContribution == true ? " (C)" : ""))
+                                                                            </span>
+                                                                        }
+                                                                    </p>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </td>
+                                            <td>
+                                                @Model.Impacts[i].ImpactIndicators[j].UnitOfMeasure
+                                            </td>
+                                            <td>
+                                                @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].Baseline)
+                                            </td>
+                                            <td class="dato02">
+                                                @Model.Impacts[i].ImpactIndicators[j].BaselineYear
+                                            </td>
+                                            <td class="dato07">
+                                                <table>
+                                                    <tbody style="border-width: 0px;">
+                                                        <tr class="rm_p_row">
+                                                            <td class="">
+                                                                <label class="editLabel " for="baseline01">P</label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_pa_row">
+                                                            <td class="">
+                                                                <label class="editLabel " for="baseline01">P(a)</label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_ac_row">
+                                                            <td class="">
+                                                                <label class="editLabel " for="baseline01">A</label>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </td>
+
+                                            @{IDB.MW.Domain.Models.Architecture.ResultMatrix.Impacts.ImpactIndicatorYearPlanModel endOfProject = null; }
+
+                                            @{
+                                                endOfProject = Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans.Where(oyp => oyp.Year == -1).FirstOrDefault();
+                                                Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans.Remove(endOfProject);
+                                            }
+
+                                            @foreach (var yearPlan in @Model.Impacts[i].GetMaxIndicatorYearPlanRows())
+                                            {
+
+                                                var cont = 0;
+                                                for (int k = 0; k < @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans.Count(); k++)
+                                                {
+                                                    if (yearPlan.Item1 == @Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].Year)
+                                                    {
+                                                        <td class="dato07">
+                                                            <table>
+                                                                <tbody style="border-width: 0px;">
+                                                                    <tr class="rm_p_row">
+                                                                        <td>
+                                                                            <label class="editLabel " for="">
+                                                                                @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].OriginalPlan)
+                                                                            </label>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr class="rm_pa_row">
+                                                                        <td>
+                                                                            <label class="editLabel " for="">
+                                                                                @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].AnnualPlan)
+                                                                            </label>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr class="rm_ac_row">
+                                                                        <td>
+                                                                            <label class="editLabel " for="">
+                                                                                @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].ImpactIndicatorYearPlans[k].ActualValue)
+                                                                            </label>
+                                                                        </td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </td>
+                                                        cont++;
+                                                    }
+                                                }
+
+                                            }
+
+                                            <td class="dato07">
+                                                <table>
+                                                    <tbody style="border-width: 0px;">
+                                                        <tr class="rm_p_row">
+                                                            <td>
+                                                                <label class="editLabel " for="">
+                                                                    @Html.CustomFormatDecimalNumber(endOfProject.OriginalPlan)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_pa_row">
+                                                            <td>
+                                                                <label class="editLabel " for="">
+                                                                    @Html.CustomFormatDecimalNumber(endOfProject.AnnualPlan)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_ac_row">
+                                                            <td>
+                                                                <label class="editLabel " for="">
+                                                                    @Html.CustomFormatDecimalNumber(endOfProject.ActualValue)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        </tr>
+
+                                        @* DISAG*@
+                                    IDB.MW.Domain.Models.Architecture.ResultMatrix.Impacts.ImpactDisaggregationYearPlanModel dissagEndOfProject = null;
+
+                                    if (Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations.Count() > 0)
+                                    {
+                                        <tr class="nivel02">
+                                            @{ int dissColSpan = (6 + @Model.Impacts[i].GetMaxIndicatorYearPlanRows().Count()); }
+                                            <td colspan="@dissColSpan">
+                                                <div class="minimizeTable child">
+                                                    <div class="minimizeBar">
+                                                        <div class="tableOperator">Minimize/Maximize</div>
+                                                    </div>
+                                                    <div class="operatorBar" style="height: 240px;"></div>
+                                                    <div class="tableGrid">
+                                                        <table class="grid">
+                                                            <thead>
+
+                                                                <tr>
+                                                                    <th class="btn_azul_oscuro dato00">
+                                                                        <span>@Localization.GetText("Disaggregation categories")</span>
+                                                                        <span class="glyphicon glyphicon-info-sign toolTipDisaggregation"
+                                                                              title="@Localization.GetText("Same unit of measure as indicator/output")">
+                                                                        </span>
+                                                                    </th>
+                                                                    <th class="btn_azul_oscuro dato04"></th>
+                                                                    @for (int l = 0; l < @Model.Impacts[i].ImpactIndicators[j].GetMaxDissagregationYearPlanRows().Count(); l++)
+                                                                    {
+                                                                        <th class="btn_azul_oscuro dato06">@Model.Impacts[i].ImpactIndicators[j].GetMaxDissagregationYearPlanRows()[l]</th>
+                                                                    }
+
+                                                                    <th class="btn_azul_oscuro dato05">@Localization.GetText("EOP") @Model.EndProjectYear</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @for (int m = 0; m < @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations.Count(); m++)
+                                                                {
+                                                                    string rowDissagregationStyle = "nivel01";
+                                                                    if (Math.Pow(-1, m) < 0) { rowDissagregationStyle = "nivel01 impar"; }
+                                                                    <tr class="@rowDissagregationStyle @(Model.Impacts[i].ImpactIndicators[j].IsDeactivated ? "inactiveIndicator" : "")" id="">
+                                                                        <td class="dato01">
+                                                                            @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].DisaggregationName
+
+                                                                            @if (Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsCalculated ||
+                                        Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].IsLinked)
+                                                                            {
+                                                                                <span class="txtPredefined">@Localization.GetText("Predefined")</span>
+                                                                            }
+                                                                        </td>
+                                                                        <td class="dato07">
+                                                                            <table>
+                                                                                <tbody style="border-width: 0px">
+                                                                                    <tr class="rm_p_row">
+                                                                                        <td class="">
+
+                                                                                            <label class="editLabel" for="baseline01">P</label>
+
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_pa_row">
+                                                                                        <td class="">
+
+                                                                                            <label class="editLabel" for="baseline01">P(a)</label>
+
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_ac_row">
+                                                                                        <td class="">
+
+                                                                                            <label class="editLabel" for="baseline01">A</label>
+
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </td>
+
+
+                                                                        @{
+                                                                            dissagEndOfProject = Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Where(oyp => oyp.Year == -1).FirstOrDefault();
+                                                                            Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Remove(dissagEndOfProject);
+                                                                        }
+
+                                                                        @foreach (var dissagregationPlan in @Model.Impacts[i].ImpactIndicators[j].GetMaxDissagregationYearPlanRows())
+                                                                        {
+                                                                            for (int n = 0; n < @Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans.Count(); n++)
+                                                                            {
+                                                                                if (@Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].Year == dissagregationPlan)
+                                                                                {
+                                                                                    <td class="dato07">
+                                                                                        <table>
+                                                                                            <tbody style="border-width: 0px">
+                                                                                                <tr class="rm_p_row">
+                                                                                                    <td>
+                                                                                                        <label class="editLabel" for="">
+
+                                                                                                            @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].OriginalPlan)
+
+                                                                                                        </label>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_pa_row">
+                                                                                                    <td>
+                                                                                                        <label class="editLabel" for="">
+                                                                                                            @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].AnnualPlan)
+
+                                                                                                        </label>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_ac_row">
+                                                                                                    <td>
+                                                                                                        <label class="editLabel" for="">
+                                                                                                            @Html.CustomFormatDecimalNumber(Model.Impacts[i].ImpactIndicators[j].ImpactDisaggregations[m].ImpactDisaggregationYearPlans[n].ActualValue)
+
+                                                                                                        </label>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    </td>
+                                                                                }
+                                                                            }
+                                                                        }
+
+                                                                        <td class="dato07">
+                                                                            <table>
+                                                                                <tbody style="border-width: 0px">
+                                                                                    <tr class="rm_p_row">
+                                                                                        <td>
+                                                                                            <label class="editLabel" for="">@Html.CustomFormatDecimalNumber(dissagEndOfProject.OriginalPlan)</label>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_pa_row">
+                                                                                        <td>
+                                                                                            <label class="editLabel" for="">@Html.CustomFormatDecimalNumber(dissagEndOfProject.AnnualPlan)</label>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    <tr class="rm_ac_row">
+                                                                                        <td>
+                                                                                            <label class="editLabel" for="">@Html.CustomFormatDecimalNumber(dissagEndOfProject.ActualValue)</label>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </td>
+
+                                                                    </tr>
+                                                                            }
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                            <tr class="spaceTableImpact">
+                                                <td></td>
+                                            </tr>
+                                                                            }
+                                                                            @* fin disag*@
+
+                                        indicatorTrackOrder++;
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                                                                                impactTrackOrder++;
+                                                                            }
+
+            @Html.Hidden("hdnImpactsCount", @Model.Impacts.Count)
+            @* Fin Grillas Impacts *@
+
+        </div>
+        <div class="operationData">
+            @Html.Partial("../Partials/_BadgeFlagPartial")
+        </div>
+        @if (Validator == 1)
+        {
+            <br />
+            <div class="styleContentReport">
+                <a title="Export PDF" class="downloadReport exportdata pdf styleExportReport"
+                   href="javascript:void(0);"
+                   data-href='@(Url.Action("DownloadReportImpacts", "Outcomes", new {
+                                    area = "ResultsMatrix",
+                                    operationNumber = Model.Operation.OperationNumber,
+                                    formatType = "PDF"
+                                }))'></a>
+
+                <a title="Export Excel" class="downloadReport exportdata excel styleExportReport"
+                   href="javascript:void(0);"
+                   data-href='@(Url.Action("DownloadReportImpacts", "Outcomes", new {
+                                    area = "ResultsMatrix",
+                                    operationNumber = Model.Operation.OperationNumber,
+                                    formatType = "Excel"
+                                }))'></a>
+            </div>
+        }
+        <div class="editingButtonsEdit">
+            @if (!Model.DEMLockReviewProcessData.IsLockReviewProcessDEM)
+            {
+                <a id="lnkVerifyContent"
+                   href="javascript:void(0);"
+                   class="verify"
+                   title="@Localization.GetText("Verify content")">
+                    @Localization.GetText("Verify content")
+                </a>
+
+                if (Model.isEditable && Html.HasPermission(Permission.RESULTS_MATRIX_WRITE) &&
+                    (Model.AccessedByAdministrator || isLessTaskFive))
+                {
+                    <a id="lnkEditImpact"
+                        href="@(Url.Action(
+                            "Edit",
+                            "Impacts",
+                            new
+                            {
+                                area = "ResultsMatrix",
+                                operationId = Model.OperationId,
+                                resultsMatrixId = Model.ResultsMatrixId
+                            }))"
+                        class="btn-secondary"
+                        title="@Localization.GetText("Edit")">
+                            @Localization.GetText("Edit")
+                    </a>
+                }
+            }
+            else
+            {
+                @:&nbsp;
+                <div id="dem-block-description">
+                    @Html.Raw(Model.DEMLockReviewProcessData.LockDescription)
+                </div>
+            }
+        </div>
+    </div>
+}

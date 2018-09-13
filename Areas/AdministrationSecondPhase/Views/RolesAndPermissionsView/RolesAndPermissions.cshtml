@@ -1,0 +1,171 @@
+﻿@using IDB.MW.Domain.Values
+@model IDB.MW.Application.AdministrationModule.ViewModels.RolesAndPermissions.RoleAndPermissionViewModel
+
+<div class="col-md-12 mb40">
+    @Confluence.LabelMainTitle(Localization.GetText("OP.RP.RolesAndPermission.Title"))
+</div>
+
+<div class="page">
+    @Html.Partial("Partial/RolesAndPermissionsPartial")
+    <div id="tableRoleAndPermissions">
+        @Html.Partial("Partial/TableRoleAndPermissions", Model.ResultSearchList)
+    </div>
+</div>
+
+
+@section scripts{
+
+    <script type="text/javascript">
+
+        var Filter = new Object();
+
+        Filter.Container = $('.filterNormal');
+        Filter.UrlFilter = '@Url.Action(
+        "SearchRolesAndPermissionsFilter",
+        "RolesAndPermissionsView",
+        new { area = "AdministrationSecondPhase" })';
+        Filter.UrlReport = '@Url.Action(
+        "DownloadReport",
+        "RolesAndPermissionsView",
+        new { area = "AdministrationSecondPhase" })';
+        Filter.RolesText = $('[name=SearchRoles_text]');
+        Filter.RolesOptions = $('ul.dropdown-menu[aria-labelledby="id-SearchRoles"]');
+        Filter.PermissionText = $('[name=SearchPermission_text');
+        Filter.Table = $("#roleAndPermissionsTable");
+
+        Filter.Controls = {
+            Type: $('[name=SearchRoleType]'),
+            Role: Filter.Container.find('[name=SearchRoles]'),
+            Permission: Filter.Container.find('[name=SearchPermission]'),
+            ExpirationDate: Filter.Container.find('input[name=ExpirationDate]'),
+            EffectiveDate: Filter.Container.find('input[name=EffectiveDate]'),
+            RolSelected: false,
+            PermissionSelected: false
+        };
+
+        Filter.Methods = {
+            CheckValue: function (value) {
+                return value !== '' ? value : 0;
+            },
+            IsBefore: function (value) {
+                return value === '@RolesAndPermissionsValues.BEFORE';
+            },
+            ConvertDropDownOption: function (array) {
+                Filter.RolesText.val('');
+
+                var listData = $.map(array, function (item) {
+                    return "<li><a dd-value=" + item.Value + " dd-text='" +
+                        item.Text.toUpperCase() + "'>" + item.Text + "</a></li>";
+                });
+
+                Filter.RolesOptions.html(listData.join(''));
+                Filter.Controls.Role.attr('data-parsley-required', 'true');
+                Filter.RolesOptions.FirstorDefault();
+            },
+            GetParams: function () {
+                return {
+                    SearchRoleType: Filter.Methods.CheckValue(Filter.Controls.Type.val()),
+                    SearchRoles: Filter.Controls.Role.GetText(),
+                    ExpirationDate: Filter.Controls.ExpirationDate.val(),
+                    SearchPermission: Filter.Controls.Permission.GetText(),
+                    EffectiveDate: Filter.Controls.EffectiveDate.val(),
+                    IsBefore: Filter.Methods.IsBefore(Filter.Container
+                        .find('input[name="IsEffectiveDate"]:checked').data('id')),
+                    RolSelected: Filter.Controls.RolSelected,
+                    PermissionSelected: Filter.Controls.RolSelected
+                };
+            }
+        };
+
+        $(document).ready(function () {
+            Filter.Table.paginationConfluense(10);
+        });
+
+        function cleanfilter() {
+            Filter.Controls.Type.FirstorDefault();
+            Filter.RolesText.val("");
+            Filter.PermissionText.val("");
+            Filter.Controls.ExpirationDate.val("");
+            Filter.Controls.EffectiveDate.val("");
+            Filter.Controls.RolSelected = false;
+            Filter.Table.find("tbody").empty();
+            Filter.Table.siblings('[dd-table="roleAndPermissionsTable"]').remove();
+            $('[name=IsEffectiveDate]').prop("checked", false);
+
+            searchRoleAndPermissionsFilter();
+            searchRolesFilter("");
+        }
+
+        function searchRoleAndPermissionsFilter() {
+            postUrlWithOptions(
+                Filter.UrlFilter,
+                { async: false },
+                { 'filters': Filter.Methods.GetParams() })
+            .done(function (data) {
+                var resultSearchPanel = $('#tableRoleAndPermissions');
+                resultSearchPanel.html(data);
+                bindHandlers(resultSearchPanel);
+                $('#roleAndPermissionsTable').paginationConfluense(10);
+            });
+
+            return false;
+        }
+
+        function searchRolesFilter(type) {
+            if (type !== "") {
+                var url = "@Url.Action(
+                    "GetRoles",
+                    "RolesAndPermissionsView",
+                    new { area = "AdministrationSecondPhase" })";
+                var response = postUrl(url, { type: type }).responseJSON.Data;
+
+                Filter.Methods.ConvertDropDownOption(response);
+            } else {
+                Filter.Methods.ConvertDropDownOption(@Html.Raw(Json.Encode(Model.RolesItems)));
+            }
+        }
+
+        $(document).on(
+            'click',
+            'ul.dropdown-menu[aria-labelledby="id-SearchRoleType"] a',
+            function () {
+            var type = $(this).attr("dd-value");
+
+            searchRolesFilter(type)
+            });
+
+        $(document).on(
+            'click',
+            'ul.dropdown-menu[aria-labelledby="id-SearchRoles"] a',
+            function () {
+                Filter.Controls.RolSelected = true;
+            });
+
+        $(document).on(
+            'change',
+            'input[name="SearchRoles_text"]',
+            function () {
+                Filter.Controls.RolSelected = false;
+            });
+
+        $(document).on(
+            'click',
+            'ul.dropdown-menu[aria-labelledby="id-SearchPermission"] a',
+            function () {
+                Filter.Controls.PermissionSelected = true;
+            });
+
+        $(document).on(
+            'change',
+            'input[name="SearchPermission_text"]',
+            function () {
+                Filter.Controls.PermissionSelected = false;
+            });
+
+        function downloadReport() {
+            var url = Filter.UrlReport + '?' + jQuery.param(Filter.Methods.GetParams());
+
+            window.open(url, '_blank');
+        }
+    </script>
+}

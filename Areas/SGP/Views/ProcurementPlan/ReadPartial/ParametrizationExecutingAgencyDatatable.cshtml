@@ -1,0 +1,77 @@
+@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Architecture.DataTables.Common
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+
+@model ParameterizationViewModel
+
+@{
+    var appSetting = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSetting.FormatDate;
+    var formatDolar = appSetting.FormatIntegerDolar;
+}
+
+@foreach (var item in Model.ExecutingAgencys)
+{
+    var config = Html.RenderDataTable(item.ExecutingAgencyRows)
+        .Name("ExecutingAgency")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Group.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(ColumnProcurementType)
+            .Orderable(false)
+            .CssClass("colParametrizationProcurementType")
+            .Header(Localization.GetText("SGP.Label.ProcurementType"))
+            .CssHeaderClass("textalign-center")
+            .Hidden(false);
+
+            columns.Bound(c => FormatHelper.Format(c.ThresholdDecimal, formatDolar))
+            .Orderable(false)
+            .CssClass("textalign-center")
+            .Header(Localization.GetText("SGP.Label.ICBThreshold"))
+            .Hidden(false);
+        });
+
+    config.TableClass = "tableNormal";
+    
+    <div class="aligment mb10">
+            @(Html.CollapseSingle("collapseComponent")
+        .HtmlClass("component-collapse alignSubtitle")
+        .AsociatedCollapseAllSelector("[data-name=\"collapseAllParameterization\"]")
+        .TargetRegionSelector("#" + item.ExecutingAgencyId.ToString())
+            )            
+                @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.ExecutingAgency") + " " + item.ExecutingAgencyName, htmlClass: "component-collapse-h3")            
+    </div>
+
+    <div class="row" id="@item.ExecutingAgencyId.ToString()">
+        <div class="col-xs-12">
+            <div class="mb40">
+                @Html.Partial("Controls/DataTable", config)
+            </div>
+        </div>
+    </div>
+}
+
+@helper ColumnProcurementType(ExecutingAgencyRowViewModel row) 
+{
+    var procurementType = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementTypeParametrization").ConvertToSelectListItems();
+    
+    @(Html.MultiDropDown("procType-agency")
+      .Items(procurementType)
+      .SelectedItems(row.ProcurementTypeIds)
+      .DrawAsItemsSeparatedByCommas())
+
+}

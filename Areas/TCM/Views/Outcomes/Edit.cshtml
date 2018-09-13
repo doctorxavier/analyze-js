@@ -1,0 +1,977 @@
+﻿@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.LinkPredefinedIndicator
+@using IDB.MW.Domain.Values
+@using IDB.Presentation.MVC4.Helpers
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+    var linkIndicatorModel = (LinkPredefinesIndicatorViewModel)ViewBag.LinkIndicatorModel;
+}
+<link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Messages/jquery_notification.css")" />
+@Styles.Render("~/Content/overrides/indicatorsOverride.css")
+<script type="text/javascript" src="@Url.Content("~/Scripts/jquery-1.10.2.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/Messages/jquery_notification.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/angular/1.6/angular.js")"></script>
+<script src="~/Scripts/Mainframe/fixIframe.js"></script>
+<script type="text/javascript" src="@Url.Content("~/app/app.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/dirPagination.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/dialog.directive.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/outcomes/outcomesController.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/directives/valid.number.negative.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/app/modules/shared/services/common.service.js")"></script>
+<script type="text/javascript">
+    var resultsMatrixTcmPaths = "@Url.Action("GetResultsMatrix", "Outcomes", new { area = "TCM" })";
+    var resultsMatrixTcmSavePaths = "@Url.Action("SaveOutcomes", "Outcomes", new { area = "TCM" })";
+
+    $(document).ready(function() {
+        $('#outcomes-container').closest('section').addClass('containerOutcomeDetail');
+
+        $(".btnCollapseAll.buttonExpand.collapse").click(function () {
+            $("th.disaggregation").each(function () {
+                if ($(this).find('span.hide').length > 0) {
+                    $(this).closest("table").find("tbody tr[data-id]").addClass("hide");
+                }
+            });
+
+        });
+
+        warningCRFIndicators = $("#crf-warning-container");
+        $("#Outcomes-link-modal").find("div.filterNormalExtension").append(warningCRFIndicators);
+        $("#Outcomes-link-modal").find("div.filterNormalExtension").find("#crf-warning-container").show();
+    });
+
+    $(document).on("click", ".square-button.collapse-disaggregations", function() {
+        var collapsableElement = $(this).data("collapsable-element");
+        var isExpanded = $(this).data("expanded");
+        if (isExpanded) {
+                $(this).val("Show Disaggregation");
+                $(this).addClass("pressed");
+                $(this).data("expanded", false);
+                $('.tree.disaggregation').find('.icon').attr("style", "margin-top: 5px;");
+                $('.tree.disaggregation').find('.icon').removeAttr("style", "margin-top: 50%;");
+                $('.tree.disaggregation').find('.icon').text("-");
+            } else {
+                $(this).val("Hide Disaggregation");
+                $(this).removeClass("pressed");
+                $(this).data("expanded", true);
+                $('tr.row-disaggregation').removeClass('hide');
+                $('button[title="Add Disaggregation"]').removeClass('hide');
+                $('[name="tableDisaggregation"]').removeClass('hide');
+                $('.tree.disaggregation').find('.icon').attr("style", "margin-top: 50%;");
+                $('.tree.disaggregation').find('.icon').removeAttr("style", "margin-top: 5px;");
+                $('.tree.disaggregation').find('.icon').text("+");
+            }
+
+            var spanIcons = $("." + collapsableElement)
+                .find("th.disaggregation span.icon");
+
+            $.each(spanIcons, function (index, spanIcon) {
+                $("." + collapsableElement).show();
+                CollapseTable(spanIcon);
+            });
+    });
+
+    $(document).on("click",".disaggregation",function () {
+        validateDisaggregationButton();
+    });
+
+    function validateDisaggregationButton() {
+        var totalDisaggregationElements = $(".disaggregation").length;
+        if ($(".disaggregation").find("span.hide").length === totalDisaggregationElements && $("input.collapse-disaggregations.pressed").length === 0 && totalDisaggregationElements > 0) {
+            $("input.collapse-disaggregations").click();
+        }
+    };
+
+    function linkToPredefinedIndicator(a, b) {
+        alert(a + ", " + b);
+    }
+
+    function showActionBar(row) {
+        $(row).find("div.action-bar").show();
+    }
+
+    function hideActionBar(row) {
+        $(row).find("div.action-bar").hide();
+    }
+
+    function onEnd() {
+        $('.tablePrincipal').each(function(i) {
+            $(this).find('th.tree.icon div.number').text(i + 1);
+            var x = 1;
+
+            for (var j = 0; j < $(this).find('td.tree').length; j++) {
+                var element = $($(this).find('td.tree')[j]);
+                if (element.find('div.number').length === 0 && !element.is('.noCreateNumber')) {
+                    element.append('<div class="number"></div>');
+                }
+                if (element.closest('tr').find('th').length === 0) {
+                    if (element.find('div.number').length === 1 && !element.is('.noNumber')) {
+                        element.find('div.number').text((i + 1) + '.' + x);
+                        x++;
+                    }
+                }
+            }
+        }).TableNumber();
+        validate();
+    }
+
+    function validate() {
+        $('.inputText').off('keyup').keyup(function() {
+            if ($(this).next().is('[ng-show*="' + $(this).attr('name') + '.$invalid"]')) {
+                if (!$(this).next().is('.ng-hide')) {
+                    $(this).addClass('parsley-error');
+                } else {
+                    $(this).removeClass('parsley-error');
+                }
+            }
+        });
+
+        $('.inputTextarea').off('keyup').keyup(function() {
+            if ($(this).next().is('[ng-show*="' + $(this).attr('name') + '.$invalid"]')) {
+                if (!$(this).next().is('.ng-hide')) {
+                    $(this).addClass('parsley-error');
+                } else {
+                    $(this).removeClass('parsley-error');
+                }
+            }
+        });
+    }
+
+    function redirect() {
+        var msg = '@Localization.GetText("TCM.Outcome.CancelMessage")';
+        confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Ok")').done(function(pressOk) {
+
+            if (pressOk) {
+                showLoader();
+                redirectCancel();
+            }
+        });
+    }
+
+    function redirectCancel() {
+        var disaggregationValue = $(".square-button.collapse-disaggregations").data("expanded");
+        var path = "@Url.Action("Index", "Outcomes", new {area = "TCM"})" + "?isBlock="+false;
+        window.location.href = path + "&isDisaggregation=" + disaggregationValue;
+        $("#layoutLoadingPassDiv").show();
+    }
+
+    function getUrlVars() {
+        var vars = [], hash;
+        var hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+        for (var i = 0; i < hashes.length; i++) {
+            hash = hashes[i].split('=');
+            vars.push(hash[0]);
+            vars[hash[0]] = hash[1];
+        }
+        return vars;
+    }
+    var getUrl = getUrlVars()["isDisaggregation"];
+
+</script>
+
+@{
+    var linkToPredefinedIndicatorPath = Url.Action("LinkToPredefinedIndicator", "Outcomes", new { area = "TCM" });
+    var unLinkPredefinedIndicatorsPath = Url.Action("UnlinkPredefinedIndicators", "Outcomes", new { area = "TCM" });
+}
+
+<span id="outcomes-container" ng-app="resultsMatrixApp" class="outcomes-controller" ng-controller="OutcomesController" ng-init="LinkToPredefinedIndicatorPath='@linkToPredefinedIndicatorPath'; UnlinkPredefinedIndicatorsPath='@unLinkPredefinedIndicatorsPath'">
+
+    <form name="frmOutcomes" novalidate>
+        <div class="col-md-12">
+            <div class="floatLeft col-md-6">
+                <h2 class="titlePrincipal ml15">@Localization.GetText("TCM.Outcomes")</h2>
+            </div>
+            @if (SecurityHelper.IsVisible(linkIndicatorModel.FieldAccessList, "btnSaveOutcome"))
+            {
+                <div class="floatRight colmd-6">
+                    <button class="buttonLink" onclick="redirect()">@Localization.GetText("TCM.Cancel")</button>
+                    @Confluence.ButtonOrange(Localization.GetText("TCM.Save"), dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnSaveOutcome" }, { "ng-click", "submit();SaveResultsMatrix()" } })
+                </div>
+            }
+           
+        </div>
+
+        <div id="partial-header-container" ng-cloak>
+            <div id="operation-info-container">
+                <div class="operation-info">
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextReportingPeriod")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.ReportingPeriod}}</p>
+                    </div>
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextDaysRemainingToChangeInitialPlan")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.DaysRemaning}}</p>
+                    </div>
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextValidationStatus")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.ValidationStatus}}</p>
+                    </div>
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextLastUpdate")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.LastUpdate | jsDateFilter | date: 'dd MMM yyyy'}} </p>                    
+                    </div>
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextTLSubmitted")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.SubmittedByTeamLeader | jsDateFilter | date: 'dd MMM yyyy'}}</p>
+                    </div>
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextFundCoordinatorAccepted")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.AcceptedByFundCoordinator | jsDateFilter | date: 'dd MMM yyyy'}}</p>
+                    </div>
+                </div>
+
+                <div class="operation-info">
+                    <div>
+                        <p>@Localization.GetText("TCM.SH.SharedHeader.TextOperationObjective")</p>
+                        <p class="info-text">{{ResultsMatrix.OperationInfo.OperationObjective}}</p>
+                    </div>
+                </div>
+            
+            </div>
+
+        </div>
+        @{
+
+         }
+        @if (SecurityHelper.IsVisible(linkIndicatorModel.FieldAccessList, "btnNewOutcome"))
+        {
+            <div class="col-md-12 mb30">
+                <div class="floatRight" ng-if="ResultsMatrix.HasRmAdminPermissions">
+                    @Confluence.ButtonBlue(Localization.GetText("TCM.Outcome.NewOutcome"), dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnNewOutcome" }, { "ng-click", "AddOutcome()" } })
+                </div>
+            </div>
+        }
+       
+        <div class="col-md-12">
+            <div class="floatRight mb10">
+                <input type="button" class="buttonWhite square-button collapse-disaggregations" data-expanded="true" data-collapsable-element="row-disaggregation"
+                       data-show-title="@Localization.GetText("TCM.Outcome.ShowDisaggregation")" data-hide-title="@Localization.GetText("TCM.Outcome.HideDisaggregation")"
+                       value="@Localization.GetText("TCM.Outcome.HideDisaggregation")" ng-click="valueButton()" ng-if="ResultsMatrix.Outcomes.length > 0" />
+                <input name="btn-edit-show-disaggregations" type="button"
+                       class="buttonWhite square-button narrow" ng-click="ShowCRFInformation()"
+                       value="@Localization.GetText("PI.BtnText.CRFInformation")" />
+            </div>
+        </div>
+        <div class="overflow col-md-12">
+            <span ng-repeat="Outcome in ResultsMatrix.Outcomes" ng-cloak ng-init="outcomeIndex = $index" repeat-end="onEnd()">
+                <table id="{{'tableTreeRowTitle'+$index}}" class="tableNormal lineNonStop tablePrincipal mb5" name="outcomeIndicators">
+                    <thead>
+                        <tr>
+                            <td class="treeNumber">{{Outcome.OrderNumber}}</td>
+                            <th class="tree icon">@Confluence.ButtonExpandTable()<div class="number"></div></th>
+                            <td class="tcmTitleTable contentFloats" ng-form="Outcome_Statement" colspan="{{8+ResultsMatrix.ExistingPlannedYears.length}}" onmouseover="showActionBar(this)" onmouseout="hideActionBar(this)">
+                                <div class="floatLeft pt10">@Localization.GetText("TCM.Outcome.OutcomeStatement"):</div>
+                                <div class="floatLeft wOutcomesStatement">
+                                    @ControlTemplatesTCM.AngularInputText(model: "Outcome.Statement", name: "Outcome_Statement", maxLength: 350
+                                        , dataAttributes: new Dictionary<string, string>() {{"ng-blur", "Outcome_Statement_lf = true"}, {"ng-disabled", "!ResultsMatrix.HasRmAdminPermissions || !ResultsMatrix.IsEditableOutcomesStatements" } }, width: "100%", requiredMessage: Localization.GetText("TCM.Outcome.RequiredMessage"))
+                                </div>
+                                <div class="floatLeft w20 pt10" ng-if="ResultsMatrix.HasRmAdminPermissions && ResultsMatrix.IsEditableOutcomesStatements">
+                                    <span title="@Localization.GetText("TCM.DO.DeleteOutcomeStatement.Delete")"
+                                          ng-click="DeleteOutcomeStatement(Outcome)" class="span-min-square">x</span>
+                                </div>
+                                <div class="action-bar mt35" style="display: none">
+                                    @ControlTemplatesTCM.AngularMoveUpButton(null, Localization.GetText("TCM.EditIndicator.MoveUpTooltip"), new Dictionary<string, string>() {{"ng-click", "MoveOutcomeUp(Outcome)"}})
+                                    @ControlTemplatesTCM.AngularMoveDownButton(null, Localization.GetText("TCM.EditIndicator.MoveDownTooltip"), new Dictionary<string, string>() {{"ng-click", "MoveOutcomeDown(Outcome)"}})
+                                </div>
+                            </td>
+                        </tr>
+                        <tr ng-show="Outcome.OutcomeIndicators.length > 0">
+                            <td class="treeNumber"></td>
+                            <td class="tree"><span></span><div class="number"></div></td>
+                            <th class="wOutcomeHeader">@Localization.GetText("TCM.Outcome.IndicatorName")</th>
+                            <th class="w80">@Localization.GetText("TCM.Outcome.UnitOfMeasure")</th>
+                            <th class="w120">@Localization.GetText("TCM.Outcome.Baseline")</th>
+                            <th class="w85">@Localization.GetText("TCM.Outcome.BaselineYear")</th>
+                            <th class="outputPPaA"></th>
+                            <th ng-repeat="Year in ResultsMatrix.ExistingPlannedYears" ng-init="yearIndex = $index" class="tcmHeaderYear" data-show-delete-year-icon>
+                                <div class="floatLeft" style="width: calc(100% - 20px)" ng-if="!Year.IsValidated">
+                                    <div class="dropdown" style="width: 77px;">
+                                        <button class="btn btn-default dropdown-toggle " type="button" id="id-OutcomeIndicator_BaseLineYear" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" ng-click="PassByAngular()?cargaDropDown(this):''" onkeydown="dropdownNavigation(this, event)" dd-find="" style="width: 100%;">
+
+                                            <span class="valueText ng-binding" ng-bind="Year.Year" ng-attr-class="valueText">{{Year.Year}}</span>
+                                            <span class="caret"></span>
+                                        </button>
+
+                                        <input ng-model="Year.Year" type="hidden" name="header_YearPlans" ng-required="true" class="ng-pristine ng-untouched ng-valid ng-valid-required" required="required">
+                                        <ul class="dropdown-menu " aria-labelledby="id-header_YearPlans">
+                                            <li ng-repeat="item in ResultsMatrix.ApprovalYears" class="ng-scope">
+                                                <a dd-value="item" ng-click="UpdateSelectedYear(item, yearIndex)" class="ng-binding">
+                                                    {{item}}
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div ng-show="(showValidationMessages || header_YearPlans.$dirty) &amp;&amp; header_YearPlans.$invalid" class="ng-hide">
+                                        <ul class="parsley-errors-list filled">
+                                            <li>
+                                                <span ng-show="header_YearPlans.$error.required" class="ng-hide">
+                                                    @Localization.GetText("TCM.Outputs.RequiredMessage")
+                                                </span>
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                </div>
+                                <div class="floatLeft" style="width: calc(100% - 20px); height: 2.8em; padding-top: 11px;" ng-if="Year.IsValidated">{{Year.Year}}</div>
+                                <span title="Delete Year" ng-click="DeleteYearPlan(Year)" class="spanYear" style="display: none">x</span>
+                            </th>
+                            <th class="outputPPaA" ng-click="AddNewYearPlan()" style="cursor: pointer">
+                                <span>+</span>
+                            </th>
+                            <th class="tcmHeaderYear">EOP <span ng-bind="ResultsMatrix.EndOfProjectYear"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody ng-repeat="OutcomeIndicator in Outcome.OutcomeIndicators"
+                           ng-init="indicatorIndex=$index; OutcomeIndicator.ActivateAlternativeFieldEN = true;"
+                           repeat-end="onEnd()">
+                        <tr data-id data-attr="{{OutcomeIndicator.IsAutoCalculateEOP}}" onmouseover="showActionBar(this)" onmouseout="hideActionBar(this)" ng-class="{'custom-odd':$odd}" name="outcomeIndicators">
+                            <td class="treeNumber">
+                                <span class="order-number-container" data-predefined-indicator-icon data-indicator-data="OutcomeIndicator">
+                                    <span>{{Outcome.OrderNumber}}.{{OutcomeIndicator.OrderNumber}}</span>
+                                </span>
+                            </td>
+                            <td class="tree"><span></span><div class="number">{{OutcomeIndicator.OrderNumber}}</div></td>
+                            <td ng-form="OutcomeIndicator_AlternativeDefinition" class="td-padding">
+                                <span class='predefined-indicator-icon crf-indicator-edit-mode' data-crf-indicator-id="{{::crfIndicator}}" ng-repeat="crfIndicator in OutcomeIndicator.CRFIndicatorsLinked">&#9873;</span>
+                                @ControlTemplatesTCM.AngularInputTextArea(
+                                    model: "OutcomeIndicator.Definition",
+                                    name: "OutcomeIndicator_Definition",
+                                    maxLength: 300,
+                                    dataAttributes: new Dictionary<string, string>()
+                                    {
+                                        { "ng-blur", "OutcomeIndicator_Definition_lf = true;" },
+                                        { "ng-change", "onchangeText(OutcomeIndicator,'DefinitionChangeToMatrix')" },
+                                        { "ng-if", "OutcomeIndicator.ActivateAlternativeFieldEN" },
+                                        { "ng-required", "ResultsMatrix.CanEditAlternativeFields && (!OutcomeIndicator.AlternativeDefinition || OutcomeIndicator.AlternativeDefinition == '')" }
+                                    },
+                                    height: "100px",
+                                    width: "100%",
+                                    required: false,
+                                    requiredMessage: Localization.GetText("TCM.Outcome.DescriptionIndicatorMessage"))
+
+                                @ControlTemplatesTCM.AngularInputTextArea(
+                                    model: "OutcomeIndicator.AlternativeDefinition",
+                                    name: "OutcomeIndicator_AlternativeDefinition",
+                                    maxLength: 300,
+                                    dataAttributes: new Dictionary<string, string>()
+                                    {
+                                        { "ng-blur", "OutcomeIndicator_AlternativeDefinition_lf = true;" },
+                                        { "ng-if", "ResultsMatrix.CanEditAlternativeFields && OutcomeIndicator.ActivateAlternativeFieldES" },
+                                        { "ng-required", "ResultsMatrix.CanEditAlternativeFields && (!OutcomeIndicator.Definition || OutcomeIndicator.Definition == '')" }
+                                    },
+                                    height: "100px",
+                                    width: "100%",
+                                    required: false,
+                                    requiredMessage: Localization.GetText("TCM.Outcome.DescriptionIndicatorMessage"))
+
+                                <div class="ng-hide" ng-show="(showValidationMessages ||
+                                     OutcomeIndicator_AlternativeDefinition.$dirty)
+                                     &amp;&amp; OutcomeIndicator_AlternativeDefinition.$invalid">
+                                    <ul class="parsley-errors-list filled">
+                                        <li>
+                                            <span ng-show="OutcomeIndicator_AlternativeDefinition.$error.required" class="ng-hide">
+                                                @Localization.GetText("TCM.ValueRequired")
+                                            </span>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div class="crf-container pt10 pb20 pl20" ng-show="CRFToggle && OutcomeIndicator.PredefinedIndicators.length">
+                                    <span class="bold">@Localization.GetText("CRF:")</span>
+                                    <p ng-repeat="indicator in OutcomeIndicator.PredefinedIndicators">
+                                        <span class='predefined-indicator-icon crf-indicator-edit-mode'
+                                              data-crf-indicator-id="{{::crfIndicator}}">&#9873;</span>
+                                        {{ indicator.IndicatorName }}
+                                    </p>
+                                </div>
+
+                                <div class="action-bar mt0" id="action-bar-indicator-{{indicatorIndex}}" style="display: none">
+                                    @ControlTemplatesTCM.AngularMoveUpButton(null, Localization.GetText("TCM.EditIndicator.MoveUpTooltip"), new Dictionary<string, string>() {{"ng-click", "MoveOutcomeIndicatorUp(Outcome, OutcomeIndicator)"}})
+                                    @ControlTemplatesTCM.AngularMoveDownButton(null, Localization.GetText("TCM.EditIndicator.MoveDownTooltip"), new Dictionary<string, string>() {{"ng-click", "MoveOutcomeIndicatorDown(Outcome, OutcomeIndicator)"}})
+                                    @ControlTemplatesTCM.AngularBackButton(null, Localization.GetText("TCM.EditIndicator.ReassignTooltip"), new Dictionary<string, string>() {{"ng-if", "true"}, {"ng-click", "RessignOutcomeIndicator(Outcome, OutcomeIndicator)"}})
+                                    @ControlTemplatesTCM.FlagButton(null, title: Localization.GetText("TCM.EditIndicator.LinkToPredefinedIndicatorTooltip"), name: "btn_link", dataAttributes: new Dictionary<string, string>() {{"tcm-element", "OUTCOME"}, {"tcm-element-id", "{{::OutcomeIndicator.OutcomeIndicatorId}}"}})
+                                    @ControlTemplatesTCM.UnflagButton(null, title: Localization.GetText("Unlink Predefined Indicator"), name: "btn_unlink", dataAttributes: new Dictionary<string, string>() {{"outcome-indicator-id", "{{::OutcomeIndicator.OutcomeIndicatorId}}"}, {"ng-show", "OutcomeIndicator.CRFIndicatorsLinked.length > 0"}})
+                                    @ControlTemplatesTCM.AngularDisaggregationButton(null, Localization.GetText("TCM.EditIndicator.AddDisaggregationTooltip"), new Dictionary<string, string>() { { "ng-click", "AddDisaggregation(Outcome, OutcomeIndicator)" }, { "ng-if", "!ResultsMatrix.validateDisaggregation" } })
+                                    @ControlTemplatesTCM.AngularTrashButton(null, Localization.GetText("TCM.EditIndicator.DeleteTooltip"), new Dictionary<string, string>() {{"ng-click", "RemoveOutcomeIndicator(Outcome, OutcomeIndicator)"}})
+
+                                    <button class="buttonTrash btn-alternative hovered"
+                                            ng-if="ResultsMatrix.CanEditAlternativeFields && !OutcomeIndicator.LinkedToCRFContributionIndicator"
+                                            ng-click="AlternativeButtonsHandler(OutcomeIndicator, $event)"
+                                            title="@Localization.GetText("IM.EditReadIndicator.IndicatorProfile.IndicatorName")">
+                                        <span>@Language.EN.ToUpper()</span>
+                                        <span></span>
+                                        <span class="asteriskColor"
+                                              ng-if="(!OutcomeIndicator.Definition || OutcomeIndicator.Definition == '') &&
+                                              (!OutcomeIndicator.AlternativeDefinition || OutcomeIndicator.AlternativeDefinition == '')">*
+                                        </span>
+                                    </button>
+
+                                    <button class="buttonTrash btn-alternative"
+                                            ng-if="ResultsMatrix.CanEditAlternativeFields && !OutcomeIndicator.LinkedToCRFContributionIndicator"
+                                            ng-click="AlternativeButtonsHandler(OutcomeIndicator, $event)"
+                                            title="@Localization.GetText("IM.EditReadIndicator.IndicatorProfile.IndicatorNameEs")">
+                                        <span>@Language.ES.ToUpper()</span>
+                                        <span></span>
+                                        <span class="asteriskColor"
+                                              ng-if="(!OutcomeIndicator.Definition || OutcomeIndicator.Definition == '') &&
+                                              (!OutcomeIndicator.AlternativeDefinition || OutcomeIndicator.AlternativeDefinition == '')">*
+                                        </span>
+                                    </button>
+                                </div>
+                            </td>
+                            <td ng-form="OutcomeIndicator_AlternativeUnitOfMeasure" class="td-padding">
+                                @ControlTemplatesTCM.AngularInputText(
+                                    model: "OutcomeIndicator.UnitOfMeasure",
+                                    name: "OutcomeIndicator_UnitOfMeasure",
+                                    maxLength: 40,
+                                    htmlClass: "unit-of-measure",
+                                    dataAttributes: new Dictionary<string, string>()
+                                    {
+                                        { "ng-blur", "OutcomeIndicator_UnitOfMeasure_lf = true;"},
+                                        { "ng-change", "onchangeText(OutcomeIndicator,'UnitOfMeasureChangeToMatrix')"},
+                                        { "ng-disabled", "OutcomeIndicator.LinkedToCRFContributionIndicator"},
+                                        { "ng-show", "OutcomeIndicator.ActivateAlternativeFieldEN" },
+                                        { "ng-required", "ResultsMatrix.CanEditAlternativeFields && (!OutcomeIndicator.AlternativeUnitOfMeasure || OutcomeIndicator.AlternativeUnitOfMeasure == '')" }
+                                    },
+                                    width: "100%",
+                                    required: false)
+
+                                @ControlTemplatesTCM.AngularInputText(
+                                    model: "OutcomeIndicator.AlternativeUnitOfMeasure",
+                                    name: "OutcomeIndicator_AlternativeUnitOfMeasure",
+                                    maxLength: 40,
+                                    htmlClass: "unit-of-measure",
+                                    dataAttributes: new Dictionary<string, string>()
+                                    {
+                                        { "ng-blur", "OutcomeIndicator_AlternativeUnitOfMeasure_lf = true;"},
+                                        { "ng-disabled", "OutcomeIndicator.LinkedToCRFContributionIndicator"},
+                                        { "ng-show", "ResultsMatrix.CanEditAlternativeFields && OutcomeIndicator.ActivateAlternativeFieldES" },
+                                        { "ng-required", "ResultsMatrix.CanEditAlternativeFields && (!OutcomeIndicator.UnitOfMeasure || OutcomeIndicator.UnitOfMeasure == '')" }
+                                    },
+                                    width: "100%",
+                                    required: false)
+
+                                <div class="ng-hide" ng-show="(showValidationMessages ||
+                                     OutcomeIndicator_AlternativeUnitOfMeasure.$dirty)
+                                     &amp;&amp; OutcomeIndicator_AlternativeUnitOfMeasure.$invalid">
+                                    <ul class="parsley-errors-list filled">
+                                        <li>
+                                            <span ng-show="OutcomeIndicator_AlternativeUnitOfMeasure.$error.required" class="ng-hide">
+                                                @Localization.GetText("TCM.ValueRequired")
+                                            </span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                            <td ng-form="OutcomeIndicator_BaseLine" class="td-padding">
+                                @ControlTemplatesTCM.AngularInputDecimal(model: "OutcomeIndicator.BaseLine",
+                                    name: "OutcomeIndicator_BaseLine",
+                                    dataAttributes: new Dictionary<string, string>()
+                                    {
+                                        {"custom-outcomes-decimal-format", null},
+                                        {"ng-change", "onchangeText(OutcomeIndicator,'BaseLineChangeToMatrix')"}
+                                    },
+                                    htmlClass: "text-right w100p", allowNegative: true)
+                            </td>
+                            <td ng-form="OutcomeIndicator_BaseLineYear" class="td-padding">                          
+                                    <div class="dropdown" style="width: 77px;">
+                                        <button class="btn btn-default dropdown-toggle " type="button" id="id-OutcomeIndicator_BaseLineYear" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" ng-click="PassByAngular()?cargaDropDown(this):''" onkeydown="dropdownNavigation(this, event)" dd-find="" style="width: 100%;">
+
+                                            <span class="valueText ng-binding" ng-bind="OutcomeIndicator.BaseLineYear" ng-attr-class="valueText">{{OutcomeIndicator.BaseLineYear}}</span>
+                                            <span class="caret"></span>
+                                        </button>
+
+                                        <input ng-model="OutcomeIndicator.BaseLineYear" type="hidden" name="OutcomeIndicator_BaseLineYear" ng-required="true" class="ng-pristine ng-untouched ng-valid ng-valid-required" required="required">
+                                        <ul class="dropdown-menu " aria-labelledby="id-OutcomeIndicator_BaseLineYear">
+                                            <li ng-repeat="item in ResultsMatrix.ApprovalYears" class="ng-scope">
+                                                <a dd-value="item" ng-click="UpdateBaseLineYear(item,OutcomeIndicator)" class="ng-binding">
+                                                    {{item}}
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div ng-show="(showValidationMessages || OutcomeIndicator_BaseLineYear.$dirty) &amp;&amp; OutcomeIndicator_BaseLineYear.$invalid" class="ng-hide">
+                                        <ul class="parsley-errors-list filled">
+                                            <li>
+                                                <span ng-show="OutcomeIndicator_BaseLineYear.$error.required" class="ng-hide">
+                                                    @Localization.GetText("TCM.Outputs.RequiredMessage")
+                                                </span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                            </td>
+                            <td>
+                                <table class="non-border-table wp100">
+                                    <tr>
+                                        <td class="original-value-row text-center">@Localization.GetText("TCM.Outcome.P")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="annual-value-row text-center">@Localization.GetText("TCM.Outcome.Pa")</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="actual-value-row text-center">@Localization.GetText("TCM.Outcome.A")</td>
+                                    </tr>
+                                </table>
+                            </td>
+                            <td ng-repeat="YearPlan in OutcomeIndicator.OutcomeIndicatorYearPlans">
+                                <table class="non-border-table wp100" data-attr="{{YearPlan.Year}}">
+                                    <tr>
+                                        <td ng-form="YearPlan_OriginalPlan" class="original-value-row td-padding">
+                                            @ControlTemplatesTCM.AngularInputDecimal(model: "YearPlan.OriginalPlan",
+                                                name: "YearPlan_OriginalPlan", dataAttributes: new Dictionary<string, string>()
+                                                {
+                                                    {"custom-outcomes-autocalculate-eop", null},
+                                                    {"custom-outcomes-decimal-format", null},
+                                                    {"ng-disabled", "YearPlan.IsOriginalPlanDisabled"},
+                                                    {"is-autocalc", "{{::OutcomeIndicator.IsAutoCalculateEOP}}"}
+                                                },
+                                                htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td ng-form="YearPlan_AnnualPlan" class="annual-value-row td-padding">
+                                            @ControlTemplatesTCM.AngularInputDecimal(model: "YearPlan.AnnualPlan",
+                                                name: "YearPlan_AnnualPlan", dataAttributes: new Dictionary<string, string>()
+                                                {
+                                                    {"custom-outcomes-autocalculate-eop", null},
+                                                    {"custom-outcomes-decimal-format", null},
+                                                    {"ng-disabled", "YearPlan.IsAnnualPlanDisabled"},
+                                                    {"is-autocalc", "{{::OutcomeIndicator.IsAutoCalculateEOP}}"},
+                                                    {"register-matrix-changes-outcomes", null},
+                                                    {"old-value", "{{::YearPlan.AnnualPlan}}"},
+                                                },
+                                                htmlClass: "input-text-grid text-right custom-black existing", allowNegative: true)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td ng-form="YearPlan_ActualValue" class="actual-value-row td-padding">
+                                            @ControlTemplatesTCM.AngularInputDecimal(model: "YearPlan.ActualValue",
+                                                name: "YearPlan_ActualValue", dataAttributes: new Dictionary<string, string>()
+                                                {
+                                                    {"custom-outcomes-autocalculate-eop", null},
+                                                    {"custom-outcomes-decimal-format", null},
+                                                    {"ng-disabled", "YearPlan.IsActualValueDisabled"},
+                                                    {"is-autocalc", "{{::OutcomeIndicator.IsAutoCalculateEOP}}"}
+                                                },
+                                                htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                            <td>
+                                <table class="non-border-table wp100">
+                                    <tr>
+                                        <td class="original-value-row"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="annual-value-row"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="actual-value-row"></td>
+                                    </tr>
+                                </table>
+                            </td>
+                            <td>
+                                <table class="non-border-table wp100">
+                                    <tr>
+                                        <td ng-form="OutcomeIndicator_EndOfProject_OriginalPlan" class="original-value-row td-padding">
+                                            @ControlTemplatesTCM.AngularInputDecimal(model: "OutcomeIndicator.EndOfProject.OriginalPlan",
+                                                name: "OutcomeIndicator_EndOfProject_OriginalPlan",
+                                                dataAttributes: new Dictionary<string, string>()
+                                                {
+                                                    {"custom-outcomes-decimal-format", null},
+                                                    {"ng-disabled", "OutcomeIndicator.EndOfProject.IsOriginalPlanDisabled || OutcomeIndicator.IsAutoCalculateEOP"},
+                                                    {"ng-change", "onchangeText(OutcomeIndicator.EndOfProject,'OriginalPlanChangeToMatrix')"}
+                                                },
+                                                htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td ng-form="OutcomeIndicator_EndOfProject_AnnualPlan" class="annual-value-row td-padding">
+                                            @ControlTemplatesTCM.AngularInputDecimal(model: "OutcomeIndicator.EndOfProject.AnnualPlan",
+                                                name: "OutcomeIndicator_EndOfProject_AnnualPlan",
+                                                dataAttributes: new Dictionary<string, string>()
+                                                {
+                                                    {"custom-outcomes-decimal-format", null},
+                                                    {"ng-disabled", "OutcomeIndicator.EndOfProject.IsAnnualPlanDisabled || OutcomeIndicator.IsAutoCalculateEOP"},                                                    
+                                                    {"register-matrix-changes-outcomes", null},
+                                                    {"old-value", "{{::OutcomeIndicator.EndOfProject.AnnualPlan}}"},
+                                                },
+                                                htmlClass: "input-text-grid text-right custom-black existing", allowNegative: true)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td ng-form="OutcomeIndicator_EndOfProject_ActualValue" class="actual-value-row td-padding">
+                                            @ControlTemplatesTCM.AngularInputDecimal(model: "OutcomeIndicator.EndOfProject.ActualValue",
+                                                name: "OutcomeIndicator_EndOfProject_ActualValue", dataAttributes: new Dictionary<string, string>()
+                                                {
+                                                    {"custom-outcomes-decimal-format", null},
+                                                    {"ng-disabled", "OutcomeIndicator.EndOfProject.IsActualValueDisabled || OutcomeIndicator.IsAutoCalculateEOP"}
+                                                },
+                                                htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr ng-show="OutcomeIndicator.OutcomeDisaggregations.length > 0" ng-if="!ResultsMatrix.validateDisaggregation" class="row-disaggregation">
+                            <td class="treeNumber"></td>
+                            <td class="tree noNumber"><span></span><div class="number"></div></td>
+                            <td colspan="{{7+ResultsMatrix.ExistingPlannedYears.length}}" class="subnivel">
+                                <div>
+                                    <table class="tableNormal lineNonStop" data-attr="{{OutcomeIndicator.IsAutoCalculateEOP}}" name="outcomeDisaggregations" ng-if="!ResultsMatrix.validateDisaggregation">
+                                        <thead>
+                                            <tr>
+                                                <th class="tree icon noCreateNumber disaggregation">@Confluence.ButtonExpandTable("", true)</th>
+                                                <th class="w1600Disaggregation">@Localization.GetText("TCM.Outcome.DisaggregationCategories")</th>
+                                                <th class="outputPPaA"></th>
+                                                <th class="tcmHeaderYear" ng-repeat="Year in ResultsMatrix.ExistingPlannedYears" ng-init="yearIndex = $index"><span class="ddr-outcome-{{yearIndex}}">{{Year.Year}}</span></th>
+                                                <th class="outputPPaA"></th>
+                                                <th class="tcmHeaderYear">@Localization.GetText("TCM.Outcome.Eop") <span ng-bind="ResultsMatrix.EndOfProjectYear"></span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody ng-repeat="outcomeDisaggregation in OutcomeIndicator.OutcomeDisaggregations">
+                                            <tr data-id onmouseover="showActionBar(this)" onmouseout="hideActionBar(this)" ng-class="{'custom-odd':$odd}">
+                                                <td class="tree noCreateNumber"><span></span></td>
+                                                <td ng-form="outcomeDisaggregation_DisaggregationName" class=" td-padding">
+                                                    @ControlTemplatesTCM.AngularInputTextArea(model: "outcomeDisaggregation.DisaggregationName", name: "outcomeDisaggregation_DisaggregationName", maxLength: 300
+                                                        , dataAttributes: new Dictionary<string, string>() { { "ng-blur", "outcomeDisaggregation_DisaggregationName_lf = true" } }, height: "100px", width: "100%", requiredMessage: Localization.GetText("TCM.Outcome.TitleDisaggregationMessage"))
+                                                    <div class="action-bar bar-outcomes mt0" style="display: none">
+                                                        @ControlTemplatesTCM.AngularTrashButton(null, Localization.GetText("TCM.Outcome.RemoveDisaggregation"), new Dictionary<string, string>() { { "ng-click", "RemoveOutcomeDisaggregation(Outcome, OutcomeIndicator, outcomeDisaggregation)" } })
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <table class="non-border-table wp100">
+                                                        <tr>
+                                                            <td class="original-value-row text-center">@Localization.GetText("TCM.Outcome.P")</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="annual-value-row text-center">@Localization.GetText("TCM.Outcome.Pa")</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="actual-value-row text-center">@Localization.GetText("TCM.Outcome.A")</td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                <td ng-repeat="disaggregationYearPlan in outcomeDisaggregation.OutcomeDisaggregationYearPlans">
+                                                    <table class="non-border-table wp100" data-attr="{{disaggregationYearPlan.Year}}">
+                                                        <tr>
+                                                            <td ng-form="disaggregationYearPlan_OriginalPlan" class="original-value-row td-padding">
+                                                                @ControlTemplatesTCM.AngularInputDecimal(model: "disaggregationYearPlan.OriginalPlan",
+                                                                    name: "disaggregationYearPlan_OriginalPlan", dataAttributes: new Dictionary<string, string>()
+                                                                    {
+                                                                        {"custom-outcomes-autocalculate-eop", null},
+                                                                        {"custom-outcomes-decimal-format", null},
+                                                                        {"ng-disabled", "disaggregationYearPlan.IsOriginalPlanDisabled"},
+                                                                        {"is-autocalc", "{{::OutcomeIndicator.IsAutoCalculateEOP}}"}
+                                                                    },
+                                                                    htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td ng-form="disaggregationYearPlan_AnnualPlan" class="annual-value-row td-padding">
+                                                                @ControlTemplatesTCM.AngularInputDecimal(model: "disaggregationYearPlan.AnnualPlan",
+                                                                    name: "disaggregationYearPlan_AnnualPlan", dataAttributes: new Dictionary<string, string>()
+                                                                    {
+                                                                        {"custom-outcomes-autocalculate-eop", null},
+                                                                        {"custom-outcomes-decimal-format", null},
+                                                                        {"ng-disabled", "disaggregationYearPlan.IsAnnualPlanDisabled"},
+                                                                        {"is-autocalc", "{{::OutcomeIndicator.IsAutoCalculateEOP}}"}
+                                                                    },
+                                                                    htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td ng-form="disaggregationYearPlan_ActualValue" class="actual-value-row td-padding">
+                                                                @ControlTemplatesTCM.AngularInputDecimal(model: "disaggregationYearPlan.ActualValue",
+                                                                    name: "disaggregationYearPlan_ActualValue", dataAttributes: new Dictionary<string, string>()
+                                                                    {
+                                                                        {"custom-outcomes-autocalculate-eop", null},
+                                                                        {"custom-outcomes-decimal-format", null},
+                                                                        {"ng-disabled", "disaggregationYearPlan.IsActualValueDisabled"},
+                                                                        {"is-autocalc", "{{::OutcomeIndicator.IsAutoCalculateEOP}}"}
+                                                                    },
+                                                                    htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                <td>
+                                                    <table class="non-border-table wp100">
+                                                        <tr>
+                                                            <td class="original-value-row"></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="annual-value-row"></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="actual-value-row"></td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                <td>
+                                                    <table class="non-border-table wp100">
+                                                        <tr>
+                                                            <td form="outcomeDisaggregation_EndOfProject_OriginalPlan" class="original-value-row td-padding">
+                                                                @ControlTemplatesTCM.AngularInputDecimal(model: "outcomeDisaggregation.EndOfProject.OriginalPlan",
+                                                                    name: "outcomeDisaggregation_EndOfProject_OriginalPlan",
+                                                                    dataAttributes: new Dictionary<string, string>()
+                                                                    {
+                                                                        {"custom-outcomes-decimal-format", null},
+                                                                        {"ng-disabled", "outcomeDisaggregation.EndOfProject.IsOriginalPlanDisabled || OutcomeIndicator.IsAutoCalculateEOP"}
+                                                                    },
+                                                                    htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td ng-form="outcomeDisaggregation_EndOfProject_AnnualPlan" class="annual-value-row td-padding">
+                                                                @ControlTemplatesTCM.AngularInputDecimal(model: "outcomeDisaggregation.EndOfProject.AnnualPlan",
+                                                                    name: "outcomeDisaggregation_EndOfProject_AnnualPlan",
+                                                                    dataAttributes: new Dictionary<string, string>()
+                                                                    {
+                                                                        {"custom-outcomes-decimal-format", null},
+                                                                        {"ng-disabled", "outcomeDisaggregation.EndOfProject.IsAnnualPlanDisabled || OutcomeIndicator.IsAutoCalculateEOP"}
+                                                                    },
+                                                                    htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td ng-form="outcomeDisaggregation_EndOfProject_ActualValue" class="actual-value-row td-padding">
+                                                                @ControlTemplatesTCM.AngularInputDecimal(model: "outcomeDisaggregation.EndOfProject.ActualValue",
+                                                                    name: "outcomeDisaggregation_EndOfProject_ActualValue",
+                                                                    dataAttributes: new Dictionary<string, string>()
+                                                                    {
+                                                                        {"custom-outcomes-decimal-format", null},
+                                                                        {"ng-disabled", "outcomeDisaggregation.EndOfProject.IsActualValueDisabled || OutcomeIndicator.IsAutoCalculateEOP"}
+                                                                    },
+                                                                    htmlClass: "input-text-grid text-right custom-black", allowNegative: true)
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="{{10+ResultsMatrix.ExistingPlannedYears.length}}" class="pt20 pb20 text-center">
+                                @ControlTemplatesTCM.AngularButtonAddNewRows(Localization.GetText("TCM.Outcome.NewIndicator"), "AddOutcomeIndicator(Outcome)")
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </span>
+            </div>
+
+            <div class="col-md-12 ml55">
+                @Confluence.FlagBlack(Localization.GetText("TCM.IndicatorFlag.CRFIndicator"))
+            </div>
+            @if (SecurityHelper.IsVisible(linkIndicatorModel.FieldAccessList, "btnSaveOutcome"))
+            {
+                <div class="col-md-12">
+                    <div class="floatRight">
+                        <button class="buttonLink" onclick="redirect()">@Localization.GetText("TCM.Cancel")</button>
+                        @Confluence.ButtonOrange(Localization.GetText("TCM.Save"), dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnSaveOutcome" }, { "ng-click", "submit();SaveResultsMatrix()" } })
+                    </div>
+                </div>
+
+            }
+          
+
+</form>
+
+    @Html.Partial("~/Areas/TCM/Views/Outcomes/Partials/Messages.cshtml")
+
+    @Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/SharedMessages.cshtml")
+
+    @Html.Partial("~/Areas/TCM/Views/Shared/Indicators/CRFWarning.cshtml")
+
+</span>
+<input type="hidden" name="hdn-crf-indicators-path" value="@Url.Action("GetCRFLinkedIndicators", "Outcomes", new { area = "TCM" })" />
+
+
+@Html.Partial("Controls/Indicators/LinkToPredefinedIndicator", linkIndicatorModel)
+
+@Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/UnLinkIndicator.cshtml", new ViewDataDictionary {
+    { "parentTitle", Localization.GetText("Outcome") }
+    , { "childTitle", Localization.GetText("Outcome Indicator") }
+})
+
+<script type="text/javascript">
+    $(document).ready(function () {
+
+        $("body").append("<input type='hidden' name='tcm-element-to-link-id' value='' />");
+
+        $('body').on("click", "[name='btn_link']", function () {
+            var tcmElement = $(this).data("tcm-element");
+            var tcmElementId = $(this).data("tcm-element-id");
+            
+            if (Number(tcmElementId) > 0) {
+
+                var tcmElementToLink = $("input[name = 'tcm-element-to-link-id']").first();
+                $(tcmElementToLink).val(tcmElementId);
+
+                var indicatorsToExclude = $(this).closest("td").find("span.crf-indicator-edit-mode");
+                var idsToExclude = new Array();
+                $.each(indicatorsToExclude, function (index, indicatorToExclude) {
+                    idsToExclude.push($(indicatorToExclude).data("crf-indicator-id"));
+                });
+                $("#Outcomes-link-modal").find("[name = 'filter-Outcomes-indicators-to-exclude']").val(idsToExclude.join());
+
+                $("#Outcomes-link-modal").find("ul.chosen-choices li.search-choice").remove();
+                var inputPriorityArea = $("#Outcomes-link-modal").find("ul.chosen-choices li.search-field").find("input");
+                $(inputPriorityArea).val("@Localization.GetText("PCR.SelectOption")");
+                $(inputPriorityArea).attr("class", "default");
+                $(inputPriorityArea).attr("autocomplete", "off");
+                $(inputPriorityArea).css("width", "112px");
+
+                $("input[name='filter-Outcomes-indicator-number']").val('');
+                $("input[name='filter-Outcomes-indicator-name']").val('');
+                $("input[name='filter-Outcomes-unit-measure']").val('');
+                $("#Outcomes-link-modal").find("div[data-name='detail-indicator-section']").addClass("hide");
+                $("#Outcomes-link-modal").find("div[data-name='filter-section']").removeClass("hide");
+                $("#OutcomesLinkTable").find("tr:not(:first)").remove();
+                $("#OutcomesLinkTable tbody").append('<tr class="odd" data-id="id"><td valign="top" colspan="5" class="dataTables_empty">@Localization.GetText("No data available in table")</td></tr>');
+                $("#OutcomesLinkTable_paginate").html("");
+
+                $("[name='Outcomesopen-popup-btn']").trigger("click");
+            }
+        });
+
+        $('body').on("click", "[name='btn_unlink']", function () {
+
+            var modalContainer = $("#unlink-crf-modal");
+            var outcomeId = $(this).data("outcome-indicator-id");
+            var outcomeStatement = $(this).closest("table").find("input[name='Outcome_Statement']").val();
+            var indicatorDefinition = $(this).closest("td").find("textarea[name='OutcomeIndicator_Definition']").val();
+            var path = $("input[name='hdn-crf-indicators-path']").val();
+
+            var GetLinkedCRFIndicatorsRequest =
+            {
+                TcmElementToLink: "OUTCOME",
+                TcmElementToLinkId: outcomeId,
+                PredefinedIndicatorId: 0
+            };
+
+            $.ajax({
+                url: path,
+                type: 'post',
+                dataType: 'json',
+                data: GetLinkedCRFIndicatorsRequest,
+                success: function (response) {
+                    if (response != null && response.IsValid) {
+                        buildUnlinkIndicatorsList(response.CRFIndicatorsLinked, modalContainer, outcomeId, outcomeStatement, indicatorDefinition);
+                        $("div#unlinked-predef-indicator-required").hide();
+                        $("[name='btn-open-popup-unlink']").trigger("click");
+                    } else {
+
+                    }
+                }
+            });
+        });
+
+        $('body').on("click", "[name='unlink-check']", function () {
+            var checked = $(this).attr("data-checked");
+            if (checked == "true") {
+                $(this).attr("data-checked", false);
+            } else {
+                $(this).attr("data-checked", true);
+            }
+        });
+
+    });
+    
+    function OutcomesLinkItems(sourceOpen, value) {
+        if (value != null && value.IndicatorId > 0) {
+            var scope = angular.element(document.getElementsByClassName("outcomes-controller")).scope();
+            scope.$apply(function () {
+                scope.LinkToPredefinedIndicator(value
+                    , $("input[name = 'tcm-element-to-link-id']").val()
+                    , "OUTCOME"
+                    , $("input[name = 'tcm-element-to-link-id']"));
+            });
+        }
+        vex.close();
+    }
+
+    function buildUnlinkIndicatorsList(htmlLinkedIndicators, modalContainer, outcomeId, outcomeStatement, indicatorDefinition) {
+        var parentContainer = $(modalContainer).find("div[data-section='parent-title']");
+        $(parentContainer).find("label").text(outcomeStatement);
+
+        var childTitleContainer = $(modalContainer).find("div[data-section='child-title']");
+        $(childTitleContainer).find("label").text(indicatorDefinition);
+
+        var unlinkIndicatorContainer = $(modalContainer).find("div#unlinked-predef-indicator-container");
+        $(unlinkIndicatorContainer).html("");
+        $.each(htmlLinkedIndicators, function (index, htmlLinkedIndicator) {
+            var lblCheck = $("<label class='checkbox-default'></label>");
+            $(lblCheck).append("<input name='unlink-check' type='checkbox' data-checked='false' data-id='" + htmlLinkedIndicator.Item1 + "'>");
+            $(lblCheck).append("<span class='checkbox-default-icon'></span>");
+            var spanText = $("<span class='checkbox-default-text'></span>");
+            var labelTitles = $("<label class='labelNormal'></span>")
+            var flagIcon = "crf-indicator-edit-mode";
+            $(labelTitles).append("<span class='predefined-indicator-icon " + flagIcon + "'>&#9873</span>");
+            $(labelTitles).append("<span>" + htmlLinkedIndicator.Item2 + "</span>");
+            $(spanText).append(labelTitles);
+            $(lblCheck).append(spanText);
+            $(unlinkIndicatorContainer).append(lblCheck);
+            $(unlinkIndicatorContainer).append("<br/>");
+        });
+        $(unlinkIndicatorContainer).attr("data-unlink-parent-id", outcomeId);
+    }
+
+    function unlinkPredefinedIndicators() {
+
+        var indicatorsToUnlink = $("div#unlinked-predef-indicator-container")
+                .find("[name = 'unlink-check'][data-checked = 'true']");
+
+        if (indicatorsToUnlink.length > 0) {
+
+            var outcomeId = $("div#unlinked-predef-indicator-container").attr("data-unlink-parent-id");
+
+            var unlinkIndicatorIds = new Array();
+
+            if (indicatorsToUnlink != null) {
+
+                $.each(indicatorsToUnlink, function (index, indicatorToUnlink) {
+                    unlinkIndicatorIds.push($(indicatorToUnlink).data("id"));
+                });
+
+                var physicalScope = angular.element(document.getElementsByClassName("outcomes-controller")).scope();
+
+                physicalScope.$apply(function () {
+                    var unLinkIndicatorRequest =
+                        {
+                            "TcmElementToUnlink": "OUTCOME"
+                            , "TcmElementToUnlinkId": outcomeId
+                            , "PredefinedIndicatorIds": unlinkIndicatorIds
+                        };
+                    physicalScope.UnlinkToPredefinedIndicator(unLinkIndicatorRequest);
+                });
+            }
+        } else {
+            $("div#unlinked-predef-indicator-required").show();
+        }
+    }
+
+    function cancelUnlinkPredefinedIndicators() {
+        vex.close();
+    }
+
+    function addIndicatorToReassign(element)
+    {
+        var content = $(element);
+        var id = parseInt(content.attr('dd-value'));
+        var parentId = parseInt(content.closest('ul').attr('dd-value'))
+
+        if (id != NaN && id >= 0 && parentId != NaN && parentId >= 0) {
+            var scope = angular.element(document.getElementsByClassName("outcomes-controller")).scope();
+            scope.$apply(function () {
+                scope.AddIndicatorToReassign(parentId, id);
+            });
+        }
+    }
+
+</script>

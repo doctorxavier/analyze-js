@@ -1,0 +1,1526 @@
+﻿@using IDB.MW.Application.TCM.ViewModels.FindingAndRecommendation
+@using IDB.MW.Domain.Values
+@using IDB.Presentation.MVC4.Areas.TCM.Values;
+@model FindingRecommendationViewModel
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+}
+<input hidden data-idb-pagename="UI-FR-002Partial-TabProgress" />
+<input hidden data-idb-pagename="UI-FR-003Partial-TabSustainabilityInnovation" />
+<input hidden data-idb-pagename="UI-FR-004Partial-TabPartnerConsultancies" />
+<input hidden data-idb-pagename="UI-FR-005Partial-TabStoriesFromTheField" />
+<input hidden data-idb-pagename="UI-FR-006Partial-TabProjectManagement" />
+<div class="header">
+    <div class="row">
+        <div class="col-md-6 text-left">
+            @Confluence.LabelMainTitle(Localization.GetText("TCM.FR.FindingsAndRecommendations.Findings&Recommendations"))
+        </div>
+        @if (!Model.IsCndOperation)
+        {
+            <div class="col-md-6 text-right">
+                @if (Model.IsTcmOperation)
+                {
+                    @Confluence.ButtonBlue(Localization.GetText("TCM.FR.FindingsAndRecommendations.ValidationProcess"),
+                         name: "btLinkValidationProcess",
+                         action: "linkValidationProcess",
+                         dataAttributes: new Dictionary<string, string>
+                         {
+                            { "ajax" , "true" } ,
+                            { "ajax-method" , "GET" },
+                            { "ajax-mode", "replace"},
+                            { "ajax-success" ,"AjaxOnSuccess" },
+                            { "ajax-update" ,"#mainLayoutOperationContent" }
+                         })
+                }
+            </div>
+        }
+    </div>
+@if (Model.IsCndOperation)
+{
+    <div class="col-md-12 text-center mt20">
+        @Confluence.LabelMainSubTitle(
+            Localization.GetText("TCM.FR.FindingsAndRecommendations.Findings&Recommendations") + 
+            Localization.GetText("GLOBAL.PAGE.NOT.AVAILABLE.CND"))
+    </div>
+}
+else
+{
+    <div id="fr-header-fillinformation">
+        <div class="informationplace fillinformation">
+            <div class="icoInformation"></div>
+            <div class="information-text">
+                @String.Format(Localization.GetText("FR.HEADER.FILLINFO"), Localization.GetText(Model.FieldsFillLanguage)).
+            </div>
+        </div>
+    </div>
+}
+</div>
+@if (!Model.IsCndOperation)
+{
+    <div>
+        @if (Model != null)
+        {
+            @Html.Partial("Partial/IndexHeaderAndButtonsView", Model)
+
+            @section scripts{
+                <script type="text/javascript">
+
+                    function verifyContent() {
+                        var url = '@Url.Action("VerifyContent", "VerifyContent", new { area = "TCM", resultsMatrixId = Model.ResultMatrixId })';
+
+                        postUrlWithOptions(url, { async: false })
+                            .done(function (data) {
+                                $('#verifyContentModal').html(data);
+                                $('[data-id="buttonVerifyContent"]').click();
+                            })
+                            .fail(function (jqXhr, textStatus, errorThrown) {
+                                showMessage(errorThrown);
+                            });
+                    }
+
+                    $(document).ready(function () {
+
+                        $(document).on(
+                            'mouseenter',
+                            '.richContainer.inputTextarea.noborder [data-pagemode=read]',
+                            function () {
+                                $(this).find('a').attr('target', '_bank');
+                            });
+
+                        $('[name="botonShowFiltro"]').hide();
+                        loadCategoryOverall();
+                        changeDimensionOverall();
+                        $('#id-CategoriesListOverall').closest('div').find('[aria-labelledby=id-CategoriesListOverall] li a').addClass('hide');
+                        hideShowButton(false);
+                        checkactivities("@Model.Progress.OperationDisseminated");
+                        checkvalue();
+                        Sustainability($("input[name='Sustainability']:checked").val());
+                        Innovation($("input[name='Innovation']:checked").val());
+                        firstRow();
+                        //EventClickPediod();
+                        IsEditableProgress();
+                        IsEditableProjectManagment();
+                        validationConsultainces();
+                        ParsleyCount();
+                        autoWidthDelaysTable();
+                        bindHandlers();
+                        switch ('@Model.TypeCycle') {
+                            case '@TCMGlobalValues.TCM_FR':
+                                $('#tabDelays').removeClass('active');
+                                $('#tabProgress').addClass('active');
+                                $('#tabFinding').removeClass('active');
+                                break;
+
+                            case '@TCMGlobalValues.SG_FR':
+                                $('#tabDelays').removeClass('active');
+                                $('#tabFinding').addClass('active');
+                                $('#tabProgress').removeClass('active');
+                                break;
+
+                            case '@TCMGlobalValues.IGR_FR':
+                                $('#tabDelays').removeClass('active');
+                                $('#tabProgress').addClass('active');
+                                $('#tabFinding').removeClass('active');
+                                break;
+
+                            case '@TCMGlobalValues.DF_FR':
+                                $('#tabDelays').removeClass('active');
+                                $('#tabFinding').addClass('active');
+                                break;
+                        }
+
+                        $('#OverallProjectTable td.dataTables_empty').remove();
+                        delRow();
+                        $('#OverallProjectTable td.dataTables_empty').remove();
+                        removeStories();
+                        removePartners();
+                        removeProy();
+                        removeConsultancies();
+                        removeDoc();
+                        bindHandlers($('#innovationTable'));
+                        $('.tabs').find('[dd-tab]').click(function () {
+                            switch ($(this).attr('dd-tab')) {
+                                case "#tabProgress":
+                                    bindHandlers();
+                                    $('#DocumentsTable').paginationConfluense(10).sortableConfluense();
+                                    break;
+                                case "#tabSustainability":
+                                    bindHandlers();
+                                    $('#innovationTable').paginationConfluense(10).sortableConfluense();
+                                    break;
+                                case "#tabPartnerAndConsultancies":
+                                    bindHandlers();
+                                    $('#partnerTable').paginationConfluense(10).sortableConfluense();
+                                    $('#consultancyTable').paginationConfluense(10).sortableConfluense();
+                                    break;
+                                case "#tabStories":
+                                    bindHandlers();
+                                    $('#storiesTable').paginationConfluense(10).sortableConfluense();
+                                    break;
+                                case "#ProjectTab":
+                                    bindHandlers();
+                                    $('#tableResult').paginationConfluense(10).sortableConfluense();
+                                    break;
+                                case "#tabOverall":
+                                    break;
+                            }
+                        });
+
+                        var $frame = $(window.parent.document).find('iframe[name=someFrame]');
+                        $frame.attr('style', 'min-height:1000px;' + $frame.attr('style'));
+                        removeStories();
+                        loadDelayName();
+                        changeDelay();
+                        RemoveChoiceClose();
+                        $('[data-idb-fielname="tblAgencies"] th').removeAttr('style');
+                    });
+
+                    function ParsleyCount() {
+                        destroyParsley();
+                        initParsley();
+                        destroyParsley();
+                        initParsley();
+                    }
+
+                    function IsEditableProgress() {
+                        var periodId = $('ul.dropdown-menu[aria-labelledby="id-ddlTcReporting"]').find('a[dd-selected]').attr('dd-value');
+                        var isFREdit = "@Model.isFREdit";
+                        var currentPeriod = '@Model.idPeriod';
+                        if ((isFREdit == 'True' && currentPeriod == periodId) || ('@ViewBag.AdminPermission' != '@ViewBag.Progress' && currentPeriod == periodId)) {
+                            $("[name='btnEditProgress']").show();
+                        } else {
+                            $("[name='btnEditProgress']").hide();
+                        }
+                    }
+
+                    function IsEditableProjectManagment() {
+                        var periodId = $('ul.dropdown-menu[aria-labelledby="id-TCReportingPeriod"]').find('a[dd-selected]').attr('dd-value');
+                        var isFREdit = @Model.isFREdit.ToString().ToLower();
+                        var currentPeriod = '@Model.idPeriod';
+                        var hasRMADMWritePermission = @ViewBag.AdminPermission.ToString().ToLower();
+                        var hasRMWritePermission = @ViewBag.Progress.ToString().ToLower();
+                        var $btnEditProject = $("[name='btnEditProject']");
+
+                        if ((isFREdit && currentPeriod == periodId) ||
+                            ((hasRMADMWritePermission || hasRMWritePermission) && currentPeriod == periodId)) {
+                            $btnEditProject.show().removeClass("hide");
+                        } else {
+                            $btnEditProject.hide().addClass("hide");
+                        }
+                    }
+
+                    function getUrlConcurrence() {
+                        var url = '';
+                        switch ($(".tab-pane.active").attr("id")) {
+                            case "tabProgress":
+                                url = '@TCMGlobalValues.URL_PROGRESS_RESULT';
+                                break;
+                            case "tabPartnerAndConsultancies":
+                                url = '@TCMGlobalValues.URL_PARTNER_CONSULTANCIES';
+                                break;
+                            case "tabSustainability":
+                                url = '@TCMGlobalValues.URL_SUSTAINABILITY_INNOVATION';
+                                break;
+                            case "ProjectTab":
+                                url = '@TCMGlobalValues.URL_PROJECT_MANAGEMENT';
+                                break;
+                            case "tabStories":
+                                url = '@TCMGlobalValues.URL_STORIES_FROM_FIELD';
+                                break;
+                            case "tabDelays":
+                                url = '@TCMGlobalValues.URL_DELAYS_DETAILS';
+                                break;
+                            case "tabOverall":
+                                url = '@TCMGlobalValues.URL_OVERRAL_PROJECT';
+                                break;
+                            case "tabFinding":
+                                url = '@TCMGlobalValues.URL_FINDING_AND_RECOMMENDATION';
+                                break;
+                        }
+                        return url;
+                    }
+
+                    function edit(source) {
+
+                        if ($('.tab-pane.active').attr("id") == "ProjectTab") {
+                            var tcReportingId = $('ul.dropdown-menu[aria-labelledby="id-TCReportingPeriod"]').find('a[dd-selected]').attr('dd-value');
+                            postUrlWithOptions('@Url.Action("SearchFilterAllResult", "FindingRecommendation", new { area = "TCM" })',
+                                { async: true },
+                                {
+                                    'tcReportingPeriod': tcReportingId
+                                }
+                            ).done(function (data) {
+                                $('#ProjectTab').html(data);
+                                $('[name="botonShowFiltro"]').hide();
+                                $("#tableResult").paginationConfluense(10);
+                                delRow();
+                                bindHandlers();
+                                enterEditMode(false, $(".tab-pane.active"), false);
+                                enterEditMode(false, $('[data-id=headerButtons]'), false);
+                                hideLoader();
+                                disableEnableTabs(true);
+                                ParsleyCount();
+                                delRow();
+                                removeProy();
+                            });
+                        } else {
+
+                            postUrlWithOptions('@Url.Action("ToBlockByChangeInView", "FindingRecommendation", new { area = "TCM" })', { async: true }, { url: getUrlConcurrence() })
+                            .done(function (data) {
+                                if (data.IsValid === true) {
+                                    var success = enterEditMode(false, $(".tab-pane.active"), false);
+                                    if (success) {
+                                        enterEditMode(false, $('[data-id=headerButtons]'), false);
+                                        disableEnableTabs(true);
+                                        hideShowButton(true);
+                                        bindHandlers();
+                                        $('#innovationTable').paginationConfluense(10).sortableConfluense();
+                                        showFilter();
+                                    }
+
+                                    $('#OverallProjectTable tr').find('td:nth-child(2)').hide();
+                                    $('#OverallProjectTable thead tr').find('.w160').hide();
+                                    $('#DelaysDetails thead tr').find('th:nth-child(2)').hide();
+                                    $('#DelaysDetails tbody tr').find('.w240').hide();
+                                    $('#OtherDelaysTable thead tr').find('th:nth-child(2)').hide();
+                                    $('#OtherDelaysTable tbody tr').find('.w240').hide()
+                                    disseminationActivities($("input[name='disseminated']:checked").val());
+                                    disseminationActivitiesRule();
+                                    Sustainability($("input[name='Sustainability']:checked").val());
+                                    SustainabilityRule();
+                                    Innovation($("input[name='Innovation']:checked").val());
+                                    InnovationRule();
+                                    firstRow();
+                                    ParsleyCount();
+                                    $('#OverallProjectTable td.dataTables_empty').remove();
+                                    loadCategoryOverall();
+                                    changeDimensionOverall();
+                                    delRow();
+                                    $('#OverallProjectTable td.dataTables_empty').remove();
+                                    loadCategoryOverall();
+                                    changeDimensionOverall();
+                                    removeStories();
+                                    removePartners();
+                                    removeProy();
+                                    removeConsultancies();
+                                    removeDoc();
+                                    bindHandlers();
+                                    delRow();
+                                    $('#innovationTable').paginationConfluense(10).sortableConfluense();
+                                    executorBorder();
+                                }
+                                else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+
+                        }
+
+
+
+
+                    }
+
+                    function disableEnableTabs(enableOne) {
+
+                        if (enableOne) {
+                            var idTab = $('.tab-pane.active').attr('data-tab-control-id');
+                            $("[dd-tab]").not('[dd-tab=' + idTab + ']').addClass('disabled');
+                        } else {
+                            $("[dd-tab]").removeClass('disabled');
+                        }
+                    }
+
+                    function hideShowButton(parameters) {
+                        if (parameters) {
+                            $('#ProgressContainer').hide();
+                            $('#documentAdd').show();
+                            $('#FieldDescription').hide();
+                            $("input[name='disseminated']").removeAttr('disabled');
+                            $('#deleteRow').show();
+                            $('#filterForm').hide();
+                        } else {
+                            $('#ProgressContainer').show();
+                            $('#documentAdd').hide();
+                            $("input[name='disseminated']").attr('disabled', 'disabled');
+                            $('#deleteRow').hide();
+                            $('#filterForm').show();
+                            $('oComment').hide();
+                        }
+                        //EventClickPediod();
+                        IsEditableProgress();
+                        IsEditableProjectManagment();
+                    }
+
+                    function disseminationActivitiesRule() {
+                        $('input[name="disseminated"]').off("change");
+                        $('input[name="disseminated"]').change(function () {
+                            var selectValueDissemination = this.value;
+                            disseminationActivities(selectValueDissemination);
+                            if (selectValueDissemination === "No") {
+                                var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendation.ChangeNo")';
+                                confirmActionCustom(msg, "Cancel", "Continue").done(function (pressOk) {
+                                    if (pressOk) {
+                                        $('[data-name="disseminatedComment"]').find('div').text("");
+                                        $('[name="disseminatedComment"]').val("");
+                                        $('[data-name="disseminatedComment"]').hide();
+                                    } else {
+                                        $("#yesSelect").prop("checked", true);
+                                        $("#FieldExplain").show();
+                                        $('[data-name="disseminatedComment"]').show();
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    function disseminationActivities(selectValueDissemination) {
+                        if (selectValueDissemination === "Yes") {
+                            $("[data-name='disseminatedComment']").attr("data-parsley-required", true);
+                            $('#FieldExplain').show();
+                            $('[data-name="disseminatedComment"]').show();
+                        } else {
+                            $('#FieldExplain').hide();
+                            $('[data-name="disseminatedComment"]').hide();
+                            $("[data-name='disseminatedComment']").removeClass("parsley-error");
+                            $("[data-name='disseminatedComment']").attr("data-parsley-required", false);
+                        }
+                    }
+
+                    function checkvalue() {
+                        var valuecheck = "@Model.Progress.OperationDisseminated";
+                        checkactivities(valuecheck);
+                    }
+
+                    function checkactivities(valuecheck) {
+                        if (valuecheck === "True") {
+                            $("[name='disseminatedComment']").attr("data-parsley-required", true);
+                            $('#FieldExplain').show();
+                        } else {
+                            $('#FieldExplain').hide();
+                            $("[name='disseminatedComment']").attr("data-parsley-required", false);
+                        }
+                    }
+
+                    function cancel(source) {
+                        var msg = "@Localization.GetText("OP.DL.Message.Cancel")";
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                showLoader();
+                                window.setTimeout(function () {
+                                    postUrlWithOptions('@Url.Action("UnlockChangeInView", "FindingRecommendation", new { area = "TCM" })', { async: false }, { url: getUrlConcurrence() });
+                                    var editingTab = $('.tab-pane.active');
+                                    exitEditMode(true, editingTab, true, true);
+                                    exitEditMode(false, $('[name="AdvancesInTheAchievement"]').closest('td').find('div[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[name="AdvancesInExecution"]').closest('td').find('div[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[name="disseminatedComment"]').closest('td').find('div[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('#FieldExplain').closest('div').find('[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('#sustainabilityArea').closest('div').find('[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[name="keyInnovation"]').closest('td').find('[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[name="extentSuccess"]').closest('td').find('[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[name="partnerEngagement"]').closest('td').find('[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[name="objectivesConsultancy"]').closest('td').find('[data-pagemode="read"]'), false, true);
+                                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                                    disableEnableTabs(false);
+                                    hideShowButton(false);
+                                    bindHandlers();
+                                    var selectValueDissemination = $("input[name='disseminated']:checked").val();
+                                    disseminationActivities(selectValueDissemination);
+                                    var selectValue = $("input[name='Sustainability']:checked").val();
+                                    Sustainability(selectValue);
+                                    var selectValueInnovation = $("input[name='Innovation']:checked").val();
+                                    Innovation(selectValueInnovation);
+                                    delRow();
+                                    $('#OverallProjectTable td.dataTables_empty').remove();
+                                    loadCategoryOverall();
+                                    changeDimensionOverall();
+                                    $('#OverallProjectTable td.dataTables_empty').remove();
+                                    loadCategoryOverall();
+                                    changeDimensionOverall();
+                                    removeStories();
+                                    removePartners();
+                                    removeProy();
+                                    removeConsultancies();
+                                    removeDoc();
+                                    $('#innovationTable').paginationConfluense(10);
+                                    $('#partnerTable').paginationConfluense(10);
+                                    $('#consultancyTable').paginationConfluense(10);
+                                    $('#storiesTable').paginationConfluense(10);
+                                    $('#tableResult').paginationConfluense(10);
+                                    $('#DocumentsTable').paginationConfluense(10);
+                                    applyFieldsBehavior('0', '0');
+                                    $('[name="botonShowFiltro"]').hide();
+                                    ParsleyCount();
+                                    $('#OverallProjectTable tr').find('td:nth-child(2)').show();
+                                    $('#OverallProjectTable thead tr').find('.w160').show();
+                                    $('#DelaysDetails thead tr').find('th:nth-child(2)').show();
+                                    $('#DelaysDetails tbody tr').find('.w240').show();
+                                    $('#OtherDelaysTable thead tr').find('th:nth-child(2)').show();
+                                    $('#OtherDelaysTable tbody tr').find('.w240').show();
+                                    //EventClickPediod();
+                                    IsEditableProgress();
+                                    IsEditableProjectManagment();
+                                }, 20);
+                            }
+                        });
+                    }
+
+                    function delRow() {
+                        if ($('#DocumentsTable td').hasClass('dataTables_empty')) {
+                            $("#DocumentsTable").find("tr:not(:first)").remove();
+                        }
+                        if ($('#consultancyTable td').hasClass('dataTables_empty')) {
+                            $("#consultancyTable").find("tr:not(:first)").remove();
+                        }
+                        if ($('#partnerTable td').hasClass('dataTables_empty')) {
+                            $("#partnerTable").find("tr:not(:first)").remove();
+                        }
+                        if ($('#tableResult td').hasClass('dataTables_empty')) {
+                            $("#tableResult").find("tr:not(:first)").remove();
+                        }
+                        if ($('#storiesTable td').hasClass('dataTables_empty')) {
+                            $("#storiesTable").find("tr:not(:first)").remove();
+                        }
+
+                        if ($('#agenciesTable td').hasClass('dataTables_empty')) {
+                            $("#agenciesTable").find("tr:not(:first)").remove();
+                        }
+                    }
+
+                    function newPartner(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowPartner")", function (data) {
+                            if ($(container).find('td.dataTables_empty').length > 0) {
+                                $(container).find('tr').remove();
+                            }
+                            $(container).append(data);
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="partnerEngagement"]'), false);
+                            $('.richContainer').removeClass('noborder');
+                            bindHandlers();
+                            removePartners();
+                        });
+                    }
+
+                    function newFindingRecommendation(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowFindingRecommendation", new { operationNumber = Model.OperationNumber })", function (data) {
+                            $(container).append(data);
+
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="recommendation"]'), false);
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="finding"]'), false);
+                            $('.richContainer').removeClass('noborder');
+                            bindHandlers();
+                            if ($(container).find('[data-id]').length > 0) {
+                                $('[name="mssg"]').addClass("hide");
+                            } else {
+
+                                $('[name="mssg"]').removeClass('hide');
+                            }
+                            bindHandlers($('#ProjectTab'));
+                        });
+                    }
+
+                    function newConsultancy(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowConsultancies")", function (data) {
+                            $(container).append(data);
+                            bindHandlers();
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="objectivesConsultancy"]'), false);
+                            $('.richContainer').removeClass('noborder');
+                            if ($(container).find('[data-id]').length > 0) {
+                                $('[name="msgConsultancies"]').addClass("hide");
+                            } else {
+
+                                $('[name="msgConsultancies"]').removeClass('hide');
+                            }
+                        });
+                    }
+
+                    function newDelays(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowDelays")", function (data) {
+                            if (($(container).find('tr').length == 1) && ($(container).find('tr.odd').length == 1)) {
+                                $(container).find('tr').remove();
+                            }
+                            $(container).append(data);
+                            bindHandlers();
+                            changeDelay();
+
+                        });
+
+                    }
+
+                    function removeRowDelays(source) {
+                        var msg = '@Localization.GetText("This action will delete the entire row with all information included. Would you like to proceed with the deletion?")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var row = button.closest("tr");
+                                row.next().remove();
+                                row.remove();
+                                if (source.attr("data-achievementDelayId")) {
+                                    $("[name=deleteAchievementDelay]").val($("[name=deleteAchievementDelay]").val() + source.attr("data-achievementDelayId") + "|");
+                                }
+                                var container = $('#DelaysDetails').find('tbody');
+                                $('#DelaysDetails').paginationConfluense(10);
+                            }
+                        });
+                    }
+
+                    function removeRowOtherDelays(source) {
+                        var msg = '@Localization.GetText("This action will delete the entire row with all information included. Would you like to proceed with the deletion?")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var row = button.closest("tr");
+                                row.next().remove();
+                                row.remove();
+                                if (source.attr("data-otherDelayId")) {
+                                    $("[name=deleteAchievementOtherDelay]").val($("[name=deleteAchievementOtherDelay]").val() + source.attr("data-otherDelayId") + "|");
+                                }
+                                var container = $('#OtherDelaysTable').find('tbody');
+                                $('#OtherDelaysTable').paginationConfluense(10);
+                            }
+                        });
+                    }
+
+                    function newOtherDelays(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowOtherDelay")", function (data) {
+                            if (($(container).find('tr').length == 1) && ($(container).find('tr.odd').length == 1)) {
+                                $(container).find('tr').remove();
+                            }
+                            $(container).append(data);
+                            bindHandlers();
+                        });
+
+                    }
+
+                    function removeRow(source) {
+                        var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendations.Delet_War_Ms")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var docNumber = getDocNumber(source);
+                                docNumber[docNumber.length] = "," + docNumber;
+                                button.closest("tr").remove();
+                                firstRow();
+                                removeDoc();
+                                removePartners();
+                                removeConsultancies();
+                                $('#DocumentsTable').paginationConfluense(10);
+                                $('#innovationTable').paginationConfluense(10);
+                                $('#partnerTable').paginationConfluense(10);
+                                $('#consultancyTable').paginationConfluense(10);
+                            }
+                        });
+                    }
+
+                    function removeDoc() {
+                        var container = $('#DocumentsTable').find('tbody');
+                        if ($(container).find('[data-id]').length > 0) {
+                            $('[name="msg"]').addClass("hide");
+                        } else {
+
+                            $('[name="msg"]').removeClass('hide');
+                        }
+                    }
+
+                    function removePartners() {
+                        var container = $('#partnerTable').find('tbody');
+                        if ($(container).find('[data-id]').length > 0) {
+                            $('[name="msgPartners"]').addClass("hide");
+                        } else {
+
+                            $('[name="msgPartners"]').removeClass('hide');
+                        }
+                    }
+
+                    function removeConsultancies() {
+                        var container = $('#consultancyTable').find('tbody');
+                        if ($(container).find('[data-id]').length > 0) {
+                            $('[name="msgConsultancies"]').addClass("hide");
+                        } else {
+
+                            $('[name="msgConsultancies"]').removeClass('hide');
+                        }
+                    }
+
+                    function getDocNumber(source) {
+                        var docNumber = source.parents('tr').find('td:eq(2)').html().trim();
+                        return docNumber;
+                    }
+
+                    function deleteRow(source) {
+                        source.parents("tr").remove();
+                    }
+
+                    function validationConsultainces() {
+                        $('[name="typePartner"]').attr("data-parsley-required", true);
+                        $('[name="consultanciesAmountUSD"]').attr("data-parsley-required", true);
+                        $('[name="typeStory"]').attr("data-parsley-required", true);
+                        $('[name="principalActor"]').attr("data-parsley-required", true);
+                        $('[name="stage"]').attr("data-parsley-required", true);
+                        $('[name="dimension"]').attr("data-parsley-required", true);
+                    }
+
+                    function HidePanel(button) {
+
+                        $('.tab-pane.active').find('.filterNormal').hide();
+                        button.hide();
+                        $('[name="botonShowFiltro"]').show();
+                    }
+
+                    function ShowPanel(button) {
+                        $('.tab-pane.active').find('.filterNormal').show();
+                        button.hide();
+                        $('[name="botonHideFiltro"]').show();
+                    }
+
+                    function SearchFilter() {
+                        var tcReportingId = $('ul.dropdown-menu[aria-labelledby="id-TCReportingPeriod"]').find('a[dd-selected]').attr('dd-value');
+                        var stageId = $('ul.dropdown-menu[aria-labelledby="id-StageList"]').find('a[dd-selected]').attr('dd-value');
+                        var dimensionId = $('ul.dropdown-menu[aria-labelledby="id-DimensionList"]').find('a[dd-selected]').attr('dd-value');
+                        $('#tableResult').find('tbody').remove();
+                        postUrlWithOptions('@Url.Action("SearchFilterResult", "FindingRecommendation", new { area = "TCM" })',
+                            { async: true },
+                            {
+                                'tcReportingPeriod': tcReportingId,
+                                'stage': stageId,
+                                'dimension': dimensionId
+                            }
+                        ).done(function (data) {
+                            $('#ProjectTab').html(data);
+                            bindHandlers();
+                            exitEditModeLoader(false, $('.tab-pane.active'), false, false);
+                            $('[name="botonShowFiltro"]').hide();
+                            $("#tableResult").paginationConfluense(10);
+                            delRow();
+                            showFilter();
+                            IsEditableProgress();
+                            IsEditableProjectManagment();
+                            delRow();
+                            //EventClickPediod();
+                            showFilter();
+                            bindHandlers();
+                            ParsleyCount();
+                        });
+                        IsEditableProgress();
+                        IsEditableProjectManagment();
+                        delRow();
+                        //EventClickPediod();
+                        showFilter();
+                        bindHandlers();
+                        ParsleyCount();
+                    }
+
+                    $(document).on("change", "input[name='consultanciesContractEnd']", function () {
+                        var effectiveDate = converToDate($(this).closest('tr').find('input[name="consultanciesContractBegin"]').val());
+                        var expirationDate = converToDate($(this).val());
+                        if ((expirationDate - effectiveDate) <= 0 && effectiveDate != "") {
+                            showMessage("@Localization.GetText("TCM.FR.FindingsAndRecommendations.MsgContractEnd")");
+                            $(this).val("");
+                            return false;
+                        }
+                        return true;
+                    });
+
+                    $(document).on("change", "input[name='consultanciesContractBegin']", function () {
+                        var effectiveDate = converToDate($(this).val());
+                        var expirationDate = converToDate($(this).closest('tr').find('input[name="consultanciesContractEnd"]').val());
+                        if ((effectiveDate - expirationDate) >= 0 && expirationDate != "") {
+                            showMessage("@Localization.GetText("TCM.FR.FindingsAndRecommendation.MsgContractBegin")");
+                            $(this).val("");
+                            return false;
+                        }
+                        return true;
+                    });
+
+                    function SearchProgress() {
+                        var tcReportingId = $('ul.dropdown-menu[aria-labelledby="id-ddlTcReporting"]').find('a[dd-selected]').attr('dd-value');
+                        $.get('@Url.Action("ProgressResult", "FindingRecommendation", new { area = "TCM" })', {
+                            'tcReportingPeriod': tcReportingId
+                        }).done(function (data) {
+                            $('#tabProgress').html(data);
+                            bindHandlers();
+                            removeFilterDoc();
+                            delRow();
+                            IsEditableProgress();
+                        });
+                        exitEditModeLoader(false, $('.tab-pane.active'), false, false);
+                        hideShowButton(false);
+                        disseminationActivities($("input[name='disseminated']:checked").val());
+                        disseminationActivitiesRule();
+                        IsEditableProgress();
+                        IsEditableProjectManagment();
+                        delRow();
+                        //EventClickPediod();
+                        removeFilterDoc();
+                    }
+
+                    function SearchDelays() {
+                        var typeDelay = $('ul.dropdown-menu[aria-labelledby="id-ddlTypeDelayFilter"]').find('a[dd-selected]').attr('dd-value');
+                        var name = $('ul.dropdown-menu[aria-labelledby="id-ddlNameFilterOutcomes"]').find('a[dd-selected]').attr('dd-value');
+                        var stateSolved = $('ul.dropdown-menu[aria-labelledby="id-ddlStateSolvedFilter"]').find('a[dd-selected]').attr('dd-value');
+                        var delays = "delay";
+                        var cycleList;
+                        if ($('[name=ddlpmrCycleFilter]').val() !== null) {
+                            cycleList = $('[name=ddlpmrCycleFilter]').val().join(',');
+                        } else {
+                            cycleList = $('[name=ddlpmrCycleFilter]').val();
+                        }
+
+                        $.get('@Url.Action("DelaysDetailsResult", "FindingRecommendation", new { area = "TCM" })', {
+                            'typeDelay': typeDelay,
+                            'name': name,
+                            'stateSolved': stateSolved,
+                            'flag': delays,
+                            'cycleList': cycleList,
+
+                        }).done(function (data) {
+                            $('#tabDelays').html(data);
+                            bindHandlers();
+
+                        });
+                        exitEditModeLoader(false, $('.tab-pane.active'), false, false);
+                        changeDelay()
+                        loadDelayName()
+
+                    }
+
+                    function SearchOtherDelays() {
+                        var typeDelay = $('[name=txtReasonFilter]').val();
+                        var name = $('[name=txtNameFilterOutcomes]').val();
+                        var stateSolved = $('ul.dropdown-menu[aria-labelledby="id-ddlOtherSolvedFilter"]').find('a[dd-selected]').attr('dd-value');
+                        var other = "Other";
+                        var cycleList;
+                        if ($('[name=ddlOtherCycleFilter]').val() !== null) {
+                            cycleList = $('[name=ddlOtherCycleFilter]').val().join(',');
+                        } else {
+                            cycleList = $('[name=ddlOtherCycleFilter]').val();
+                        }
+                        $.get('@Url.Action("DelaysDetailsResult", "FindingRecommendation", new { area = "TCM" })', {
+                            'otherType': typeDelay,
+                            'otherName': name,
+                            'stateSolved': stateSolved,
+                            'flag': other,
+                            'cycleList': cycleList,
+                        }).done(function (data) {
+                            $('#tabDelays').html(data);
+                            bindHandlers();
+
+                        });
+                        exitEditModeLoader(false, $('.tab-pane.active'), false, false);
+                        changeDelay()
+                        loadDelayName()
+
+                    }
+
+                    function EventClickPediod() {
+                        $('[name="ddlTcReporting"]').closest('div.dropdown').find('ul.dropdown-menu li').click(function () {
+                            IsEditableProgress();
+                        });
+
+                        $('[name="TCReportingPeriod"]').closest('div.dropdown').find('ul.dropdown-menu li').click(function () {
+                            IsEditableProjectManagment();
+                        });
+                    }
+
+                    function showFilter() {
+                        var tcReportingId = $('ul.dropdown-menu[aria-labelledby="id-ddlTcReporting"]').find('a[dd-selected]').attr('dd-value');
+                        if ($('#tableResult').find('tr[data-id]').length > 0 && tcReportingId) {
+                            $('#tableResult').find('tr[data-id]').show();
+                            $("#tableResult_wrapper div.Pagination").show();
+                        } else {
+                            $('#tableResult').find('tr[data-id]').hide();
+                            $("#tableResult_wrapper div.Pagination").hide();
+                        }
+                    }
+
+                    function removeFilterDoc() {
+                        if ($('#DocumentsTable').find('tr[data-id]').length > 0) {
+                            $('[name="msg"]').remove();
+                        }
+                    }
+
+                    function ClearFilter() {
+                        var lastIndexTcReportingPeriod = $('ul.dropdown-menu[aria-labelledby="id-TCReportingPeriod"]').find('li').length;
+                        $('#id-TCReportingPeriod').SelectIndex(lastIndexTcReportingPeriod - 1);
+                        $('#id-StageList').FirstorDefault();
+                        $('#id-DimensionList').FirstorDefault();
+                        $("#tableResult").find("tr:not(:first)").hide();
+                        delRow();
+                        IsEditableProjectManagment();
+                        $("#tableResult_wrapper div.Pagination").hide();
+                    }
+
+                    function renderizeRow(documentList, sourceType) {
+                        var docNumber;
+                        if (sourceType === "selected") {
+                            docNumber = documentList[0].DocumentNumber;
+
+                        } else {
+                            docNumber = documentList[0];
+                        }
+                        var docNumbers = $('#DocumentsTable').find('tbody').find('[name="DocNumber"]').map(function () { return $(this).val(); }).get();
+                        if (docNumbers.indexOf(docNumber) > -1) {
+                            var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendations.Ms_Add_DocumentWarning")';
+                            confirmActionCustom(msg).done(function (pressOk) {
+                                if (pressOk) {
+                                    $("button[name='documentsAdd']").trigger("click");
+                                    closeModal();
+                                    bindHandlers();
+                                    return;
+                                }
+                            });
+                        } else {
+                            var urlf = '@Url.Action("AddDocument", "FindingRecommendation")';
+
+                            var result = postUrl(urlf, { documentNumber: docNumber });
+                            var container = $('#DocumentsTable').find('tbody');
+                            $(container).append(result.responseText);
+                            enterEditMode(false, $(container), false);
+                            removeDoc();
+                            delRow();
+                            $('#DocumentsTable').paginationConfluense(10);
+                        }
+                        closeModal();
+                        hideLoaderOptional();
+                        bindHandlers();
+                    }
+
+                    function closeModal() {
+                        var vexModal = $('[data-id="mainContainer"]').parents('.vex');
+                        if (vexModal.length > 0)
+                            vex.closeByID(vexModal.data().vex.id);
+                    }
+
+                    function downloadDocument(target) {
+                        var docNumber = $(target.closest('tr')).find('td:nth-child(3)').text();
+                        console.log("docNumber: " + docNumber);
+                        var url = '@Url.Action("GetDocument", "Document", new {area = ""})' + '?docNum=' + docNumber;
+                        window.open(url, '_blank');
+                    }
+
+                    function save(isAsync) {
+                        validationSustainabilityInnovation();
+                        var modelSerialized = '#hidFindingRecommendationViewModel';
+                        switch ($(".tab-pane.active").attr("id")) {
+                            case "tabPartnerAndConsultancies":
+                                modelSerialized = '#hidPartnersAndConsultanciesModel';
+                                break;
+                            case "tabProgress":
+                                modelSerialized = '#hidProgressModel';
+                                break;
+                            case "tabSustainability":
+                                modelSerialized = "#hidSustainabilityAndInnovationModel";
+                                break;
+                            case "ProjectTab":
+                                modelSerialized = "#hidProjectManagementModel";
+                                break;
+                            case "tabStories":
+                                modelSerialized = "#hidStoriesFromTheFieldModel";
+                                break;
+                            case "tabDelays":
+                                modelSerialized = "#hidDelaysModel";
+                                break;
+                            case "tabOverall":
+                                modelSerialized = "#hidOverallProjectManagementModel";
+                                break;
+                                bindHandlers();
+                        }
+                        if (($(".tab-pane.active").attr("id"))) {
+                            validationConsultainces();
+                            var divSave = $('#' + $(".tab-pane.active").attr("id") + '');
+                            var response = saveContainer(divSave, modelSerialized, true, $('#headerButtons'));
+                            enterEditMode(false, $('[name="AdvancesInTheAchievement"]').closest('td').find('div[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('[name="AdvancesInExecution"]').closest('td').find('div[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('[name="disseminatedComment"]').closest('td').find('div[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('#FieldExplain').closest('div').find('[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('#sustainabilityArea').closest('div').find('[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('[name="keyInnovation"]').closest('td').find('div[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('[name="extentSuccess"]').closest('td').find('[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('[name="partnerEngagement"]').closest('td').find('[data-pagemode="read"]'), false);
+                            enterEditMode(false, $('[name="objectivesConsultancy"]').closest('td').find('[data-pagemode="read"]'), false);
+                            if (response !== false) {
+                                response.done(function (data) {
+                                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                                        errorBar(data.ErrorMessage, 3, true);
+                                    } else {
+                                        if (!response.isValid) {
+                                            errorBar(data.ErrorMessage, 3, true);
+                                        }
+                                        successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+                                        exitEditMode(false, $(document), false, false);
+                                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                                        disableEnableTabs(false);
+                                        $('[name="botonShowFiltro"]').hide();
+                                        $('#containerProgress').show();
+                                        var selectValue = $("input[name='Sustainability']:checked").val();
+                                        Sustainability(selectValue);
+                                        var selectValueInnovation = $("input[name='Innovation']:checked").val();
+                                        Innovation(selectValueInnovation);
+                                        var selectValueDissemination = $("input[name='disseminated']:checked").val();
+                                        disseminationActivities(selectValueDissemination);
+                                        $('#innovationTable').paginationConfluense(10);
+                                        $('#partnerTable').paginationConfluense(10);
+                                        $('#consultancyTable').paginationConfluense(10);
+                                        $('#storiesTable').paginationConfluense(10);
+                                        $('#tableResult').paginationConfluense(10);
+                                        $('#DocumentsTable').paginationConfluense(10);
+                                        applyFieldsBehavior('0', '0');
+                                        $('#OverallProjectTable td.dataTables_empty').remove();
+                                        loadCategoryOverall();
+                                        changeDimensionOverall();
+                                        removeStories();
+                                        removePartners();
+                                        removeProy();
+                                        removeConsultancies();
+                                        removeDoc();
+                                        ParsleyCount();
+                                        $('#OverallProjectTable tr').find('td:nth-child(2)').show();
+                                        $('#OverallProjectTable thead tr').find('.w160').show();
+                                        $('#DelaysDetails thead tr').find('th:nth-child(2)').show();
+                                        $('#DelaysDetails tbody tr').find('.w240').show();
+                                        $('#OtherDelaysTable thead tr').find('th:nth-child(2)').show();
+                                        $('#OtherDelaysTable tbody tr').find('.w240').show();
+                                        delRow();
+                                        bindHandlers();
+                                    }
+                                });
+                            }
+                        }
+                        IsEditableProgress();
+                        IsEditableProjectManagment();
+                        //EventClickPediod();
+                    }
+
+                    function newInnovation(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        var valueDropdown = $("#" + button.attr('dd-table')).find('div.dropdown ul li [dd-selected][dd-value]').last().attr('dd-value');
+                        $("#" + button.attr('dd-table')).find('.dropdown').last().find('input').attr("value", valueDropdown);
+
+                        $.get("@Url.Action("GetRowInnovation")", function (data) {
+                            if ($(container).find('td.dataTables_empty').length > 0) {
+                                $(container).find('tr').remove();
+                            }
+                            $(container).append(data);
+                            $('#innovationTable').paginationConfluense(10).sortableConfluense();
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="extentSuccess"]'), false);
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="keyInnovation"]'), false);
+                            $('.richContainer').removeClass('noborder');
+                            bindHandlers();
+                            firstRow();
+                            $(".dropdown-toggle").dropdown();
+                            ParsleyCount();
+                        });
+
+                    }
+
+                    function validationSustainabilityInnovation() {
+                        if ($("input[name='Sustainability']").first().is(":checked")) {
+                            $("[data-name='sustainabilityArea']").attr("required", true);
+                        } else {
+                            $("[data-name='sustainabilityArea']").attr("data-parsley-required", false);
+                        }
+                        if ($("input[name='Innovation']").first().is(":checked")) {
+                            bindHandlers();
+                            $("[name='typeInnovation']").attr("required", true);
+                            $("[name='keyInnovation']").attr("required", true);
+                            $("[name='extentSuccess']").attr("required", true);
+                            $("#tblInnovation").attr("required", true);
+                        } else {
+                            $("[name='typeInnovation']").attr("required", false);
+                            $("[name='keyInnovation']").attr("required", false);
+                            $("[name='extentSuccess']").attr("required", false);
+                            $("#tblInnovation").attr("required", false);
+                        }
+                    }
+
+                    function SustainabilityRule() {
+                        $('input[name="Sustainability"]').off("change");
+                        $('input[name="Sustainability"]').change(function () {
+                            var selectValue = this.value;
+                            Sustainability(selectValue);
+                            if (selectValue === "No") {
+                                var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendation.ChangeNo")';
+                                confirmActionCustom(msg, "Cancel", "Continue").done(function (pressOk) {
+                                    if (pressOk) {
+                                        $("[name='sustainabilityArea']").val("");
+                                        $('[data-name="sustainabilityArea"]').find('div').text("");
+                                        $("[data-name='sustainabilityArea']").attr("data-parsley-required", false);
+                                        $("[data-name='sustainabilityArea']").removeClass("parsley-error");
+                                    } else {
+                                        $("#selectYes").prop("checked", true);
+                                        $("#sustainabilityArea").show();
+                                    }
+
+                                });
+                            }
+                        });
+                    }
+
+                    function Sustainability(selectValue) {
+                        if (selectValue === "Yes") {
+                            $("[data-name='sustainabilityArea']").attr("data-parsley-required", true);
+                            $("#sustainabilityArea").show();
+                        } else {
+                            $("[data-name='sustainabilityArea']").attr("data-parsley-required", false);
+                            $("[data-name='sustainabilityArea']").removeClass("parsley-error");
+                            $("#sustainabilityArea").hide();
+                        }
+                    }
+
+                    function InnovationRule() {
+                        bindHandlers();
+                        $('input[name="Innovation"]').off("change");
+                        $('input[name="Innovation"]').change(function () {
+                            var selectValueInnovation = this.value;
+                            Innovation(selectValueInnovation);
+                            if (selectValueInnovation === "No") {
+                                var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendation.ChangeNo")';
+                                confirmActionCustom(msg, "Cancel", "Continue").done(function (pressOk) {
+                                    if (pressOk) {
+                                        $('#innovationTable').find('[data-id]').remove();
+                                    } else {
+                                        $("#selectedYes").prop("checked", true);
+                                        $("#tblInnovation").removeClass('hide');
+                                        if ($("#innovationTable").find("[data-id]").length == 0 || $("#innovationTable").find('tbody tr').length == 0) {
+                                            $("button[data-action='newInnovation']").trigger("click");
+                                            $('#innovationTable').paginationConfluense(10).sortableConfluense();
+                                            bindHandlers();
+                                        }
+                                    }
+                                    bindHandlers();
+                                });
+                            }
+                        });
+                    }
+
+                    $("button[data-action='newInnovation']").off('click');
+
+                    function Innovation(selectValueInnovation) {
+                        if (selectValueInnovation === "Yes") {
+                            bindHandlers();
+                            $("[name='typeInnovation']").attr("data-parsley-required", true);
+                            $("[data-name='keyInnovation']").attr("data-parsley-required", true);
+                            $("[data-name='extentSuccess']").attr("data-parsley-required", true);
+                            $("#tblInnovation").removeClass("hide");
+                            firstRow();
+                            $('div.Pagination').removeAttr('style');
+                            $("button[data-action='newInnovation']").off('click');
+                            if ($("#innovationTable").find("[data-id]").length == 0 || $("#innovationTable").find('tbody tr').length == 0) {
+                                $("button[data-action='newInnovation']").trigger("click");
+                                bindHandlers();
+                                $('#innovationTable').paginationConfluense(10).sortableConfluense();
+                            }
+                            bindHandlers($('#innovationTable'));
+                        } else {
+                            $("#innovationTable").attr("data-parsley-required", false);
+                            $("[name='typeInnovation']").attr("data-parsley-required", false);
+                            $("[data-name='keyInnovation']").attr("data-parsley-required", false);
+                            $("[data-name='extentSuccess']").attr("data-parsley-required", false);
+                            $("#tblInnovation").addClass("hide");
+                            $('#innovationTable').find('[data-id]').remove();
+                        }
+                    }
+
+                    function newStory(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowSotiesFromTheField")", function (data) {
+                            $(container).append(data);
+                            enterEditMode(false, $('[data-pagemode="edit"]').closest('div').find('.richContainer[data-name="storiesArea"]'), false);
+                            $('.richContainer').removeClass('noborder');
+                            bindHandlers();
+                            if ($(container).find('tr').length > 0) {
+                                $('[name="msgStories"]').addClass("hide");
+                            } else {
+
+                                $('[name="msgStories"]').removeClass('hide');
+                            }
+                        });
+                    }
+
+                    function firstRow() {
+                        if ($('[name="removeInnovation"]').length <= 1) {
+                            $('[name="removeInnovation"]').addClass("hide");
+                        } else if ($('[name="removeInnovation"]').length >= 1) {
+                            $('[name="removeInnovation"]').removeClass("hide");
+                        } else {
+                            $('[name="removeInnovation"]').addClass("hide");
+                        }
+                    }
+
+                    function removeRow2(source) {
+                        var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendations.Delet_War_Ms")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var row = button.closest("tr");
+                                row.next().remove();
+                                row.remove();
+                                firstRow();
+                                removeProy();
+                                removeStories();
+                                $('#storiesTable').paginationConfluense(10);
+                                $('#tableResult').paginationConfluense(10);
+                            }
+                        });
+                    }
+
+                    function removeRowDelay(source) {
+                        var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendations.Delet_War_Ms")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var row = button.closest("tr");
+                                row.next().remove();
+                                row.remove();
+                                $('#DelaysDetails').paginationConfluense(10);
+                            }
+                        });
+                    }
+
+                    function removeRowOtherDelay(source) {
+                        var msg = '@Localization.GetText("TCM.FR.FindingsAndRecommendations.Delet_War_Ms")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var row = button.closest("tr");
+                                row.next().remove();
+                                row.remove();
+                                $('#OtherDelaysTable').paginationConfluense(10);
+
+                            }
+                        });
+                    }
+
+                    function removeProy() {
+                        var container = $('#tableResult').find('tbody');
+                        if ($(container).find('[data-id]').length > 0) {
+                            $('[name="mssg"]').addClass("hide");
+                        } else {
+                            $('[name="mssg"]').removeClass('hide');
+                        }
+                    }
+
+                    function removeStories() {
+                        var container = $('#storiesTable').find('tbody');
+                        if ($(container).find('[data-id]').length > 0) {
+                            $('[name="msgStories"]').addClass("hide");
+                        } else {
+                            $('[name="msgStories"]').removeClass('hide');
+                        }
+                    }
+
+                    $(document).on('click', 'button[name="electronicLink"]', function () {
+                        var links = $(this).text().trim();
+                        var http = "http://";
+                        var https = "https://";
+                        if (links.substring(0, 7) == http || links.substring(0, 8) == https) {
+                            window.open(links, "_blank");
+                        } else {
+                            window.open(http + links, "_blank");
+                        }
+                        bindHandlers();
+                    });
+
+                    $(document).on('click', '[name="documentsAdd"]', function () {
+                        $('.inputFileInput').val("");
+                    });
+
+                    $(document).on('click', '#showFilter', function () {
+                        $('#showFilter').hide();
+                        $('#hideFilter').show();
+                        $('#FilterPanelDelays').show();
+                    });
+
+                    $(document).on('click', '#hideFilter', function () {
+                        $('#hideFilter').hide();
+                        $('#showFilter').show();
+                        $('#FilterPanelDelays').hide();
+                    });
+
+                    $(document).on('click', '#showFilterOther', function () {
+                        $('#showFilterOther').hide();
+                        $('#hideFilterOther').show();
+                        $('#FilterPanelotherDelays').show();
+
+                    });
+
+                    $(document).on('click', '#hideFilterOther', function () {
+                        $('#hideFilterOther').hide();
+                        $('#showFilterOther').show();
+                        $('#FilterPanelotherDelays').hide();
+                    });
+
+                    $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-ddlTypeDelayFilter"]', function () {
+                        switch ($('ul.dropdown-menu[aria-labelledby="id-ddlTypeDelayFilter"]').find('li a[dd-selected]').text()) {
+                            case "Outcome delay":
+                                $('#filterOutputs').hide();
+                                $('#filterOutcomes').show();
+                                break;
+
+                            case "Output delay":
+                                $('#filterOutcomes').hide();
+                                $('#filterOutputs').show();
+                                break;
+
+                            default:
+                                $('#filterOutcomes').hide();
+                                $('#filterOutputs').hide();
+                                break;
+                        }
+                    });
+
+                    function ClearFilterDelay() {
+                        $('[name=ddlTypeDelayFilter').FirstorDefault();
+                        $('[name=ddlNameFilterOutPuts').FirstorDefault();
+                        $('[name=ddlTypeDelayFilter').FirstorDefault();
+                        $('[name=ddlStateSolvedFilter').FirstorDefault();
+                        $('#filterOutcomes').hide();
+                        $('#filterOutputs').hide();
+                        var multis = $('.chosenMultiSelect').find('a.search-choice-close');
+                        multis.each(function () {
+                            $(this).click();
+                        });
+                    }
+
+                    function ClearFilterOtherDelay() {
+                        $('[name=txtReasonFilter]').val('');
+                        $('[name=txtNameFilterOutcomes]').val('');
+                        $('[name=ddlOtherSolvedFilter').FirstorDefault();
+                        var multis = $('.chosenMultiSelect').find('a.search-choice-close');
+                        multis.each(function () {
+                            $(this).click();
+                        });
+
+                    }
+
+                    function removeRowOverall(source) {
+                        var msg = '@Localization.GetText("This action will delete the entire row with all information included. Would you like to proceed with the deletion?")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                                var button = source;
+                                var row = button.closest("tr");
+                                row.next().remove();
+                                row.remove();
+                                if (source.attr("data-findingRecomendationId")) {
+                                    $("[name=deleteFindingsAndRecommendations]").val($("[name=deleteFindingsAndRecommendations]").val() + source.attr("data-findingRecomendationId") + "|");
+                                }
+                                var container = $('#OverallProjectTable').find('tbody');
+                                if ($(container).find('[data-id]').length > 0) {
+                                    $('[name="msgOverall"]').addClass("hide");
+                                } else {
+                                    $('[name="msgOverall"]').removeClass('hide');
+                                }
+                            }
+                        });
+                    }
+
+                    function newRowOverallProjectManagement(button) {
+                        var container = $("#" + button.attr('dd-table')).find('tbody');
+                        $.get("@Url.Action("GetRowOverallProjectManagement", new { operationNumber = Model.OperationNumber })", function (data) {
+                            if (($(container).find('tr').length == 1) && ($(container).find('tr.odd').length == 1)) {
+                                $(container).find('tr').remove();
+                            }
+                            $(container).append(data);
+                            bindHandlers();
+                            if ($(container).find('tr').length > 0) {
+                                $('[name="msgOverall"]').addClass("hide");
+                            } else {
+
+                                $('[name="msgOverall"]').removeClass('hide');
+                            }
+                            loadCategoryOverall();
+                            changeDimensionOverall();
+                        });
+                    }
+
+                    function changeDelay() {
+                        $("ul.dropdown-menu[aria-labelledby=id-delayType]").click(function () {
+                            var parentId = $(this).find('li a[dd-selected]').attr('dd-value');
+                            var idTr = $(this).closest('tr').attr('data-id');
+                            $('tr[data-id=' + idTr + ']').find('[aria-labelledby=id-nameDelay] li a[dd-parent-id=' + parentId + ']').removeClass('hide');
+                            $('tr[data-id=' + idTr + ']').find('[aria-labelledby=id-nameDelay] li a[dd-parent-id!=' + parentId + ']').addClass('hide');
+                            $('tr[data-id=' + idTr + ']').find('[name=nameDelay]').FirstorDefault();
+                        });
+                    }
+
+                    function loadDelayName() {
+                        $('#DelaysDetails > tbody  > tr[data-id]').each(function () {
+                            var idTr = $(this).attr('data-id');
+                            var parentId = $('tr[data-id=' + idTr + ']').find('ul.dropdown-menu[aria-labelledby=id-delayType]').find('li a[dd-selected]').attr('dd-value');
+                            $('tr[data-id=' + idTr + ']').find('ul.dropdown-menu[aria-labelledby=id-nameDelay] li a[dd-parent-id=' + parentId + ']').removeClass('hide');
+                            $('tr[data-id=' + idTr + ']').find('ul.dropdown-menu[aria-labelledby=id-nameDelay] li a[dd-parent-id!=' + parentId + ']').addClass('hide');
+                        });
+                    }
+
+                    function ClearFilterOverall() {
+                        $('#id-CategoriesListOverall').closest('div').find('[aria-labelledby=id-CategoriesListOverall] li a').addClass('hide');
+                        $('#id-StageListOverall').FirstorDefault();
+                        $('#id-DimensionListOverall').FirstorDefault();
+                        $('#id-CategoriesListOverall').FirstorDefault();
+                        $('.chosen-choices').find('.search-choice-close').each(function () {
+                            $(this).click();
+                        });
+                    }
+
+                    function SearchFilterOverall() {
+                        var categoryId = $('ul.dropdown-menu[aria-labelledby="id-CategoriesListOverall"]').find('a[dd-selected]').attr('dd-value');
+                        var stageId = $('ul.dropdown-menu[aria-labelledby="id-StageListOverall"]').find('a[dd-selected]').attr('dd-value');
+                        var dimensionId = $('ul.dropdown-menu[aria-labelledby="id-DimensionListOverall"]').find('a[dd-selected]').attr('dd-value');
+                        var listReportingPeriod = $("[name=reportingPeriodOverall]").val() != null ? $("[name=reportingPeriodOverall]").val().join(',') : "";
+                        $.get('@Url.Action("SearchFilterResultOverall", "FindingRecommendation", new { area = "TCM" })', {
+                            'tcReportingPeriod': listReportingPeriod,
+                            'stage': stageId,
+                            'dimension': dimensionId,
+                            'category': categoryId
+                        }).done(function (data) {
+                            $('#tabOverall').html(data);
+                            bindHandlers();
+                            exitEditModeLoader(false, $('.tab-pane.active'), false, false);
+                            loadCategoryOverall();
+                            changeDimensionOverall();
+                            changeFilterClearOverall();
+                        });
+                    }
+
+                    $(document).on('change', '[name=DimensionListOverall]', function () {
+                        var parentId = $(this).val();
+                        var content = $('#id-CategoriesListOverall').closest('div');
+                        content.find('[aria-labelledby=id-CategoriesListOverall] li a[dd-parent-id=' + parentId + ']').removeClass('hide');
+                        content.find('[aria-labelledby=id-CategoriesListOverall] li a[dd-parent-id!=' + parentId + ']').addClass('hide');
+                        content.FirstorDefault();
+                    });
+
+                    function changeDimensionOverall() {
+                        $("ul.dropdown-menu[aria-labelledby=id-typeDimensions]").click(function () {
+                            var parentId = $(this).find('li a[dd-selected]').attr('dd-value')
+                            var idTr = $(this).closest('tr').attr('data-id');
+                            $('tr[data-id=' + idTr + ']').find('[aria-labelledby=id-typeCategories] li a[dd-parent-id=' + parentId + ']').removeClass('hide');
+                            $('tr[data-id=' + idTr + ']').find('[aria-labelledby=id-typeCategories] li a[dd-parent-id!=' + parentId + ']').addClass('hide');
+                            $('tr[data-id=' + idTr + ']').find('[name=typeCategories]').FirstorDefault();
+                        });
+                    }
+
+                    function loadCategoryOverall() {
+                        $('#OverallProjectTable > tbody  > tr[data-id]').each(function () {
+                            var idTr = $(this).attr('data-id');
+                            var parentId = $('tr[data-id=' + idTr + ']').find('ul.dropdown-menu[aria-labelledby=id-typeDimensions]').find('li a[dd-selected]').attr('dd-value');
+                            $('tr[data-id=' + idTr + ']').find('ul.dropdown-menu[aria-labelledby=id-typeCategories] li a[dd-parent-id=' + parentId + ']').removeClass('hide');
+                            $('tr[data-id=' + idTr + ']').find('ul.dropdown-menu[aria-labelledby=id-typeCategories] li a[dd-parent-id!=' + parentId + ']').addClass('hide');
+
+                        });
+                    }
+
+                    function changeFilterClearOverall() {
+                        var parentId = $('[name = DimensionListOverall]').val();
+                        var content = $('#id-CategoriesListOverall').closest('div');
+                        content.find('[aria-labelledby=id-CategoriesListOverall] li a[dd-parent-id=' + parentId + ']').removeClass('hide');
+                        content.find('[aria-labelledby=id-CategoriesListOverall] li a[dd-parent-id!=' + parentId + ']').addClass('hide');
+                        content.FirstorDefault();
+                    }
+
+                    function OnlyFindingsOverall(source) {
+                        var msg = '@Localization.GetText("Only Findings and Recommendations related to the current cycle can be edited")';
+                        confirmAction(msg).done(function (pressOk) {
+                            if (pressOk) {
+                            }
+                        });
+                    }
+
+                    $(document).on('click', '#showFilterOverall', function () {
+                        $('#showFilterOverall').hide();
+                        $('#hideFilterOverall').show();
+                        $('#FilterPanelOverall').show();
+                    });
+
+                    $(document).on('click', '#hideFilterOverall', function () {
+                        $('#hideFilterOverall').hide();
+                        $('#showFilterOverall').show();
+                        $('#FilterPanelOverall').hide();
+                    });
+
+                    function autoWidthDelaysTable() {
+                        $('#DelaysDetails, #OtherDelaysTable').each(function () {
+                            var table = $(this);
+                            var headersRow = table.find('thead').find('tr');
+                            headersRow.find('th').eq(1).removeAttr('style').attr('style', "width:16.6667%!important");
+                            headersRow.find('th').eq(2).removeAttr('style').attr('style', "width:8.3333%!important");
+                            headersRow.find('th').eq(3).removeAttr('style').attr('style', "width:58.3333%!important");
+                            headersRow.find('th').eq(4).removeAttr('style').attr('style', "width:8.3333%!important");
+                            headersRow.find('th').eq(5).removeAttr('style').attr('style', "width:8.3333%!important");
+                            headersRow.find('th').eq(6).removeAttr('style').attr('style', "width:8.3333%!important");
+                        });
+                    }
+
+                    //FINDING AND RECOMMENDATION - New tab
+                    $(document).on('click', '#showFilterFR', function () {
+                        $(this).hide();
+                        $(this).next().show();
+                        $('#FilterPanelFR').animate({ opacity: 'toggle', height: 'toggle' });
+                    });
+
+                    $(document).on('click', '#hideFilterFR', function () {
+                        $(this).hide();
+                        $(this).prev().show();
+                        $('#FilterPanelFR').animate({ opacity: 'toggle', height: 'toggle' });
+                    });
+
+                    function ClearFilterFR() {
+                        $('#id-FRStageList').FirstorDefault();
+                        $('.chosen-choices').find('.search-choice-close').each(function () {
+                            $(this).click();
+                        });
+                    }
+
+                    function RemoveChoiceClose() {
+                        $('[name="FRDimensionList"]').next().find('.chosen-choices .search-choice-close').each(function () {
+                            $(this).css('display', 'none');
+                        });
+                    }
+
+                    $(document).on('mouseenter', 'button.dropdown-toggle', function () {
+                        $(this).dropdown();
+                    });
+
+                    registerCallback(function () {
+                        $('#categoriesModal').LinkModalButton({
+                            Event: 'click',
+                            LinkModalId: 'categories-link-modal'
+                        });
+
+                        $('[name="dimensionsModal"]').LinkModalButton({
+                            Event: 'click',
+                            LinkModalId: 'dimensions-link-modal'
+                        });
+                    });
+
+                    function linkValidationProcess() {
+                        window.location.href = "@Url.Action("index", "ValidationProcess",
+                            new { area = "TCM", operationNumber = Model.OperationNumber })";
+                    }
+
+                    function executorBorder() {
+                        $('[data-name="@FindingRecomendationField.EA_COMMENT"]').each(function() {
+                            if($(this).attr('data-readonly') == 'true')
+                                $(this).addClass('noborder');
+                        });
+                    }
+
+                </script>
+            }
+        }
+    </div>
+    <div id="divVerifyContent" hidden="hidden">
+        <button data-id="buttonVerifyContent" class="hide"
+                data-modal-allowclose="true"
+                data-custom-modal="verifyContentModal"
+                data-custom-modal-style=""
+                data-custom-modal-title="@Localization.GetText("TCM.VerifyContent.Header")"
+                data-custom-modal-validate="false"
+                data-custom-modal-closeonoverlayclick="false"></button>
+        <div id="verifyContentModal" class="hide modalBody"></div>
+    </div>
+}

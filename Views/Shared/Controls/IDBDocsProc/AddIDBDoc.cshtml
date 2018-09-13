@@ -1,0 +1,408 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+
+@model IDB.Presentation.MVC4.Models.Documents.PopupDocumentoViewModel
+
+@{
+    var jsAcceptedExtension = string.Join(", ", Model.AcceptedExtension.Select(x => string.Format("'.{0}'", x)));
+}
+
+<div class="container-fluid" data-main-modal="true" data-id="@Model.PopupId">
+    <div class="row">
+        <div class="col-md-12">
+            <ul class="tabs" role="tablist" data-id="tabContainer">
+                <li class="active" onclick="tabs(this)" role="tab" data-toggle="tab" data-tab-id="add" data-url="@Url.Action("AddIDBDocFormProc", "DocumentModal", new { area = "" })">
+                    @Localization.GetText("Document.Tabs.AddDocto")
+                </li>
+                <li onclick="tabs(this)" role="tab" data-toggle="tab" data-tab-id="search" data-url="@Url.Action("SearchIDBDocFormProc", "DocumentModal", new { area = "", operationNumber = Model.OperationNumber })">
+                    @Localization.GetText("Document.Tabs.SearchDocto")
+                </li>
+            </ul>
+
+            <div class="modalContent" data-id="modalContent">
+                <div data-id-selector="tabContainer">
+                    @Html.Partial("Controls/IDBDocsNew/AddIDBDocForm")
+
+                </div>
+                <div data-id="modalButtonsContainer" class="vex-modalFooter">
+                    <button type="button" data-id="performButton" id="performButton" class="buttonBlue">@Localization.GetText("Document.Button.Add")</button>
+                    <button type="button" data-id="cancelButton" class="buttonBlue">@Localization.GetText("Document.Button.Cancel")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+    registerCallback(function () {
+        //Constants URL
+        var urlUpload = '@Url.Action("IDBDocUploadDocument", "DocumentModal", new { area = ""})?OperationNumber=@Model.OperationNumber&BusinessAreaCode=@Model.BusinessAreaCode';
+        var urlPostSearch = '@Url.Action("SearchIDBDocProc", "DocumentModal", new { area = "" })';
+
+        //Constants Text
+        var textButtonAdd = '@Localization.GetText("Document.Button.Add")';
+        var textButtonSearch = '@Localization.GetText("Document.Button.Search")';
+        var textMaxReqLength = '@Localization.GetText("GLOBAL.SERVICE.IDBDOC.MAXREQUESTLENGTH")';
+        var textErrorSelectedDocument = '@Localization.GetText("DM.Error.Selected.Document")';
+        var textErrorWrongExtension = '@Localization.GetText("DM.Document.Add.ExtensionError")';
+
+        //Model Data
+        var popupId = '@Model.PopupId';
+        var listExtension = [@Html.Raw(jsAcceptedExtension)];
+        var targetFunction = '@Model.TargetFunction'.trim();
+        var canMultiselect = '@Model.CanMultiSelect.ToString().ToLower()' == 'true';
+
+        var _selector = String.format('[data-id="{0}"] ul[role="tablist"] li', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function () {
+            showLoaderOptional();
+            var source = $(this);
+            var tabId = source.attr("data-tab-id");
+
+            var modalContent = source.parents("[data-id=tabContainer]").siblings("[data-id=modalContent]");
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+            var url = source.attr("data-url");
+            var actionButtonText = '';
+
+            switch (tabId) {
+                case "add":
+                    actionButtonText = textButtonAdd;
+                    break;
+                case "search":
+                    actionButtonText = textButtonSearch;
+                    break;
+            }
+
+            $.ajax({
+                type: "GET",
+                data: { acceptedExtension: listExtension },
+                url: url,
+                async: true,
+                success: function (data) {
+                    tabContainer.html(data);
+                    hideLoaderOptional();
+                },
+                error: function (res) {
+                }
+            });
+            button.html(actionButtonText);
+        });
+
+        _selector = String.format('[data-id="{0}"] [name="chkInputCorrespondence"]', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function () {
+            var source = $(this);
+            var content = source.closest('[data-id-selector="search-form"]').find('[data-id-selector="inputCorrespondenceContainer"]');
+            if (source.prop('checked')) {
+                content.removeClass('hide');
+                bindHandlers();
+            } else {
+                content.addClass('hide');
+            }
+        });
+
+        _selector = String.format('[data-id="{0}"] [name="chkOutputCorrespondence"]', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function () {
+            var source = $(this);
+            var content = source.closest('[data-id-selector="search-form"]').find('[data-id-selector="outputCorrespondenceContainer"]');
+            if (source.prop('checked')) {
+                content.removeClass('hide');
+                bindHandlers();
+            } else {
+                content.addClass('hide');
+            }
+        });
+
+        _selector = String.format('[data-id="{0}"] [data-id="performButton"]', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function () {
+            showLoaderOptional();
+
+            var button = $(this);
+            var modalContent = button.parents("[data-id=modalContent]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+            var isSearchForm = tabContainer.find("[data-id-selector=search-form]").length !== 0;
+            var isSearchFormResults = tabContainer.find("[data-id-selector=search-form-results]").length !== 0;
+            var isAddDocForm = tabContainer.find("[data-id-selector=add-form]").length !== 0;
+
+            var isDraft = tabContainer.find("[data-id-selector=draft-form-container-main]").length !== 0;
+            var isDraftResult = tabContainer.find("[data-id-selector=draft-result-container-main]").length !== 0;
+
+            if (isSearchForm) {
+                executeSearch(tabContainer, button);
+            } else if (isSearchFormResults) {
+                hideLoaderOptional();
+                executeSendSelected(tabContainer, button);
+            } else if (isAddDocForm) {
+                executeUpload(tabContainer, button);
+            } else if (isDraft) {
+                searchDraft(tabContainer, button);
+            }
+            else if (isDraftResult) {
+                addSelectedDraft(tabContainer, button);
+            }
+
+            event.stopPropagation();
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        });
+
+        _selector = String.format('[data-id="{0}"] [data-id="cancelButton"]', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function () {
+            var button = $(this);
+            var modalContainer = button.parents('[data-main-modal="true"]');
+            var vexModal = modalContainer.parents(".vex");
+            if (vexModal != undefined) {
+                if (vexModal.data() != undefined) {
+                    if (vexModal.data().vex != undefined) {
+                        vex.closeByID(vexModal.data().vex.id);
+                    }
+                }
+            }
+        });
+
+        _selector = String.format('[data-id="{0}"] [data-id="clearFilters"]', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function () {
+            var source = $(this);
+            var modalContent = source.parents("[data-id=modalContent]");
+
+            var modal = modalContent.closest('[data-main-modal]');
+            var url = modal.find('[role="tab"].active').attr('data-url');
+
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            button.html(textButtonSearch);
+
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+            showLoader();
+            $.ajax({
+                type: "GET",
+                url: url,
+                async: true,
+                success: function (data) {
+                    tabContainer.html(data);
+                    hideLoader();
+                },
+                error: function (res) {
+                }
+            });
+        });
+
+        _selector = String.format('[data-id="{0}"] [data-id-selector="tabContainer"]', popupId);
+        $(document).off('keyup', _selector);
+        $(document).on('keyup', _selector, function (event) {
+
+            var selector = String.format('[data-id="{0}"] [data-id="tabContainer"] li.active', popupId);
+            if ($(selector).data('tab-id').toLowerCase() != "add") {
+                if (event.which == 13) {
+                    event.preventDefault();
+                    var selector = String.format('[data-id="{0}"] [data-id=performButton]', popupId);
+                    $(selector).click();
+                }
+            }
+        });
+
+        _selector = String.format('[data-id="{0}"] table[data-name="table-result"] tbody tr', popupId);
+        $(document).off('click', _selector);
+        $(document).on('click', _selector, function (event) {
+            var source = $(this);
+
+            var modal = source.closest('[data-main-modal]');
+            var active = modal.find('[role="tab"].active').attr('data-tab-id');
+
+            if (canMultiselect && active == 'search') {
+                source.toggleClass('selected');
+            } else {
+                var allTrs = $(_selector);
+                allTrs.removeClass('selected');
+                source.addClass('selected');
+            }
+        });
+
+        function executeUpload(tabContainer, button) {
+            var form = tabContainer.find('form');
+            var inputFile = form.find("input[type=file]")[0];
+
+            var modalContainer = button.parents('[data-main-modal="true"]');
+            var vexModal = modalContainer.parents(".vex");
+            var errorRegion;
+            if (inputFile.files.length === 0) {
+
+                hideLoaderOptional();
+                confirmAction(textErrorSelectedDocument);
+                $(".vex-theme-warning input.btn-link").css("display", "none");
+                return false;
+            }
+
+            var validExtensions = true;
+            var extensions = listExtension;
+            var dataForm = new FormData();
+            var fileNames = [];
+            jQuery.each(inputFile.files, function (i, file) {
+                var index = file.name.lastIndexOf(".");
+                if (index >= 0) {
+                    fileName = file.name;
+                    fileNames.push(fileName);
+                    var extension = file.name.substr(index).toLowerCase();
+                    if ($.inArray(extension, extensions) < 0) {
+                        validExtensions = false;
+                    }
+                    dataForm.append('files', file);
+
+                }
+            });
+
+            if (validExtensions) {
+                button.attr('disabled', 'disabled');
+
+                $.ajax({
+                    type: 'POST',
+                    url: urlUpload,
+                        async: true,
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                success: function (data) {
+                    button.removeAttr('disabled');
+                    if (data.IsValid === false) {
+                        hideLoaderOptional();
+                        if (vexModal != undefined) {
+                            if (vexModal.data() != undefined) {
+                                if (vexModal.data().vex != undefined) {
+                                    vex.closeByID(vexModal.data().vex.id);
+                                }
+                            }
+                        }
+                        errorBar(data.ErrorMessage, 60, true);
+                    }
+                    if (!data.IsValid && (data.ErrorMessage != null) && (data.ErrorMessage !== "") &&
+                        (data.ErrorMessage.substring(0, 12) !== textMaxReqLength.substring(0, 12))) {
+                        hideLoaderOptional();
+                        if (vexModal != undefined) {
+                            if (vexModal.data() != undefined) {
+                                if (vexModal.data().vex != undefined) {
+                                    vex.closeByID(vexModal.data().vex.id);
+                                }
+                            }
+                        }
+                        errorBar(data.ErrorMessage, 60, true);
+                    }
+                    else if (!data.IsValid && data.ErrorMessage.substring(0, 12) === textMaxReqLength.substring(0, 12)) {
+                        resetInputFile();
+                        hideLoaderOptional();
+                        if (vexModal != undefined) {
+                            if (vexModal.data() != undefined) {
+                                if (vexModal.data().vex != undefined) {
+                                    vex.closeByID(vexModal.data().vex.id);
+                                }
+                            }
+                        }
+                        errorBar(data.ErrorMessage, 60, true);
+                    } else if (data.IsValid) {
+                        if (targetFunction != '') {
+                            window[targetFunction](data.DocumentNumbers, 'added', fileNames, modalContainer.data('shownBy'));
+                        }
+
+                        hideLoaderOptional();
+                        if (vexModal != undefined) {
+                            if (vexModal.data() != undefined) {
+                                if (vexModal.data().vex != undefined) {
+                                    vex.closeByID(vexModal.data().vex.id);
+                                }
+                            }
+                        }
+                    }
+                },
+                error: function (ex) {
+                    button.removeAttr('disabled');
+                    hideLoaderOptional();
+                    if (vexModal != undefined) {
+                        if (vexModal.data() != undefined) {
+                            if (vexModal.data().vex != undefined) {
+                                vex.closeByID(vexModal.data().vex.id);
+                            }
+                        }
+                    }
+                    errorBar(textErrorSelectedDocument, 60, true);
+                }
+            });
+        } else {
+                hideLoaderOptional();
+        confirmAction(textErrorWrongExtension);
+        $(".vex-theme-warning input.btn-link").css("display", "none");
+    }
+
+            resetInputFile();
+    }
+
+    function executeSearch(tabContainer, button) {
+        $.ajax({
+            url: urlPostSearch,
+            type: 'POST',
+            data: serializeContainer(tabContainer),
+            async: true,
+            success: function (data, textStatus, jqXHR) {
+                tabContainer.html(data);
+                button.html(textButtonAdd);
+                hideLoaderOptional();
+                initTableResult();
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+            }
+        });
+    }
+
+    function executeSendSelected(tabContainer, button) {
+        var selector = String.format('[data-id="{0}"] table[data-name="table-result"] tbody tr.selected', popupId);
+        var documentList = $(selector);
+        var modalContainer = button.parents('[data-main-modal="true"]');
+        var vexModal = modalContainer.parents(".vex");
+
+        var documentsObject = [];
+        documentList.each(function (index, element) {
+            documentsObject.push($.parseJSON($(element).attr('data-json')));
+        });
+
+        if (documentsObject.length > 0) {
+            if (targetFunction != '') {
+                window[targetFunction](documentsObject, 'selected', null, modalContainer.data('shownBy'));
+            }
+
+            hideLoaderOptional();
+            if (vexModal != undefined) {
+                if (vexModal.data() != undefined) {
+                    if (vexModal.data().vex != undefined) {
+                        vex.closeByID(vexModal.data().vex.id);
+                    }
+                }
+            }
+
+        } else {
+            hideLoaderOptional();
+            confirmAction(textErrorSelectedDocument);
+            $(".vex-theme-warning input.btn-link").css("display", "none");
+            return;
+        }
+    }
+
+    function initTableResult() {
+        var selector = String.format('[data-id="{0}"] table[data-name="table-result"]', popupId);
+        $(selector).sortableConfluence();
+    }
+
+    function resetInputFile() {
+        var selector = String.format('[data-id="{0}"] input[name="file"]', popupId);
+        var inputFile = $(selector);
+        inputFile.val('');
+        inputFile.siblings('input').val('');
+    }
+    });
+    </script>
+        )

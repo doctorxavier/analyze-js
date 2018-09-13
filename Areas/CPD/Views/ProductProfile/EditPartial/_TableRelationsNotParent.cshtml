@@ -1,0 +1,169 @@
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Areas.Global.Controllers
+@using IDB.MW.Domain.Values;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.CPD.Controllers
+@model IDB.MW.Application.OPUSModule.ViewModels.Common.RelationsViewModel
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var classTreeSon = Model.HasParent ? "tree son" : "tree";
+    var idTable = "relatedOperationsTable" + Model.RelationshipId.ToString();
+    var nameTable = "relationshipType" + Model.RelationshipTypeId.ToString();
+}
+@Confluence.InputHidden(Model.SelfOperation.ToString(), "selfOperation")
+<table id="@idTable" class="tableNormal" style="margin-bottom: 18px" name="@nameTable">
+    <thead>
+        <tr>
+            <th class="@classTreeSon">
+                <span style="height:100%"></span>
+            </th>
+            <th class="w100">@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.Number")</th>
+            <th class="w130">@Localization.GetText("TC.RequestIncrease.ApprovedNumber")</th>
+            <th>@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.OperationName")</th>
+            <th class="w120">@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.OperationType")</th>
+            <th hidden="hidden">@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.RelationshipNumber")</th>
+            <th hidden="hidden">@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.RelationshipType")</th>
+            <th class="w80">@Localization.GetText("R6.Proposal.AnnualAllocation.Modality")</th>
+            <th class="w130">@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.RelationshipRole")</th>
+            <th class="w180">@Localization.GetText("OP.OD.AddRelationship.Result.OverallStage")</th>
+            <th class="w120">@Localization.GetText("OP.OD.AddRelationship.Result.TotalAmount")</th>
+            <th class="w120">@Localization.GetText("OP.OD.AddRelationship.CPDAmount")</th>
+            <th class="w80">@Localization.GetText("OP.OD.AddRelationship.Header.Disbursed")</th>
+            <th class="w150"></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var row in Model.RelatedOperations)
+        {
+            if (!row.RelationshipRoleCode.ToUpper().Contains(ProductProfileController.RelationshipCodeParent) &&
+                (!Model.ParentIsFinancingContainerNo ||
+                    (Model.ParentIsFinancingContainerNo && (Model.CurrentIsParent ||
+                        (!Model.CurrentIsParent && (!Model.CurrentIsChild ||
+                            (Model.CurrentIsChild && Model.SelfOperation == row.OperationRelatedId)))))))
+            {
+                <tr data-id="@row.RowId">
+                    <td class="@classTreeSon"><span></span><span class="selected"></span></td>
+                    <td>@GetLinkNumberOperation(row.Number)</td>
+                    <td>@Confluence.Label(row.ApprovalNumber)</td>
+                    <td>@Confluence.Label(row.Name)</td>
+                    <td class="center">@Confluence.Label(row.OperationTypeCode)</td>
+                    <td hidden="hidden">@Confluence.Label(row.RelationshipNumber)</td>
+                    <td hidden="hidden">@Confluence.Label(row.RelationshipType)</td>
+                    <td>@Confluence.Label(row.Modality)</td>
+                    <td>@Confluence.Label(row.RelationshipRole)</td>
+                    <td>@Confluence.Label(row.OverallStage)</td>
+                    <td class="text-right">
+                        @Confluence.LabelDecimal(row.TotalAmount)
+                    </td>
+                    <td class="text-right">
+                        @Confluence.LabelDecimal(row.CPDAmount)
+                    </td>
+                    <td class="text-right">
+                        @Confluence.LabelDecimalPercent(row.DisbursedPercent)
+                    </td>
+                    <td class="text-center">
+                        @if (!Model.RelationshipTypeCode
+                                        .Contains(RelationTypeCode.PKWP))
+                        {
+                            @GetRelatedExpandedButton(
+                                             idTable, row.RowId, "removeRelatedOperation")
+                        }
+                    </td>
+                    <td hidden="hidden">
+                        <div class="showDataEdit">
+                            @Confluence.ListHelpers(new List<HelperResult>()
+                                    {
+                                        Confluence.InputText(
+                                            row.IsNew ? "0" : row.RowId.ToString(), "relatedOperationId"),
+                                        Confluence.InputText(Model.RelationshipTypeCode, name: "relatioshipTypeCode", disabled: true, htmlClass: "hide", required: false, dataAttributes: new Dictionary<string,string> {{"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}}),
+                                        Confluence.InputText(Model.RelationshipTypeId.ToString(), name: "relatioshipTypeId", disabled: true, htmlClass: "hide", required: false, dataAttributes: new Dictionary<string,string> {{"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}}),
+                                        Confluence.InputText(
+                                            row.OperationRelationshipId.ToString(), "relatedOperationRelationshipId", dataAttributes: new Dictionary<string,string> {{"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}}),
+                                        Confluence.InputText(
+                                            row.OperationRelatedId.ToString(), "OperationRelatedId", dataAttributes: new Dictionary<string,string> {{"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}}),
+                                        Confluence.InputText(
+                                            row.RelationshipRoleId.ToString(), "relatedRelationRoleId", dataAttributes: new Dictionary<string,string> {{"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}}),
+                                        Confluence.InputText(
+                                            row.RelationshipTypeId.ToString(), "relatedRelationTypeId"),
+                                        Confluence.InputText(
+                                            row.RelationShipRoleThisOperationId.ToString(),
+                                            "RelationShipRoleThisOperationId"),
+                                        Confluence.InputDatePicker(
+                                            Convert.ToDateTime(row.StartDate), "relatedStartDate", formatDate),
+                                        Confluence.InputText(
+                                            row.EndDate != DateTime.MinValue ? row.EndDate.ToString() : string.Empty,
+                                            "relatedEndDate",
+                                            required: false),
+                                        Confluence.InputText(
+                                            row.UserCommentId.ToString(), "relatedUserCommentId"),
+                                        Confluence.InputText(
+                                            row.OperationTypeCode, "operationTypeCode", required: false, dataAttributes: new Dictionary<string,string> {{"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}}),
+                                        Confluence.InputText(
+                                            row.RelationTypeCode, "relationTypeCode", required: false)
+                                    })
+                        </div>
+                    </td>
+                </tr>
+                @OperationDataBasicRowComment(row)
+            }
+        }
+    </tbody>
+</table>
+
+@helper OperationDataBasicRowComment(
+    IDB.MW.Application.OPUSModule.ViewModels.Common.RelatedOperationRowViewModel row)
+{
+    <tr data-persist="true" data-row-parent-id="@row.RowId" data-id="@row.RowId" data-second-file="true">
+        <td class="tree son"><span></span></td>
+        <td colspan="11">
+            <div class="row row-header">
+                <div class="col-md-12">
+                    <p>@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.Comments").HtmlEncode()</p>
+                </div>
+            </div>
+            <div class="row row-body-40">
+                <div class="col-md-12">
+                    @Confluence.InputTextArea(
+                            row.Comments,
+                            "relatedComments",
+                            required: false,
+                            width: "100%",
+                            dataAttributes: new Dictionary<string, string>() {
+                                {
+                                    "idb-fieldname", "txaRltdCommentsCpd"
+                                } ,
+                                {"persist-id", Model.RelationshipId.ToString()},{"persist-code", "a"},{"persist-dynamic","id"}})
+                    <br />
+                    @Confluence.ButtonTrash(null, null, "deleteComentOperationRelated",
+                            dataAttributes: new Dictionary<string, string>() {
+                                {
+                                    "idb-fieldname", "btnRemoveRltdCommCpd"
+                                } })
+                </div>
+            </div>
+        </td>
+    </tr>
+}
+@helper GetRelatedExpandedButton(string tableName, int RowId, string dataAction)
+{
+    @Confluence.ButtonTrash(null, null, dataAction,
+                dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnRemoveRltdOpCpd" } })
+
+    @Confluence.ButtonShowRow(
+                dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnShowRowRltdOpCpd" } })
+}
+@helper GetLinkNumberOperation(string numberOperation)
+{
+    var url = string.Empty;
+
+    if (numberOperation.Substring(0, 2).Equals("DF"))
+    {
+        url = GlobalCommonLogic.GetOperationDraftDetailURL() + numberOperation;
+    }
+    else
+    {
+        url = GlobalCommonLogic.GetOperationDetailURL() + numberOperation;
+    }
+
+    <a href=@url target="_parent" style="text-decoration: underline">@numberOperation</a>
+}

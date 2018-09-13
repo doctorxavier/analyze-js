@@ -1,0 +1,146 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Domain.Entities;
+@using IDB.MW.Domain.Values
+
+@model IDB.MW.Application.OPUSModule.ViewModels.CreationFormService.CreationK2TaskViewModel
+
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+}
+
+@*SECURITY BEHAVIOR JS
+    Date:25/11/2015*@
+
+@*<script type="text/javascript" src="@Url.Content("~/Scripts/fieldbehavior.js")"></script>*@
+<input hidden data-idb-pagename="UI-CA-011" />
+
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl=""
+     data-url="@Url.Action("ProcessWorkFlow", "CreationK2", new { area = "OPUS"})">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit"><input type="hidden" name="changeStatus" value="none" /></span>
+
+    <span class="text-right">@Html.Partial("Partials/Controls/ValidationCreationButtons")</span>
+
+    <div class="row row-body-40">
+        @Html.Partial("Partials/Validators")
+    </div>
+
+    <div class="row row-body-40">
+        @Confluence.LabelSubTitleGroup(text: Localization.GetText("Instructions"), htmlClass:"bold")
+        <p class="mt10 mb20">@Html.Raw(Model.Instructions)</p>
+    </div>
+
+
+    <div class="row row-body-40">
+        @Html.Partial("Partials/Comments")
+    </div>
+
+    <div class="row" id="footer-section">
+        <span class="text-right">@Html.Partial("Partials/Controls/ValidationCreationButtons")</span>
+    </div>
+</div>
+@section scripts
+{
+    @if (k2Mode)
+    {
+        @ModuleScripts.K2UIIntegration()
+    }
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+            $(document).ready(function () {
+                enterEditMode(false, $('#workflowComments'), false, false);
+                enterEditMode(false, $('#headerButtons'), false, false);
+                enterEditMode(false, $('#footer-section'), true);
+                @if (k2Mode)
+            {
+                @:$(".mod_contenido_central .headingh2").css("margin", "0.575em 0 0.875em 0")
+                                                                                                                                                @:$(".operationData").css("padding-left", "0")
+                                                                                                                                                @:$("#headerButtons").css("margin-right", "-12%");
+                                                                                                                                                @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+                                                                                                                                            }
+            });
+        });
+
+        function newComment(source) {
+            var newBlock = '<div data-pagemode="edit" class="pb20">' +
+                '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+                        section2: Confluence.Label(Model.UserName), section3: null, value: "", name: "newComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment02" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+           '@Confluence.ButtonTrash(text: "", action: "deleteComment", name: "deleteComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "btnDeleteComment03" } }).ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+
+            $("#divWorkflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+            enterEditMode(false, $("#divWorkflowComments"), false);
+            bindHandlers($("#divWorkflowComments"));
+        }
+
+        function deleteComment(source) {
+            if (source.attr("data-commentId")) {
+                $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+            }
+
+            source.siblings("div.inputComment").parent().remove();
+        }
+
+        function saveAndValidateCreation(source) {
+            $(source.currentTarget).prop("disabled", "disabled")
+            $("[name=changeStatus]").val("ApproveWorkflow");
+            var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+            processWorkFlow(source, url);
+        }
+
+        function saveAndRejectCreation(source) {
+            $(source.currentTarget).prop("disabled", "disabled")
+            $("[name=changeStatus]").val("RejectWorkflow");
+            var url = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+            processWorkFlow(source, url);
+        }
+
+        function saveOnly(source) {
+            $("[name=changeStatus]").val("none");
+            var url = '@Url.Action("Detail", "Tasks", new { area = "Global", id = Model.TaskDataModel.TaskId })';
+            processWorkFlow(source, url);
+        }
+
+        function processWorkFlow(source, url) {
+            showLoader();
+            window.setTimeout(function () {
+                var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+                if (response !== false) {
+                    response.done(function (data) {
+                        hideLoader();
+                        var vexModal = $('.creationModal').parents('.vex');
+                        if (vexModal.length > 0 && vexModal.data().vex.id)
+                            vex.closeByID(vexModal.data().vex.id);
+
+                        if (data.IsValid) {
+                            if (data.IsRegistred) {
+                                var opNumber = '@Model.TaskDataModel.OperationNumber'.replace('@Operation.DRAFT_PREFFIX', '');
+                                var reloadUrl = '/Operation/' + opNumber; //+ '/Pages/Default?myTasks=1';
+
+                                showMessageWithReloadParentIframeAbsolute(
+                                    data.MessageCreation.replaceAll("@OPUSGlobalValues.SEPARATOR", "<br />"),
+                                    reloadUrl);
+                            } else
+                                window.location.href = url;
+                        }
+                        else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            }, 10);
+        }
+
+        function cancelWorkflow(source) {
+            window.location.href = '@Url.Action("Index", "Tasks", new {area = "Global", operationNumber = Model.TaskDataModel.OperationNumber })';
+        }
+
+    </script>
+}

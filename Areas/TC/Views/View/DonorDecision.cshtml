@@ -1,0 +1,328 @@
+﻿@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Presentation.MVC4.Areas.TC.Models;
+@using IDB.Architecture.Language
+@using IDB.MW.Application.TCAbstractModule.ViewModels.DonorDecision
+
+@model DonorDecisionViewModel
+
+@section Header
+{
+    <div class="header">
+        <div class="row row-body-40">
+            <div class="col-md-12">
+                @Html.Partial("Partials/Controls/DonorDecisionButtons", Model)
+                @Html.Partial("Partials/Controls/PartialButtonsDownloadReport")
+            </div>
+        </div>
+        @Html.Partial(
+            "_HeaderP4",
+            new TCHeaderP4ViewModel
+            {
+                Instructions = @Localization.GetText("TC.DonorDecision.DescriptionInstructions"),
+                Fund = Model.Fund,
+                FundCoordinator = Model.FundCoordinator,
+                OperationNumber = @IDBContext.Current.Operation,
+            })
+    </div>
+}
+
+<div id="ShowFundAvailability">
+    <span>&nbsp;</span>
+    @Html.Partial(
+        "Partials/ElegibilityDecision/_FundAvailabilityBlockPartial",
+        Model.AwardFundEligibility)
+</div>
+
+@if (ViewBag.ReadRole)
+{
+    <div class="page">
+        <div id="donorDecisionData"
+             class="row-body-50"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-loadurl="@Url.Action("donordecisionedit",
+                "View",
+                new {
+                    area="TC",
+                    trustfundid=Model.TrustFundId,
+                    singlewindowsmeetingid=Model.SingleWindowsMeetingId
+                })"
+             data-url="@Url.Action("donordecision", "Save" , new { area="TC" })">
+            @Html.Partial("Partials/DonorDecision", Model)
+        </div>
+        @Html.Partial("Partials/Controls/PartialButtonsDownloadReport")
+        @Html.Partial("Partials/Controls/DonorDecisionButtons")
+        <div id="saveAndSendAwardFundEligibilityDistinctTotal" class="hide modalBody">
+            @Localization.GetText("TC.AwardFundEligibility.Button.CommitFundDistinct.Confirm")
+        </div>
+        <div id="saveAndSendAwardFundEligibilityModal" class="hide modalBody">
+            @Localization.GetText("TC.AwardFundEligibility.Button.CommitFund.Confirm")
+        </div>
+        <div id="saveAndSendRejectFundEligibilityModal" class="hide modalBody">
+            @Localization.GetText("TC.DonorDecision.Send.Message")
+        </div>
+        <div id="operationStatusModal" class="hide"></div>
+    </div>
+}
+
+@section scripts{
+
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AwardFundEligibilityCommon()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/TC/Common/download.js")"></script>
+    <script type="text/javascript">
+
+    setStatus(false);
+    setSendOrCommitButton();
+
+    registerCallback(function () {
+        SetVisibilityCommitButton($('[name="sendButton"]'));
+        $(document).on('click', '[name=decision]', function () {
+            setStatus(true);
+            setSendOrCommitButton();
+        });
+        $(document).on('change', 'input[name="waiver"]', waiverClickEvent);
+    });
+
+    function setSendOrCommitButton() {
+        var sendButton = $('[name="sendButton"]');
+        sendButton.removeAttr("disabled");
+        if (($("[name=decision]:checked").val() ==
+                "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.AwardFundEligibility])") ||
+            ($("[name=decision]:checked").val() ==
+                "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.AwardEligibilityTCDocument])")) {
+            sendButton.html('@Localization.GetText("TC.AwardFundEligibility.Button.CommitFund")');
+            SetVisibilityCommitButton(sendButton);
+        }
+        else {
+            sendButton.html('@Localization.GetText("TC.SaveAndSend")');
+        }
+    }
+
+    function waiverClickEvent() {
+        var isYes = $('input[data-id="waiverYes"]').is(':checked');
+        var explain = $('[data-name="explainPanel"]');
+        if (isYes) {
+            explain.show();
+            explain.removeAttr('disabled');
+        }
+        else {
+            explain.hide();
+            explain.attr('disabled', 'disabled');
+        }
+    }
+
+    function setStatus(isEdit) {
+        var awardEligibilitySubFund = $('#awardEligibilitySubFund');
+        var awardFundEligibility = $('#awardFund');
+        var awardFundOptions = $('#awardFundOptions');
+        var rejectFundEligibility = $('#rejectFund');
+        var awardEligibilityTCDocument = $('#awardEligibility');
+        var placeOperationOnHold = $('#placeOperationOnHold');
+        var withdrawOperation = $('#withdrawOperation');
+        var allRegion = $()
+            .add(awardEligibilitySubFund)
+            .add(awardFundEligibility)
+            .add(awardFundOptions)
+            .add(rejectFundEligibility)
+            .add(awardEligibilityTCDocument)
+            .add(placeOperationOnHold)
+            .add(withdrawOperation);
+
+        allRegion.hide();
+        disableContainer(allRegion);
+
+        if (isEdit) {
+            var type = $("[name=decision]:checked").val();
+            switch (type) {
+                case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.AwardFundEligibility])":
+                    awardEligibilitySubFund.show();
+                    enableContainer(awardEligibilitySubFund);
+                    awardFundEligibility.show();
+                    enableContainer(awardFundEligibility);
+                    awardFundOptions.show();
+                    enableContainer(awardFundOptions);
+                    $('input[name=waiver]:checked').change();
+                    break;
+                case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.RejectFundEligibility])":
+                    rejectFundEligibility.show();
+                    enableContainer(rejectFundEligibility);
+                    break;
+                case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.AwardEligibilityTCDocument])":
+                    awardEligibilitySubFund.show();
+                    enableContainer(awardEligibilitySubFund);
+                    awardEligibilityTCDocument.show();
+                    enableContainer(awardEligibilityTCDocument);
+                    awardFundEligibility.show();
+                    enableContainer(awardFundEligibility);
+                    awardFundOptions.show();
+                    enableContainer(awardFundOptions);
+                    $('input[name=waiver]:checked').change();
+                    break;
+                case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.PlaceOperationOnHold])":
+                    placeOperationOnHold.show();
+                    enableContainer(placeOperationOnHold);
+                    break;
+                case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.WithdrawOperation])":
+                    withdrawOperation.show();
+                    enableContainer(withdrawOperation);
+                    break;
+            };
+        }
+    }
+
+    function AddDocuments(documentList, sourceType) {
+        var documentTable = $("#DonorDecisionDocuments");
+        AddDocumentsGeneric(sourceType, documentTable, documentList);
+    }
+
+    function edit(source) {
+        var form = $('#donorDecisionData');
+        form.parsley().destroy();
+        var success = enterEditMode(true, form, true);
+        if (success) {
+            form.parsley();
+            enterEditMode(false, $('.donorDecisionButtons'), false);
+            $('#refreshFundAvailability').removeClass('hide').addClass('showDataEdit');
+            UpdateTargetQuantity();
+            setStatus(true);
+            setSendOrCommitButton();
+        }
+    }
+
+    function cancel(source) {
+        exitEditMode(true, $('#donorDecisionData'), true, true);
+        exitEditMode(false, $('.donorDecisionButtons'), false, false);
+        $('#refreshFundAvailability').addClass('hide');
+        setStatus(false);
+    }
+
+    function save(source) {
+        var deferred = genericSubmit(source, '@SaveControllerTypeEnum.Save');
+        return deferred;
+    }
+
+    function send(source) {
+        var deferred = genericSubmit(source, '@SaveControllerTypeEnum.SaveAndSend');
+        return deferred;
+    }
+
+    function setModalRedirectUrl(url) {
+        $("#operationStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+    }
+
+    function genericSubmit(source, submitType) {
+        $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val(submitType);
+        var resp = $.Deferred();
+        var response = saveContainer(
+            $('#donorDecisionData'),
+            '#hidViewModel',
+            true,
+            $('.donorDecisionButtons'),
+            $(source.target),
+            true,
+            false);
+        if (response !== false) {
+            response
+                .done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+
+                        if (data.ContentHTML != null) {
+                            setOperationStatusModal(data.ContentHTML);
+                        }
+
+                        if (data.UrlRedirect != null) {
+                            setModalRedirectUrl(data.UrlRedirect);
+                        }
+                        setStatus(false);
+
+                        var modals = vex.getAllVexes();
+                        var messages = modals.filter(function () {
+                            var item = $(this);
+                            var isMessage = item.find("[data-showmessage=GenericFunction]").length > 0;
+                            return isMessage;
+                        });
+
+                        if (messages.length > 0) {
+                            setPositionModal(messages);
+                        }
+                    }
+                    resp.resolve(data);
+                });
+        }
+        return resp;
+    }
+
+    function compareTotal() {
+        var totalRequest = $('[name="input-total-requested"]').val();
+        var totalAmount = $('[name="input-total-approved"]').val();
+        return totalRequest == totalAmount;
+    }
+
+    function sendSelector(source) {
+        var operationType = $("[name=decision]:checked").val();
+        var isAllCompleted = $('[name="CompleteOthers"]').val() == "True";
+        switch (operationType) {
+            case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.AwardFundEligibility])":
+                if (compareTotal() || !isAllCompleted) {
+                    $('[name=saveAndSendAwardFundEligibility]').first().click();
+                } else {
+                    $('[name=saveAndSendAwardFundEligibilityDistinctTotal]').first().click();
+                }
+                break;
+            case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.RejectFundEligibility])":
+                $('[name=saveAndSendRejectFundEligibility]').first().click();
+                break;
+            case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.PlaceOperationOnHold])":
+                $("[name=sendHold]").click();
+                break;
+            case "@(ViewBag.EnumMapping[DonorDecisionTypeEnum.WithdrawOperation])":
+                $("[name=sendWithdraw]").click();
+                break;
+            default:
+                if (compareTotal() || !isAllCompleted) {
+                    $('[name=saveAndSendAwardFundEligibility]').first().click();
+                } else {
+                    $('[name=saveAndSendAwardFundEligibilityDistinctTotal]').first().click();
+                }
+                break;
+        }
+    }
+
+    function setOperationStatusModal(data) {
+        var modal = $('#operationStatusModal');
+        modal.html(data);
+    }
+
+    function showOperationStatusModal(target) {
+        if (target === "send" || target === "Withdrawn_Send" || target === "Hold_Send") {
+            $("[name=operationStatusModalButton]").first().click();
+        }
+    }
+
+    function downloadDocument(source) {
+        console.log('Download Document');
+    }
+
+    function removeDocument(source) {
+        console.log('Remove Document');
+    }
+
+    function performAction(source) {
+        vex.closeAll();
+    }
+
+    function cancelUpload() {
+        vex.closeAll();
+    }
+    </script>
+}

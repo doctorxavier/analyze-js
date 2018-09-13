@@ -1,0 +1,1982 @@
+﻿@using IDB.MW.Domain.Values
+@model ICollection<IDB.MW.Application.OPUSModule.ViewModels.FinancialDataPreparationService.FinancialDataPreparationViewModel>
+
+@{
+    ViewBag.showLoader = true;
+    ViewBag.fixLoad = true;
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+
+    var modelEdit = Model.Single(x => x.IsCurrent);
+}
+<link href="@Url.Content("~/Content/Reformulation/reformulation.css")" rel="stylesheet" />
+<link href="@Url.Content("~/Content/Modules/Opus/financialdatapreparation.css")" rel="stylesheet" />
+<style type="text/css">
+    td.tree {
+        display: none;
+    }
+</style>
+
+@if (Model.Count > 1)
+{
+
+    <div class="btn-group tabs-reformulation">
+
+        @foreach (var financialDataPreparation in Model)
+        {
+            <button 
+                class="btn 
+                    @(financialDataPreparation.IsCurrent ? "active is-current" : "")
+                    @(financialDataPreparation.IsCurrent || 
+                        financialDataPreparation.ReformulationApprovalDate == null ? 
+                        "is-editable" : "")"
+                dd-tab="#activity-plan-@financialDataPreparation.ActivityPlanId">
+                @(financialDataPreparation.Name ?? "Original Data")
+            </button>
+        }
+    </div>
+}
+
+<div class="page">
+    <div class="content-expandable">
+        <div class="reformulation-group-content">
+
+        @if (Model.Count > 1)
+        {
+            foreach (var financialDataPreparation in Model)
+            {
+                <div id="activity-plan-@financialDataPreparation.ActivityPlanId"
+                     class="tab-pane financial-data-preparation-content
+                     @(financialDataPreparation.IsCurrent ? "current" : string.Empty) "
+                             data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]">
+                    @Html.Partial(
+                                "Partials/FinancialDataPreparation/FinancialDataPreparationContent",
+                                financialDataPreparation)
+                </div>
+            }
+        }
+        else
+        {
+            <div id="activity-plan-@modelEdit.ActivityPlanId"
+                 class="financial-data-preparation-content current"
+                 data-parsley-validate="data-parsley-validate"
+                 data-parsley-excluded="[disabled]">
+                    @Html.Partial(
+                    "Partials/FinancialDataPreparation/FinancialDataPreparationContent",
+                    Model.First())
+            </div>
+        }
+        </div>
+    </div>
+</div>
+<div data-id="ModalRegionOne">
+    @{
+        var modalTitle = modelEdit.HasRequestIncreasePermission ?
+            Localization.GetText("OP.FD.RequestIncrease") :
+            Localization.GetText("OP.FD.PopUp.ChangeIncrease");
+    }
+    <button data-id="buttonRequestIncrease" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="requestIncreaseContent"
+            data-custom-modal-style=""
+            data-custom-modal-title="@modalTitle"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false"></button>
+
+    <div id="requestIncreaseContent" class="hide" data-parsley-validate="data-parsley-validate">
+        </div>
+    </div>
+
+<div id="executingAgenciesWarningModal" class="hide approvalmodal">
+    @Html.Partial("Partials/FinancialDataPreparation/DataTables/ExecutingAgenciesWarningModal")
+</div>
+@section scripts{
+
+    <script src="~/Scripts/JQchartfx/jquery.mousewheel.js"></script>
+    <script src="~/Scripts/JQchartfx/jquery.jqChart.min.js"></script>
+    <script src="~/Scripts/JQchartfx/jquery.jqRangeSlider.min.js"></script>
+    <script src="~/Scripts/Modules/CoFinancing/CoFinancingTableOperations.js"></script>
+    <script src="~/Scripts/Modules/CoFinancing/CoFinancing.js"></script>
+    
+    <script type="text/javascript">
+
+        var isSavingPipeling = false;
+
+        $(document).ready(function() {
+            initializeGlobalLoader();
+            ClickEventFundID();
+            chekGridBldItem(false);
+            checkFound();
+            amountRequired();
+
+            var isFundTBD = @(modelEdit.IsFundTBD.ToString().ToLower());
+
+            if(!isFundTBD) {
+                $('.financial-data-preparation-content').each(function() {
+                    $(this).find('#fundTbdTitle').addClass('hidden');
+                    $(this).find('td#fundTbdColumn').addClass('hidden');
+                });
+            }
+
+            extractDonorTrustFund();
+
+            RetroactiveExpences($('[name="IsRetroactiveExpense"]:checked').val());
+            refreshValues();
+
+            $(document).on('shown.bs.modal', '#categoriesModal', function () {
+                $('#categoriesModal').attr('data-parsley-validate', 'true');
+                $('input[name="PipelineCategoryId"]').attr('data-parsley-required', 'true');
+            });
+
+            $(document).on('hidden.bs.modal', '#categoriesModal', function () {
+
+                if (!isSavingPipeling){
+                    $('#categoriesModal').attr('data-parsley-validate', 'false');
+                    $('input[name="PipelineCategoryId"]').attr('data-parsley-required', 'false');
+                }
+            });
+
+            CoFinancingMessages = {
+                DeleteFundWarning: '@Localization.GetText("OP.FD.Preparation.DeleteFundWarning")',
+                NoRecords: '@Localization.GetText("OP.FD.Preparation.NoRecords")',
+                RequiredAmountMessage: '@Localization.GetText("OP.FD.Preparation.AmountGreaterThanZeroWarning")'
+            }
+
+            CoFinancingValues = {
+                OTHER: '@OPUSGlobalValues.COFIN_OTHER',
+                InKindValuesArray: ['@OPUSGlobalValues.COFIN_COUNTER_PART_IN_KIND_CODE',
+                                       '@OPUSGlobalValues.COFIN_COFINANCING_IN_KIND_CODE'],
+                KIND: 'KIND',
+                IN_KIND: 'IN_KIND',
+                CANCELLED: '@OPUSGlobalValues.CANCELLED_STATUS'
+            }
+
+            var pageContainer = $("#PageContent");
+
+            pageContainer.find("span.singleTableCollapse").unbind("click");
+            pageContainer.find(".btnCollapseAll").unbind("click");
+            coFinancingTableOperations.collapsableAllCoFinancingTables();
+            coFinancingTableOperations.collapseTableCofinancing();
+
+            coFinancing.statusChange();
+            coFinancing.refreshTotalAmounts();
+        });
+
+
+        function grafico(financialDataPreparationContent) {
+
+            if(!financialDataPreparationContent) {
+                financialDataPreparationContent = $('.financial-data-preparation-content:visible');
+            }
+
+            var pageContent = $('.financial-data-preparation-content:visible').
+                                    find('.fdp-page-content');
+
+            var cancelledStatus = '@OPUSGlobalValues.CANCELLED_STATUS';
+
+            var counterPartTableRows = pageContent.find('#CounterpartFinancing').find('tbody').
+                find('tr').not(".no-height").filter(function() {
+                    var counterPartStatus = $(this).find("#id-CounterpartStatus").GetValue();
+                    counterPartStatus =
+                        counterPartStatus !== null ?
+                            counterPartStatus : $(this).find("label.statusReadMode").attr('data-statusCodeValue');
+                    if (counterPartStatus !== cancelledStatus) {
+                        return $(this);
+                    }
+                });
+
+            var coFinancingTableRows = pageContent.find('#CoFinancing').find('tbody').
+                find('tr').not(".no-height").filter(function() {
+                    var cofinancingStatus = $(this).find("#id-CoFinancingStatus").GetValue();
+                    cofinancingStatus =
+                        cofinancingStatus !== null ?
+                            cofinancingStatus : $(this).find("label.statusReadMode").attr('data-statusCodeValue');
+                    if (cofinancingStatus !== cancelledStatus) {
+                        return $(this);
+                    }
+                });
+
+            var counterPartFinancingInKindRows =
+                coFinancing.loadRowsByType(counterPartTableRows, "IN_KIND", "id-CounterpartFinancingCashOrInKind");
+            var counterPartFinancingCashRows =
+                coFinancing.loadRowsByType(counterPartTableRows, "CASH", "id-CounterpartFinancingCashOrInKind");
+            var counterPartInkindAmountsEditMode = counterPartFinancingInKindRows.find('[name=CounterPartAmount]');
+            var counterPartCashAmountsEditMode = counterPartFinancingCashRows.find('[name=CounterPartAmount]');
+            var counterPartCashAmountsTotal = coFinancing.calculateTotalAmountByType(counterPartCashAmountsEditMode);
+            var counterPartInkindAmountsTotal = coFinancing.calculateTotalAmountByType(counterPartInkindAmountsEditMode);
+
+            if (counterPartInkindAmountsTotal === "" || counterPartInkindAmountsTotal === "0.00") {
+                var counterPartInkindAmountsReadMode = counterPartFinancingInKindRows.
+                                                        find('[data-pagemode="read"] label.CounterPartAmountReadMode');
+                counterPartInkindAmountsTotal =
+                    coFinancing.calculateTotalAmountByType(counterPartInkindAmountsReadMode);
+            }
+
+            if (counterPartCashAmountsTotal === "" || counterPartCashAmountsTotal === "0.00") {
+                var counterPartCashAmountsReadMode = counterPartFinancingCashRows.
+                                                        find('[data-pagemode="read"] label.CounterPartAmountReadMode');
+                counterPartCashAmountsTotal =
+                    coFinancing.calculateTotalAmountByType(counterPartCashAmountsReadMode);
+            }
+
+            var coFinancingInKindRows =
+                coFinancing.loadRowsByType(coFinancingTableRows, "IN_KIND", "id-CoFinancingCashOrInKind");
+            var coFinancingCashRows =
+                coFinancing.loadRowsByType(coFinancingTableRows, "CASH", "id-CoFinancingCashOrInKind");
+            var coFinancingInKindAmountsEditMode = coFinancingInKindRows.find('[name=CoFinancingAmount]');
+            var coFinancingCashAmountsEditMode = coFinancingCashRows.find('[name=CoFinancingAmount]');
+            var coFinancingCashAmountsTotal = coFinancing.calculateTotalAmountByType(coFinancingCashAmountsEditMode);
+            var coFinancingInkindAmountsTotal = coFinancing.calculateTotalAmountByType(coFinancingInKindAmountsEditMode);
+
+            if(coFinancingCashAmountsTotal === "" || coFinancingCashAmountsTotal === "0.00") {
+                var coFinancingCashAmountsReadMode = coFinancingCashRows.
+                                                        find('label.CoFinancingAmountReadMode');
+                coFinancingCashAmountsTotal =
+                    coFinancing.calculateTotalAmountByType(coFinancingCashAmountsReadMode);
+            }
+
+            if (coFinancingInkindAmountsTotal === "" || coFinancingInkindAmountsTotal === "0.00") {
+                var coFinancingInkindAmountsReadMode = coFinancingInKindRows.
+                                                        find('label.CoFinancingAmountReadMode');
+                coFinancingInkindAmountsTotal =
+                    coFinancing.calculateTotalAmountByType(coFinancingInkindAmountsReadMode);
+            }
+
+            var expectedIdb = parseFloat(
+                financialDataPreparationContent.
+                    find('label[data-id="expectedIdbTotalValue"]').
+                    text().
+                    replace(/,/g, '')
+                ) || 0;
+
+
+            var tcaAmountRequested = 0;
+            var background = '#FFFFFF';
+
+            var itemsGraphic = [
+                {
+                    text: '@Localization.GetText("OP.FD.Preparation.ExpectedIDB")',
+                    font: '12px OpenSans',
+                    marker: {
+                        type: 'rectangle',
+                        fillStyle: '#2f69b9'
+                    }
+                },
+                {
+                    text: '@Localization.GetText("OP.FD.Preparation.CashCounterpartFinancing")',
+                    font: '12px OpenSans',
+                    marker: {
+                        type: 'rectangle',
+                        fillStyle: '#1e7228'
+                    }
+                },
+                {
+                    text: '@Localization.GetText("OP.FD.Preparation.InKindCounterPartFinancing")',
+                    font: '12px OpenSans',
+                    marker: {
+                        type: 'rectangle',
+                        fillStyle: '#29a037'
+                    }
+                },
+                {
+                    text: '@Localization.GetText("OP.FD.Preparation.CashCoFinancing")',
+                    font: '12px OpenSans',
+                    marker: {
+                        type: 'rectangle',
+                        fillStyle: '#b366ff'
+                    }
+                },
+                {
+                    text: '@Localization.GetText("OP.FD.Preparation.InKindComplementaryResources")',
+                    font: '12px OpenSans',
+                    marker: {
+                        type: 'rectangle',
+                        fillStyle: '#d9b3ff'
+                    }
+                }
+            ]
+
+            var itemGraphicData = [
+                ['@Localization.GetText("OP.FD.Preparation.ExpectedIDB")', expectedIdb],
+                ['@Localization.GetText("OP.FD.Preparation.CashCounterPartFinancing")', parseFloat(counterPartCashAmountsTotal.replace(/,/g, '')) || 0],
+                ['@Localization.GetText("OP.FD.Preparation.InKindCounterPartFinancing")', parseFloat(counterPartInkindAmountsTotal.replace(/,/g, '')) || 0],
+                ['@Localization.GetText("OP.FD.Preparation.CashCoFinancing")', parseFloat(coFinancingCashAmountsTotal.replace(/,/g, '')) || 0],
+                ['@Localization.GetText("OP.FD.Preparation.InKindComplementaryResources")', parseFloat(coFinancingInkindAmountsTotal.replace(/,/g, '')) || 0]
+            ]
+
+            var parametersJQChart = {
+                legend: {
+                    visible: true,
+                    allowHideSeries: false,
+                    location: 'bottom',
+                    border: {
+                        visible: false
+                    },
+                    font: '12px OpenSans-Semibold',
+                    textFillStyle: '#333333',
+                    customItems: itemsGraphic
+                },
+                border: {
+                    strokeStyle: 'black',
+                    visible: false
+                },
+                background: background,
+                shadows: {
+                    enabled: false
+                },
+                tooltips: {
+                    disabled: false
+                },
+                series: [
+                    {
+                        showInLegend: false,
+                        type: 'pie',
+                        fillStyles: ['#2f69b9', '#1e7228', '#29a037', '#b366ff', '#d9b3ff'],
+                        labels: {
+                            stringFormat: '%.2f%%',
+                            valueType: 'percentage',
+                            font: '12px OpenSans',
+                            fillStyle: 'white'
+                        },
+                        data: itemGraphicData
+                    }
+                ]
+            };
+
+            parametersJQChart = $.extend(parametersJQChart, CustomChart);
+
+            financialDataPreparationContent.find('.jqchart');
+            financialDataPreparationContent.find('.jqchart').jqChart(parametersJQChart);
+
+            financialDataPreparationContent.find('.jqchart').bind('tooltipFormat', function (e, data) {
+                var percentage = data.series.getPercentage(data.value);
+                percentage = data.chart.stringFormat(percentage, '%.2f%%');
+
+                return '<p style="color: white; font-weight: bold; font-size: 16px;text-shadow: black 0.1em 0.1em 0.2em;"><b>' +
+                    data.dataItem[0] + '</b><br />' + '<b>' +
+                    convertFloatToStringWithFormat(data.value.toFixed(2)) + ' (' + percentage + ')' + '</b></p>';
+            });
+
+            financialDataPreparationContent.find('span.icon[onclick]').click(function () {
+                ocultarNewRow();
+            });
+
+            financialDataPreparationContent.find('div.btnCollapseAll').click(function () {
+                ocultarNewRow();
+            });
+
+            if (
+                parseInt(
+                    financialDataPreparationContent.
+                        find('[data-id="totalOperationCostValue"]').
+                        text().
+                        replace(/,/g, '')
+                ) > 0) {
+
+                $('canvas').show();
+            } else {
+                $('canvas').hide();
+            }
+
+            financialDataPreparationContent.find('[name="CoFinancingAmmountTotalValue"]').click(function () {
+                if ($(this).val().length > 0) {
+                    if ($(this).val().replace(/,/g, '') * 1 === 0) {
+                        $(this).val("");
+                    }
+                }
+            });
+
+            financialDataPreparationContent.find('[name="CounterpartFinancingAmount"]').click(function () {
+                if ($(this).val().length > 0) {
+                    if ($(this).val().replace(/,/g, '') * 1 === 0) {
+                        $(this).val("");
+                    }
+                }
+            });
+        }
+
+        registerCallback(function () {
+            $(document).ready(function () {
+
+                $('.financial-data-preparation-content').each(function() {
+                    grafico($(this));
+                });
+
+                refreshValues();
+            });
+        });
+
+        function toggleTcAbstractEditionInformationMessages(isInEditMode) {
+            var areLockedAmounts = @(modelEdit.AreLockedAmountsByGCM.ToString().ToLower());
+
+            if (areLockedAmounts && isInEditMode) {
+                $('span.tc-abstract-not-editable-message.pull-left').removeClass('hide');
+
+                return;
+            }
+
+            $('span.tc-abstract-not-editable-message.pull-left').addClass('hide');
+        }
+
+        function edit(source) {
+            $.ajax({
+                url: "@Url.Action("GetExecutingAgenciesValidation", "View")",
+                dataType: "json",
+                data: { 'executingAgenciesIds': '' },
+                success: function (data) {
+                    if (!data.IsValid) {
+                        modalContent = $('div#executingAgenciesWarningModal');
+                        modalContent.find('#exAgModalMessage').text(data.WarningMessage);
+                        modalContent.removeClass('hide');
+                        openModal(modalContent, function () {
+                            modalContent.addClass('hide');
+                        }, true, 'warning');
+                    } else {
+                        postUrlWithOptions('@Url.Action("LockRegister", "View", new { area = "OPUS" })', { async: false }, { url: '@OPUSGlobalValues.URL_FINANCIAL_DATA_PREPARATION' })
+                            .done(function (data) {
+                                if (data.IsValid === true) {
+                                    var success = enterEditMode(false, $('#PageContent'), false);
+                                    if (success) {
+                                        enterEditMode(false, $('[data-id=headerButtons]'), false);
+                                    }
+
+                                    grafico();
+                                    ReformulationTabs.DisableButtons();
+                                    RetroactiveExpences($('input[name="IsRetroactiveExpense"]:checked').val());
+                                    RetroactiveExpensesRule();
+                                    AddSubFundCode();
+                                    extractDonorTrustFund();
+                                    coFinancing.fillFundingSource();
+                                    coFinancing.loadEditModeFunctions();
+                                    coFinancing.addNewRowCounterpartFinancing();
+                                    coFinancing.addNewRowCoFinancing();
+                                    coFinancing.removeCoFinancing();
+                                    coFinancing.removeCounterPart();
+                                    coFinancing.removeNAElements();
+                                    toggleTcAbstractEditionInformationMessages(true);
+
+                                    if ('@modelEdit.IsPsgOperation'.toLocaleLowerCase()) {
+                                        PsgDonorSelectFund();
+                                    }
+
+                                } else {
+                                    showMessage(data.ErrorMessage);
+                                }
+                            });
+                    }
+                },
+            });
+        }
+
+        function cancel(source) {
+            var msg = '@Localization.GetText("OP.FD.Preparation.CancelWarningMessage")';
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "View", new { area = "OPUS" })', { async: true }, { url: '@OPUSGlobalValues.URL_CREATION_FORM' });
+                    exitEditMode(true, $('#PageContent'), true, false);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    chekGridBldItem(false);
+                    grafico();
+                    coFinancing.refreshTotalAmounts();
+                    ReformulationTabs.EnableButtons();
+                    RetroactiveExpensesRule();
+                    var selectValue = $("input[name='IsRetroactiveExpense']:checked").val();
+                    RetroactiveExpences(selectValue);
+                    coFinancingTableOperations.collapsableAllCoFinancingTables();
+                    coFinancingTableOperations.collapseTableCofinancing();
+                    toggleTcAbstractEditionInformationMessages(false);
+                    var numberOfTbd = $('#gridExpectedIDB .yes').length;
+
+                    if (numberOfTbd == 0) {
+                        $('td#fundTbdColumn').addClass('hidden');
+                        $('#fundTbdTitle').addClass('hidden');
+                    }
+                }
+            });
+        }
+
+        function businessValidations() {
+            if ($('input[name="IsRetroactiveExpense"]').first().is(':checked')) {
+                $('input[name="RetroactiveExpensePercent"]').attr("required", true);
+                $('input[name="StartingDate"]').attr("required", true);
+                $('input[name="EndDate"]').attr("required", true);
+            } else {
+                $('input[name="RetroactiveExpensePercent"]').attr("required", false);
+                $('input[name="StartingDate"]').attr("required", false);
+                $('input[name="EndDate"]').attr("required", false);
+            }
+
+            if ($('input[name="CounterpartFinancingInKind"]').not('[disabled]').is(':checked')) {
+                $('input[name="Description"]').attr("required", true);
+            } else {
+                $('input[name="Description"]').attr("required", false);
+            }
+
+            if ($('input[name="CoFinancingInKind"]').not('[disabled]').is(':checked')) {
+                $('input[name="CoFinancingName"]').attr("required", true);
+                $('input[name="CoFinancingDescription"]').attr("required", true);
+            } else {
+                $('input[name="CoFinancingName"]').attr("required", false);
+                $('input[name="CoFinancingDescription"]').attr("required", false);
+            }
+
+            var executingAgenciesIds = '';
+            $('div.current').find('[name="ExecutingAgencyId"]').each(function () {
+                if ($(this).GetValue() != null) {
+                    executingAgenciesIds += $(this).GetValue() + ",";
+                } else if ($(this).val() != null) {
+                    executingAgenciesIds += $(this).val() + ",";
+                }
+            });
+
+             $.ajax({
+                url: "@Url.Action("GetExecutingAgenciesValidation", "View")",
+                dataType: "json",
+                data: { 'executingAgenciesIds': executingAgenciesIds },
+                success: function (data) {
+                    if (data.IsValid) {
+                        if (!data.IsRuleOK) {
+                            modalContent = $('div#executingAgenciesWarningModal');
+                            modalContent.find('#exAgModalMessage').text(data.WarningMessage);
+                            modalContent.removeClass('hide');
+                            openModal(modalContent, function () {
+                                modalContent.addClass('hide');
+                            }, true, 'warning');
+                        } else {
+                            save();
+                        }
+                    } else {
+                        modalContent = $('div#executingAgenciesWarningModal');
+                        modalContent.find('#exAgModalMessage').text(data.WarningMessage);
+                        modalContent.removeClass('hide');
+                        openModal(modalContent, function () {
+                            modalContent.addClass('hide');
+                        }, true, 'warning');
+                    }
+                },
+            });
+        }
+
+        function amountRequired() {
+            $("[name='UsAmount']").not('.hide').change(function () {
+                if ($(this).val() == "0.00") {
+                    $(this).closest("td").find('ul').addClass("filled").find("li").remove();
+                    $(this).closest("td").find('ul').append("<li class='usRequired'>@Localization.GetText("This value is required.")</li>");
+
+                } else {
+                    if ($(this).closest("td").find('li.usRequired').length == 1 && $(this).closest("td").find('li').length == 1) {
+                        $(this).closest("td").find('ul').removeClass("filled").find("li.usRequired").remove();
+                    }
+                    if (($(this).closest("td").find('li.usRequired').length == 1 && $(this).closest("td").find('li').length > 1)) {
+                        $(this).closest("td").find('ul').find("li.usRequired").remove();
+                    }
+
+                }
+            });
+        }
+
+        function save() {
+            var response = true;
+            var validAmounts = true;
+
+            coFinancingAmountValidationMessages = {
+                RequiredAmountMessage:
+                    '@Localization.GetText("OP.FD.Preparation.AmountGreaterThanZeroWarning")'
+            }
+
+            response = validateContainer($('#PageContent'));
+
+            var isCounterpartAmountValid = coFinancing.validateAmounts($('[name="CounterPartAmount"]'));
+            var isCofinancingAmountValid = coFinancing.validateAmounts($('[name="CoFinancingAmount"]'));
+
+            var validAmounts = isCofinancingAmountValid && isCounterpartAmountValid;
+
+            $("[name='UsAmount']").not('.hide').each(function (i, element) {
+                if ($(element).val() == "0.00") {
+                    $(element).closest("td").find('ul').addClass("filled").find("li").remove();
+                    $(element).closest("td").find('ul').append("<li class='usRequired'>@Localization.GetText("This value is required.")</li>");
+                    response = false;
+                } else {
+                    if ($(element).closest("td").find('li.usRequired').length == 1 && $(element).closest("td").find('li').length == 1) {
+                        $(element).closest("td").find('ul').removeClass("filled").find("li.usRequired").remove();
+                    }
+                    if (($(element).closest("td").find('li.usRequired').length == 1 && $(element).closest("td").find('li').length > 1)) {
+                        $(element).closest("td").find('ul').find("li.usRequired").remove();
+                    }
+
+                }
+            });
+
+            if ($('input[name="IsRetroactiveExpense"]').first().is(':checked')) {
+                var fechaInicio = converToDate($('input[name="StartingDate"]').val());
+                var fechaTermino = converToDate($('input[name="EndDate"]').val());
+                var ppDate = converToDate($('input[name="ppDate"]').val());
+                if (fechaInicio && fechaTermino) {
+                    if (ppDate && fechaInicio.getTime() < ppDate) {
+                        response = false;
+
+                        if ($('input[name="StartingDate"]').closest("div").find('li').length == 0) {
+                            $('input[name="StartingDate"]').closest("div").find('ul').addClass("filled").append("<li id='retroStartDateMessage'>@Localization.GetText("OP.FD.Preparation.MsgStartDate")</li>");
+                        } else {
+                            $('input[name="StartingDate"]').closest("div").find('ul').addClass("filled").find("li").remove();
+                            $('input[name="StartingDate"]').closest("div").find('ul').append("<li id='retroStartDateMessage'>@Localization.GetText("OP.FD.Preparation.MsgStartDate")</li>");
+                        }
+                    } else {
+                        $("#retroStartDateMessage").remove();
+                    }
+                    if ((fechaTermino.getTime() - fechaInicio.getTime()) < 0) {
+                        response = false;
+
+                        if ($('input[name="EndDate"]').closest("div").find('li').length == 0) {
+                            $('input[name="EndDate"]').closest("div").find('ul').addClass("filled").append("<li id='retroEndDateMessage'>@Localization.GetText("OP.FD.Preparation.MsgEndDate")</li>");
+                        } else {
+                            $('input[name="EndDate"]').closest("div").find('ul').addClass("filled").find("li").remove();
+                            $('input[name="EndDate"]').closest("div").find('ul').append("<li id='retroEndDateMessage'>@Localization.GetText("OP.FD.Preparation.MsgEndDate")</li>");
+                        }
+                    } else {
+                        $("#retroEndDateMessage").remove();
+                    }
+
+                    if (fechaTermino.getTime() - fechaInicio.getTime() > 0) {
+                        var months = fechaTermino.getMonth() - fechaInicio.getMonth() + (12 * (fechaTermino.getFullYear() - fechaInicio.getFullYear()));
+
+                        if (months > 18) {
+                            response = false;
+                            if ($('input[name="EndDate"]').closest("div").find('li').length == 0) {
+                                $('input[name="EndDate"]').closest("div").find('ul').addClass("filled").append("<li id='retroEndDateMessage'>@Localization.GetText("OP.FD.Preparation.MsgEndDate2")</li>");
+                            } else {
+                                $('input[name="EndDate"]').closest("div").find('ul').addClass("filled").find("li").remove();
+                                $('input[name="EndDate"]').closest("div").find('ul').append("<li id='retroEndDateMessage'>@Localization.GetText("OP.FD.Preparation.MsgEndDate2")</li>");
+                            }
+                        } else {
+                            $("#retroEndDateMessage").remove();
+                        }
+                    }
+                }
+            }
+
+            var hasCtyAttributeValue = @(modelEdit.HasCtyAttributeValue.ToString().ToLower());
+            var isTCPOperation = "@modelEdit.OperationTypeCode" == "@OperationType.TCP";
+            var hasCTYFunds = checkIsFundSelected('@FundCode.CTY');
+
+            if (isTCPOperation && hasCTYFunds && !hasCtyAttributeValue) {
+                confirmActionCustom("@Localization.GetText("FD.CTYFund.Attribute.Validation.Message")", null);
+                response = false;
+            }
+
+            var hasScxAttributeValue = @(modelEdit.HasScxAttributeValue.ToString().ToLower());
+            var mandatoryScxClassifOperTypes = [
+                '@OperationType.TCP',
+                '@OperationType.IGR',
+                '@OperationType.EQU',
+                '@OperationType.GUA',
+                '@OperationType.LON',
+                '@OperationType.EFC'];
+            var isMandatoryScxOperation = mandatoryScxClassifOperTypes.indexOf('@modelEdit.OperationTypeCode') >= 0;
+            var isScxFundSelected = checkIsFundSelected('@FundCode.SCX');
+
+            if (isMandatoryScxOperation && isScxFundSelected && !hasScxAttributeValue) {
+                confirmActionCustom("@Localization.GetText("FD.SCXFund.Attribute.Validation.Message")", null);
+                response = false;
+            }
+
+            if(response && !checkPipelineCategory() && validAmounts) {
+                confirmSave();
+            }
+
+            coFinancing.cleanFundingSourceErrorLists();
+            coFinancing.hideRowsWithErrors();
+            coFinancingTableOperations.collapsableAllCoFinancingTables();
+            coFinancingTableOperations.collapseTableCofinancing();
+            toggleTcAbstractEditionInformationMessages(false);
+        }
+
+        function saveWithCategory() {
+            var response = true;
+            var categoriesModal = $('#categoriesModal');
+
+            response = validateContainer(categoriesModal);
+            isSavingPipeling = response;
+
+            if (response) {
+                categoriesModal.modal('hide');
+                confirmSave();
+            }
+        }
+
+        function closeWithCategory() {
+            isSavingPipeling = false;
+            $('#categoriesModal').modal('hide');
+        }
+
+        function confirmSave() {
+             confirmAction("@Localization.GetText("OP.FD.Preparation.SaveWarningMessage")").done(function (pressOk) {
+                if (pressOk) {
+
+                    var response = saveContainer($('#PageContent'), '#hidViewModel', true, $('#headerButtons'), null, null, null, null, true);
+
+                    if (response !== false) {
+                        response.done(function (data) {
+                            chekGridBldItem(false);
+                            grafico();
+                            ReformulationTabs.EnableButtons();
+                            RetroactiveExpensesRule();
+                            var selectValue = $("input[name='IsRetroactiveExpense']:checked").val();
+                            RetroactiveExpences(selectValue);
+
+                            var isFundTBD = @(modelEdit.IsFundTBD.ToString().ToLower());
+
+                            if (!isFundTBD) {
+
+                                $('#PageContent').find('td#fundTbdColumn').addClass('hidden');
+                                $('#PageContent').find('#fundTbdTitle').addClass('hidden');
+
+                            }
+
+                            extractDonorTrustFund();
+
+                            if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                                $('[data-idb-fieldname="btnEdit"]').prop('disabled',false);
+
+                                if (data.SAPMessage != null && data.SAPMessage != '') {
+                                    showMessage(data.SAPMessage.replaceAll("@OPUSGlobalValues.SEPARATOR", "<br />"));
+                                }
+
+                                 $('button.active').click();
+                                 coFinancingTableOperations.collapsableAllCoFinancingTables();
+                                 coFinancingTableOperations.collapseTableCofinancing();
+                                 refreshValues();
+                            }
+                        });
+                    }
+                    chekGridBldItem(false);
+                    grafico();
+                    RetroactiveExpensesRule();
+                    var selectValue = $("input[name='IsRetroactiveExpense']:checked").val();
+                    RetroactiveExpences(selectValue);
+                }
+             });
+        }
+
+        function checkPipelineCategory() {
+            var amountTotal =
+                $('span[data-pagemode="read"]>[data-id="totalOperationCostValue"]').text();
+            var hasPipelineCategory =
+                JSON.parse($('[name=HasPipelineCategory]').val());
+            var categoriesModal = $('#categoriesModal');
+
+            if ("@OperationType.IGR" == "@modelEdit.OperationTypeCode") {
+                if (parseInt(amountTotal.replace(/,/g,"")) >= 3000000 && !hasPipelineCategory) {
+                    categoriesModal.modal('show');
+                    categoriesModal.attr('style', 'display: flex !important');
+                    return true;
+                }
+            }
+        }
+
+        function checkIsFundSelected(fundCode) {
+            var gridRows = $('#PageContent').find("#gridExpectedIDB").find('tbody > tr[data-id]');
+            var isFundSelected = false;
+
+            gridRows.each(function(index, item) {
+                var valueText = $(this).find('#id-FundId .valueText');
+
+                if(valueText.text().replace(/\s*\-\s+.*/, '') == fundCode) {
+                    isFundSelected = true;
+
+                    return false;
+                }
+            });
+
+            return isFundSelected;
+        }
+
+    function chekGridBldItem(checkOnlyLast) {
+        var container = checkOnlyLast ?
+            $("#gridExpectedIDB").find('tbody>tr[data-id]').last() :
+            $("#gridExpectedIDB").find('tbody>tr[data-id]');
+            $.each(container, function () {
+                var isBld = checkRowBld($(this));
+                if (isBld) {
+                    if (!$(this).next().is('[dd-bld]')) {
+                        insertRowsBld($(this), false);
+                    }
+                }
+            });
+        }
+
+        function checkRowBld(row) {
+            if (row.find("input[name='isBld']").length > 0) {
+                return row.find("input[name='isBld']").val().toLowerCase() == "true";
+            } else {
+                return false;
+            }
+        }
+
+        function insertRowsBld(rowParent, edit) {
+            var amount = rowParent.find("input[name='UsAmount']").val();
+            amount !== "" ? amount = amount.replace(/\,/g, "") : amount = '0';
+            $.get("../View/GetRowsBld", { amount: amount }, function (data) {
+                rowParent.after(data);
+                if (edit) {
+                    rowParent.next().find("td[data-pagemode='edit']").removeClass();
+                    rowParent.next().next().find("td[data-pagemode='edit']").removeClass();
+                }
+            });
+        }
+
+        function removeRowExpectedIDB(source) {
+            var msg = '@Localization.GetText("OP.FD.Preparation.DeleteFund")';
+            var emptyTableMessage = '@Localization.GetText("OP.FD.Preparation.NoRecords")';
+
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    var row = source.closest('tr');
+                    var isBld = checkRowBld(row);
+                    if (isBld) {
+                        removeBldRows(row);
+                    }
+
+                    var rowTable = row.parents('table');
+                    row.remove();
+
+                    if (rowTable.find('tbody').find('tr[data-id]').length === 0) {
+
+                        if (rowTable.find('tbody').find("tr.no-height").length === 0)
+                        {
+                            rowTable.find('tbody').append("<tr class='no-height'></tr>");
+                        }
+
+                        rowTable.
+                            after("<div class='col-md-12'><p class='noRecords text-center mb10'>" +
+                                emptyTableMessage +
+                              "</p></div>");
+                    }
+
+                    refreshValues();
+                    grafico();
+                    checkFound();
+                    extractDonorTrustFund();
+                }
+            });
+        }
+
+        function removeBldRows(row) {
+            if (row.next().is('[dd-bld]')) {
+                row.next().remove();
+                row.next().remove();
+            }
+        }
+
+        function addNewRowExpectedIDB() {
+            var container = $('#PageContent').find("#gridExpectedIDB").find('tbody');
+
+            $.get("../View/GetRowExpectedIDB", { operationType: '@modelEdit.OperationTypeId', country: '@modelEdit.CountryId', isPsgOperation: '@modelEdit.IsPsgOperation',
+                isFromPreparationFinancialData: true }, function (data) {
+                    $(container).append(data);
+                    $(container).find('tr').not('[data-id]').remove();
+                    bindHandlers();
+                    enterEditMode(false, $(container), false);
+
+                    var noRecordsElement = $(container).parents('table').
+                                                next('div.col-md-12').
+                                                find('p.noRecords');
+
+                    if (noRecordsElement.length > 0) {
+                        noRecordsElement.parent().remove();
+                    }
+
+                    var spanExpandCollapseIcon = $(container).
+                                                     parent().
+                                                     find('thead').
+                                                     find('span.icon');
+
+                    if (spanExpandCollapseIcon.text().trim() === '+') {
+                        spanExpandCollapseIcon.click();
+                    }
+
+                    $('[name="UsAmount"]').click(function () {
+                        if ($(this).val().length > 0) {
+                            if ($(this).val().replace(/,/g, '') * 1 === 0) {
+                                $(this).val("");
+                            }
+                        }
+                    });
+
+                    ClickEventFundID();
+                    amountRequired();
+                    var actualSelect = $('#PageContent').find('#gridExpectedIDB tr:last #fundTbdColumn div[data-pagemode="edit"]');
+                    actualSelect.removeAttr('class', 'showDataEdit');
+
+                    extractDonorTrustFund();
+
+                    if ($('th#fundTbdTitle.selected').length === 0) {
+                        $('#PageContent').find('#gridExpectedIDB tr:last #fundTbdColumn').addClass('hidden');
+                    }
+                });
+        }
+
+        function ClickEventFundID() {
+            $('ul.dropdown-menu[aria-labelledby="id-FundId"]').click(function () {
+                var codFund = $(this).closest('div.dropdown').find('button').GetText().split('-')[0].trim();
+                var row = $(this).closest('tr');
+                var actualSelect = $(this).closest('td').next('#fundTbdColumn');
+
+                if (codFund === "BLD") {
+
+                    var isBld = row.find("input[name='isBld']");
+                    var element = $(this).closest('div.dropdown').find('input');
+
+                    $.get("../View/CheckBld", { fundCode: codFund }, function (data) {
+                        if (data === true) {
+                            isBld.val(true);
+                            removeBldRows(row);
+                            insertRowsBld(row, true);
+                        } else if (isBld.val().toLowerCase() == "true") {
+                            isBld.val(false);
+                            removeBldRows(row);
+                        }
+                    });
+
+                    if ($(element) != undefined && $(element) != null && $(element).val() !== "") {
+                        var content = $(this).closest('tr');
+                        $.ajax({
+                            url: "../View/FillSapCodeSpecialProgram",
+                            type: "POST",
+                            dataType: "json",
+                            data: { 'idFund': parseInt($(element).val()) },
+                            success: function (Data) {
+                                $(content).find("[name='SapCode']").val(Data.CheckFundAvailabilityViewModel.SapCode);
+                                $(content).find("[name='OCSpecialProgram']").val(Data.CheckFundAvailabilityViewModel.OcSpecialProgram);
+                            }
+                        });
+                    }
+                } else {
+                    removeBldRows(row);
+                }
+            });
+        }
+
+        $(document).on("focusout", "input[name='UsAmount']", function () {
+            var row = $(this).closest('tr');
+            var codFund = $(row).find('.valueText').text().split('-')[0].trim();
+            if (codFund === "BLD") {
+                removeBldRows(row);
+                insertRowsBld(row, true);
+            }
+            refreshValues();
+            grafico();
+        });
+
+        function getCurrentCounterPartValue($this) {
+
+            var currentCounterpartValue;
+
+            if($this.find("[data-idb-fieldname='txtCountFinAmount']").is('input')) {
+                currentCounterpartValue = $this.find("input[data-idb-fieldname='txtCountFinAmount']")
+                    .val() != null ? parseFloat($this.find("input[data-idb-fieldname='txtCountFinAmount']")
+                    .val().replace(/,/g, '')) : 0;
+            }else{
+                currentCounterpartValue = $this.find("label[data-idb-fieldname='txtCountFinAmount']")
+                    .text() != "" ? parseFloat($this.find("label[data-idb-fieldname='txtCountFinAmount']")
+                    .text().replace(/,/g, '')) : 0;
+            }
+
+            return currentCounterpartValue;
+        }
+
+        function refreshValues() {
+
+            $('.fdp-page-content').each(function() {
+
+                var $this = $(this);
+
+                var totalOperationCost = 0;
+                var totalExpectedIDB = 0;
+                var totalCofinancing = 0;
+                var totalParallelCofinancing = 0;
+
+                var counterpart = getCurrentCounterPartValue($this);
+
+                CoFinancingParallelValues = {
+                    PARALLEL_GRANT: '@OPUSGlobalValues.COFIN_PARALLEL_GRANT',
+                    PARALLEL_LOAN: '@OPUSGlobalValues.COFIN_PARALLEL_LOAN',
+                    CANCELLED: '@OPUSGlobalValues.CANCELLED_STATUS'
+                }
+
+                totalCofinancing =
+                    coFinancing.totalCofinancingCalculation($this.find("#CoFinancing"), false);
+
+                totalParallelCofinancing =
+                    coFinancing.totalCofinancingCalculation($this.find("#CoFinancing"), true);
+
+                //Refresh Total expectedIDB
+                $this.find('#gridExpectedIDB').find("input:text[name='UsAmount']").each(function () {
+                    var currentVal = $(this).val().replace(/,/g, '') * 1;
+                    totalExpectedIDB += currentVal;
+                });
+
+                //Calculate Total Operation Cost
+                totalOperationCost =
+                    parseFloat(totalExpectedIDB + counterpart + totalCofinancing).toFixed(2);
+
+                if (isNaN(totalOperationCost)) {
+                    totalOperationCost = parseFloat(0).toFixed(2);
+                }
+
+                //Set Values in Display
+                $this.find('label[data-id="expectedIdbTotalValue"]').text(parseFloat(totalExpectedIDB).toFixed(2).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+                $this.find('label[data-id="totalOperationCostValue"]').text(totalOperationCost.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+                $this.find('label[data-id="totalParalelleCoFinancing"]').text(totalParallelCofinancing.toFixed(2).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+            });
+        }
+
+        function ChkFundAvailability() {
+            if ($('#PageContent').find("#gridExpectedIDB > tbody").children().length > 0) {
+                $('.vex').remove();
+                showMessage('@Localization.GetText("OP.FD.Preparation.CheckFundAvailability.Msg")');
+                $(".vex-close").hide();
+                ChkFundAvailabilityData();
+            }
+        }
+
+        function ChkFundAvailabilityData() {
+            var resultList = [];
+            $('#PageContent').find("#gridExpectedIDB tbody tr[data-id]").each(function () {
+                var fundVal = $(this).find("[name='UsAmount']").val();
+                if (fundVal !== undefined) {
+                    fundVal = fundVal.trim();
+                    if ($(this).find("input[name='FundId']").length > 0 && $(this).find("input[name='FundId']").val() !== "" && fundVal != "") {
+                        var fundid = $(this).find("input[name='FundId']");
+                        var amount = $(this).find("[name='UsAmount']");
+                        var sapcode = $(this).find("[name='SapCode']");
+                        var ocspecialprogram = $(this).find("[name='OCSpecialProgram']");
+
+                        var itemFund = {};
+                        itemFund.Name = "FundID";
+                        itemFund.Value = fundid.val();
+                        resultList.push(itemFund);
+
+                        itemAmount = {};
+                        itemAmount.Name = "Amount";
+                        itemAmount.Value = amount.val();
+                        resultList.push(itemAmount);
+
+                        itemSapCode = {};
+                        itemSapCode.name = sapcode.attr('name');
+                        itemSapCode.value = sapcode.val();
+                        resultList.push(itemSapCode);
+
+                        itemSpecialProgram = {};
+                        itemSpecialProgram.name = ocspecialprogram.attr('name');
+                        itemSpecialProgram.value = ocspecialprogram.val();
+                        resultList.push(itemSpecialProgram);
+                    }
+                }
+            });
+
+            GetChkFundAvailabilityAjax(resultList);
+        }
+
+        function GetChkFundAvailabilityAjax(data) {
+            $.ajax({
+                type: 'POST',
+                url: "../View/ChkFundAvailability",
+                async: true,
+                datatype: "json",
+                data: JSON.stringify({ ClientFieldData: data, SerializedData: "" }),
+
+                success: function (data) {
+                    if (data.ErrorMessage == undefined) {
+                        var messageContent = "";
+                        $.each(data, function (i, item) {
+                            messageContent = messageContent + data[i].Message;
+                        });
+                        if (messageContent != null && messageContent.toString() !== "") {
+                            $("[data-id='mainContainer']").show(100);
+                            $(".vex-close").show();
+                            $("[data-id='mainContainer']").find("[data-showmessage]").html(messageContent);
+                        }
+                    } else {
+                        $("[data-id='mainContainer']").show(100);
+                        $(".vex-close").show();
+                        $("[data-id='mainContainer']").find("[data-showmessage]").html(data.ErrorMessage);
+                    }
+                }
+            });
+        }
+
+        $(document).ready(function () {
+            InKind();
+            var selectValue = $("input[name='IsRetroactiveExpense']:checked").val();
+            RetroactiveExpences(selectValue);
+            $($('div[data-pagemode]').first()).attrchange({
+                trackValues: true,
+                callback: function (event) {
+                    if (event.newValue !== "display:none") {
+                        InKind();
+                    }
+                }
+            });
+        });
+
+        function InKind() {
+        }
+
+        function overloadColapseAll() {
+            if (!$('input[name="CoFinancingInKind"]').is(':checked')) {
+                $('#CoFinancing').closest('table').find('tbody').hide();
+                $('#CoFinancing').closest('table').find('thead tr').not(':first').hide();
+                $('#CoFinancing').closest('table').find('thead tr').first().find('th').find('span').hide();
+            }
+
+            if (!$('input[name="CounterpartFinancingInKind"]').is(':checked')) {
+                $('#CounterpartFinancing').closest('table').find('tbody').hide();
+                $('#CounterpartFinancing').closest('table').find('thead tr').not(':first').hide();
+                $('#CounterpartFinancing').closest('table').find('thead tr').first().find('th').find('span').hide();
+            }
+        }
+
+        function RetroactiveExpensesRule() {
+            $('input[name="IsRetroactiveExpense"]').click(function () {
+                var selectValue = this.value;
+                RetroactiveExpences(selectValue);
+            });
+        }
+
+        function RetroactiveExpences(selectValue) {
+            if (selectValue === "Yes") {
+                $("input[name='RetroactiveExpensePercent']").attr("data-parsley-required", true);
+                $("input[name='StartingDate']").attr("data-parsley-required", true);
+                $("input[name='EndDate']").attr("data-parsley-required", true);
+                $('input[name="RetroactiveExpensePercent"]').attr('data-min', '1');
+                $('input[name="RetroactiveExpensePercent"]').attr('data-max', '20');
+                $('#retroctiveExpenses').show();
+            } else {
+
+                $('input[name="RetroactiveExpensePercent"]').removeAttr("data-max");
+                $('input[name="RetroactiveExpensePercent"]').removeAttr("data-min");
+                if ($("input[name='RetroactiveExpensePercent']").val() === "") {
+                    $("input[name='RetroactiveExpensePercent']").val("1");
+                } else {
+                    $("input[name='RetroactiveExpensePercent']").val(parseInt($("input[name='RetroactiveExpensePercent']").val()).toString());
+                }
+                $("input[name='RetroactiveExpensePercent']").attr("data-parsley-required", false);
+                $("input[name='StartingDate']").attr("data-parsley-required", false);
+                $("input[name='EndDate']").attr("data-parsley-required", false);
+                $('#retroctiveExpenses').hide();
+            }
+        }
+
+        function ocultarNewRow() {
+            if ($('#PageContent').find('#gridExpectedIDB tbody').css('display') === "none") {
+                $('button[name="Financing"]').hide();
+            } else {
+                $('button[name="Financing"]').show();
+            }
+        }
+
+        function checkFound() {
+            if ($('#PageContent').find('#gridExpectedIDB tbody tr').length > 0) {
+                var showCheck = false;
+                $('#PageContent').find('#gridExpectedIDB tbody tr').find("[aria-labelledby='id-FundId']").closest('div.dropdown').each(function () {
+
+                    var fundCode = $(this).find('button').GetText().split('-')[0].trim();
+                    var fundId = $(this).find('a[dd-selected]').attr('dd-value');
+
+                    if (fundCode != "TBD" && fundId != "") {
+                        showCheck = true;
+                        return false;
+                    }
+                });
+
+                if (showCheck) {
+                    $("[name='ChkFundAvailability']").show();
+                } else {
+                    $("[name='ChkFundAvailability']").hide();
+                }
+            } else {
+                $("[name='ChkFundAvailability']").hide();
+            }
+        }
+
+        $(document).on("click", 'ul.dropdown-menu[aria-labelledby="id-FundId"] a', function () {
+            checkFound();
+
+            var fundCode = $(this).GetText().split('-')[0].trim();
+            var amount = parseInt($(this).closest('td').next().next().find('input').
+                attr('value').replaceAll(',', ''));
+            var actualSelect = $(this).closest('td').next('#fundTbdColumn');
+
+            $.get("@Url.Action("CheckIsFundTbd", "View")",
+                {
+                    fundCode: fundCode,
+                    amount: amount,
+                    operationType: '@modelEdit.OperationTypeCode'
+                },
+                function (data) {
+                    if (data) {
+                        actualSelect.find('div[data-pagemode="edit"]').
+                            attr('class', 'showDataEdit');
+
+                        if ($('th.selected').length === 0) {
+                            $('#PageContent').find('td#fundTbdColumn').removeClass("hidden");
+                            $('#PageContent').find('#fundTbdTitle').removeClass("hidden");
+                            $('#PageContent').find('#fundTbdTitle').removeClass("selected");
+                        }
+
+                        actualSelect.find('#isTbd').addClass('yes');
+
+                        actualSelect.find('select[name="FundTBD"]').removeClass("hidden");
+                    } else {
+                        actualSelect.find('div[data-pagemode="edit"]').
+                            removeAttr('class', 'showDataEdit');
+
+                        if ($('#PageContent').find('td#fundTbdColumn .showDataEdit').length === 0) {
+                            $('#PageContent').find('td#fundTbdColumn').addClass('hidden');
+                            $('#PageContent').find('#fundTbdTitle').addClass('hidden');
+                            $('#PageContent').find('#fundTbdTitle').removeClass("selected");
+                        }
+
+                        actualSelect.find('select[name="FundTBD"]').Clean();
+                    }
+                });
+
+            var numberOfTbd = $('#PageContent').find('#gridExpectedIDB .yes').length;
+
+            if (numberOfTbd == 0) {
+                $('#PageContent').find('td#fundTbdColumn').addClass('hidden');
+                $('#PageContent').find('#fundTbdTitle').addClass('hidden');
+            }
+        });
+
+        $(document).on("click", '[name="RetroactiveExpensePercent"]', function () {
+            var expPercent = $(this).val();
+            $(this).next('ul.parsley-errors-list').find('li').remove();
+            $(this).next('ul.parsley-errors-list').removeClass('filled');
+
+            if (expPercent > 20) {
+                $(this).next('ul.parsley-errors-list').addClass('filled');
+                if ($(this).next('ul.parsley-errors-list').find('li.parsley-data-max').length === 0) {
+                    $(this).next('ul.parsley-errors-list').
+                    append('<li class="parsley-data-max">This value is greater than allowed.</li>');
+                }
+
+            } else if (expPercent <= 0 && expPercent !== "") {
+                $(this).next('ul.parsley-errors-list').addClass('filled');
+                if ($(this).next('ul.parsley-errors-list').find('li.parsley-data-min').length === 0) {
+                    $(this).next('ul.parsley-errors-list').
+                    append('<li class="parsley-data-min">This value is lower than allowed.</li>');
+                }
+
+            } else if (expPercent == "") {
+                $(this).next('ul.parsley-errors-list').addClass('filled');
+                $(this).next('ul.parsley-errors-list').
+                append('<li class="parsley-required">This value is required.</li>');
+            }
+        });
+
+        $(document).on("keyup", '[name="RetroactiveExpensePercent"]', function (e) {
+            var expPercent = $(this).val();
+            $(this).next('ul.parsley-errors-list').find('li').remove();
+            $(this).next('ul.parsley-errors-list').removeClass('filled');
+
+            if (expPercent > 20) {
+                $(this).next('ul.parsley-errors-list').addClass('filled');
+                if ($(this).next('ul.parsley-errors-list').find('li.parsley-data-max').length === 0) {
+                    $(this).next('ul.parsley-errors-list').
+                    append('<li class="parsley-data-max">This value is greater than allowed.</li>');
+                }
+
+            } else if (expPercent <= 0 && expPercent !== "") {
+                $(this).next('ul.parsley-errors-list').addClass('filled');
+                if ($(this).next('ul.parsley-errors-list').find('li.parsley-data-min').length === 0) {
+                    $(this).next('ul.parsley-errors-list').
+                    append('<li class="parsley-data-min">This value is lower than allowed.</li>');
+                }
+
+            } else if (expPercent == "") {
+                $(this).next('ul.parsley-errors-list').addClass('filled');
+                $(this).next('ul.parsley-errors-list').
+                append('<li class="parsley-required">This value is required.</li>');
+            }
+        });
+
+        function enableDonorTrustFund(actualLine, codFund, amount) {
+            $.get("@Url.Action("CheckIsFundTbd", "View")",
+                {
+                    fundCode: codFund,
+                    amount: amount,
+                    operationType: '@modelEdit.OperationTypeCode'
+                },
+                function (data) {
+                    if (data) {
+                        actualLine.find('#isTbd').attr('class', 'yes');
+
+                        if ($('th.selected').length === 0) {
+                            $('#PageContent').find('#fundTbdTitle').addClass("selected");
+                        }
+
+                        actualLine.find('div[data-pagemode="edit"]').addClass('showDataEdit');
+                    } else {
+                        actualLine.find('#isTbd').removeClass('yes');
+
+                        actualLine.closest('td')
+                            .next('#fundTbdColumn')
+                            .find('div[data-pagemode="edit"]')
+                            .removeClass('showDataEdit');
+
+                        actualLine.find('select[name="FundTBD"] option').
+                                    removeAttr('selected');
+                        actualLine.find('select[name="FundTBD"]').
+                                    next('div').
+                                    find('.search-choice').remove();
+                    }
+                });
+        }
+
+        function AddSubFundCode()
+        {
+            $('#PageContent').find('#gridExpectedIDB tbody tr[data-id]:not("[dd-bld]")').each(function () {
+                var row = $(this);
+                var subFundCode = row.find('.fundAndSubFund [name=SubFundCode]');
+
+                if (subFundCode != undefined &&
+                    subFundCode.data('id-fund') == row.find('[name=FundId]').val() &&
+                    subFundCode.val().length > 0)
+                    row.find('span.valueText').append(' (' + subFundCode.val() + ')');
+            });
+        }
+
+        function extractDonorTrustFund() {
+            $('#PageContent').find('#gridExpectedIDB tbody tr[data-id]').each(function () {
+                var actualLine = $(this).find("[aria-labelledby='id-FundId']").closest('div.dropdown');
+                var fundElement = actualLine.find('button').GetText();
+                var amountElement = actualLine.closest('td').next().next().find('input').attr('value');
+                var fundCode = "";
+                if (fundElement !== null) {
+                    fundCode = fundElement.split('-')[0].trim();
+                }
+                var fundId = actualLine.find('a[dd-selected]').attr('dd-value');
+                var amount = 0;
+                if (amountElement !== undefined) {
+                    amount = parseInt(amountElement);
+                }
+                var actualSelect = actualLine.closest('td').next('#fundTbdColumn').find('select[name="FundTBD"]');
+                enableDonorTrustFund(actualLine, fundCode, amount);
+
+                var numberOfTbd = $('#PageContent').find('#gridExpectedIDB .yes').length;
+
+                if (numberOfTbd == 0) {
+                    $('#PageContent').find('td#fundTbdColumn').addClass('hidden');
+                    $('#PageContent').find('#fundTbdTitle').addClass('hidden');
+                }
+            });
+        }
+
+        var fundsPerDonorArray = @Html.Raw(Json.Encode(Model.First(m => m.IsCurrent).AvailablePsgDonors.Select(ad => new { ad.DonorId, ad.FundIds })));
+        var fundsPerDonor = {};
+
+        $.each(fundsPerDonorArray, function(index, item) {
+            fundsPerDonor[item['DonorId']] = item['FundIds'];
+        });
+
+        function intersectArrays(array1, array2) {
+            var resultArray = [];
+
+            $.each(array1, function(index, item) {
+                if(array2.indexOf(item) >= 0) {
+                    resultArray.push(item);
+                }
+            });
+
+            return resultArray;
+        }
+
+        $(document).on('change', '[name="selectedPsgDonors"]', function(){
+            var $this = $(this);
+            var selectedPsgDonors = $this.children('option:selected');
+            var currentRow = $this.closest('tr');
+            var fundList = currentRow.find('[aria-labelledby="id-FundId"]');
+            var fundItems = fundList.children();
+            var spanSelectedFund = currentRow.
+                                    find('button[data-idb-fieldname="ddlFund"] span.valueText');
+            var inputSelectedFund = currentRow.find('input[data-idb-fieldname="ddlFund"]');
+            var selectedIds;
+            var selectedItems;
+
+            if(selectedPsgDonors.length == 0) {
+                selectedItems = fundItems;
+            }
+            else {
+                fundItems.hide();
+                selectedIds = [];
+                selectedItems = $();
+
+                var fundId = inputSelectedFund.val();
+
+                $.each(selectedPsgDonors, function(index, option) {
+                    var donorId = option.value;
+                    var donorFundIds = fundsPerDonor[donorId];
+
+                    if(index == 0) {
+                        selectedIds = donorFundIds;
+                    }
+                    else {
+                        selectedIds = intersectArrays(selectedIds, donorFundIds);
+                    }
+                });
+
+                $.each(selectedIds, function(index2, donorFundId) {
+                    selectedItems = selectedItems.
+                                    add(fundList.find('a[dd-value=' + donorFundId + ']').
+                                    parent());
+                });
+
+                if(!(selectedIds.indexOf(fundId) >= 0)) {
+                    spanSelectedFund.html('');
+                    inputSelectedFund.val('');
+                }
+            }
+            selectedItems.show();
+        })
+
+
+        $(document).on("click", '[name="txtAmountIncreases"]', function () {
+            if ($(this).val().length > 0) {
+                if ($(this).val().replace(/,/g, '') * 1 === 0) {
+                    $(this).val("");
+                }
+            }
+        });
+
+        function showRequestIncreaseModal()
+        {
+            $('[data-id="buttonRequestIncrease"]').click();
+            var url = '@Url.Action("RequestIncreaseModal",
+            "View",
+            new {area = "OPUS", partial = "RequestIncreaseModal" })';
+            postUrlWithOptions(url, { async: false })
+                .done(function(data) {
+                    $('#requestIncreaseContent').html(data);
+                    bindHandlers();
+                    reloadParsley($('#requestIncreaseContent'));
+                    setModalHandlers();
+                    $('input[name="ddlFunds"]').attr('data-parsley-required', false);
+                    $('input[name="ddlFinancingType"]').attr('data-parsley-required', false);
+                });
+        }
+
+        function showChangeIncreaseModal() {
+            $('[data-id="buttonRequestIncrease"]').click();
+            $.ajax({
+                url: "@Url.Action("ChangeRequestIncreaseModal", "View", new { Area = "OPUS" })",
+                success: function(data) {
+                    $('#requestIncreaseContent').html(data);
+                    bindHandlers();
+                    reloadParsley($('#requestIncreaseContent'));
+                    setModalHandlers();
+                    $('#lblFund').removeClass('visibilityHidden');
+                    $('#funds').removeClass('visibilityHidden');
+                    $('[name="ddlTransactionType"]').change();
+                },
+            });
+        }
+
+        function setModalHandlers() {
+            $('[name="ddlFundingSource"]').change(function () {
+                var fundingSource = $(this).GetText();
+
+                if (fundingSource.indexOf('(select option)') === -1) {
+                    $('#lblFund label').text("Select " + fundingSource);
+                    $('#funds').removeClass("visibilityHidden");
+                    $('#lblFund').removeClass("visibilityHidden");
+                    getRequestIncreaseFunds(fundingSource === 'New Fund');
+                } else {
+                    $('#lblFund').addClass("visibilityHidden");
+                    $('#funds').addClass("visibilityHidden");
+                    $('input[name="ddlFunds"]').attr('data-parsley-required', false);
+                    clearDropdown($('[name="ddlFunds"]').next().next());
+                }
+
+                clearCurrency();
+                $('input[name="ddlFinancingType"]').attr('data-parsley-required', false);
+                clearDropdown($('[name="ddlFinancingType"]').next().next());
+            });
+
+            $('[name="ddlTransactionType"]').change(function () {
+                var transactionType = $(this).GetText();
+
+                if (transactionType.indexOf('(select option)') < 0) {
+                    $('#lblTransactionType').find('label').text(transactionType);
+                } else {
+                    $('#lblTransactionType').find('label').text('');
+                }
+            });
+
+            $('[name="ddlFunds"]').change(function () {
+                getCurrency();
+            });
+
+            $('[name="txtAmountIncreases"]').blur(function () {
+                getUsEquivalentAmount();
+            });
+
+            $('[name="txtAmountIncreases"]').change(function () {
+                validateAmount(this);
+            });
+
+            $('[name="ddlFunds"]').change(function () {
+                getFinancingTypes();
+            });
+
+            $('#lblUsAmount label').change(function () {
+                hideLoader();
+            });
+        }
+
+        function cancelRequestIncrease() {
+            var msg = "@Localization.GetText("OP.OD.Message.Cancel")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    $('.vex-close').click();
+                }
+            });
+        }
+
+        function newRequestIncrease() {
+            var isValid = validateContainer($('#requestIncreaseContent'));
+            var amountValid = validateAmount($('[name="txtAmountIncreases"]'));
+
+            if (!isValid || !amountValid) {
+                return;
+            }
+
+            var transactionTypeId = $('[name="ddlTransactionType"]').GetValue();
+            var isNewFund = $('[name="ddlFundingSource"]').GetText() == "New Fund";
+            var fundId = $('[name="ddlFunds"]').GetValue();
+            var financingTypeId = $('[name="ddlFinancingType"]').GetValue();
+            var currencyCode = $('#hidCurrencyCode').val();
+            var amount = $('[name="txtAmountIncreases"]').val();
+            var executingAgencyId = $('[name="ddlExecutingAgency"]').GetValue();
+
+            $.ajax({
+                url: "@Url.Action("SaveRequestIncrease", "Save", new { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    'transactionTypeId': parseInt(transactionTypeId),
+                    'isNewFund': isNewFund,
+                    'fundId': parseInt(fundId),
+                    'financingTypeId' : parseInt(financingTypeId),
+                    'currencyCode' : currencyCode,
+                    'amount' : parseFloat(amount.replaceAll(',', '')),
+                    'executingAgencyId' : parseInt(executingAgencyId),
+                    'isRequestIncrease' : true
+                },
+                success: function (data) {
+                    if (data.IsValid) {
+                        var fundOperationId = data.NewFundOperationId;
+                        var newUsFundAmount = data.NewFundUsAmount;
+                        var actualFundOperationId = data.ActualFundOperationId;
+
+                        if (fundOperationId != null) {
+                            $.ajax({
+                                url: "@Url.Action("GetExpectedIDB",
+                                "View",
+                                new { Area = "OPUS" })",
+                                type: "POST",
+                                data: {
+                                    'fundOperationId': parseInt(fundOperationId),
+                                },
+                                success: function (data) {
+                                    var container = $("#gridExpectedIDB > tbody");
+                                    container.append(data);
+                                    bindHandlers();
+                                    enterEditMode(false, container, false);
+                                    chekGridBldItem(true);
+                                    checkFound();
+                                    recheckTbdColumnVisibility();
+                                },
+                                error: function(jqXHR, exception) {
+                                    showMessage(exception);
+                                }
+                            });
+                        }
+
+                        updateIDBAmountAndTotals(newUsFundAmount, 0, actualFundOperationId, 0);
+
+                        var btnRequestIncrease = $('[data-action="showRequestIncreaseModal"]');
+                        btnRequestIncrease.attr('data-action', 'showChangeIncreaseModal');
+                        btnRequestIncrease.attr('data-idb-fieldname',
+                            '@Localization.GetText("OP.FD.PopUp.ChangeIncrease")');
+                        btnRequestIncrease.text('@Localization.GetText("OP.FD.PopUp.ChangeIncrease")');
+                        $('.vex-close').click();
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                }
+            });
+        }
+
+        function saveChangeIncrease() {
+            var isValid = validateContainer($('#requestIncreaseContent'));
+            var amountValid = validateAmount($('[name="txtAmountIncreases"]'));
+
+            if (!isValid || !amountValid) {
+                return;
+            }
+
+            var transactionTypeId = $('[name="ddlTransactionType"]').GetValue();
+            var isNewFund = $('[name="ddlFundingSource"]').GetText() == "New Fund";
+            var fundId = $('[name="ddlFunds"]').GetValue();
+            var financingTypeId = $('[name="ddlFinancingType"]').GetValue();
+            var currencyCode = $('#hidCurrencyCode').val();
+            var amount = $('[name="txtAmountIncreases"]').val();
+            var executingAgencyId = $('[name="ddlExecutingAgency"]').GetValue();
+
+            $.ajax({
+                url: "@Url.Action("SaveChangeIncrease", "Save", new { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    'transactionTypeId': parseInt(transactionTypeId),
+                    'isNewFund': isNewFund,
+                    'fundId': parseInt(fundId),
+                    'financingTypeId' : parseInt(financingTypeId),
+                    'currencyCode' : currencyCode,
+                    'amount' : parseFloat(amount.replaceAll(',', '')),
+                    'executingAgencyId' : parseInt(executingAgencyId)
+                },
+                success: function (data) {
+                    if (data.IsValid) {
+                        var newFundOperationId = data.NewFundOperationId;
+                        var deletedFundOperationId = data.DeletedFundOperationId;
+                        var newFundUsAmount = data.NewFundUsAmount;
+                        var previousFundOperationId = data.PreviousFundOperationId;
+                        var actualFundOperationId = data.ActualFundOperationId;
+                        var previousIncreaseUsAmount = data.PreviousIncreaseUsAmount;
+
+                        if (isNewFund) {
+                            $.ajax({
+                                url: "@Url.Action("GetExpectedIDB", "View", new { Area = "OPUS" })",
+                                type: "POST",
+                                data: { 'fundOperationId': parseInt(newFundOperationId) },
+                                success: function (data) {
+                                    $('tr input[name="FundOperationId"][value="'
+                                        + newFundOperationId + '"]').closest('tr').remove();
+                                    var container = $("#gridExpectedIDB > tbody");
+                                    container.append(data);
+                                    bindHandlers();
+                                    enterEditMode(false, container, false);
+                                    chekGridBldItem(true);
+                                    checkFound();
+                                    recheckTbdColumnVisibility();
+                                },
+                                error: function(jqXHR, exception) {
+                                    showMessage(exception);
+                                }
+                            });
+                        } else {
+                            if (deletedFundOperationId != null) {
+                                $('tr input[name="FundOperationId"][value="'
+                                    + data.DeletedFundOperationId + '"]').closest('tr').remove();
+                            }
+                            if (newFundOperationId != null) {
+                                $.ajax({
+                                    url: "@Url.Action("GetExpectedIDB", "View", new { Area = "OPUS" })",
+                                    type: "POST",
+                                    data: { 'fundOperationId': parseInt(data.NewFundOperationId) },
+                                    success: function (data) {
+
+                                        var container = $("#gridExpectedIDB > tbody");
+                                        container.append(data);
+                                        bindHandlers();
+                                        enterEditMode(false, container, false);
+                                        chekGridBldItem(true);
+                                        checkFound();
+                                        recheckTbdColumnVisibility();
+                                    },
+                                    error: function(jqXHR, exception) {
+                                        showMessage(exception);
+                                    }
+                                });
+                            }
+                        }
+
+                        updateIDBAmountAndTotals(newFundUsAmount,
+                            previousFundOperationId,
+                            actualFundOperationId,
+                            previousIncreaseUsAmount);
+                        $('.vex-close').click();
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                }
+            });
+        }
+
+        function updateIDBAmountAndTotals(newFundUsAmount,
+                previousFundOperationId,
+                actualFundOperationId,
+                previousIncreaseUsAmount) {
+
+            var prevFund = $('input[name="FundOperationId"][value="' + previousFundOperationId + '"]')
+                .closest('tr')
+                .find('td[name="IDBUsAmountColumn"]')
+                .find('label');
+
+            if (prevFund.length > 0) {
+                var prevAmount = parseFloat(prevFund.first().text().replace(',', ''));
+                prevFund.text(formatDecimal((prevAmount - previousIncreaseUsAmount).toFixed(2)));
+            }
+
+            $('input[name="FundOperationId"][value="' + actualFundOperationId + '"]')
+                .closest('tr')
+                .find('td[name="IDBUsAmountColumn"]')
+                .find('label')
+                .text(formatDecimal(newFundUsAmount.toFixed(2)));
+
+            var totalIDBAmount = 0;
+            $('td[name="IDBUsAmountColumn"]').each(function() {
+                totalIDBAmount += parseFloat($(this).find('label').first().text().replace(',', ''));
+            });
+
+            $('[data-id="expectedIdbTotalValue"]').text(formatDecimal(totalIDBAmount.toFixed(2)));
+
+            var totalCounterpartFinancing = parseFloat($('[name="localCounterpartAmount"]')
+                .find('label').first().text().replace(',', ''));
+            var totalCoFinancing = parseFloat($('[name="localCoFinancingAmount"]')
+                .find('label').first().text().replace(',', ''));
+
+            $('[data-id="totalOperationCostValue"]').text(formatDecimal((totalIDBAmount +
+                totalCounterpartFinancing + totalCoFinancing).toFixed(2)));
+        }
+
+        function recheckTbdColumnVisibility() {
+            if ($('#fundTbdTitle.hidden').length > 0) {
+                if ($('td#fundTbdColumn').last().find('#isTbd').first().val() === 'true') {
+                    $('td#fundTbdColumn').removeClass('hidden');
+                } else {
+                    $('td#fundTbdColumn').last().addClass('hidden');
+                }
+            } else {
+                if ($("#gridExpectedIDB > tbody > tr").length === 1 &&
+                    $('td#fundTbdColumn').find('#isTbd').val() !== 'true') {
+                    $('td#fundTbdColumn').addClass('hidden');
+                    $('#fundTbdTitle').addClass('hidden');
+                }
+            }
+        }
+
+        function getCurrency()
+        {
+            var currentCurrencyCode = $('#hidCurrencyCode').val();
+            var fundId = $('[name="ddlFunds"]').GetValue();
+
+            if (fundId === '') {
+                return;
+            }
+
+            $.ajax({
+                url: "@Url.Action("GetCurrency", "View", new  { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: { 'fundId': parseInt(fundId) },
+                success: function (data) {
+                    if(data.IsValid) {
+                        $('#hidCurrencyCode').val(data.CurrencyCode);
+                        $('#lblFundCurrency label').text(data.CurrencyText);
+                    } else {
+                        clearCurrency();
+                    }
+                }
+            });
+
+            var newCurrencyCode = $('#hidCurrencyCode').val();
+            var amount = $('[name="txtAmountIncreases"]').val();
+
+            if (newCurrencyCode !== '' && currentCurrencyCode !== newCurrencyCode && amount != 0) {
+                getUsEquivalentAmount();
+            }
+        }
+
+        function getUsEquivalentAmount() {
+            var amount = $('[name="txtAmountIncreases"]').val();
+            var currencyCode = $('#hidCurrencyCode').val();
+
+            if (amount === '' || currencyCode === '') {
+                return;
+            }
+
+            showLoader();
+
+            if (currencyCode === 'USD') {
+                $('#lblUsAmount label').text(amount);
+                hideLoader();
+            } else {
+                $.ajax({
+                    url: "@Url.Action("GetUsEquivalentAmount", "View", new { Area = "OPUS" })",
+                    type: "POST",
+                    async: true,
+                    dataType: "json",
+                    data: {
+                        'amount': parseFloat(amount.replaceAll(',', '')),
+                        'currencyCode': currencyCode
+                    },
+                    success: function (data) {
+                        if(data.IsValid) {
+                            $('#lblUsAmount label').text(formatDecimal(data.Amount.toFixed(2)));
+                        } else {
+                            $('#lblUsAmount label').text("0.00");
+                        }
+                    },
+                    error: function (data) {
+                        hideLoader();
+                    }
+                });
+            }
+        }
+
+        function formatDecimal(number) {
+            var n = number.toString(), p = n.indexOf('.');
+            return n.replace(/\d(?=(?:\d{3})+(?:\.|$))/g, function($0, i) {
+                return p < 0 || i < p ? ($0 + ',') : $0;
+            });
+        }
+
+        function getFinancingTypes() {
+            var fundingSource = $('[name="ddlFundingSource"]').GetText();
+
+            if (fundingSource.indexOf('(select option)') < 0) {
+                var fundId = fundingSource === 'Existing Fund' ?
+                    $('[name="ddlFunds"]').GetValue() :
+                    '0';
+
+                if (fundId === '') {
+                    return;
+                }
+
+                $.ajax({
+                    url: "@Url.Action("GetFinancingTypes", "View", new { Area = "OPUS" })",
+                    type: "POST",
+                    dataType: "json",
+                    data: { 'fundId': parseInt(fundId) },
+                    success: function (data) {
+                        var dropdown = $('[name="ddlFinancingType"]').next().next();
+                        clearDropdown(dropdown);
+
+                        if (data.IsValid) {
+                            $(data.FinancingTypes).each(function (i, val) {
+                                dropdown.append('<li><a dd-value="' + val.Value + '">' +
+                                    val.Text + '</a></li>')
+                            });
+
+                            if (fundId === '0') {
+                                $(data.FinancingTypes).each(function (i, val) {
+                                    if(val.Select) {
+                                        dropdown.prev().SelectIndex(i + 1);
+                                    }
+                                });
+                            }
+
+                            $('input[name="ddlFinancingType"]').attr('data-parsley-required', true);
+                        }
+                    }
+                });
+            } else {
+                var dropdown = $('[name="ddlFinancingType"]').next().next();
+                clearDropdown(dropdown);
+            }
+        }
+
+        function clearCurrency() {
+            $('#hidCurrencyCode').val('');
+            $('#lblFundCurrency label').text('');
+        }
+
+        function clearDropdown(dropdown) {
+            dropdown.html('');
+            dropdown.append('<li><a dd-value>(select option)</a></li>')
+            dropdown.prev().prev().FirstorDefault();
+        }
+
+        function validateAmount(element) {
+            if ($(element).val() == "0.00") {
+                $(element).closest("td").find('ul').addClass("filled").find("li").remove();
+                $(element).closest("td").find('ul')
+                    .append("<li class='usRequired'>" +
+                        "@Localization.GetText("This value is required.")</li>");
+                return false;
+            } else {
+                if ($(element).closest("td").find('li.usRequired').length == 1 &&
+                    $(element).closest("td").find('li').length == 1) {
+                    $(element).closest("td").find('ul')
+                        .removeClass("filled").find("li.usRequired").remove();
+                }
+                if (($(element).closest("td").find('li.usRequired').length == 1 &&
+                    $(element).closest("td").find('li').length > 1)) {
+                    $(element).closest("td").find('ul').find("li.usRequired").remove();
+                }
+            }
+
+            return true;
+        }
+
+        function getRequestIncreaseFunds(newFunds)
+        {
+            $.ajax({
+                url: "@Url.Action("GetFunds", "View", new { Area = "OPUS" })",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    'newFunds': newFunds,
+                    'isRequestIncrease': true
+                },
+                success: function (data) {
+                    var dropdown = $('input[name="ddlFunds"]').next().next();
+                    clearDropdown(dropdown);
+
+                    if (data.IsValid) {
+                        $(data.FundsList).each(function (i, val) {
+                            dropdown.append('<li><a dd-value="' + val.Value + '">' +
+                                val.Text + '</a></li>')
+                        });
+
+                        $('input[name="ddlFunds"]').attr('data-parsley-required', true);
+                    }
+                }
+            });
+        }
+
+        function closeModal() {
+            var vexModal = $('#executingAgenciesWarningModal').parents('.vex');
+            if (vexModal.length > 0)
+                vex.closeByID(vexModal.data().vex.id);
+        }
+
+        function  PsgDonorSelectFund(){
+            var rows = $('#gridExpectedIDB tbody tr');
+            rows.each(function(index,e){
+                var element = $(e);
+                var fundSelected = element.find('[name=FundId]').val();
+                var fundCombo = element.find('#id-FundId');
+                var fundValue = fundCombo.GetValue();
+                var fundText = fundCombo.GetText();
+                element.find('[name=selectedPsgDonors]').change();
+                fundCombo.SetValue(fundValue,fundText);
+            });
+        }
+
+        function refreshPieChartValues() {
+            grafico();
+            refreshValues();
+        }
+
+    </script>
+}
+
+<script src="@Url.Content("~/Scripts/Reformulation/reformulation.js")"></script>

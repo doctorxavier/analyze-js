@@ -1,0 +1,217 @@
+﻿@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.ReviewFundCoordination.FundCoordinatorTCAbstractViewModel
+
+<div class="header">
+    @Html.Partial("Partials/Headers/FundCoordinatorTCTitle", Model.TCAbstract.Header)
+</div>
+
+@if (ViewBag.ReadRole)
+ {
+    <input type="hidden" id="hidTrustFundId" value="@ViewBag.HiddenTrustFundId" />
+    <div class="page">
+        <div id="TCData"
+             class="row-body-40"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-loadurl="@Url.Action("FundCoordinatorTCAbstractEdit", "View", new { area = "TC", trustFundId = ViewBag.HiddenTrustFundId })"
+             data-url="@Url.Action("FundCoordinatorTCAbstract", "Save", new { area = "TC", trustFundId = ViewBag.HiddenTrustFundId })">
+            @Html.Partial("Partials/FundCoordinatorReview", Model)
+        </div>
+
+        @Html.Partial("_TCHeader", Model.TCAbstract.Header)
+    
+        <div id="FundCoordinatorData" class="tcCollapsibleMargin">
+            @Html.Partial("Partials/TCAbstract", Model.TCAbstract)
+        </div>
+
+        @Html.Partial("Partials/Controls/TCAbstractWordExcelButtonsDownload")
+
+        @Html.Partial("Partials/Controls/FundCoordinatorButtons")
+
+
+        <div id="saveModal" class="hide modalBody">
+            @Localization.GetText("TC.FundCoordinator.Save.Message")
+        </div>
+
+        <div id="sendModal" class="hide modalBody">
+            @Localization.GetText("TC.FundCoordinator.Send.Message")
+        </div>
+    </div>
+ }
+
+@section scripts{
+
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.TCAbstractSetupState()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+            setInitialTCAbstractState();
+
+            $(document).on('change', '[name=causeOfNoFunding]', function () {
+                var isOtherSelected = $(this).val() == "@(ViewBag.EnumMapping[ FundCoordinatorCauseNoFundingEnum.Other ])";
+                $('[name=justificationTextArea]').attr("data-parsley-required", isOtherSelected);
+                $('[name=justificationTextArea]').attr("data-force-parsley-validation", isOtherSelected);
+                var asteriskJustification = $('[name=asteriskJustification]');
+
+                if (isOtherSelected) {
+                    if (asteriskJustification.hasClass('hide')) asteriskJustification.removeClass('hide');
+                }
+                if (!isOtherSelected) {
+                    if (!asteriskJustification.hasClass('hide')) asteriskJustification.addClass('hide');
+                }
+            });
+
+            $(document).on('click', '#eligible', function () {
+                changeDecisionPanel(true);
+            });
+
+            $(document).on('click', '#notEligible', function () {
+                changeDecisionPanel(false);
+            });
+        });
+
+        function hideDecisionPanel() {
+            var decisionElegible = $('#decisionEligible');
+            var decisionNotElegible = $('#decisionNotEligible');
+            
+            decisionElegible.addClass('hide');
+            decisionElegible.find('textarea, select').attr('disabled', 'disabled');
+            decisionNotElegible.addClass('hide');
+            decisionNotElegible.find('select').attr('disabled', 'disabled');
+            decisionNotElegible.find('textarea', 'select').attr('disabled', 'disabled');
+        }
+
+        function changeDecisionPanel() {
+            var decisionElegible = $('#decisionEligible');
+            var decisionNotElegible = $('#decisionNotEligible');
+
+            var checkElegible = $('#eligible');
+            var checkNOElegible = $('#notEligible').last();
+           
+            if (checkElegible.prop("checked")) {
+                decisionElegible.removeClass('hide');0
+                enableContainer(decisionElegible);
+                decisionNotElegible.addClass('hide');
+                disableContainer(decisionNotElegible);
+            }
+            else if (checkNOElegible.prop("checked")) {
+                decisionElegible.addClass('hide');
+                decisionElegible.find('textarea, select').attr('disabled', 'disabled');
+                decisionNotElegible.removeClass('hide');
+                decisionNotElegible.find('textarea', 'select').removeAttr('disabled');
+            }
+            else {
+                decisionElegible.addClass('hide');
+                decisionElegible.find('textarea, select').attr('disabled', 'disabled');
+                decisionNotElegible.addClass('hide');
+                decisionNotElegible.find('select').attr('disabled', 'disabled');
+                decisionNotElegible.find('textarea', 'select').attr('disabled', 'disabled');
+            }
+        }
+
+        function editFundCoordinator(source) {
+            var sucess = enterEditMode(true, $('#TCData'), true);
+
+            if (sucess) {
+                $('#FundCoordinatorDecision').find('[name="eligible"][checked]').click();
+                $('#causeOfNoFunding').trigger("change");
+                enterEditMode(false, $('.fundCoordinatorTCAbstract-headerButtons'), false);
+                enterEditMode(false, $('[name="fundCoordinatorButton"]'), false);
+                changeDecisionPanel();
+                setInitialTCAbstractState();
+            }
+        }
+
+        function cancelEditFundCoordinator(source) {
+            changeDecisionPanel();
+            exitEditMode(true, $('#TCData'), true, true);
+            exitEditMode(false, $('#headerButtons'), false, false);
+            exitEditMode(false, $('[name="fundCoordinatorButton"]'), false, false);
+            setInitialTCAbstractState();
+        }
+
+        function saveFundCoordinator(source) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.Save');
+                var resp = $.Deferred();
+                var response = saveContainer($('#TCData'), '#hidViewModel', true, $('#FundCoordinatorDecision, #headerButtons, #FundCoordinatorButtons'), $(source.target));
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        resp.resolve();
+
+                }).always(function () {
+                    hideDecisionPanel();
+
+                    setInitialTCAbstractState();
+                    });
+                }
+                return resp;
+            }
+
+            function sendFundCoordinator(source) {
+                $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+
+                var resp = $.Deferred();
+                var response = saveContainer($('#TCData'), '#hidViewModel', true, $('#FundCoordinatorDecision, #headerButtons, #FundCoordinatorButtons'), $(source.target));
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        resp.resolve();
+
+                }).always(function () {
+                    hideDecisionPanel();
+
+                    setInitialTCAbstractState();
+                    });
+                }
+                return resp;
+            }
+
+        function hideFundCoordinator(source) {
+                
+            if ($('#FundAvailibility').hasClass('hide')) {
+                $('[name="fundCoordinatorButton"]').html('Hide');
+                    $('#FundAvailibility').removeClass('hide');
+            }
+            else {
+                $('[name="fundCoordinatorButton"]').html('Show');
+                    $('#FundAvailibility').addClass('hide');
+                }
+            }
+
+        function showFundCoordinator(source) {
+                console.log('show');
+            }
+
+        function downloadWord(source) {
+            var url = '@Url.Action("TCAbstractExportToWord", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadPdf(source) {
+            var url = '@Url.Action("TCAbstractExportToPDF", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadXls(source) {
+            console.log('Download Xls');
+        }
+
+        function newComment(source) {
+            console.log('New Comment');
+        }
+
+    </script>
+}

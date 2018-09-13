@@ -1,0 +1,128 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.CPDModule.ViewModels.CSProgressToDate
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.CPDModule.Enums
+@using IDB.Presentation.MVC4.Helpers
+
+@model  List<PortfolioAlignmentCSRowViewModel>
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    var config = Html.RenderDataTable(Model);
+    config.TableClass = "tableNormal";
+    config.Name("operationsPortfolioAlignmnet")
+    .PrimaryKey(m => m.RowId.ToString())
+    .AddPrimaryKeyToName(false)
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Bound(c => c.Name)
+        .Attribute("colspan", x => x.IsRowTitle ? "10" : "1")
+        .Attribute("style", x => "width: 25%;")
+        .CssClassDynamic(GetClassPriorityArea)
+        .Persistent();
+
+        columns.Template(c => NumOperationsLink(c, c.SGNumberOperations ?? 0, ((int)CpdTypeOperations.SG)))
+        .Attribute("style", x => "text-align: right;")
+        .CssClassDynamic(x => x.IsRowTitle ? "hide" : "")
+        .Persistent();
+
+        columns.Template(c => TotalAmount(c, c.SGTotalAmountUSD))
+        .CssClassDynamic(x => x.IsRowTitle ? "hide" : "")
+        .Attribute("style", x => "text-align: right;")
+        .Persistent();
+
+        columns.Template(c => NumOperationsLink(c, c.TCNumberOperations ?? 0, ((int)CpdTypeOperations.TC)))
+        .CssClassDynamic(x => x.IsRowTitle ? "hide" : "")
+        .Attribute("style", x => "text-align: right;")
+        .Persistent();
+
+        columns.Template(c => TotalAmount(c, c.TCTotalAmountUSD))
+        .CssClassDynamic(x => x.IsRowTitle ? "hide" : "")
+        .Attribute("style", x => "text-align: right;")
+        .Persistent();
+    });
+
+    config.UseCustomHeader = true;
+    config.CustomHeader = (@<thead>
+    <tr>
+        <th rowspan="2">
+            @Localization.GetText(string.Empty).HtmlEncode()
+        </th>
+        <th colspan="4">
+            @Localization.GetText("CS.PortfolioSummary.IDB").HtmlEncode()
+        </th>
+    </tr>
+    <tr>
+        <th colspan="2">
+            @Localization.GetText("CS.Portfolio.OperationGroupIDB").HtmlEncode()
+        </th>
+        <th colspan="2">
+            @Localization.GetText("CS.Portfolio.TechnicalCooperation").HtmlEncode()
+        </th>
+    </tr>
+    <tr>
+        <th></th>
+        <th>@Localization.GetText("CS.PortfolioSummary.OperationApprTable.NumberOperations").HtmlEncode()</th>
+        <th>@Localization.GetText("CS.Portfolio.TotalCurrenAprovalAmount").HtmlEncode()</th>
+        <th>@Localization.GetText("CS.PortfolioSummary.OperationApprTable.NumberOperations").HtmlEncode()</th>
+        <th>@Localization.GetText("CS.Portfolio.TotalCurrenAprovalAmount").HtmlEncode()</th>
+    </tr>
+</thead>);
+}
+
+@Html.Partial("Controls/DataTable", config)
+
+@functions{
+    private static string GetClassPriorityArea(PortfolioAlignmentCSRowViewModel row)
+    {
+        var cssClass = string.Empty;
+        if (row.IsRowTitle)
+        {
+            cssClass = "row-title";
+        }
+        else if (row.IsBold)
+        {
+            cssClass = "row-title-total";
+        }
+        return cssClass;
+    }
+}
+
+
+@helper NumOperationsLink(PortfolioAlignmentCSRowViewModel row, int numberOperations, int operationType)
+    {
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatInteger = appSettings.FormatInteger;
+
+    if ((numberOperations > 0 && !row.IsRowTitle && !row.IsBold))
+    {
+        @Confluence.LabelLink(FormatHelper.Format(numberOperations, formatInteger),
+                              name: "opertionNumberAlignmentLink",
+                              dataAttributes: new Dictionary<string, string> {
+                                            { "rowId", row.RowId.ToString() },
+                                            { "isOtherArea", row.IsOtherArea.ToString() },
+                                            { "csObjectiveId", row.CSObjectiveId.ToString() },
+                                            { "csResultMatrixId", row.CPDProfileId.ToString() },
+                                            { "typePortfolio", operationType.ToString() }
+        })
+    }
+    else
+    {
+        @Confluence.Label(FormatHelper.Format(numberOperations, formatInteger))
+    }
+}
+
+@helper TotalAmount(PortfolioAlignmentCSRowViewModel c, decimal? totalAmount)
+    {
+        var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+        var formatDecimal = appSettings.FormatDecimal;
+
+        @FormatHelper.Format(totalAmount, formatDecimal).HtmlEncode()
+}

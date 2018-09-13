@@ -1,0 +1,326 @@
+﻿@using IDB.MW.Domain.Values
+@model IDB.MW.Application.AdministrationModule.ViewModels.RolesAndPermissions.RoleInformationViewModel
+
+@{ ViewBag.fixLoad = !ViewBag.Create; }
+
+<div id="PageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-url="@Url.Action("RolesAndPermissionsDataSaveController", "RolesAndPermissionsSave", 
+        new {area = "AdministrationSecondPhase"})"
+     data-loadurl="@Url.Action("RolesAndPermissionsCreateAndEditPartial", "RolesAndPermissionsView", 
+        new { area = "AdministrationSecondPhase", idRolePermission = ViewBag.IDRolePermission })">
+    @Html.Partial("Partial/RolesAndPermissionsCreateAndEditPartial",Model)
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+    $(document).ready(function () {
+        if ('@ViewBag.Create'.toLocaleLowerCase() === 'true') {
+            enterEditMode(false, $('#PageContent'), false);
+        }
+        $("#RPTable").paginationConfluense(10);
+
+        if ($('[name="IsADTable"]').val() === "false") {
+            $("#AssignedGroupTable").paginationConfluense(10);
+        }
+
+        @if (ViewBag.IDRolePermission == 0)
+            {
+                <text>
+        addNewRowTable()
+        </text>
+            }
+        loadItems();
+    });
+
+    $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-listRoleType"] a', function () {
+        var type = $(this).attr("dd-value");
+        if (type !== "") {
+
+            var url = "@Url.Action("GetRoles", "RolesAndPermissionsView", 
+            new {area = "AdministrationSecondPhase"})";
+            var response = postUrl(url, { type: type }).responseJSON.Data;
+
+            $("#id-listRoleParent").removeAttr("disabled");
+
+            var listdata = $.map(response, function (item) {
+                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+            });
+
+            listdata.unshift("<li><a dd-value>(select an option)</a></li>");
+
+            $('ul.dropdown-menu[aria-labelledby="id-listRoleParent"]').html(listdata.join(""));
+
+
+            $('[name="SearchRoles"]').attr("data-parsley-required", "true");
+            $('ul.dropdown-menu[aria-labelledby="id-listRoleParent"]').FirstorDefault();
+
+        } else {
+            $('[name="listRoleParent"]').first().val("");
+            $('[id="id-listRoleParent"]').attr("disabled", true);
+            $('[name="listRoleParent"]').FirstorDefault();
+        }
+
+        rowRoleType();
+    });
+
+    $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-listPermission"] a', function () {
+        var idPermission = $(this).attr('dd-value');
+        var row = $(this).closest('tr');
+
+        var description = getDescPermission(idPermission);
+        $(row).find("td.description").text(description);
+    });
+
+
+    function loadItems() {
+        $(".srch-term").select2({
+            ajax: {
+                dataType: "json",
+                delay: 500,
+                data: function (params) {
+                    return {
+                        query: params.term, 
+                        page: params.page
+                    };
+                },
+                cache: true,
+                global: false
+            },
+            language: "@IDBContext.Current.CurrentLanguage.ToLower()",
+                theme: "bootstrap",
+                escapeMarkup: function (markup) { return markup; }, // let our custom formatter work
+                minimumInputLength: 0,
+                templateResult: function (repo) {
+                    if (repo.loading) return repo.text;
+                    var markup = repo.text;
+                    return markup;
+                },
+                templateSelection: function (repo) {
+                    return repo.text;
+                }
+            });
+        }
+
+
+        function getDescPermission(varIdPermission) {
+
+            var result = postUrl("@Url.Action("GetDescriptionPermission", "RolesAndPermissionsView", 
+                new {area = "AdministrationSecondPhase"})", { idPermission: varIdPermission });
+        var description;
+        result.done(function (response) {
+            description = response;
+        });
+
+        return description;
+    }
+
+    function addNewRowTable() {
+        postUrlWithOptions('@Url.Action("AddRowTablePermissionView", "RolesAndPermissionsView", 
+            new {area = "AdministrationSecondPhase"})',
+            { async: false })
+            .done(function (data) {
+                var container = $("#RPTable").find('tbody');
+                if ($(container).find('td.dataTables_empty').length > 0) {
+                    $(container).find('tr').remove();
+                }
+                $(container).append(data);
+                bindHandlers();
+                $("#RPTable").paginationConfluense(10);
+                $("#tableAsignedPermission").find('.Pagination_Number').last().click();
+                enterEditMode(false, $(container), false);
+            });
+        loadItems();
+    }
+
+    function removeRowPer(element) {
+        var msg = '@Localization.GetText("OP.RP.RolesAndPermission.RemoveRowMsg")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                var row = $(element).closest('tr');
+                $(row).remove();
+                $("#RPTable").paginationConfluense(10);
+            }
+        });
+    }
+
+    function removeRowGroupAssigned(element) {
+        var msg = '@Localization.GetText("OP.RP.RolesAndPermission.RemoveRowMsg")';
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                var row = $(element).closest('tr');
+                $(row).remove();
+                $("#AssignedGroupTable").paginationConfluense(10);
+            }
+        });
+    }
+
+    function addRowGroupAssigned() {
+        postUrlWithOptions('@Url.Action("GetNewRowGroupAssigned", "RolesAndPermissionsView", 
+            new {area = "AdministrationSecondPhase"})',
+            { async: true },
+            { roleType: $('[name="listRoleType"]').val(), roleId: "@ViewBag.IDRolePermission" })
+            .done(function (data) {
+                var container = $("#AssignedGroupTable tbody");
+                if ($(container).find('td.dataTables_empty').length > 0) {
+                    $(container).find('tr').remove();
+                }
+                $(container).append(data);
+                bindHandlers($(container));
+                $("#AssignedGroupTable").paginationConfluense(10);
+                enterEditMode(false, $(container), false);
+            });
+    }
+
+    function rowRoleType() {
+        var container = $("#tableAsignedGoup");
+        if ($('[name="listRoleType"]').GetValue().length > 0) {
+            postUrlWithOptions('@Url.Action("GetGroupAssigned", "RolesAndPermissionsView", 
+                new {area = "AdministrationSecondPhase"})',
+                { async: true },
+                { roleType: $('[name="listRoleType"]').val(), roleId: "@ViewBag.IDRolePermission" })
+                .done(function (data) {
+                    $(container).html(data);
+                    bindHandlers($(container));
+                    if ($('[name="IsADTable"]').val() === "false") {
+                        $("#AssignedGroupTable").paginationConfluense(10);
+                    }
+                    enterEditMode(false, $(container), false);
+                });
+        } else {
+            container.html("");
+        }
+    }
+
+    function validateRequired() {
+        return validateContainer($('#PageContent'));
+    }
+
+    function save() {
+        var modelserialized = '#hidViewModel';
+        if (validateRequired()) {
+            var response = saveContainer($('#PageContent'), modelserialized, true, $('#headerButtons'), null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (data.ErrorMessage != null) {
+                        showMessage(data.ErrorMessage);
+                    }
+                        @if (ViewBag.Create == true)
+                        {
+                            <text>
+                    else {
+                        window.location.href = '@Url.Action(controllerName: "RolesAndPermissionsView", 
+                            actionName: "RolesAndPermissionsCreateAndEdit")' +
+                            '?idRolePermission=' + data.RoleAndPermissionId;
+                    }
+                    </text>
+                        }
+                    $("#AssignedGroupTable").paginationConfluense(10);
+                    $("#RPTable").paginationConfluense(10);
+
+                });
+            }
+        }
+    }
+
+    function edit() {
+        var canEdit = true;
+        @if (Model.IdRolePermission > 0)
+            {
+                <text>
+        postUrlWithOptions('@Url.Action("LockRegister", "RolesAndPermissionsView", 
+            new {area = "AdministrationSecondPhase"})',
+            { async: false },
+            { operationNumber: '@Model.IdRolePermission', url: '@OPUSGlobalValues.URL_ROLE_PERMISSION' })
+                    .done(function (data) {
+                        if (data.IsValid === false) {
+                            canEdit = false;
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+        </text>
+            }
+
+        if (canEdit) {
+            var success = enterEditMode(false, $("#PageContent"), false);
+            if (success) {
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+                loadItems();
+            }
+        }
+    }
+
+    function cancel() {
+        var msg = "@Localization.GetText("OP.RP.RolesAndPermission.UpdateCancel")";
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                @if (Model.IdRolePermission > 0)
+                    {
+                        <text>
+                postUrlWithOptions('@Url.Action("UnlockRegister", "RolesAndPermissionsView", 
+                    new {area = "AdministrationSecondPhase"})',
+                    { async: true },
+                    { operationNumber: '@Model.IdRolePermission', url: '@OPUSGlobalValues.URL_ROLE_PERMISSION' });
+                </text>
+                    }
+                exitEditMode(true, $('#PageContent'), true, true);
+                exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                $("#RPTable").paginationConfluense(10);
+            }
+
+        });
+    }
+
+    function cancelNew() {
+        var msg = "@Localization.GetText("OP.RP.RolesAndPermission.NewCancel")";
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                window.location.href = '@Url.Action(controllerName: "RolesAndPermissionsView", 
+                    actionName: "RolesAndPermissions")';
+            }
+
+        });
+    }
+
+    $(document).on('change', '[name="FormExpirationDate"],[name="FormEffectiveDate"]', function () {
+        var isCorrect = true;
+        var isEfective;
+        var dateOne = $(this);
+        var dateTwo;
+        if (dateOne.attr("name") === "FormEffectiveDate") {
+            isEfective = true;
+            dateTwo = $('[name="FormExpirationDate"]');
+        } else {
+            isEfective = false;
+            dateTwo = $('[name="FormEffectiveDate"]');
+        }
+
+        if (dateOne.val() !== "" && dateTwo.val() !== "") {
+            if (isEfective) {
+                isCorrect = dateDiffInDays(dateOne.val(), dateTwo.val());
+            } else {
+                isCorrect = dateDiffInDays(dateTwo.val(), dateOne.val());
+            }
+        }
+
+        $(dateOne).attr("data-parsley-required", false).removeClass('parsley-error').addClass('parsley-success');
+        $(dateTwo).attr("data-parsley-required", false).removeClass('parsley-error').addClass('parsley-success');
+        $('.parsley-range').closest('ul').removeClass('filled');
+        $('.parsley-range').remove();
+
+        if (!isCorrect) {
+            $(dateOne).val("");
+            $(dateOne).attr("data-parsley-required", true).removeClass('parsley-success').addClass('parsley-error');
+            $(dateTwo).attr("data-parsley-required", false).removeClass('parsley-error').addClass('parsley-success');
+            $('#parsley-id-' + $(dateOne).attr('data-parsley-id')).addClass('filled').append('<li class="parsley-range">range of dates incorrect.</li>');
+        }
+    });
+
+    function dateDiffInDays(a, b) {
+        var aDate = a === "" ? Date.parse("0") : Date.parse(a);
+        var bDate = b === "" ? Date.parse("0") : Date.parse(b);
+        var diff = (aDate) - (bDate);
+        return diff <= 0 ? true : false;
+    }
+    </script>
+}

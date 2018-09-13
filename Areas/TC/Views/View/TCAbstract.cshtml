@@ -1,0 +1,271 @@
+﻿@using IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model TCAbstractViewModel
+
+@Html.Partial("Partials/Headers/TCHeaderTitle", Model.Header)
+
+<div data-id="header-tcAbstract"
+     data-loadurl="@Url.Action("TCAbstractHeader", "View", new { area = "TC" })">
+    @Html.Partial("_TCHeader", Model.Header)
+</div>
+<div class="page">
+    <div id="TCData"
+         class="row-body-40 tcAbstract"
+         data-custom-validate="true"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-loadurl="@Url.Action("TCAbstractEdit", "View", new { area = "TC" })"
+         data-url="@Url.Action("SaveTCAbstract", "Save", new { area = "TC" })">
+        @Html.Partial("Partials/TCAbstract", Model)
+    </div>
+
+    @Html.Partial("Partials/Controls/TCAbstractWordExcelButtonsDownload")<br />
+
+    <span class="text-right">
+        @Html.Partial("Partials/Controls/TCAbstractButtons", Model.Header)
+    </span>
+
+    @if (ViewBag.ReadRole)
+    {
+        <div id="saveModal" class="hide modalBody">
+            @Localization.GetText("TC.TCAbstractModalSave.Message")
+        </div>
+        <div id="sendModal" class="hide modalBody">
+            @Localization.GetText("TC.TCAbstractModalSend.Message")
+        </div>
+        <div id="revertModal" class="hide modalBody">
+            @Localization.GetText("TC.RevertFundingProcess.WarningMessage")
+        </div>
+        <div data-id="ModalRegion" class="hide">
+            <div id="changeStatusModal" class="hide"></div>
+        </div>
+        <div data-id="HiddenButtonRegion" class="hide">
+            @Display.AddModalButton(
+                new ModalViewModel(
+                    name: "buttonChangeStatusModal",
+                    allowClose: true,
+                    actionOnClose: "",
+                    contentSelector: "#changeStatusModal",
+                    type: CssClass.ModalInformation,
+                    title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+                    validateForm: false)
+                )
+        </div>
+    }
+</div>
+
+@section scripts{
+
+    @ModuleScripts.TCAbstractCommon()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.K2UIIntegration()
+    @ModuleScripts.MinValueOne()
+    @ModuleScripts.AddNoRepeatValueValidator()
+    @ModuleScripts.NonZero()
+    @ModuleScripts.MinNumOfElementsFilled()
+
+    <script type="text/javascript"
+            src="@Url.Content("~/Scripts/Modules/TC/TCAbstract/TCAbstractElementsValidation.js")">
+    </script>
+
+    <script type="text/javascript">
+        var isNewTCAbstract = '@(Model.TCId == 0)' === 'True';
+        var containerTCA = $('#TCData');
+
+        registerCallback(function () {
+            if (isNewTCAbstract) {
+                $('[name=TCAbstractWord]').attr('disabled', 'disabled');
+                $('[name=TCAbstractPDF]').attr('disabled', 'disabled');
+            }
+
+            $(document).on('draw.dt', '#relatedDocumentResultTable', function () {
+                var table = $(this);
+                resetStyleTable(table);
+            });
+        });
+
+        function resetStyleTable(table) {
+            var groupRow = table.find('tbody tr:not(.hide)');
+            groupRow.removeClass("custom-odd");
+            groupRow.removeClass("custom-even");
+            $(groupRow).each(function (index) {
+                var row = $(this);
+                if ((index % 2) == 0) {
+                    row.addClass("custom-even");
+                } else {
+                    row.addClass("custom-odd");
+                }
+            });
+            var dataTablesEmpty = table.find('.dataTables_empty');
+            var buttonPreviousPage = table.closest('#relatedDocumentResultTable_wrapper')
+                .find('#relatedDocumentResultTable_previous');
+            var buttonNextPage = table.closest('#relatedDocumentResultTable_wrapper')
+                .find('#relatedDocumentResultTable_next');
+            dataTablesEmpty.text(
+                '@Localization.GetText("COMMON.Search.Related.Operation.RowsEmpty")');
+            buttonPreviousPage.text(
+                '@Localization.GetText("COMMON.Search.Related.Operation.ButtonPreviousPage")');
+            buttonNextPage.text(
+                '@Localization.GetText("COMMON.Search.Related.Operation.ButtonNextPage")');
+        }
+
+        function editTCAbstract(source) {
+            var success = enterEditMode(true, containerTCA, true);
+            if (success) {
+                setInitialTCAbstractState();
+                enterEditMode(false, $('.tcAbstract-headerButtons'), false);
+                reloadContainer($('[data-id=header-tcAbstract]'), false);
+                setDataLabbelAttribute(containerTCA);
+                firstCounterpartFinancingValidation();
+            }
+        }
+
+        function cancelEditTCAbstract(source) {
+            exitEditMode(true, containerTCA, true, true);
+            exitEditMode(false, $('.tcAbstract-headerButtons'), false, false);
+            reloadContainer($('[data-id=header-tcAbstract]'), false);
+            setInitialTCAbstractState();
+        }
+
+        function requestIncrease() {
+            var urlRequestIncrease = "@Url.Action("RequestIncrease", "View", new {area = "TC"})";
+            window.location.assign(urlRequestIncrease);
+        }
+
+        function revertFundingProcess() {
+            var promise = $.Deferred();
+            var url = "@Url.Action("ReturnToProjectTeam", "View", new { area = "TC" })";
+            var response = postUrl(url);
+
+            if (response.responseJSON.data.isValid) {
+                var message = response.responseJSON.data.message.replace(/\\n/g, "<br />");
+                addContentToModal(message);
+                var redirectUrl = "@Url.Action("TCAbstract", "View", new { area = "TC" })";
+                setModalRedirectUrl(redirectUrl);
+                $('.button01').attr('disabled', 'disabled');
+                promise.resolve(response.responseJSON.data);
+            }
+            else {
+                showMessage(response.responseJSON.data.errorMessage);
+            }
+
+            return promise;
+        }
+
+        function downloadWord(source) {
+            var url = '@Url.Action("TCAbstractExportToWord", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadPdf(source) {
+            var url = '@Url.Action("TCAbstractExportToPDF", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadXls(source) {
+            console.log('Download Xls');
+        }
+
+        function save(source) {
+            disableValidations();
+            return genericSubmit(source, '@SaveControllerTypeEnum.Save');
+        }
+
+        function saveAndSend(source) {
+            return genericSubmit(source, '@SaveControllerTypeEnum.SaveAndSend');
+        }
+
+        function addContentToModal(content) {
+            $("#changeStatusModal").html(content);
+        }
+
+        function setModalRedirectUrl(url) {
+            $("#changeStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+        }
+
+        function openModalSendToSingleWindow(target) {
+            if (target === "EditTCAbstract_SSW_Send" ||
+                target === "RevertFP_Send") {
+                $("[name=buttonChangeStatusModal]").first().click();
+            }
+        }
+
+        function operationThemeChanged(origin) {
+            var operationThemeUndefinedId = '@MasterDefinitions.GetMaster("TC_OPTHEME_UNDEFINED").MasterId';
+            var container = $(origin).closest(".row.row-body-50.font-body");
+            var operationTheme = [container.find('[name="operationTheme1"]')
+                , container.find('[name="operationTheme2"]')
+                , container.find('[name="operationTheme3"]')];
+            $.each(operationTheme, function (i, opThemeDropDown) {
+                if (opThemeDropDown.val() == "") {
+                    var indexUndefined = $(opThemeDropDown).val(operationThemeUndefinedId).index();
+                    var dropdownlist = $(opThemeDropDown).data("kendoDropDownList");
+                    dropdownlist.select(indexUndefined);
+                }
+                opThemeDropDown.closest('.showDataEdit').find("li").remove();
+                opThemeDropDown.closest('.showDataEdit').find('.parsley-errors-list.filled').removeClass()
+                    .addClass('parsley-errors-list')
+            });
+            if (operationTheme[0].val() == operationThemeUndefinedId &&
+                operationTheme[1].val() == operationThemeUndefinedId &&
+                operationTheme[2].val() == operationThemeUndefinedId) {
+                var dropdownlist = $(operationTheme[0]).data("kendoDropDownList");
+                dropdownlist.select(0);
+            }
+        }
+
+        function genericSubmit(source, submitType) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val(submitType);
+
+            var resp = $.Deferred();
+
+            response = saveContainer(
+                containerTCA,
+                '#hidViewModel',
+                true,
+                $('.tcAbstract-headerButtons'),
+                $(source.target),
+                true,
+                false);
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+                        if (isNewTCAbstract) {
+                            $('[name=TCAbstractWord]').removeAttr('disabled');
+                            $('[name=TCAbstractPDF]').removeAttr('disabled');
+                        }
+
+                        if (data.ContentHTML != null) {
+                            addContentToModal(data.ContentHTML);
+                        }
+
+                        if (data.UrlRedirect != null) {
+                            setModalRedirectUrl(data.UrlRedirect);
+                        }
+                    }
+
+                    resp.resolve(data);
+                }).always(function () {
+                    reloadContainer($('[data-id=header-tcAbstract]'), false);
+                    setInitialTCAbstractState();
+                });
+            }
+
+            return resp;
+        }
+
+        function setDataLabbelAttribute(container) {
+            container.find('[id="financingTable"]')
+                .attr('data-label', '@Localization.GetText("TC.TCAbstract.Financing.Title")');
+        }
+    </script>
+}

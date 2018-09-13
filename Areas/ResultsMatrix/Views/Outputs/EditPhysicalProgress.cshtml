@@ -1,0 +1,653 @@
+﻿@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.LinkPredefinedIndicator
+@using IDB.MW.Application.OPUSModule.Enums
+@using IDB.MW.Domain.Models.Architecture.Enumerations
+@using IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs
+@using IDB.Presentation.MVC4.Areas.ResultsMatrix.Business;
+@using IDB.Presentation.MVC4.Models.Modal
+
+@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.ResultsMatrixModel
+
+@{
+    Layout = "~/Areas/ResultsMatrix/Views/Shared/_LayoutRMIndicators.cshtml";
+    string CRFTemplateName = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory
+        .Current.GetApplicationSettings().CRFTemplateName;
+
+    if (ViewData["message"] != null)
+    {
+        @Html.ShowNotificationMessage((MessageConfiguration)ViewData["Message"]);
+    }
+}
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/botonActivo/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content((Model.showMilestones) ?
+        "~/Scripts/Modules/ResultsMatrix/Outputs/EditPhysicalProgressMilestones.js" :
+        "~/Scripts/Modules/ResultsMatrix/Outputs/EditPhysicalProgressDisaggregation.js")"></script>
+
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Outputs/EditPhysicalProgress.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Impacts/jquery.blockUI.js")"></script>
+}
+
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modulos.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/navegacion.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/globalOverrides.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Outputs/ResultMatrix_Outputs.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Common/common.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Messages/zebraDialog.css")" />
+}
+
+@{
+   var listComboOutputYears = new List<SelectListItem>();
+   for (var i = Model.OnPipelineDate.Year - 10; i < Model.OnPipelineDate.Year + 30; i++)
+   {
+      listComboOutputYears.Add(new SelectListItem() { Text = i.ToString(), Value = i.ToString(), Selected = false });
+   }
+   var currentYear = DateTime.Now.Year;
+}
+
+@Confluence.ModalWarning(
+    Html.Partial("~/Areas/OPUS/Views/View/Partials/OperationData/StrategicAlignmentResultsMatrixPartial.cshtml"),
+    buttons: new List<ModalButtonsViewModel> { new ModalButtonsViewModel { Name = "save", Text = Localization.GetText("Save"), Type = "buttonBlue" } },
+    id: "checkRmIndicatorRelationsModal")
+
+<script id="output-pep-creation-template" type="text/x-kendo-template">
+
+    <div id="output-pep-creation-container">
+
+        <div class="contentImpacts">
+            <div class="dataContent1">
+                <fieldset>
+                    <legend class="dataTitle">@Localization.GetText("Component Name")</legend>
+                    <p class="dataText" data-bind="text: Statement"></p>
+                </fieldset>
+            </div>
+            <div class="dataContent1">
+                <p class="dataTitle">@Localization.GetText("The component has sub-components linked in the Pep, please select the subcomponent that the output will related to: ")</p>
+                <ul class="optionList">
+                    <li class="small">
+                        <input id="ddl-create-new-output-pep"
+                               data-role="dropdownlist"
+                               data-auto-bind="false"
+                               data-text-field="PepTaskName"
+                               data-value-field="PepTaskId"
+                               data-bind="source: Subcomponents" />
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="pie">
+            <div class="botones">
+                <a title="@Localization.GetText("Cancel")" class="cancel" href="javascript:void(0)" onclick="cancelAddOutputWithModalWindow()"> @Localization.GetText("Cancel")</a>
+                <label>
+                    <input type="button" value="@Localization.GetText("Add")" class=" btn-primary" id="btn-output-pep-creation" onclick="AddOutputWithModalWindow();" />
+                </label>
+            </div>
+        </div>
+    </div>
+
+</script>
+
+<script id="pep-unconfirmed-data-template" type="text/x-kendo-template">
+    <div class="contentImpacts">
+        <div class="dataContent1">
+            <p class="dataTitle">@Localization.GetText("PEP.Output.HasUnconfirmedData")</p>
+        </div>
+    </div>
+</script>
+
+<script id="output-pep-move-template" type="text/x-kendo-template">
+    <div class="contentImpacts">
+        <div class="dataContent1">
+            <p class="dataTitle">@Localization.GetText("Please save before moving this Output, as it has a related Subcomponent in PEP/POA module")</p>
+        </div>
+    </div>
+</script>
+
+<input id="hdn-subcomponents-path" type="hidden" data-modal-title="@Localization.GetText("Output Creation")" value="@Url.Action("GetSubComponentsByComponentId", "Outputs", new { area = "ResultsMatrix" })" />
+<input id="hdn-check-subcomponents-path" type="hidden" data-modal-title="@Localization.GetText("Output Creation")" value="@Url.Action("ExistsOutputsLinkedToSubComponents", "Outputs", new { area = "ResultsMatrix" })" />
+<input id="hdn-pep-unconfirmed-data" type="hidden" value="@Url.Action("HasPepUnconfirmedData", "Outputs", new { area = "ResultsMatrix" })" />
+@Html.Hidden("hdnBeforeDeleteUrl", @Url.Action("CheckIndicatorSAClassificationDelete", "View", new { area = "OPUS" }))
+
+@Html.HiddenFor(x => x.IsIntegratedWithPep)
+    <div class="mod_contenido_central impacts" id="autoCalEop">
+
+    @Html.Partial("Controls/Indicators/LinkToPredefinedIndicator",
+        (LinkPredefinesIndicatorViewModel)ViewBag.ModelIndicators)
+
+    @Html.Partial("IndexSharedHeader", Model, new ViewDataDictionary { { "isPhysicalProgress", true }, { "isEdit", true } })
+
+    <div class="editingButtonsEdit">
+        @Html.Partial("Partials/_EditPhysicalButtonsPartial", Model.showMilestones)
+    </div>
+
+    @Html.Partial("Partials/_EditPhysicalHiddenPartial", Model)
+
+    @using (Html.BeginForm("UpdatePhysicalProgress", "Outputs", FormMethod.Post, new {
+        area = "ResultsMatrix", id = "outputsTarget", @class = "isUpdateOutputs" }))
+    {
+        for (var componentIndex = 0; componentIndex < Model.Components.Count; componentIndex++)
+        {
+            <div class="mod_tabla_impacts editable years-impact component@(componentIndex)" data-componentindex="@(componentIndex)">
+                @Html.Hidden("Components.Index", componentIndex)
+                @Html.HiddenFor(x => x.Components[componentIndex].ComponentId, new { data_val = "false", @class = "ComponentId" })
+
+                @Html.HiddenFor(x => x.Components[componentIndex].OrderNumber)
+
+                <div class="minimizeTable">
+                    <div class="minimizeBar">
+                        <div class="trackOrder">@Model.Components[componentIndex].OrderNumber</div>
+                        <div class="tableOperator">Minimize/Maximize</div>
+                    </div>
+                    <div class="operatorBar"></div>
+                    <div class="headingh3_editable">
+                        <label class="editLabel input" for="Components_@(componentIndex)__Statement" style="margin-bottom: 3em;" onmouseover="showMainActionBar(this)" onmouseout="hideMainActionBar(this);">
+                            @Html.TextBoxFor(x => x.Components[componentIndex].Statement, new { @class = "input headingh4 changeValueInput" })
+                            @{ Html.ValidateFor(x => x.Components[componentIndex].Statement); }
+
+                            <div class="actionbar main" style="display: none; width: 89%">
+
+                                <a class="btn_entypo first moveUp" title="@Localization.GetText("Move Up")" onclick="moveUpComponent(this)" href="javascript:void(0)">&#59231;</a>
+                                <a class="btn_entypo first moveDown" title="@Localization.GetText("Move Down")" onclick="moveDownComponent(this)" href="javascript:void(0)">&#59228;</a>
+
+                            </div>
+
+                        </label>
+                        <a href="javascript:void(0);" onclick="deleteComponent(this);" class="btn_delete btn_square_min" title="@Localization.GetText("Delete")">@Localization.GetText("Delete")</a>
+                    </div>
+                    <div class="tableGrid outputsContainer">
+                        @if (Model.Components[componentIndex].Outputs != null)
+                        {
+                            Model.Components[componentIndex].Outputs.Sort((x1, x2) => x1.OrderNumber.CompareTo(x2.OrderNumber));
+                            var totalOutputsYearPlan = Model.getTotalYears();
+                            <table class="grid">
+                                <thead>
+                                    <tr>
+                                        <th class="btn_azul_oscuro dato00">
+                                            @Localization.GetText("Outputs")
+                                        </th>
+                                        <th class="btn_azul_oscuro dato06">@Localization.GetText("Unit of measure")</th>
+                                        <th class="btn_azul_oscuro dato04"></th>
+                                        @for (var ouputYearPlanIndex = 0; ouputYearPlanIndex < totalOutputsYearPlan.Count; ouputYearPlanIndex++)
+                                        {
+                                            <th class="btn_azul_oscuro selects years-impact" data-outputyearplanindex="@(ouputYearPlanIndex + 1)">
+
+                                                @{object htmlDropDownYearProperties = null; bool state;}
+
+                                                @if (totalOutputsYearPlan[ouputYearPlanIndex].Item2 && !Model.AccessedByAdministrator)
+                                                {
+                                                    state = false;
+                                                    htmlDropDownYearProperties = new { @class = "optionSelect optionSelectOutputYearPlan", @disabled = "disabled" };
+                                                }
+                                                else
+                                                {
+                                                    htmlDropDownYearProperties = new { @class = "optionSelect optionSelectOutputYearPlan" };
+                                                    state = true;
+                                                }
+                                                <table>
+                                                    <tbody style="border-bottom-width: 0px;">
+                                                        <tr>
+                                                            <td>
+                                                                <div class="filterDropDown selectCustom">
+                                                                    <ul class="optionList small">
+                                                                        <li class="small">
+                                                                            @if ((ouputYearPlanIndex == 0 && state) && (Model.AccessedByAdministrator ||
+                                                                                (Model.interval.IntervalId != ResultsMatrixCodes.ThirdInterval &&
+                                                                                    IDBContext.Current.HasRole(Role.TEAM_LEADER))))
+                                                                            {
+                                                                                @Html.DropDownList(
+                                                                                    string.Format(
+                                                                                        "Components_{0}__OutputsComboYear_{1}__Year",
+                                                                                        componentIndex,
+                                                                                        ouputYearPlanIndex),
+                                                                                    new SelectList(
+                                                                                        listComboOutputYears,
+                                                                                        "Value",
+                                                                                        "Text",
+                                                                                        totalOutputsYearPlan[ouputYearPlanIndex].Item1.ToString()),
+                                                                                    htmlDropDownYearProperties)
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                @Html.Raw(totalOutputsYearPlan[ouputYearPlanIndex].Item1)
+                                                                            }
+                                                                        </li>
+                                                                    </ul>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                @if (ouputYearPlanIndex == (totalOutputsYearPlan.Count - 1))
+                                                                {
+                                                                    if (!Model.AccessedByAdministrator)
+                                                                    {
+                                                                        if (totalOutputsYearPlan[ouputYearPlanIndex].Item2)
+                                                                        {
+                                                                            <div title=@Localization.GetText("Delete Year") onclick="showMessage('@Localization.GetText("RM.Delete.Year.Info")')" class="deleteYear" style="display: none;">X</div>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <div title="@Localization.GetText("Delete Year")" onclick="deleteCurrentOutputYear(this);" class="deleteYear" style="display: none;">X</div>
+                                                                        }
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <div title="@Localization.GetText("Delete Year")" onclick="deleteCurrentOutputYear(this);" class="deleteYear" style="display: none;">X</div>
+
+                                                                    }
+                                                                }
+
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </th>
+                                        }
+                                        <th id="lastCellHead" class="btn_azul_oscuro selects" style="text-align: center; vertical-align: middle; width: 1em;">
+                                            <label style="cursor: pointer; text-align: center" onclick="addNewYearPlanOutput(this)"><b>+</b></label>
+                                        </th>
+                                        <th class="btn_azul_oscuro dato05">@Localization.GetText("EOP") @Model.EndProjectYear</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var outputIndex = 0; outputIndex < Model.Components[componentIndex].Outputs.Count; outputIndex++)
+                                    {
+                                        <tr class="trackOrderRow">
+                                            <td class="displayTableCaption verticalAlignMiddle">
+                                                @(Model.Components[componentIndex].OrderNumber + "." +
+                                                    Model.Components[componentIndex].Outputs[outputIndex].OrderNumber)
+                                                @if (Model.Components[componentIndex].Outputs[outputIndex].IsProgender)
+                                                {
+                                                    <span class="ico_badge_flag purple"></span>
+                                                }
+                                                @if (Model.Components[componentIndex].Outputs[outputIndex].UsedForStrategicAlignment)
+                                                {
+                                                    <span class="ico_badge_flag lime"></span>
+                                                }
+                                                @if (Model.Components[componentIndex].Outputs[outputIndex].IsProethnicity)
+                                                {
+                                                    <span class="ico_badge_flag grey"></span>
+                                                }
+                                                @if (Model.Components[componentIndex].Outputs[outputIndex].PredefinedIndicator != null)
+                                                {
+                                                    <span class="@Model.Components[componentIndex].Outputs[outputIndex].PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                }
+                                            </td>
+                                        </tr>
+                                        <tr class="nivel01" data-outputindex="@outputIndex">
+                                            <td class="verticalShadow">
+                                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].OutputId, new { data_val = "false", @class = "OutputId" })
+                                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].OutputCategoryId, new { data_val = "false" })
+                                                @Html.Hidden("Components[" + componentIndex + "].Outputs.Index", outputIndex)
+                                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].UsedForStrategicAlignment, new { data_val = "false", @class = "UsedForStrategicAlignment" })
+                                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop, new { data_val = "false" })
+                                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].ParentPeptaskId, new { data_val = "false" })
+                                                @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].OrderNumber, new { data_val = "false", @class="output-order-number" })
+                                                <div class="dato01">
+                                                    @Html.TextAreaFor(x => x.Components[componentIndex].Outputs[outputIndex].Definition,
+                                                    new { @class = "dato01 changeValueInput", rows = "2", cols = "55" })
+                                                    @if (Model.Components[componentIndex].Outputs[outputIndex].OutputPredefinedIndicators.Any())
+                                                    {
+                                                        <div class="blockCRF displayNone">
+                                                            <div class="setTitleBlockCRF">@Localization.GetText("CRF:")</div>
+                                                            <div class="setTDBlockCRF">
+                                                                @foreach (var item in Model.Components[componentIndex].Outputs[outputIndex].OutputPredefinedIndicators)
+                                                                {
+                                                                    <p>
+                                                                        <span class="@item.PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                                        <span>
+                                                                            @(string.Format("{0} {1} {2}",
+                                                                                item.PredefinedIndicator.IndicatorNumber,
+                                                                                item.PredefinedIndicator.NameEn,
+                                                                                item.PredefinedIndicator.IsContribution == true ? " (C)" : ""))
+                                                                        </span>
+                                                                    </p>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                                
+                                        <div class="actionbar">
+                                            <a class="btn_entypo first" title="@Localization.GetText("Move Up")" onclick="moveUpOutputs(this);" href="javascript:void(0);">&#59231;</a>
+                                            <a class="btn_entypo first" title="@Localization.GetText("Move Down")" onclick="moveDownOutputs(this);" href="javascript:void(0);">&#59228;</a>
+                                            <a class="btn_entypo first reassingOutput " title="@Localization.GetText("Reassign Output")" data-title="Reassign output"
+                                               data-route="@Url.Action("EditReassingOutput", "Outputs", new { area = "ResultsMatrix", outputID = Model.Components[componentIndex].Outputs[outputIndex].OutputId })"
+                                               data-outputid="@(Model.Components[componentIndex].Outputs[outputIndex].OutputId)" href="javascript:void(0);">🔙</a>
+                                            <a class="btn_entypo first " title="@Localization.GetText("TCM.EditIndicator.LinkToPredefinedIndicatorTooltip")"
+                                               onclick="showModalIndicators(@Model.Components[componentIndex].Outputs[outputIndex].OutputId, 'Outputs')" href="javascript:void(0);">⚑</a>
+                                            @if (Model.Components[componentIndex].Outputs[outputIndex].PredefinedIndicator != null)
+                                            {
+                                                <a class="btn_entypo first unLinkBtn"
+                                                   onclick="showWarningRemoveIndicators(@Model.ResultsMatrixId, @Model.Components[componentIndex].Outputs[outputIndex].OutputId, 'outputs')"
+                                                   href="javascript:void(0)"
+                                                   title="@Localization.GetText("CS.ResultMatrix.Modal.UnlinkPI")"></a>
+                                            }
+                                            <a class="btn_entypo first addDisBtn"
+                                               title="@(Localization.GetText(Model.showMilestones ? "Add milestone" : "Add disaggregation"))"
+                                               onclick="addNewMilestone(this);" href="javascript:void(0);"></a>
+                                            <a class="btn_entypo first " title="@Localization.GetText("Delete")"
+                                                href="javascript:void(0);" onclick="deleteOutput(this);"
+                                                data-sa-checkindicators-placeholder="@Localization.GetText("TCM.SelectOptionParenthesis")"
+                                                data-sa-checkindicators-url="@Url.Action(
+                                                    "CheckRmIndicatorRelationsToSAClassifications",
+                                                    "View",
+                                                    new
+                                                    {
+                                                        area = "OPUS",
+                                                        operationNumber = Model.Operation.OperationNumber,
+                                                        elementType = ResultsMatrixElementTypesEnum.Output,
+                                                        rmElementId = Model.Components[componentIndex].Outputs[outputIndex].OutputId
+                                                    })"></a>
+                                        </div>
+                                        </td>
+<td>
+                                                <label class="editLabel ici" for="unit01">
+                                                    @if (Model.Components[componentIndex].Outputs[outputIndex].PredefinedIndicator != null)
+                                                    {
+                                                        @Html.TextBoxFor(x => x.Components[componentIndex].Outputs[outputIndex].UnitOfMeasure,
+                                                        new { @class = "input min_input changeValueInput", @readonly = "readonly" })
+                                                    }
+                                                    else
+                                                    {
+                                                        @Html.TextBoxFor(x => x.Components[componentIndex].Outputs[outputIndex].UnitOfMeasure,
+                                                        new { @class = "input min_input changeValueInput" })
+                                                    }
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <table class="ouputTable">
+                                                    <tbody>
+                                                        <tr>
+                                                            <td class="rm_edit_rh">P</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="rm_edit_rh">P(a)</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="rm_edit_rh">A</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </td>
+
+                                            @if (totalOutputsYearPlan != null && totalOutputsYearPlan.Count > 0)
+                                            {
+                                                for (var ouputYearPlanIndex = 0; ouputYearPlanIndex < totalOutputsYearPlan.Count; ouputYearPlanIndex++)
+                                                {
+                                                    ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                        new ResultsMatrixBusinessRulesPhysicalProgress(Model.Components[componentIndex].
+                                                            Outputs[outputIndex].OutputYearPlans);
+                                                    int referenceLastYearOutputProduct =
+                                                        rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                    int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                    int referenceYear =
+                                                        rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+                                                    var currentOutputYearPlan = Model.Components[componentIndex].Outputs[outputIndex].
+                                                        OutputYearPlans.Where(x => x.Year == totalOutputsYearPlan[ouputYearPlanIndex].Item1).
+                                                        FirstOrDefault();
+                                                    if (currentOutputYearPlan == null)
+                                                    {
+                                                        currentOutputYearPlan = new OutputYearPlanModel()
+                                                        {
+                                                            OriginalPlan = null,
+                                                            AnnualPlan = null,
+                                                            ActualValue = null,
+                                                            Year = totalOutputsYearPlan[ouputYearPlanIndex].Item1
+                                                        };
+                                                    }
+                                                    var _ouputYearPlanIndex = ouputYearPlanIndex + 1;
+
+                                                    <td data-rowcolumnrelated="@(_ouputYearPlanIndex)" class="dato07">
+
+                                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + _ouputYearPlanIndex + "].OutputYearPlanId",
+                                                currentOutputYearPlan.OutputYearPlanId, new { @class = "hiddenId" })
+                                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + _ouputYearPlanIndex + "].Year",
+                                                currentOutputYearPlan.Year, new { @class = "hiddenYear" })
+                                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans.Index", _ouputYearPlanIndex)
+                                                        <table>
+                                                            <tbody>
+                                                                <tr class="rm_p_row">
+                                                                    <td>
+                                                                        <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(_ouputYearPlanIndex)].OriginalPlan'>
+                                                                            <input class='input min_input numberInput ExistingOriginal' id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(_ouputYearPlanIndex)__OriginalPlan'
+                                                                                   name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(_ouputYearPlanIndex)].OriginalPlan' type='text' value='@currentOutputYearPlan.OriginalPlan'
+                                                                                   data-referenceyear=@referenceYear
+                                                                                   data-pmryear=@pmrYear
+                                                                                   @( !currentOutputYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "") data-originalvalue="@currentOutputYearPlan.OriginalPlan">
+                                                                        </label>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr class="rm_pa_row">
+                                                                    <td>
+                                                                        <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(_ouputYearPlanIndex)].AnnualPlan'>
+                                                                            <input class='input min_input numberInput @( Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop ? "annualChangeValueInput" : "")'
+                                                                                   type='text' value='@currentOutputYearPlan.AnnualPlan' data-originalvalue="@currentOutputYearPlan.AnnualPlan"
+                                                                                   id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(_ouputYearPlanIndex)__AnnualPlan'
+                                                                                   name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(_ouputYearPlanIndex)].AnnualPlan'
+                                                                                   data-referenceyear=@referenceYear
+                                                                                   data-pmryear=@pmrYear
+                                                                                   @( !currentOutputYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                        </label>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr class="rm_ac_row">
+                                                                    <td>
+                                                                        <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(_ouputYearPlanIndex)].ActualValue'>
+                                                                            <input class='input min_input numberInput' type='text' value='@currentOutputYearPlan.ActualValue'
+                                                                                   id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(_ouputYearPlanIndex)__ActualValue'
+                                                                                   data-referenceyear=@referenceYear
+                                                                                   data-pmryear=@pmrYear
+                                                                                   name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(_ouputYearPlanIndex)].ActualValue' @( !currentOutputYearPlan.isActualValueEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                        </label>
+                                                                    </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                }
+                                            }
+                                            <td></td>
+                                            <td class="totalOutputYearPlan dato07 @(Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop ? "IsAutoCalcPhysycalEop" : string.Empty)">
+                                                @{
+                                            var ouputYearPlanIndexEOP = 0;
+                                            var EOPOutputYearPlan = Model.Components[componentIndex].Outputs[outputIndex].OutputYearPlans.Where(x => x.Year == ResultsMatrixCodes.EndOfProjectYear).FirstOrDefault();
+                                            EOPOutputYearPlan = EOPOutputYearPlan ?? new OutputYearPlanModel()
+                                            {
+                                                OriginalPlan = 0.0m,
+                                                ActualValue = 0.0m,
+                                                AnnualPlan = 0.0m,
+                                                OutputYearPlanId = 0,
+                                                Year = ResultsMatrixCodes.EndOfProjectYear
+                                            };
+                                            @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndexEOP + "].OutputYearPlanId",
+                                                        EOPOutputYearPlan.OutputYearPlanId, new { @class = "hiddenId" })
+                                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndexEOP + "].Year",
+                                                        EOPOutputYearPlan.Year)
+                                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans.Index",
+                                                        ouputYearPlanIndexEOP)
+
+                                            var originalEOPProperties = new Dictionary<string, object>();
+                                            var annualEOPProperties = new Dictionary<string, object>();
+                                            var actualEOPProperties = new Dictionary<string, object>();
+
+                                            if (Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop)
+                                            {
+                                                ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                    new ResultsMatrixBusinessRulesPhysicalProgress(Model.Components[componentIndex].
+                                                        Outputs[outputIndex].OutputYearPlans);
+
+                                                int referenceLastYearOutputProduct =
+                                                    rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                int referenceYear =
+                                                    rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+                                                EOPOutputYearPlan.OriginalPlan =
+                                                    rmBusinessRuleHelper.GetOriginalPlanSum();
+                                                EOPOutputYearPlan.AnnualPlan =
+                                                    rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear);
+                                                EOPOutputYearPlan.ActualValue =
+                                                    rmBusinessRuleHelper.GetActualValueSum();
+                                            }
+
+                                            if (Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop || (!EOPOutputYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator))
+                                            {
+                                                originalEOPProperties.Add("readonly", "readonly");
+                                            }
+                                            if (!Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop && Model.AccessedByAdministrator)
+                                            {
+                                                originalEOPProperties.Add("class", "input min_input numberInput ExistingOriginal");
+                                                originalEOPProperties.Add("data-originalValue", EOPOutputYearPlan.OriginalPlan);
+                                            }
+                                            else
+                                            {
+                                                originalEOPProperties.Add("class", "input min_input numberInput");
+                                            }
+
+                                            if (Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop || (!EOPOutputYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator))
+                                            {
+                                                annualEOPProperties.Add("readonly", "readonly");
+
+                                            }
+
+                                            var annualClassValues = "input min_input numberInput ";
+                                            if (Model.Components[componentIndex].Outputs[outputIndex].isOldAnnualPlanExists)
+                                            {
+                                                annualClassValues += "ExistingAnnual ";
+                                                annualEOPProperties.Add("data-originalValue", EOPOutputYearPlan.AnnualPlan);
+                                                annualEOPProperties.Add("data-oldValue", Model.Components[componentIndex].Outputs[outputIndex].OldAnnualPlan);
+                                                if (Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop)
+                                                {
+                                                    annualClassValues += "isauto ";
+                                                }
+                                            }
+
+                                            annualEOPProperties.Add("class", annualClassValues);
+
+
+                                            if (Model.Components[componentIndex].Outputs[outputIndex].IsAutoCalcPhysycalEop || (!EOPOutputYearPlan.isActualValueEditable && !Model.AccessedByAdministrator))
+                                            {
+                                                actualEOPProperties.Add("readonly", "readonly");
+                                            }
+                                            actualEOPProperties.Add("class", "input min_input numberInput");
+                                                }
+
+                                                <table>
+                                                    <tbody>
+                                                        <tr class="rm_p_row">
+                                                            <td>
+                                                                <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndexEOP)].OriginalPlan'>
+                                                                    @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndexEOP + "].OriginalPlan",
+                                                    EOPOutputYearPlan.OriginalPlan, originalEOPProperties)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_pa_row">
+                                                            <td>
+                                                                <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndexEOP)].AnnualPlan'>
+                                                                    @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndexEOP + "].AnnualPlan",
+                                                    EOPOutputYearPlan.AnnualPlan, annualEOPProperties)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                        <tr class="rm_ac_row">
+                                                            <td>
+                                                                <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndexEOP)].ActualValue'>
+                                                                    @Html.TextBox("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndexEOP + "].ActualValue",
+                                                    EOPOutputYearPlan.ActualValue, actualEOPProperties)
+                                                                </label>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        </tr>
+
+                                        var customViewBag = new ViewDataDictionary
+                                        {
+                                            { "componentIndex", componentIndex },
+                                            { "outputIndex", outputIndex },
+                                            { "totalOutputsYearPlan", totalOutputsYearPlan }
+                                        };
+
+                                        if (@Model.showMilestones)
+                                        {
+                                            @*---Milestones grid----*@
+                                            @Html.Partial("EditPhysicalProgressMilestones", Model, customViewBag)
+                                        }
+                                        else
+                                        {
+                                            @*---Disaggregations grid---*@
+                                            @Html.Partial("EditPhysicalProgressDisaggregation", Model, customViewBag)
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                    <div class="k-toolbar">
+                        <a href="javascript:void(0);" onclick="checkOutputCreation(this);" id="btn-add-new-output-@componentIndex" @*onclick="addNewOutput(this);"*@ title="@Localization.GetText("New output") " style=" margin-top:10px;" class="k-button newIndicator">
+                            <div class="k-button-">@Localization.GetText("New output")</div>
+                        </a>
+                    </div>
+                    <div class="plegableSeparator">Borde de separacion</div>
+                </div>
+            </div>
+        }
+
+        @Html.HiddenFor(x => x.Operation.OperationNumber, new { data_val = "false" })
+        @Html.HiddenFor(x => x.ResultsMatrixId, new { data_val = "false" })
+        @Html.HiddenFor(x => x.redirectToEdit, new { data_val = "false" })
+        @Html.HiddenFor(x => x.showMilestones, new { data_val = "false" })
+        @Html.HiddenFor(x => x.showMilestones)
+        @Html.HiddenFor(x => x.showDisaggregation)
+        @Html.HiddenFor(x => x.OperationNumber)
+        @Html.HiddenFor(x => x.OperationId)
+        @Html.Hidden("UsedForStrategicAlignmentMessage", Localization.GetText("PI.Message.Information.StrategicAlignmentIndicator"))
+        @Html.Hidden("currentSelectedYear")
+    }
+    <div class="col-md-12">
+        <div class="editingButtonsEdit bottom">
+            <a href="@(Url.Action("IndexPhysicalProgress", "Outputs", new { area = "ResultsMatrix", OperationNumber = Model.Operation.OperationNumber }))" style="padding-left:5px;" class="cancel link12" title="@Localization.GetText("Cancel")">@Localization.GetText("Cancel")</a>
+            <a href="javascript:void(0);" class="btn-primary_2 btnSavePhysicalOutput" title="@Localization.GetText("Edit")">@Localization.GetText("Save")</a>
+        </div>
+    </div>
+</div>
+
+<div class="operationData" style="float: right;">
+    @Html.Partial("../Partials/_BadgeFlagPartial")
+</div>
+
+@Html.Partial("EditPhysicalProgressTemplates")
+
+@if (Model.showMilestones)
+{
+   @Html.Partial("EditPhysicalProgressMilestonesTemplates")
+}
+else
+{
+   @Html.Partial("EditPhysicalProgressDisaggregationTemplates")
+}
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        $('.disabledContent').block({ message: null });
+        $(".import-physical-pep-data").click(function (event) {
+            checkImportDataFromPep($("input[name='hdn-import-pep-data-title']").val(),
+                $("input[name='hdn-import-pep-data-message']").val(),
+                $("input[name='hdn-import-pep-data-cancel']").val(),
+                $("input[name='hdn-import-pep-data-confirm']").val(),
+                false);
+        });
+
+        fixDropdonwYears(true);
+    });
+
+    var msgVerifyChangedYear = '@Localization.GetText("RM.Outputs.Message.VerifyChangedYear")';
+
+    $('#pmrCycleImgState').tooltip();
+
+</script>

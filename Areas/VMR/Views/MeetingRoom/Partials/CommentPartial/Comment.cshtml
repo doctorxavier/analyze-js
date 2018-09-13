@@ -1,0 +1,348 @@
+﻿@using IDB.MW.Application.VMRModule.ViewModels
+@using IDB.MW.Domain.Values.Vmr
+@model CommentViewModel
+
+@{
+    string commentClass = string.Empty;
+    var optionalClassTextMoreLess = string.Empty;
+    string attribute = string.Empty;
+    var showLines = false;
+
+    switch (Model.Level)
+    {
+        case 1:
+            commentClass = "firstLevelBox message_all";
+            optionalClassTextMoreLess = "textMainMessage";
+            attribute = string.Format("{0}={1}", "data-comment-id", Model.CommentId);
+            break;
+        case 2:
+            commentClass = "secondLevelBox" + (Model.IsAdded || Model.IsExpand ? "" :" hide");
+            attribute = string.Format("{0}={1}", "data-parent-comment-id", Model.ParentCommentId);
+            showLines = true;
+            break;
+        case 3:
+            commentClass = "thirdLevelBox" + (Model.IsAdded || Model.IsExpand ? null :" hide");
+            attribute = string.Format("{0}={1}", "data-parent-comment-id", Model.ParentCommentId);
+            showLines = true;
+            break;
+    }
+}
+
+<div class="sectionComment" data-parsley-validate="data-parsley-validate">
+    <div @attribute class="@commentClass row col-md-12">
+        <table class="col-md-12">
+            <tbody>
+            <tr>
+                @if (showLines)
+                {
+                    <td class="vmrLineComment">&nbsp;</td>
+                }
+                <td>
+                    <div class="@(showLines ? "pl0" : null) col-md-12">
+                        @CommentHeader(Model)
+
+                        @CommentBody(Model, optionalClassTextMoreLess)
+
+                        @(Model.IsEditMode ? CommentEditButton(Model) : CommentReadButton(Model))
+
+                        @Confluence.InputHidden(Model.CommentId.ToString(), "vmrCommentId")
+                        @if (Model.IsAdded)
+                        {
+                            @Confluence.InputHidden("true", "vmrCommentAdded")
+                        }
+                        
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.ChildrenCommentList != null && Model.ChildrenCommentList.Any())
+{
+    foreach (var child in Model.ChildrenCommentList)
+    {
+        @Html.Partial("Partials/CommentPartial/Comment", child)
+    }
+
+}
+
+@helper CommentBody(CommentViewModel comment, string optionalClassTextMoreLess)
+{
+    if (comment.IsEditMode == false)
+    {
+        <div class="commentMessage message_main col-md-12">
+            @CommentMore(comment.Comment.TextValue, optionalClassTextMoreLess: optionalClassTextMoreLess)
+        </div>
+    }
+
+    <div class="editMode @(Model.IsEditMode ? string.Empty : "hide")">
+        @Confluence.InputTextArea(
+            comment.Comment.TextValue, "Edit",
+            rows: 4,
+            maxLength: 20000,
+            htmlClass: "commentMessage message_main",
+            placeholder: comment.Comment.Placeholder,
+            dataAttributes: new Dictionary<string, string>
+            {
+                {"vmrCommentId", comment.CommentId.ToString()}
+            })
+    </div>
+}
+
+@helper CommentHeader(CommentViewModel element)
+{
+    if (element.Level == 1)
+    {
+        <div class="row col-md-12" style="display: inline-flex">
+            @Confluence.LabelSubTitleGroup(element.CommentTypeTitle)
+
+            @if (element.Topic != null && element.Topic.IsVisible)
+            {
+                @Confluence.Label(element.Topic.TextValue, htmlClass: "floatLeft mt10 ml10")
+            }
+        </div>
+        <div class="col-sm-12 col-md-12 text-right mb10 mt10 mr0 pr0 pl0">
+            @InfoComment(element)
+        </div>
+    }
+    else
+    {
+        <div class="col-sm-3 col-md-3 text-left mt10 mr0 pr0 pl0">
+            @Confluence.LabelBold(element.CommentTypeTitle, htmlClass: "commenthead")
+        </div>
+        <div class="col-sm-9 col-md-9 text-right mb10 mt20 mr0 pr0 pl0">
+            @InfoComment(element)
+        </div>
+    }
+}
+
+@helper InfoComment(CommentViewModel element)
+{
+    <span class="info_username">
+        @Confluence.Label(
+            string.Concat(
+                string.IsNullOrEmpty(element.CreatedByUnit)
+                    ? element.CreatedByFullName
+                    : string.IsNullOrEmpty(element.CreatedByFullName)
+                        ? element.CreatedByUnit
+                        : element.CreatedByFullName + " (" + element.CreatedByUnit + ")",
+                !string.IsNullOrEmpty(element.CreatedByRole)
+                    ? " | " + element.CreatedByRole
+                    : string.Empty
+                ))
+    </span>
+    if (!string.IsNullOrEmpty(element.OnBehalfOfUserName))
+    {
+        var isEqualBehalf = string.IsNullOrEmpty(element.OnBehalfOfOrgUnit) ||
+                            element.OnBehalfOfFullName == element.OnBehalfOfOrgUnit;
+            <span class="info_onbehalf">
+                        @Localization.GetText("VMR.MM.MeetingRoom.TabComments.OnBehalfOf"):
+                        @Confluence.Label(isEqualBehalf
+                                ?  element.OnBehalfOfFullName
+                                :  element.OnBehalfOfFullName + "| (" + element.OnBehalfOfOrgUnit + ")")
+                    </span>
+        }
+        <span class="info_created" >| @Confluence.Label(string.Format("{0:dd MMM yyyy hh:mm tt}", element.Comment != null ? element.Comment.DateTimeValue : DateTime.Now)) </span>
+    }
+
+@helper CommentMore(string text, string textMore = "... Show more", string textLess = "Show Less", string optionalClassTextMoreLess = null)
+{
+    <div class="commentMainSection">
+        <div class="lessText" data-comment="Less">
+            <a showmore class="showlinkTree @optionalClassTextMoreLess pr5">@Localization.GetText("VMR.MM.MeetingRoom.TabComments.ShowMore")</a>
+            <div class="textComment">
+                @Html.Raw(Html.Encode(text).Replace("\n", "<br />"))
+            </div>
+        </div>
+        <div class="moreText" data-comment="More">
+            <div>
+                @Html.Raw(Html.Encode(text).Replace("\n", "<br />"))
+            </div>
+            <br/> <br/>
+            <a showless class="showlinkTree bottom @optionalClassTextMoreLess pr5">@Localization.GetText("VMR.MM.MeetingRoom.TabComments.ShowLess")</a>
+        </div>
+    </div>
+}
+
+@helper  CommentReadButton(CommentViewModel element)
+{
+    var isVisibleAddSecondLevel = element.Level == 1 && element.AddNewField != null && element.AddNewField.IsVisible;
+    var isVisibleCheckPublic = element.Public != null && element.Public.IsVisible;
+    var isVisibleCheckTransfer = element.Transfer != null && element.Transfer.IsVisible;
+
+    var isVisibleEditButton = element.EditField != null && element.EditField.IsVisible;
+    var hasChildren = element.Level == 1 && element.ChildrenCommentList != null && element.ChildrenCommentList.Any();
+    var isVisibleDeleteButton = element.DeleteField != null && element.DeleteField.IsVisible;
+
+    if (isVisibleEditButton || hasChildren || isVisibleCheckPublic || isVisibleAddSecondLevel || isVisibleDeleteButton || isVisibleCheckTransfer)
+    {
+        <div class="col-md-12 buttons mt5 pr0 pl0">
+            @if (isVisibleEditButton)
+            {
+                @Confluence.ButtonLink(
+                     Localization.GetText("VMR.MM.MeetingRoom.Edit"),
+                     "EditComment",
+                     "editComment",
+                     dataAttributes: new Dictionary<string, string>
+                     {
+                        {"vmrCommentId", element.CommentId.ToString()},
+                        {"treeLevel", element.Level.ToString()}
+                     })
+            }
+
+            @if (hasChildren)
+            {
+                var secondLevel = element.ChildrenCommentList
+                    .FirstOrDefault(x => x.ParentCommentId == element.CommentId && x.Level == 2);
+
+                var thirdLevel = element.ChildrenCommentList
+                    .FirstOrDefault(x => x.ParentCommentId == element.CommentId && x.Level == 3);
+
+                var isVisibleAddThirdLevel = secondLevel != null &&
+                                             secondLevel.AddNewField != null &&
+                                             secondLevel.AddNewField.IsVisible;
+
+                if (secondLevel != null)
+                {
+                    var isExpandSecondLevel = secondLevel.IsExpand;
+                    @Confluence.ButtonLink(Localization.GetText(isExpandSecondLevel ?
+                         element.VisualizationSubLevels[VmrGlobalValues.HIDE_SECOND_LEVEL] :
+                         element.VisualizationSubLevels[VmrGlobalValues.SHOW_SECOND_LEVEL]),
+                         "showHideSecondLevel",
+                         "showSubLevel",
+                         dataAttributes: new Dictionary<string, string>
+                         {
+                            {"vmrCommentId", secondLevel.ParentCommentId.ToString()},
+                            {"level", "2"},
+                            {"textShow", element.VisualizationSubLevels[VmrGlobalValues.SHOW_SECOND_LEVEL]},
+                            {"textHide", element.VisualizationSubLevels[VmrGlobalValues.HIDE_SECOND_LEVEL]}
+                         },
+                         htmlClass: isExpandSecondLevel ? "Showing" : "")
+
+                    if (thirdLevel != null)
+                    {
+                        var isExpandThirdLevel = thirdLevel.IsExpand;
+                        @Confluence.ButtonLink(isExpandThirdLevel
+                             ? element.VisualizationSubLevels[VmrGlobalValues.HIDE_THIRD_LEVEL]
+                             : element.VisualizationSubLevels[VmrGlobalValues.SHOW_THIRD_LEVEL],
+                             "showHideThirdLevel",
+                             "showSubLevel",
+                             dataAttributes: new Dictionary<string, string>
+                             {
+                                {"vmrCommentId", thirdLevel.ParentCommentId.ToString()},
+                                {"level", "3"},
+                                {"textShow", element.VisualizationSubLevels[VmrGlobalValues.SHOW_THIRD_LEVEL]},
+                                {"textHide", element.VisualizationSubLevels[VmrGlobalValues.HIDE_THIRD_LEVEL]}
+                             },
+                             htmlClass: isExpandThirdLevel ? "Showing" : "")
+                    }
+
+                    if (thirdLevel == null && isVisibleAddThirdLevel)
+                    {
+                        @Confluence.ButtonNewMessage(
+                             "",
+                             secondLevel.AddNewField.FieldName,
+                             "addLevel",
+                             tooltip: secondLevel.AddNewField.Tooltip,
+                             dataAttributes: new Dictionary<string, string>
+                             {
+                                {"vmrCommentId", element.CommentId.ToString()},
+                                {"treelevel", "3"}
+                             })
+                    }
+                }
+
+                if (isVisibleCheckTransfer && secondLevel != null)
+                {
+                    <span class="col-md-12 mt5 text-right pl0 pr0">
+                        @Confluence.InputCheckbox(
+                         element.Transfer.BoolValue,
+                         element.Transfer.FieldName,
+                         disabled: element.Transfer.IsReadOnly,
+                         label: Localization.GetText("VMR.MeetingRoom.TransferComment"),
+                         dataAttributes: new Dictionary<string, string>
+                             {
+                                {"vmrCommentId", element.CommentId.ToString()}
+                             })
+                    </span>
+                }
+            }
+            else
+            {
+                if (isVisibleDeleteButton)
+                {
+                    @Confluence.ButtonTrash(null, "deleteComment", "deleteCommentLevel",
+                         dataAttributes: new Dictionary<string, string>
+                         {
+                            {"vmrCommentId", element.CommentId.ToString()},
+                            { "treelevel", element.Level.ToString() },
+                            { "parentid", element.ParentCommentId.ToString() }
+                         })
+                }
+
+                if (isVisibleAddSecondLevel)
+                {
+                    @Confluence.ButtonNewMessage(
+                         "",
+                         element.AddNewField.FieldName,
+                         "addLevel",
+                         tooltip: element.AddNewField.Tooltip,
+                         dataAttributes: new Dictionary<string, string>
+                         {
+                            {"vmrCommentId", element.CommentId.ToString()},
+                            {"treelevel","2" }
+                         })
+                }
+            }
+
+            @if (isVisibleCheckPublic)
+            {
+                <span class="mt25 pull-right pl0 pr0">
+                    @Confluence.InputCheckbox(
+                     element.Public.BoolValue,
+                     element.Public.FieldName,
+                     disabled: true,
+                     label: Localization.GetText("VMR.MM.MeetingRoom.TabComments.Public"))
+                </span>
+            }
+        </div>
+    }
+}
+
+@helper  CommentEditButton(CommentViewModel element)
+{
+    var isVisibleCheckPublic = element.Public != null && element.Public.IsVisible;
+
+    <div class="col-md-12 buttons mt5 pr0 pl0">
+        @Confluence.ButtonLink(
+            Localization.GetText("VMR.MM.MeetingRoom.Cancel"),
+            null,
+            "cancelCommentLevel",
+            dataAttributes: new Dictionary<string, string>
+            {
+                {"treelevel", element.Level.ToString()}
+            })
+
+        @Confluence.ButtonOrange(
+            Localization.GetText("VMR.MM.MeetingRoom.Save"),
+            null,
+            "saveCommentLevel",
+            dataAttributes: new Dictionary<string, string>
+            {
+                {"treelevel", Model.Level.ToString()}
+            })
+
+        @if (isVisibleCheckPublic)
+        {
+            <span class="mt20 pull-right pl0 pr0">
+                @Confluence.InputCheckbox(
+                    element.Public.BoolValue,
+                    element.Public.FieldName,
+                    disabled: element.Public.IsReadOnly,
+                    label: Localization.GetText("VMR.MM.MeetingRoom.TabComments.Public"))
+            </span>
+        }
+    </div>
+}

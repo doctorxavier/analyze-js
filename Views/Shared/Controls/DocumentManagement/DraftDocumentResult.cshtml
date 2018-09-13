@@ -1,0 +1,187 @@
+﻿@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@model IDB.Presentation.MVC4.Models.DocumentManagement.SearchResultViewModel
+
+@{
+
+    var iterator = 0;
+}
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        binHandlerDraft();
+    })
+
+    function binHandlerDraft() {
+        
+        $('[data-id-selector=selectableDraftDocument]').off('click');
+        $('[data-id-selector=selectableDraftDocument').click(function (e) {
+            console.log("selected ok");
+            if ($("#errorDocumentSelected").css('display') == 'block') {
+                $("#errorDocumentSelected").css('display', 'none');
+            }
+        });
+
+        $('#clearDraftFilter').off('click');
+        $('#clearDraftFilter').click(function (e) {
+            e.preventDefault();
+            var tabContainer;
+            var button = $('[data-id=modalButtonsContainer] [data-id=performButton]');
+
+            var tabId = $('#clearDraftFilter').attr('data-id');
+            var actionButtonText = '';
+            switch (tabId) {
+                case "draft":
+                    tabContainer = $('[data-id-selector=tabContainer]');
+                    actionButtonText = '@Localization.GetText("Document.Button.Search")';
+                    showLoader();
+                    url = '@Url.Action("LoadDraftModalForm", "DocumentManagement", new { area = "" })?id=draft&businessAreaCode=@Model.BusinessAreaCode&operationNumber=@Model.OperationNumber&enableCompatibility=@Model.EnableCompatibility';
+                    $.ajax({
+                        type: "GET",
+                        url: url,
+                        async: true,
+                        success: function (data) {
+                            tabContainer.empty();
+                            tabContainer.html(data);
+                            $("#Add").hide();
+                            $("#Search").hide();
+                            $("#searchDraftButton").show();
+                            $("#draftButton").hide();
+                            hideLoader();
+                        },
+                        error: function (res) {
+                        }
+                    });
+                    break;
+                case "idbDocs":
+                    tabContainer = $('[data-id-selector=tabContainer3]');
+                    actionButtonText = '@Localization.GetText("Document.Button.Search")';
+                    showLoader();
+                    url = '@Url.Action("LoadDraftModalForm", "DocumentManagement", new { area = "" })?id=idbDocs&businessAreaCode=@Model.BusinessAreaCode&operationNumber=@Model.OperationNumber&enableCompatibility=@Model.EnableCompatibility';
+                    $.ajax({
+                        type: "GET",
+                        url: url,
+                        async: true,
+                        success: function (data) {
+                            tabContainer.empty();
+                            tabContainer.html(data);
+                            $("#Add").hide();
+                            $("#Search").hide();
+                            $("#searchDraftButton").show();
+                            $("#draftButton").hide();
+                            hideLoader();
+                        },
+                        error: function (res) {
+                        }
+                    });
+                    break;
+            }
+            button.html(actionButtonText);
+        });
+
+        $("#tabDraftDocs").sortableConfluence();
+    };
+
+    function afterOrder() {
+        tableSetting();
+    }
+
+    tableSetting();
+
+    function tableSetting() {
+        $("#tabDraftDocs").selectableConfluence();
+    }
+
+    function afterSelect(row) {
+        if ($("#errorDocumentSelected").css('display') == 'block') {
+            $("#errorDocumentSelected").css('display', 'none');
+        }
+        var tbody = row.closest('tbody');
+        tbody.find('tr.selected').removeClass("selected").removeClass("row-selected");
+        row.addClass("selected").addClass("row-selected");
+    }
+
+</script>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="col-md-3 searchFilterET" style="padding: 12px 15px;">
+            @Model.ListDocument.Count @Localization.GetText("Documents") @*Documents*@
+        </div>
+        <div class="col-md-6 perw50 fl">
+            <div class="alert alert-danger alert-dangerETDraft pt5 pr5 pb5 pl15 ms-margin0" hidden="" id="errorDocumentSelected">
+                @Localization.GetText("DM.Error.Selected.Document")
+            </div>
+        </div>
+        <div class="col-md-3 text-right searchcClearET">
+            @if (!Model.EnableCompatibility){                
+                <input type="button" class="buttonLink" id="clearDraftFilterGD" data-id="@Model.TabId"  onclick="clearDraftResult()" value='@IDB.Architecture.Language.Localization.GetText("DM.Clear")' />                
+            }
+            else
+            {
+                <input type="button" class="buttonLink" id="clearDraftFilter" data-id="@Model.TabId" value='@IDB.Architecture.Language.Localization.GetText("DM.Clear")' />
+            }          
+            
+        </div>
+    </div>
+</div>
+<div class="row small" data-id-selector="draft-result-container-main">
+    <div class="col-md-12" data-id-selector="documentList">
+        <div class="col-md-12" data-id-selector="documents-container">
+            <div class="row overflowContainer">
+                <table id="tabDraftDocs" class="tableNormal">
+                    <thead>
+                        <tr>
+                            <th width="40px"></th>
+                            <th class="sort">@Localization.GetText("Doc Number")</th>
+                            <th class="sort">@Localization.GetText("Document.Filter.DocumentName")</th>
+                            <th class="sort">@Localization.GetText("R6.Proposal.ProposalList.CreationDate")</th>
+                            <th class="sort">@Localization.GetText("Document.Filter.IDBAuthorId")</th>
+                            @*<th>Action</th>*@
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.ListDocument)
+                        {
+                            @*<tr data-id="selectableDraftDocument" data-json="@JsonConvert.SerializeObject(item, Formatting.None)">*@
+                            <tr data-id-selector="selectableDraftDocument" data-id="@iterator" data-json="@JsonConvert.SerializeObject(item, Formatting.None)">
+                                <td>
+                                    <span class="dm-selectedRow"></span>
+                                </td>
+                                @{
+                                    var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocumentNumber);
+                                }
+                                <td><a href=@secureUrl target="_blank">@item.DocumentNumber</a></td>
+                                <td title="@item.DocumentName">
+                                    <div class="w230 text-break-points">
+                                        @item.DocumentName
+                                    </div>
+                                </td>
+                                <td>@Confluence.LabelGetDate(item.CreationDate.AsDateTime())</td>
+                                <td>@item.Author</td>
+                            </tr>
+                            <tr data-row-parent-id="@iterator">
+                                <td class="skinGray"></td>
+                                <td class="skinGray">@Html.Label(Localization.GetText("Document.Filter.OperationNumber"), new { @class = "bold" })</td>
+                                <td class="skinGray">@Html.Label(Localization.GetText("Document.Filter.DocumentContent"), new { @class = "bold" })</td>
+                                <td class="skinGray"></td>
+                                <td class="skinGray">@Html.Label(Localization.GetText("Document.Filter.IDBAuthorId"), new { @class = "bold" })</td>
+                                @*<td class="skinGray"></td>*@
+                            </tr>
+                            <tr data-row-parent-id="@iterator">
+                                <td></td>
+                                <td>@item.OperationNumber</td>
+                                <td>@item.Description</td>
+                                <td></td>
+                                <td>@item.Library/@item.LibrarySubFolder</td>
+                                @*<td></td>*@
+                            </tr>
+                                        iterator++;
+                                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+

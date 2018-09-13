@@ -1,0 +1,1013 @@
+﻿@using IDB.MW.Application.CountryStrategyModule.ViewModels.ResultMatrix
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.CountryStrategy.HtmlHelpers
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.LinkPredefinedIndicator
+@using IDB.Presentation.MVC4.Areas.CountryStrategy.Controllers
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Architecture.Language
+
+@model ResultMatrixViewModel
+
+@if (Model != null)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    <input type="hidden" data-idb-pagename="UI-CS-005-ResultsMatrix" />
+
+    <div data-section="modals" class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-modal\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+    .AddButton(name: "btn-cancel-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+    .AddButton(name: "btn-cancel-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okCancel",
+                    closeAtEnd: true))
+        <div data-name="cancel-modal" class="hide modalBody">
+            @Localization.GetText("CS.ProductProfile.Cancel.Warning")
+        </div>
+    </div>
+    <div data-section="modals" class="hide">
+        @Html.Partial("EditPartial/modals/reassign")
+        @Html.Partial("EditPartial/modals/removeObjective")
+        @Html.Partial("EditPartial/modals/removeOutcome")
+        @Html.Partial("EditPartial/modals/LinkToPredefinedIndicatorCS", (LinkPredefinesIndicatorViewModel)ViewBag.LinkIndicatorModel)
+        @Html.Partial("EditPartial/modals/removeComponent")
+        @Html.Partial("EditPartial/modals/unlinkCRF")
+    </div>
+    <div class="row mb30">
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons", Model)
+            @Confluence.LabelMainTitle(Localization.GetText("CS.ResultMatrix.Title"))
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-md-2">
+            @Confluence.LabelsGroup(Localization.GetText("CS.ResultMatrix.LastUpdate"),
+            contentAlways: FormatHelper.Format(Model.LastUpdate, formatDate))
+            </div>
+        <div class="col-md-2">
+            @Confluence.LabelsGroup(Localization.GetText("CS.ResultMatrix.Status"),
+            contentAlways: Model.StatusName)
+            </div>
+        <div class="col-md-2">
+            @Confluence.LabelsGroup(Localization.GetText("CS.ResultMatrix.Username"),
+            contentAlways: Model.LastUserUpdate)
+            </div>
+        <div class="col-md-6 text-right">
+            @Confluence.ButtonWhite(Localization.GetText("CS.ResultMatrix.PriorityArea"), name: "newComponentButton")
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-md-12 text-right">
+            @Confluence.ButtonWord(name: "exportWord", action: "downloadWord")
+            @Confluence.ButtonPdf(name: "exportPdf", action: "downloadPdf")
+        </div>
+        <div class="right-buttons" style="padding-right: 15px;">
+            @(Html.CollapseAll("collapseAllComponent").CollapseSingleSelector("[data-name=\"collapseComponent\"]"))
+        </div>
+    </div>
+    <div class="hide" data-temaplte="true">
+        @{
+    var templateComponent = new ComponentViewModel();
+    var templateObjective = new ObjectiveViewModel();
+            var templateOutcome = new ExpectedOutcomeIndicatorViewModel() { IsInitialOutcome = false, RowSpanIndicatos = 1, LastRowOutcome = true };
+    templateComponent.Objectives.Add(templateObjective);
+            templateObjective.ExpectedOutcomeIndicators.Add(templateOutcome);
+        }
+        @Html.Partial("EditPartial/Component", templateComponent)
+    </div>
+    <div class="resultMatrixArea"
+         name="submitForm"
+         data-parsley-validate="true"
+         data-ignore-nullable-values="true"
+         data-url="@Url.Action("Save", "ResultMatrix", new { area = "CountryStrategy" })">
+
+        <input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" />
+
+        <div data-pagemode="edit">
+            <input type="hidden" value="@ResultMatrixController.SAVE_MODE" name="submitMode" />
+        </div>
+        <div data-section="formContent" data-fake-pagemode="edit">
+            @foreach (var component in Model.Components)
+            {
+                @Html.Partial("EditPartial/Component", component)
+            }
+        </div>
+    </div>
+    <div class="row mb30">
+        <div class="col-md-12 ownhide text-right mb10">
+            @Confluence.ButtonWhite(Localization.GetText("CS.ResultMatrix.PriorityArea"), name: "newComponentButton")
+        </div>
+        <div class="col-md-12">
+            @Html.Partial("EditPartial/Buttons", Model)
+        </div>
+    </div>
+
+    @CountryStrategyCommon.CSResultsMatrixExportFunction(Url)
+    
+    @section scripts{
+
+        @CountryStrategyCommon.ChangeFakePageModeToReal()
+
+        <script type="text/javascript">
+
+    function okCancel() {
+        var promise = $.Deferred();
+        var url = '@Url.Action("Cancel", "ResultMatrix", new { area = "CountryStrategy" })';
+        window.location.assign(url);
+        promise.resolve();
+        return promise;
+    }
+
+    registerCallback(function () {
+
+                var outcomesTr = $('[data-is-initialoutcome="true"]');
+                outcomesTr.each(function () {
+                    resizeOutcomeInit($(this));
+                });
+
+                window.ParsleyValidator.addValidator('intervalYear', function (value, requirement) {
+            var result = true;
+                    if (value != null && value != '')
+                    {
+                        var listElements = value.split('-');
+
+                if (listElements.length > 1 && listElements.length < 3) {
+                    var firstYear = listElements[0];
+                    var secondYear = listElements[1];
+
+                            if (firstYear.length == 0 || secondYear.length == 0) {
+                                result = false;
+                            }
+                            else {
+                    if (!isNaN(firstYear) && !isNaN(secondYear)) {
+                        if (parseInt(secondYear) <= parseInt(firstYear)) {
+                            result = false;
+                        }
+                                }
+                                else {
+                        result = false;
+                    }
+                }
+                        }
+
+                        if (listElements.length > 3)
+                        {
+                    result = false;
+                }
+
+                        if (listElements.length == 1 && isNaN(value)) {
+                            result = false;
+            }
+                    }
+            return result;
+        }, 32).addMessage('en', 'intervalYear', '@(Localization.GetText("CS.ResultMatrix.Outcome.ValidateBaselineYear"))');
+
+
+        $('[data-fake-pagemode]').each(function () {
+            var pagemode = $(this);
+            var value = pagemode.attr('data-fake-pagemode');
+            pagemode.attr('data-pagemode', value);
+            pagemode.removeAttr('data-fake-pagemode');
+        });
+
+        $(document).on('click', '[name="cancel"]', function (e) {
+            var modalBtn = $('[name="btn-open-popup-cancel"]');
+            modalBtn.click();
+        });
+
+        $(document).on('click', '[name="save"]', function (e) {
+            $('[name="submitMode"]').val('@ResultMatrixController.SAVE_MODE');
+            var form = $('[name=submitForm]');
+
+                    destroyParsley(form);
+                    initParsley(form);
+                    destroyParsley(form);
+                    initParsley(form);
+
+            var response = saveContainer(form, '#serializeModel', false, null, null, false, true, null);
+            if (response !== false) {
+                response.done(function (data) {
+                    if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        });
+
+        $('[name="linkCRFIndicator"]').LinkModalButton(
+        {
+            LinkModalId: "LinkIndicator-link-modal"
+        });
+
+        $(document).on('click', '[name="removeOutcome"]', function (e) {
+            var source = $(this);
+            deleteRowTable(e, source, "Outcomes", true);
+        });
+
+        $(document).on('click', '[name="removeComponent"]', function (e) {
+            var source = $(this);
+            var openPopupButton = $('[name="btn-open-popup-remove-component"]');
+            openPopupButton.data('pressed-by', source);
+
+
+            var sourceComponent = source.closest('[data-component-id]');
+            var componentName = sourceComponent.find('[name="PriorityArea"]').val();
+            var componentNumber = sourceComponent.find('[name="Component-OrderNumber"]').val();
+
+            var targetsComponent = getAllComponents(sourceComponent);
+
+            var modalContent = $('[data-name="remove-component-modal"]');
+            var componentNameContainer = modalContent.find('[data-section="component-name"]');
+            componentNameContainer.html(String.format('{0} {1}', componentNumber, componentName));
+
+            modalContent.find('table tbody tr:not(.hide)').remove();
+            var reassignTable = modalContent.find('table');
+            var template = reassignTable.find('tbody tr:first');
+            var divCombo = template.find('div.dropdown');
+            divCombo.find('ul.dropdown-menu li:first').nextAll().remove();
+
+            fillDropDown(divCombo, targetsComponent);
+            var objectives = getAllObjectives(sourceComponent);
+
+            objectives.forEach(function (objective) {
+                var clone = template.clone(false);
+                clone.attr('data-objectiveId', objective.Value);
+                clone.find('td:first').html(objective.Text);
+                clone.removeClass('hide');
+                clone.appendTo(reassignTable.find('tbody'));
+            });
+
+            openPopupButton.click();
+        });
+
+        $(document).on('click', '[name="upObjective"]', function (e) {
+            var source = $(this);
+            var container = source.closest('[data-objective-container]');
+            var prevContainer = container.prev('[data-objective-container]');
+
+            if (prevContainer.length > 0) {
+                container.insertBefore(prevContainer)
+
+                sumToObjectiveOrderNumber(container, -1);
+                sumToObjectiveOrderNumber(prevContainer, +1);
+            }
+        });
+
+        $(document).on('click', '[name="downObjective"]', function (e) {
+            var source = $(this);
+            var container = source.closest('[data-objective-container]');
+            var nextContainer = container.next('[data-objective-container]');
+
+            if (nextContainer.length > 0) {
+                container.insertAfter(nextContainer)
+
+                sumToObjectiveOrderNumber(container, +1);
+                sumToObjectiveOrderNumber(nextContainer, -1);
+            }
+        });
+
+        $(document).on('click', '[name="removeObjective"]', function (e) {
+            var source = $(this);
+            var openPopupButton = $('[name="btn-open-popup-remove-objective"]');
+            openPopupButton.data('pressed-by', source);
+
+            var sourceComponent = source.closest('[data-component-id]');
+            var componentNumber = sourceComponent.find('[name="Component-OrderNumber"]').val();
+
+            var sourceComponent = source.closest('[data-component-id]');
+            var sourceObjective = source.closest('[data-objective-container]');
+            var objectiveName = sourceObjective.find('.contentboxlanguage:not(.hide) textarea').val();
+            var objectiveNumber = sourceObjective.find('[name="Objective-OrderNumber"]').val();
+
+            var modalContent = $('[data-name="remove-objective-modal"]');
+            var objectiveContainer = modalContent.find('[data-section="objective-name"]');
+            objectiveContainer.html(String.format('{0}.{1} {2}', componentNumber, objectiveNumber, objectiveName));
+
+            openPopupButton.click();
+        });
+
+        $(document).on('click', '[name="reassignObjective"]', function (e) {
+            var source = $(this);
+            var openPopupButton = $('[name="btn-open-popup-reassign"]');
+            openPopupButton.data('pressed-by', source);
+
+            var sourceComponent = source.closest('[data-component-id]');
+            var componentName = sourceComponent.find('[name="PriorityArea"]').val();
+            var componentNumber = sourceComponent.find('[name="Component-OrderNumber"]').val();
+
+            var sourceObjective = source.closest('[data-objective-container]');
+            var objectiveName = sourceObjective.find('.contentboxlanguage:not(.hide) textarea').val();
+            var objectiveNumber = sourceObjective.find('[name="Objective-OrderNumber"]').val();
+
+            var targetsComponent = getAllComponents(sourceComponent);
+
+            var modalContent = $('[data-name="reassign-modal"]');
+            var componentContainer = modalContent.find('[data-section="component-name"]');
+            var objectiveContainer = modalContent.find('[data-section="objective-name"]');
+            var targetComponentContainer = modalContent.find('[data-section="target-component"]');
+
+            componentContainer.html(String.format('{0} {1}', componentNumber, componentName));
+            objectiveContainer.html(String.format('{0}.{1} {2}', componentNumber, objectiveNumber, objectiveName));
+
+            fillDropDown(targetComponentContainer.children(), targetsComponent);
+
+            openPopupButton.click();
+        });
+
+        $(document).on('click', '[name="unlinkCRFIndicator"]', function (e) {
+            var source = $(this);
+            var openPopupButton = $('[name="btn-open-popup-unlink"]');
+            openPopupButton.data('pressed-by', source);
+
+            var sourceOutcome = source.closest('tr');
+            var sourceComponent = source.closest('[data-component-id]');
+            var componentName = sourceComponent.find('[name="PriorityArea"]').val();
+            var componentNumber = sourceComponent.find('[name="Component-OrderNumber"]').val();
+            var outcomeName = sourceOutcome.find('[name="ExpectedOutcome"]').val();
+
+            var sourceObjective = source.closest('[data-objective-container]');
+            var objectiveName = sourceObjective.find('.contentboxlanguage:not(.hide) textarea').val();
+            var objectiveNumber = sourceObjective.find('[name="Objective-OrderNumber"]').val();
+
+            var modalContent = $('[data-name="unlink-crf-modal"]');
+            var componentContainer = modalContent.find('[data-section="component-name"]');
+            var objectiveContainer = modalContent.find('[data-section="objective-name"]');
+            var outcomeContainer = modalContent.find('[data-section="outcome-name"]');
+
+            componentContainer.html(String.format('{0} {1}', componentNumber, componentName));
+            objectiveContainer.html(String.format('{0}.{1} {2}', componentNumber, objectiveNumber, objectiveName));
+            outcomeContainer.html(outcomeName);
+
+            var ulModal = modalContent.find('ul.linked-indicator');
+            var liTemplate = ulModal.find('li:first');
+            liTemplate.nextAll().remove();
+
+            var lis = sourceOutcome.find('ul.linked-indicators li');
+            lis.each(function () {
+                var li = $(this);
+
+                var crfId = li.find('input').val();
+                var crfText = li.find('[data-linked="text"]').html();
+
+                var newLI = liTemplate.clone(false);
+                newLI.removeClass('hide');
+                newLI.attr('data-crfId', crfId);
+                newLI.find('[data-linked="text"]').html(crfText);
+
+                newLI.appendTo(ulModal);
+            });
+
+            openPopupButton.click();
+        });
+
+        $(document).on('click', '[name="removeCRF"]', function (e) {
+            var source = $(this);
+            var li = source.closest('li');
+            if (li.hasClass('toDelete')) {
+                li.removeClass('toDelete');
+            } else {
+                li.addClass('toDelete');
+            }
+        });
+
+        $(document).on('click', '[name="newComponentButton"]', function (e) {
+            var source = $('[name="newComponentButton"]:first');
+            var newId = String.format('new-{0}', source.GenerateNewId());
+            var templatesContainer = $('[data-temaplte]');
+            var templateComponent = templatesContainer.children('[data-component-id]');
+
+            var newComponent = templateComponent.clone(false);
+            newComponent.attr('data-component-id', newId);
+            newComponent.find('[data-id]').attr('data-id', newId);
+
+            newComponent.find('[data-objective-container]').remove();
+
+            var idCollapseRegion = String.format('Component-{0}', newId);
+            newComponent.find('[data-collapse-single-region]').attr('data-collapse-single-region', '#' + idCollapseRegion);
+            newComponent.find('.component-objective-container').attr('id', idCollapseRegion);
+
+            var section = $('[data-section="formContent"]');
+            newComponent.appendTo(section);
+
+            var newOrderNumber = section.find('[data-component-id]').length;
+            sumToComponentOrderNumber(newComponent, newOrderNumber);
+
+            bindHandlers(newComponent);
+        });
+
+        $(document).on('click', '[name="newObjective"]', function (e) {
+            var source = $(this);
+            var templatesContainer = $('[data-temaplte]');
+            var buttonNewObjectiveTemplate = templatesContainer.find('[name="newObjective"]');
+            var newId = String.format('new-{0}', buttonNewObjectiveTemplate.GenerateNewId());
+            var templateObjective = templatesContainer.find('[data-objective-container]');
+            var component = source.closest('[data-component-id]');
+
+            var newObjective = templateObjective.clone(false);
+            newObjective.attr('data-objective-container', newId);
+            newObjective.find('[data-persist-objectiveId]').attr('data-persist-objectiveId', newId);
+
+            var componentId = component.attr('data-component-id');
+            newObjective.find('[data-id]').attr('data-id', componentId);
+
+            newObjective.find('table tbody tr').remove();
+
+            newObjective.insertBefore(source.parent());
+
+            var newOrderNumber = component.find('[data-objective-container]').length;
+            sumToObjectiveOrderNumber(newObjective, newOrderNumber);
+
+            var componentNumber = component.find('[name="Component-OrderNumber"]').val();
+            newObjective.find('[data-order-number="component"]').html(componentNumber);
+
+            bindHandlers(newObjective);
+
+        });
+
+        $(document).on('click', '[name="newOutcome"]', function (e) {
+
+            var source = $(this);
+            var templatesContainer = $('[data-temaplte]');
+            var buttonNewOutcomeTemplate = templatesContainer.find('[name="newOutcome"]');
+                    var newOutcomeId = String.format('new-{0}', buttonNewOutcomeTemplate.GenerateNewId());
+                    var templateOutcome = templatesContainer.find('table tbody tr:first');
+                    var templateButtonImpact = templatesContainer.find('table tbody tr:last');
+
+            var newOutcome = templateOutcome.clone(false);
+                    var newButtonImpact = templateButtonImpact.clone(false);
+
+            var component = source.closest('[data-component-id]');
+            var componentId = component.attr('data-component-id');
+            var objective = source.closest('[data-objective-container]');
+            var objectiveId = objective.attr('data-objective-container');
+                    var newIndicatorId = String.format('new-{0}', newButtonImpact.find('button[name="newIndicator"]').GenerateNewId());
+                    var tableResultMatrixtbdoy = objective.find('table tbody');
+
+                    newOutcome.attr('data-id', componentId);
+                    newOutcome.find('[data-id]').attr('data-id', componentId);
+            newOutcome.find('[data-persist-objectiveId]').attr('data-persist-objectiveId', objectiveId);
+                    newOutcome.find('[data-persist-outcomeid]').attr('data-persist-outcomeid', newOutcomeId);
+                    newOutcome.find('[data-persist-indicatorid]').attr('data-persist-indicatorid', newIndicatorId);
+
+                    newOutcome.find("td:first").removeClass('hide');
+                    newOutcome.attr('data-is-initialoutcome', 'true');
+                    newOutcome.find("td:first").find('textarea[name="ExpectedOutcome"]').removeAttr('disabled');
+                    newButtonImpact.find('td:first').removeClass('hide');
+
+                    newOutcome.removeClass('custom-odd');
+                newOutcome.removeClass('custom-even');
+                    newOutcome.addClass('custom-even');
+
+                    newOutcome.appendTo(tableResultMatrixtbdoy);
+                    newButtonImpact.appendTo(tableResultMatrixtbdoy);
+
+                    bindHandlers(newOutcome);
+            newOutcome.find('[name="linkCRFIndicator"]').LinkModalButton(
+            {
+                LinkModalId: "LinkIndicator-link-modal"
+            });
+        });
+
+                $(document).on('click', '[name="newIndicator"]', function (e) {
+
+                    var source = $(this);
+                    var newId = String.format('new-{0}', source.GenerateNewId());
+
+                    var templatesContainer = $('[data-temaplte]');
+                    var templateImpact = templatesContainer.find('table tbody tr:first');
+                    var component = source.closest('[data-component-id]');
+                    var componentId = component.attr('data-component-id');
+                    var objective = source.closest('[data-objective-container]');
+                    var objectiveId = objective.attr('data-objective-container');
+                    var tableResultMatrixtbdoy = objective.find('table tbody');
+
+                    var newIndicator = templateImpact.clone(false);
+                    newIndicator.attr('data-id', componentId);
+                    newIndicator.find('[data-id]').attr('data-id', componentId);
+                    newIndicator.find('[data-persist-objectiveId]').attr('data-persist-objectiveId', objectiveId);
+                    newIndicator.find('[data-persist-indicatorid]').attr('data-persist-indicatorid', newId);
+
+                    if (tableResultMatrixtbdoy.find('tr').length > 0) {
+                        var trForInsertnewIndicator = source.closest('tr');
+                        newIndicator.find("td:first").addClass('hide');
+                        newIndicator.attr('data-is-initialoutcome', 'false');
+
+                        var trOutcome = trForInsertnewIndicator.prevAll('tr[data-is-initialoutcome="true"]').first();
+                        var tdOutcome = trOutcome.find('td:first');
+                        var expectedOutcome = trOutcome.find('textarea[name="ExpectedOutcome"]');
+                        var idOutcome = expectedOutcome.attr('data-persist-outcomeid');
+                        newIndicator.find('[data-persist-outcomeid]').attr('data-persist-outcomeid', idOutcome);
+                        tdOutcome.attr('rowspan', (parseInt(tdOutcome.attr('rowspan')) + 1));
+                        var prevTr = trForInsertnewIndicator.prev();
+                        if (prevTr.hasClass('custom-even')) {
+                            newIndicator.removeClass('custom-even');
+                            newIndicator.addClass('custom-odd');
+                        }
+                        newIndicator.insertBefore(trForInsertnewIndicator);
+                        bindHandlers(newIndicator);
+                        newIndicator.find('[name="linkCRFIndicator"]').LinkModalButton(
+                        {
+                            LinkModalId: "LinkIndicator-link-modal"
+                        });
+                        resizeOutcome(trOutcome);
+                    }
+                });
+
+        function getAllComponents(innerElement) {
+            var components = [];
+            var excludedId = null;
+            if (innerElement != null) {
+                var sourceComponent = null;
+                if (innerElement.attr('data-component-id') != null) {
+                    sourceComponent = innerElement;
+                } else {
+                    sourceComponent = innerElement.closest('[data-component-id]');
+                }
+
+                if ((sourceComponent != null) && (sourceComponent.length > 0)) {
+                    excludedId = sourceComponent.attr('data-component-id');
+                }
+            }
+
+            var allOtherComponentsSelector = '[data-section="formContent"] [data-component-id]';
+            if (excludedId != null) {
+                allOtherComponentsSelector = String.format('[data-section="formContent"] [data-component-id]:not([data-component-id="{0}"])', excludedId);
+            }
+
+            var componentsContainer = $(allOtherComponentsSelector);
+            componentsContainer.each(function () {
+                var componentContainer = $(this);
+                var componentName = componentContainer.find('[name="PriorityArea"]').val();
+                var componentNumber = componentContainer.find('[name="Component-OrderNumber"]').val();
+                var componentId = componentContainer.find('[name="PriorityArea"]').attr('data-id');
+
+                components.push(
+                {
+                    Text: String.format('{0}', componentName),
+                    Value: componentId
+                });
+            });
+
+            return components;
+        }
+
+        function getAllObjectives(componentContainer) {
+            var objectives = [];
+            var objectivesContainer = componentContainer.find('[data-objective-container]');
+            objectivesContainer.each(function () {
+                var objective = $(this);
+                var componentNumber = objective.find('[data-order-number="component"]').html();
+                var objectiveNumber = objective.find('[data-order-number="objective"]').html();
+                var objectiveName = objective.find('.contentboxlanguage:not(.hide) textarea').val();
+                var objectiveId = objective.attr('data-objective-container');
+
+                objectives.push(
+                {
+                    Text: String.format('{0}.{1} {2}', componentNumber, objectiveNumber, objectiveName),
+                    Value: objectiveId
+                });
+            });
+
+            return objectives;
+        }
+
+        function fillDropDown(divDropDown, options) {
+            var ul = divDropDown.find('ul.dropdown-menu')
+
+            // Remove all option and select default
+            var textSelectedContainer = divDropDown.find('.valueText');
+            var liDefault = ul.find('li:first');
+            var otherLI = liDefault.siblings();
+            otherLI.remove();
+            liDefault.find('a').attr("dd-selected", "");
+            divDropDown.find('input').val('');
+            textSelectedContainer.html(liDefault.find('a').html());
+            divDropDown.addClass('placeholder');
+
+            //Add new elements
+            if ((options != null) && (options.length > 0)) {
+                options.forEach(function (item) {
+                    var newLI = $('<li>');
+                    var newA = $('<a>');
+                    newA.attr('dd-value', item.Value);
+                    newA.attr('dd-parent-id', '');
+                    newA.html(item.Text);
+                    newA.appendTo(newLI);
+                    newLI.appendTo(ul);
+                });
+            }
+        }
+    });
+
+        function LinkIndicatorLinkItems(source, indicator) {
+            var outcomeContainer = source.closest('[data-outcome-container]');
+            var objectiveContainer = source.closest('[data-objective-container]').last();
+            var trContainer = source.closest('tr');
+
+            var ulLinkedIndicators = outcomeContainer.find('ul.linked-indicators');
+
+            var existIndicator = ulLinkedIndicators.find('li').filter(function () {
+                var li = $(this);
+                var indicatorId = li.find('input').val()
+                return indicatorId == indicator.IndicatorId;
+            });
+
+            if (existIndicator.length > 0) {
+                if ($('div.vex div.new-modal-content div[data-showmessage]').text() != '@Localization.GetText("CS.ResultMatrix.Message.IndicatorAlreadyLinked")') {
+                    showMessage('@Localization.GetText("CS.ResultMatrix.Message.IndicatorAlreadyLinked")');
+                }
+                return true;
+            }
+
+            var input = objectiveContainer.find('input[name="Objective-OrderNumber"]');
+            var componentId = input.attr('data-id');
+            var objectiveId = input.attr('data-persist-objectiveid');
+            var outcomeId = trContainer.find('[name="ExpectedOutcome"]').attr('data-persist-outcomeid');
+                var indicatorId = trContainer.find('[name="ExpectedOutcome"]').attr('data-persist-indicatorid');
+
+            var newLI = $('<li>');
+
+            var spanInput = $('<span>');
+            spanInput.attr('data-linked', 'input');
+            var spanText = $('<span>');
+            spanText.attr('data-linked', 'text');
+
+            spanInput.appendTo(newLI);
+            spanText.appendTo(newLI);
+
+            spanText.html(String.format('{0}', indicator.IndicatorName));
+
+            var input = $('<input>');
+            input.attr('name', 'LinkedIndicator');
+            input.attr('type', 'text');
+            input.val(indicator.IndicatorId);
+            input.addClass('inputText hide');
+            input.attr('data-id', componentId);
+            input.attr('data-persist-objectiveid', objectiveId);
+            input.attr('data-persist-outcomeid', outcomeId);
+                input.attr('data-persist-indicatorid', indicatorId);
+
+            input.appendTo(spanInput);
+
+            if (indicator.IsAlignment) {
+                newLI.attr('class', 'alignment');
+                newLI.attr('title', 'alignment');
+            } else if (indicator.IsContribution) {
+                newLI.attr('class', 'contribution');
+                newLI.attr('title', 'contribution');
+            }
+            newLI.appendTo(ulLinkedIndicators);
+
+                var trsAffected = $('[name="Indicator"][data-persist-outcomeid="' + outcomeId + '"]').closest('tr');
+
+                trsAffected.first().find('.textAreaResultMatrix').css('height', 0)
+                resizeOutcome(trsAffected.first());
+                if (trsAffected.length == 1) {
+                    var firstTr = trsAffected.first();
+                    var newHeight = parseInt(firstTr.find('.textAreaResultMatrix').css('height').slice(0, -2))
+                    firstTr.find('.textAreaResultMatrix').css('height', newHeight - 20)
+        }
+            }
+
+        function deleteObjective(e, source) {
+            var promise = $.Deferred();
+
+            var container = source.closest('[data-objective-container]');
+            var nexts = container.nextAll();
+            container.remove();
+
+            nexts.each(function () {
+                var next = $(this);
+                var orderNumber = next.find('[name="Objective-OrderNumber"]');
+                var orderNumberValue = parseInt(orderNumber.val());
+
+                orderNumber.val(orderNumberValue - 1);
+                next.find('[data-order-number="objective"]').html(orderNumberValue - 1);
+            });
+
+            promise.resolve();
+            return promise;
+        }
+
+        function reassignObjective(e, source) {
+            var promise = $.Deferred();
+            var targetComponentId = null;
+
+            var modal = $('[data-name="reassign-modal"]');
+            var input = modal.find('input');
+            var targetComponentId = input.val();
+
+            if ((targetComponentId == null) || (targetComponentId == '')) {
+                promise.resolve();
+                return promise;
+            }
+
+            var objectiveContainer = source.closest('[data-objective-container]');
+            var sourceComponentContainer = objectiveContainer.closest('[data-component-id]');
+
+            var objectiveId = objectiveContainer.attr('data-objective-container');
+            var sourceComponentId = sourceComponentContainer.attr('data-component-id');
+
+            genericReassignObjective(sourceComponentId, objectiveId, targetComponentId, true);
+
+            promise.resolve();
+            return promise;
+        }
+
+        function removeComponent(e, source) {
+            var promise = $.Deferred();
+
+            var sourceComponentContainer = source.closest('[data-component-id]');
+            var sourceComponentId = sourceComponentContainer.attr('data-component-id');
+            var modalContainer = $('[data-name="remove-component-modal"]');
+            var trs = modalContainer.find('#reasignTable tbody tr:not(.hide)');
+
+            trs.each(function () {
+                var tr = $(this);
+                var objectiveId = tr.attr('data-objectiveid');
+                var targetComponentId = tr.find('input').val();
+
+                if (targetComponentId != "") {
+                    genericReassignObjective(sourceComponentId, objectiveId, targetComponentId, false);
+                }
+            });
+
+            var nextsComponents = sourceComponentContainer.nextAll();
+            sourceComponentContainer.remove();
+
+            sumToComponentOrderNumber(nextsComponents, -1);
+
+            promise.resolve();
+            return promise;
+        }
+
+        function unlinkCRF(e, source) {
+            var promise = $.Deferred();
+
+            var modalContainer = $('[data-name="unlink-crf-modal"]');
+            var liToRemove = modalContainer.find('ul.linked-indicator li.toDelete[data-crfId]');
+
+            if (liToRemove.length > 0) {
+
+                var idsToRemove = [];
+                liToRemove.each(function () {
+                    var li = $(this);
+                    var crfId = li.attr('data-crfId');
+                    idsToRemove.push(crfId);
+                });
+
+                var outcomeContainer = source.closest('[data-outcome-container]');
+                var ul = outcomeContainer.find('ul.linked-indicators');
+                var inputs = ul.find('input');
+                    var dataOutcomeId = outcomeContainer.attr('data-outcome-container');
+
+                inputsToRemove = inputs.filter(function () {
+                    var input = $(this);
+                    return idsToRemove.indexOf(input.val()) != -1;
+                });
+
+                inputsToRemove.closest('li').remove();
+
+                    var row = outcomeContainer.closest('tr');
+                    while(row.attr('data-is-initialoutcome') == 'false'){
+                        row = row.prev();
+                    }
+
+                    row.find('.textAreaResultMatrix').css('height', 0)
+                    resizeOutcome(row);
+            } else {
+                showMessage('@Localization.GetText("CS.ResultMatrix.Message.UnlinkIndicatorNoneSelected")');
+            }
+
+            promise.resolve();
+            return promise;
+        }
+
+        function genericReassignObjective(sourceComponentId, objectiveId, targetComponentId, changeObjectiveOrderNumber) {
+            if (changeObjectiveOrderNumber == null) {
+                changeObjectiveOrderNumber = false;
+            }
+            var objectiveContainerSelector = String.format('[data-component-id="{0}"] [data-objective-container="{1}"]', sourceComponentId, objectiveId);
+            var objectiveContainer = $(objectiveContainerSelector);
+
+
+            if (changeObjectiveOrderNumber) {
+                var nexts = objectiveContainer.nextAll();
+                sumToObjectiveOrderNumber(nexts, -1);
+            }
+
+            var targetComponentContainerSelector = String.format('[data-component-id="{0}"]', targetComponentId);
+            var targetComponentContainer = $(targetComponentContainerSelector);
+
+
+
+            var targetComponentOrderNumber = targetComponentContainer.find('[name="Component-OrderNumber"]').val();
+            var targetComponentNextObjectiveOrderNumber = targetComponentContainer.find('[data-objective-container]').length + 1;
+
+            objectiveContainer.find('[data-order-number="component"]').html(targetComponentOrderNumber)
+            objectiveContainer.find('[data-order-number="objective"]').html(targetComponentNextObjectiveOrderNumber)
+            objectiveContainer.find('[name="Objective-OrderNumber"]').val(targetComponentNextObjectiveOrderNumber)
+
+            var allInputs = objectiveContainer.find('[data-id]');
+            allInputs.attr('data-id', targetComponentId);
+
+            var buttonNew = targetComponentContainer.find('[data-button-new="newObjective"]');
+            objectiveContainer.insertBefore(buttonNew);
+        }
+
+        function sumToObjectiveOrderNumber(objectives, value) {
+            if (objectives == null) {
+                return;
+            }
+            if (objectives.length == null) {
+                objectives = [objectives];
+            }
+
+            objectives.each(function () {
+                var objective = $(this);
+
+                var orderNumber = objective.find('[name="Objective-OrderNumber"]');
+                var orderNumberValue = parseInt(orderNumber.val());
+                var newOrderNumnber = orderNumberValue + value;
+
+                orderNumber.val(newOrderNumnber);
+                objective.find('[data-order-number="objective"]').html(newOrderNumnber);
+            });
+        }
+
+        function sumToComponentOrderNumber(components, value) {
+            if (components == null) {
+                return;
+            }
+            if (components.length == null) {
+                components = [components];
+            }
+
+            components.each(function () {
+                var component = $(this);
+
+                var orderNumber = component.find('[name="Component-OrderNumber"]');
+                var orderNumberValue = parseInt(orderNumber.val());
+                var newOrderNumnber = orderNumberValue + value;
+
+                orderNumber.val(newOrderNumnber);
+                component.find('.component-order-number').html(newOrderNumnber);
+                component.find('[data-order-number="component"]').html(newOrderNumnber);
+            });
+        }
+
+        function deleteRowTable(e, source, idTable, showNotificationDelete) {
+            if (showNotificationDelete) {
+                var modalButton = $('[name="' + idTable + '-open-warning-btn"]');
+                modalButton.data('pressed-by', source);
+                modalButton.click();
+            } else {
+                ConfirmRemove(e, source);
+            }
+        }
+
+        function ConfirmRemove(e, source) {
+            var promise = $.Deferred();
+            var tr = source.closest('tr');
+                var dataId = tr.attr('data-id');
+                var dataOutcomeId = tr.find('[name="Indicator"]').attr('data-persist-outcomeid');
+
+                var trInitial = tr;
+                var isInitialOutcome = tr.attr('data-is-initialoutcome') == 'true';
+
+                while(!isInitialOutcome){
+                    trInitial = trInitial.prev();
+                    isInitialOutcome = trInitial.attr('data-is-initialoutcome') == 'true';
+                }
+
+                
+
+                if (tr.attr('data-is-initialoutcome') == "true") {
+                    var nextTr = tr.next();
+                    var attrInitialOutcome = nextTr.attr('data-is-initialoutcome');
+
+                    if (attrInitialOutcome == undefined || attrInitialOutcome == null) {
+                        nextTr.remove();
+                    }
+
+                    if (attrInitialOutcome == "false") {
+                        var valueExpectedOutcome = tr.find('textarea[name="ExpectedOutcome"]').val();
+                        nextTr.find('textarea[name="ExpectedOutcome"]').val(valueExpectedOutcome);
+                        nextTr.find('td:first').attr('rowspan', (parseInt(tr.find('td:first').attr('rowspan')) - 1));
+                        nextTr.find('td:first').removeClass('hide');
+                        nextTr.find('textarea[name="ExpectedOutcome"]').removeAttr('disabled');
+                        nextTr.attr('data-is-initialoutcome', 'true');
+                    }
+                }
+
+                if (tr.attr('data-is-initialoutcome') == "false") {
+                    var trOutcome = tr.prevAll('tr[data-is-initialoutcome="true"]').first();
+                    var tdOutcome = trOutcome.find('td:first');
+                    tdOutcome.attr('rowspan', (parseInt(tdOutcome.attr('rowspan')) - 1));
+
+                    var trPrev = tr.prev();
+                    var trNext = tr.next();
+                    var attrDataId = trNext.attr('data-id');
+
+                    //if (attrDataId != undefined && attrDataId != null) {
+                    //    if (trPrev.length > 0 && trNext.length > 0) {
+                    //        if (trPrev.hasClass('custom-odd') && trNext.hasClass('custom-odd')) {
+                    //            trNext.removeClass('custom-odd');
+                    //            trNext.addClass('custom-even');
+                    //        }
+                    //        if (trPrev.hasClass('custom-even') && trNext.hasClass('custom-even')) {
+                    //            trNext.removeClass('custom-even');
+                    //            trNext.addClass('custom-odd');
+                    //        }
+                    //    }
+                    //}
+                }
+
+            tr.remove();
+                
+                var trsAffected = $('[name="Indicator"][data-persist-outcomeid="' + dataOutcomeId + '"]').closest('tr');
+
+                trsAffected.first().find('.textAreaResultMatrix').css('height', 0)
+                resizeOutcome(trsAffected.first());
+                if (trsAffected.length == 1) {
+                    var firstTr = trsAffected.first();
+                    var newHeight = parseInt(firstTr.find('.textAreaResultMatrix').css('height').slice(0, -2))
+                    firstTr.find('.textAreaResultMatrix').css('height', newHeight - 20)
+                }
+
+                var element = 1;
+                trsAffected.each(
+                    function (index) {
+                        var source = $(this);
+                        if (element % 2 == 0) {
+                            source.removeClass('custom-even');
+                            source.removeClass('custom-odd');
+                            source.addClass('custom-odd');
+                        } else {
+                            source.removeClass('custom-even');
+                            source.removeClass('custom-odd');
+                            source.addClass('custom-even');
+                        }
+                        element++;
+                    }
+                );
+
+            promise.resolve();
+            return promise;
+        }
+
+            function resizeOutcome(tr) {
+                var tbody = tr.parent();
+                var dataId = tr.attr('data-id');
+                var dataOutcomeId = tr.find('[name="Indicator"]').attr('data-persist-outcomeid');
+                var heightSum = 0;
+
+                var rows = tbody.find('[name="Indicator"][data-persist-outcomeid="' + dataOutcomeId + '"]').closest('tr');
+                rows.each(function () {
+                    var row = $(this);
+                    heightSum += parseInt(row.css('height').slice(0, -2));
+                });
+
+                if (rows.length != 1) {
+                    heightSum -= 20;
+                }
+                tr.find('.textAreaResultMatrix').css('height', 0);
+                tr.find('.textAreaResultMatrix').css('height', heightSum);
+                resizeIframe();
+            }
+
+            function resizeOutcomeInit(tr) {
+                var tbody = tr.parent();
+                var dataId = tr.attr('data-id');
+                var dataOutcomeId = tr.find('[name="Indicator"]').attr('data-persist-outcomeid');
+                var heightSum = 0;
+
+                var rows = tbody.find('[name="Indicator"][data-persist-outcomeid="' + dataOutcomeId + '"]').closest('tr');
+                rows.each(function () {
+                    var row = $(this);
+                    heightSum += parseInt(row.css('height').slice(0, -2));
+                });
+
+                heightSum -= 20;
+                tr.find('.textAreaResultMatrix').css('height', 0);
+                tr.find('.textAreaResultMatrix').css('height', heightSum);
+                resizeIframe();
+            }
+
+        </script>
+    }
+}

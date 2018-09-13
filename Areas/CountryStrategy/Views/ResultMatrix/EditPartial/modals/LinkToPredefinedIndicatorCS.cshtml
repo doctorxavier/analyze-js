@@ -1,0 +1,393 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.LinkPredefinedIndicator
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+@using IDB.Presentation.MVC4.Areas.Indicators.Mappers
+
+@model LinkPredefinesIndicatorViewModel
+
+<div id="@Model.Name-container">
+
+    <div id="@Model.Name-link-modal" class="hide modalBody">
+
+
+        <div data-name="detail-indicator-section" class="hide">
+
+        </div>
+
+        @(Html.FilterBox()
+                .ClassMainRow("filterNormalExtension row mb20")
+                .AddAttribute("data-name", "filter-section")
+                .Rows(row =>
+                {
+                    foreach (var filter in Model.Filters)
+                    {
+                        DrawRow(Html, row, filter, null, null);
+                    }
+
+                    row.Add().Columns(column =>
+                    {
+                        column.Add(ColumnType.MD_12).Class("text-right")
+                            .AddContent(Confluence.ButtonBlue(text: Localization.GetText("IM.IndicatorsList.Search.ClearAll"),
+                                                  name: "btn-clear"))
+                            .AddContent(Confluence.ButtonBlue(text: Localization.GetText("IM.IndicatorsList.Search.Search"),
+                                                              name: "btn-search"));
+                    });
+                })
+        )
+
+        @{
+            var url = Url.Action("SearchIndicators", "LinkIndicator", new { area = "CountryStrategy" });
+            if (!string.IsNullOrWhiteSpace(Model.UrlAction))
+            {
+                url = Model.UrlAction;
+            }
+
+            var config = Html.RenderDataTable<PredefinedIndicatorLinkRowViewModel>();
+            config.TableClass = "tableNormal";
+            config.Name(Model.Name + "LinkTable")
+                .PrimaryKey(m => m.IndicatorId.ToString())
+                .AddPrimaryKeyToName(false)
+                .AjaxLoadUrl(url)
+                .Paginable()
+                .PageSize(10)
+                .CustomFilterAjax(Model.Name + "GetFiltersLink")
+                .Columns(columns =>
+                {
+                    columns.Bound(c => c.RadioButton).CssHeaderClass("header-checkSelectable").Persistent().Header(Localization.GetText(""));
+                    columns.Bound(c => c.IndicatorNumber).Persistent().Header(Localization.GetText("IM.EditReadIndicator.LinkRFPIndicator.IndicatorTable.IndicatorNumber"));
+                    columns.Bound(c => c.IndicatorName).Persistent().Header(Localization.GetText("IM.EditReadIndicator.LinkRFPIndicator.IndicatorTable.IndicatorName"));
+                    columns.Bound(c => c.UnitMeasure).Persistent().Header(Localization.GetText("IM.EditReadIndicator.LinkRFPIndicator.IndicatorTable.UnitMeasure"));
+                    columns.Bound(c => c.Detail).Persistent().Header(Localization.GetText(""));
+                });
+
+            <div class="row row-body-40">
+                <div class="col-md-12">
+                    @Html.Partial("Controls/DataTable", config)
+                </div>
+            </div>
+        }
+    </div>
+
+    @{var hideClass = Model.ShowButton ? "" : "hide";}
+    <span data-name="open-popup-button-container">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: string.Format("#{0}-link-modal", Model.Name),
+                            title: Localization.GetText("IM.EditReadIndicator.LinkRFPIndicator.Title"),
+                            type: CssClass.ModalInformationNoIcon,
+                            typeButton: CssClass.Button07_8 + " link-indicator-country-button " + hideClass,
+                            hasIcon: true,
+                            moveOriginalContent: true,
+                            name: Model.Name + "open-popup-btn",
+                            closeOnOverlay: false,
+                            allowClose: true,
+                            actionOnClose: Model.Name + "CloseModal")
+            .AddButton(name: Model.Name + "-cancel-link-btn",
+                            text: Localization.GetText("IM.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+            .AddButton(name: Model.Name + "-ok-link-btn",
+                            text: Localization.GetText("IM.EditReadIndicator.LinkRFPIndicator.LinkButton"),
+                            type: CssClass.Button01,
+                            callback: Model.Name + "LinkIndicator",
+                            closeAtEnd: true))
+    </span>
+</div>
+
+@functions {
+    private static void DrawRow(HtmlHelper html, FilterBoxRowFactory row, FilterViewModel filter, string parentName, string triggeredValue)
+    {
+        var newRow = row.Add();
+        var isParent = filter.ConditionalFilter.Any();
+        var isChildren = (parentName != null) && (triggeredValue != null);
+
+        if (isChildren)
+        {
+            newRow.AddAttribute("data-filter-parent-name", parentName);
+            newRow.AddAttribute("data-filter-parent-value", triggeredValue);
+            newRow.AddAttribute("data-no-open", "true");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.LabelKey))
+        {
+            newRow.Columns(column =>
+            {
+                column.Add(ColumnType.MD_2)
+                    .AddContent(Confluence.Label(Localization.GetText(filter.LabelKey)));
+
+
+                if (!string.IsNullOrWhiteSpace(filter.VisibleValue))
+                {
+                    column.Add(ColumnType.MD_10)
+                        .AddContent(Confluence.Label(filter.VisibleValue));
+                }
+                if (!string.IsNullOrWhiteSpace(filter.InternalValue))
+                {
+                    column.Add(ColumnType.MD_10).Class("hide")
+                        .AddContent(Confluence.InputText(filter.InternalValue, filter.Name, required: false));
+                }
+
+                if (string.IsNullOrWhiteSpace(filter.VisibleValue) && (string.IsNullOrWhiteSpace(filter.InternalValue)))
+                {
+                    var col = column.Add(ColumnType.MD_10);
+                    var inputs = GetListInput(html, filter, isParent);
+                    foreach (var input in inputs)
+                    {
+                        col.AddContent(input);
+                    }
+                }
+            });
+        }
+        else
+        {
+            newRow.Class("hide").Columns(column =>
+            {
+                column.Add(ColumnType.MD_12)
+                    .AddContent(Confluence.InputText(filter.InternalValue, filter.Name, required: false));
+            });
+        }
+
+        if (isParent)
+        {
+            var internalChildrenId = 0;
+            foreach (var childrenFilter in filter.ConditionalFilter)
+            {
+                DrawRow(html, row, childrenFilter, filter.Name, childrenFilter.TriggerValue);
+                internalChildrenId++;
+            }
+        }
+    }
+
+    public static List<IHtmlString> GetListInput(HtmlHelper html, FilterViewModel filter, bool isParent)
+    {
+        var data = new Dictionary<string, string>();
+        if (isParent)
+        {
+            data.Add("filter-is-parent", "true");
+        }
+        var result = new List<IHtmlString>();
+        IHtmlString item;
+        switch (filter.Type)
+        {
+            case FilterFieldTypeEnum.Text:
+                item = Confluence.InputText(null, filter.Name, required: false, dataAttributes: data);
+                result.Add(item);
+                break;
+            case FilterFieldTypeEnum.Checkbox:
+                item = @Confluence.InputCheckbox(false, filter.Name, dataAttributes: data);
+                result.Add(item);
+                break;
+            case FilterFieldTypeEnum.Dropdown:
+                item = Confluence.InputDropDown(null, filter.Name, filter.Options, required: false, dataAttributes: data);
+                result.Add(item);
+                break;
+            case FilterFieldTypeEnum.Multiselect:
+                var multi = html.MultiDropDown(filter.Name)
+                    .CanSelectGroup()
+                    .Initialize(false)
+                    .Items(filter.OptionsMultiSelect.ConvertToMultiDropDownItems());
+                if (isParent)
+                {
+                    multi.AddAttributes("data-filter-is-parent", "true");
+                }
+                result.Add(multi);
+                break;
+            case FilterFieldTypeEnum.Radio:
+                if (filter.Options != null)
+                {
+                    foreach (var option in filter.Options)
+                    {
+                        item = Confluence.InputRadioButton(option.Value, filter.Name, false, required: false, label: option.Text, isInLine: true, dataAttributes: data);
+                        result.Add(item);
+                    }
+                }
+                break;
+        }
+
+        return result;
+    }
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        function @(Model.Name + "CloseModal")(){
+            $('#@Model.Name-link-modal [name="btn-clear"]').click();
+            var container = $('#@Model.Name-link-modal');
+            var sectionDetail = container.find('[data-name="detail-indicator-section"]');
+            var sectionFilter = container.find('[data-name="filter-section"]');
+            sectionDetail.addClass("hide");
+            sectionFilter.removeClass("hide");
+        }
+
+        function @(Model.Name + "GetFiltersLink")() {
+
+            var container = $("#@Model.Name-link-modal");
+            var prefix = 'filter-@Model.Name-';
+            var inputs = container.find(String.format('[name^="{0}"]:not([disabled])', prefix));
+
+            var objectReturn = { "no-filter-type" : @((int)Model.Type) };
+
+            inputs.each(function(){
+                var input = $(this);
+
+                var varName = input.attr('name').substring(prefix.length);
+                var varValue = input.val();
+                objectReturn[varName] = varValue;
+            });
+
+            return objectReturn;
+        }
+
+        function @(Model.Name + "LinkIndicator")(e, sourceOpen){
+            var promise = $.Deferred();
+            var source = $(e.currentTarget);
+            var mainContainer = source.closest('[data-id=mainContainer]');
+            var table = mainContainer.find('#@(Model.Name + "LinkTable")');
+            var selectedIndicators = table.find('tbody tr input:checked');
+
+            if (selectedIndicators.length == 0){
+                showMessage('@Localization.GetText("CS.ResultMatrix.Message.LinkIndicatorNoneSelected")');
+                return null;
+            }
+
+            selectedIndicators.each(function(){
+            
+                var selected = $(this);
+                var indicator = JSON.parse(selected.attr('data-json'));
+                var indicatorId = indicator.IndicatorId;
+                var indicatorNumber = selected.closest('td').siblings(':nth(0)').html();
+                var indicatorName = selected.closest('td').siblings(':nth(1)').html();
+                var unitOfMeasure = selected.closest('td').siblings(':nth(2)').html();
+                var isAlignment = indicator.IsAlignment;
+                var isContribution = indicator.IsContribution
+
+                var value = {
+                    IndicatorId : indicatorId
+                    ,IndicatorNumber : indicatorNumber
+                    ,IndicatorName : indicatorName
+                    ,UnitOfMeasure : unitOfMeasure
+                    ,IsAlignment : isAlignment
+                    ,IsContribution : isContribution
+                };
+
+                var functionAdd = window["@Model.TargetFunctionJS"];
+                if (functionAdd != null) {
+                    var dontClose = functionAdd(sourceOpen, value);
+                    if (dontClose) {
+                        return null;
+                    }
+                }
+            });
+
+            promise.resolve();
+            return promise;
+        }
+
+        registerCallback(function () {
+            function customEnableContainer(container) {
+                var inputs = container.find('input, select, textarea');
+                inputs.removeAttr('disabled');
+            }
+            function customDisableContainer(container) {
+                var inputs = container.find('input, select, textarea');
+                inputs.attr('disabled', 'disabled');
+            }
+
+            $(document).on('click', '#@Model.Name-link-modal [name="btn-search"]', function (e) {
+                var table = $('#@(Model.Name + "LinkTable")');
+                table.data("fn-search")();
+            });
+
+            $(document).on('click', '#@Model.Name-link-modal [name="btn-clear"]', function (e) {
+
+                var table = $('#@(Model.Name + "LinkTable")');
+
+                var priorityArea = $('[name=filter-LinkIndicator-priority-area]');
+                var indicatorNumber=$('[name=filter-LinkIndicator-indicator-number]');
+                var indicatorName = $('[name=filter-LinkIndicator-indicator-name]');
+                var unitMeasure = $('[name=filter-LinkIndicator-unit-measure]');
+
+                priorityArea.val('').trigger("chosen:updated");
+                indicatorNumber.val('');
+                indicatorName.val('');
+                unitMeasure.val('');
+                table.data("fn-clear")();
+
+            });
+
+
+            $(document).on('click', '[name="@(Model.Name + "open-popup-btn")"]', function (e) {
+                var container = $("#@Model.Name-link-modal");
+                var multidrop = container.find('[data-role=drop-multiple][data-bind=false]');
+                multidrop.attr('data-bind', 'true');
+                multidrop.CustomChosen();
+
+                var childrenRegion = container.find('[data-no-open]');
+                childrenRegion.removeAttr('data-no-open');
+                customDisableContainer(childrenRegion);
+                childrenRegion.addClass('hide');
+            });
+
+            $(document).on('click', '#@Model.Name-link-modal a[data-id]', function () {
+                var id = $(this).attr('data-id');
+                var url = '@Url.Action("GetDetailIndicator", "LinkIndicator", new { area = "CountryStrategy" })';
+                var response = postUrl(url, { indicatorId: id });
+                response.done(function (data) {
+
+                    var container = $('#@Model.Name-link-modal');
+
+                    if ((data.Message != null) && (data.Message != "")) {
+                        showMessage(data.ErrorMessage);
+                    }
+
+                    for (var name in data.ContentToReplace) {
+                        var sectionDetail = container.find(name);
+                        sectionDetail.html(data.ContentToReplace[name]);
+                        sectionDetail.removeClass('hide');
+                    }
+
+                    var sectionFilter = container.find('[data-name="filter-section"]');
+                    sectionFilter.addClass('hide');
+                });
+
+            });
+
+            $(document).on('click', '#@Model.Name-link-modal [name="back"]', function (e) {
+                var container = $('#@Model.Name-link-modal');
+                var sectionDetail = container.find('[data-name="detail-indicator-section"]');
+                var sectionFilter = container.find('[data-name="filter-section"]');
+                sectionDetail.addClass("hide");
+                sectionFilter.removeClass("hide");
+            });
+
+
+            $(document).on('change', '#@Model.Name-link-modal [data-filter-is-parent="true"]', function (e) {
+                var source = $(this);
+                var name = source.attr('name');
+                var selectedValue = source.val();
+
+                var container = $('#@Model.Name-link-modal');
+
+                var filterByName = String.format('[data-filter-parent-name="{0}"]', name);
+                var filterByValue = String.format('[data-filter-parent-value="{0}"]', selectedValue);
+
+                var allChildrens = container.find(filterByName);
+                customDisableContainer(allChildrens);
+                allChildrens.addClass('hide');
+
+                var childrenToShow = container.find(filterByName + filterByValue);
+                customEnableContainer(childrenToShow);
+                childrenToShow.removeClass('hide');
+            });
+
+            $(document).on('draw.dt', '#@(Model.Name + "LinkTable")', function (e) {
+                var table = $(this);
+                var tr = table.find('tbody tr');
+                tr.attr('data-id', 'id');
+            });
+
+        });
+    </script>
+                    )

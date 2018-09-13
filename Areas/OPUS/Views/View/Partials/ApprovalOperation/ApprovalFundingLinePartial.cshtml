@@ -1,0 +1,982 @@
+﻿@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.OPUSModule.ViewModels.ApprovalOperationService
+@using IDB.MW.Domain.Values
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+
+@model FinancingRowViewModel
+
+@{
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+
+<div class="row">
+    <table id="Financing-@Model.ParentRowNumber"
+           class="tableNormal mb20"
+           data-idb-fieldname="tblFinancingFund">
+        <thead>
+            <tr>
+                <th class="tree icon">
+                    @Confluence.ButtonExpandTable(string.Format("{0}.", Model.ParentRowNumber))
+                </th>
+                <th class="col-md-3">
+                    @Localization.GetText("OP.AP.FinancingType").HtmlEncode()
+                </th>
+                <th class="col-md-3">
+                    @Localization.GetText("OP.AP.FundName").HtmlEncode()
+                </th>
+                <th class="col-md-2">
+                    @Localization.GetText("OP.FD.PopUp.UsEquivalent").HtmlEncode()
+                </th>
+                <th class="col-md-2">
+                    @Localization.GetText("OP.AP.FundAmount").HtmlEncode()
+                </th>
+                <th class="col-md-2">
+                    @Localization.GetText("OP.AP.FundCurrency").HtmlEncode()
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                var dropDownFinancingType = @Html.BuildSelectItemList(
+                    dataSource: Model.IncreasesFinancingTypes,
+                    textExpression: finType => finType.Text,
+                    valueExpression: finType => finType.Value).ToList();
+
+                bool isIncluded = @Html.SelectItemListContainsValue(
+                    dataSource: dropDownFinancingType,
+                    theValue: Model.FinancingTypeId.ToString());
+
+                if (!isIncluded)
+                    @Html.SelectItemListAddItem(
+                        dataSource: dropDownFinancingType,
+                        text: Model.FinancingType,
+                        value: Model.FinancingTypeId.ToString());
+
+                var dropDownFund = @Html.BuildSelectItemList(
+                    dataSource: Model.IncreasesFunds,
+                    textExpression: fund => fund.Text,
+                    valueExpression: fund => fund.Value).ToList();
+
+                isIncluded = @Html.SelectItemListContainsValue(
+                    dataSource: dropDownFund,
+                    theValue: Model.FundId.ToString());
+
+                if (!isIncluded)
+                    @Html.SelectItemListAddItem(
+                        dataSource: dropDownFund,
+                        text: Model.FundName,
+                        value: Model.FundId.ToString());
+            }
+            <tr data-id="@Model.FinancingRowId" class="notCollapse">
+                <td class="tree">
+                    @Confluence.InputHidden(Model.FinancingTypeId.ToString(), "hidFinancingTypeId")
+                    @Confluence.InputHidden(Model.FundId.ToString(), "hidFundId")
+                </td>
+                <td> 
+                    <span data-pagemode="read">
+                        @Model.FinancingType
+                    </span>
+                    <span data-pagemode="edit">
+                        @if (Model.IsEditableOnRevoke)
+	                    {
+	                        @Confluence.InputDropDown(
+	                            Model.FinancingTypeId.ToString(),
+	                            "FinancingTypeId",
+	                            dropDownFinancingType,
+	                            dataAttributes: new Dictionary<string, string>
+	                            {
+	                                { "idb-fieldname", "ddlFinancingTypeRev" },
+	                                {  "persist-parent-id", Model.ParentRowNumber.ToString() }
+	                            },
+	                            htmlClass: "widerDropdown",
+	                            htmlClassList: "w160")
+	                    } 
+                        else 
+                        {
+                            @Confluence.InputHidden(
+                                Model.FinancingTypeId.ToString(),
+                                "FinancingTypeId",
+                                dataAttributes: new Dictionary<string, string>
+                                {
+                                    {  "persist-parent-id", Model.ParentRowNumber.ToString() }
+                                })
+                            @Model.FinancingType
+                        }
+                    </span>
+                </td>
+                <td>
+                    <span data-pagemode="read">
+                        @Model.FundName
+                    </span>
+                    <span data-pagemode="edit">
+                        @if (Model.IsEditableOnRevoke)
+                        {
+                            @Confluence.InputDropDown(
+                                Model.FundId.ToString(),
+                                "FundId",
+                                dropDownFund,
+                                dataAttributes: new Dictionary<string, string>
+                                {
+                                    { "idb-fieldname", "ddlFundRev" },
+                                    {  "persist-parent-id", Model.ParentRowNumber.ToString() }
+                                },
+                                htmlClass: "widerDropdown",
+                                htmlClassList: "w160")
+                        }
+                        else
+                        {
+                            @Confluence.InputHidden(
+                                Model.FundId.ToString(),
+                                "FundId",
+                                dataAttributes: new Dictionary<string, string>
+                                {
+                                    {  "persist-parent-id", Model.ParentRowNumber.ToString() }
+                                })
+                            @Model.FundName
+                        }
+                    </span>
+                </td>
+                <td class="USFundAmountColumn text-right">
+                    @FormatHelper.Format(Model.USFundAmount, formatDecimal)
+                </td>
+                <td class="FundAmountColumn text-right">
+                    @FormatHelper.Format(Model.FundAmount, formatDecimal)
+                </td>
+                <td>
+                    @{
+                        var fundCurrencyList = Html
+                            .BuildSelectItemList(
+                                Model.FundCurrencyList,
+                                x => x.Text,
+                                x => x.Value)
+                            .ToList();
+                    }
+                    <span data-pagemode="read">
+                        @Confluence.LabelGetDropDown(
+                            Model.FundCurrency.ToString(),
+                            fundCurrencyList)
+                    </span>
+                    <span data-pagemode="edit">
+                        @Confluence.InputDropDown(
+                            Model.FundCurrency.ToString(),
+                            "fundCurrency",
+                            fundCurrencyList,
+                            dataAttributes: new Dictionary<string, string>
+                            {
+                                { "idb-fieldname", "ddlFundCurrency" },
+                                { "persist-parent-id", Model.ParentRowNumber.ToString() }
+                            },
+                            htmlClass: "widerDropdown fundCurrency",
+                            htmlClassList: "w160")
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td class="tree"><span></span></td>
+                <td colspan="5" class="subnivel">
+                    <div>
+                        @GenerateApprovalDetail(Model, Model.ParentRowNumber, formatDecimal)
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+<div id="BLoan-@Model.FinancingRowId.ToString(CultureInfo.InvariantCulture)"
+     class="row row-body-40 hide">
+</div>
+
+@helper GenerateApprovalDetail(FinancingRowViewModel item, int parentRow, string formatDecimal)
+{
+    if (item.FinancingDetails == null) {
+        return;
+    }
+    <div class="hide">
+        @Confluence.ButtonColapse("FinancingDetail-" + @item.FinancingRowId, false)
+    </div>
+    <table id="FinancingDetail-@item.FinancingRowId"
+        class="tableNormal FinancingDetail subTable no-striped"
+        data-idb-fieldname="tblFinancingDetail">
+        <thead>
+            <tr>
+                <th class="tree"></th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.Transaction")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.ApprovalNumber")
+                </th>
+                <th class="subHeaderBlue maxw60">
+                    @Localization.GetText("OP.AP.Suffix")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.FD.PopUp.UsEquivalent")
+                </th>
+                <th class="subHeaderBlue maxw80">
+                    @Localization.GetText("OP.AP.IDBAmount")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.LoanExecutingAgency")
+                </th>
+                <th class="subHeaderBlue maxw80">
+                    @Localization.GetText("OP.AP.ApprovalDate")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.ApprovalAuthority")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.ApprovalProcess")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.Resolution")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.Documents.DocumentNumber")
+                </th>
+                <th class="subHeaderBlue maxw90">
+                    @Localization.GetText("OP.AP.Documents.DocumentDate")
+                </th>
+                <th class="subHeaderBlue maxw80">
+                    @Localization.GetText("OP.AP.Status")
+                </th>
+                <th class="subHeaderBlue maxw120" data-pagemode="edit">
+                    @Localization.GetText("OP.AP.Action")
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in item.FinancingDetails)
+            {
+                var dropDownAgencies = @Html
+                    .BuildSelectItemList(
+                        dataSource: Model.ExecutingAgenciesNotExpired,
+                        textExpression: agency => agency.Text,
+                        valueExpression: agency => agency.Value)
+                    .ToList();
+
+                bool isAlreadyIncluded = @Html.SelectItemListContainsValue(
+                    dataSource: dropDownAgencies,
+                    theValue: row.Executor.ToString());
+
+                var dropDownProcess = @Html.BuildSelectItemList(
+                    dataSource: row.ApprovalProcessList,
+                    textExpression: process => process.Text,
+                    valueExpression: process => process.Value);
+
+                var dropDownAuthority = @Html.BuildSelectItemList(
+                    dataSource: row.ApprovalAuthorityList,
+                    textExpression: authority => authority.Text,
+                    valueExpression: authority => authority.Value);
+
+                if (!isAlreadyIncluded)
+                    foreach (ExecutingAgencyViewModel expiredAgency in Model.ExecutingAgenciesExpired)
+                        if (expiredAgency.InstitutionId == row.Executor)
+                            @Html.SelectItemListAddItem(
+                                dataSource: dropDownAgencies,
+                                text: expiredAgency.Acrnm,
+                                value: expiredAgency.InstitutionId.ToString());
+
+                <tr data-id="@row.FinancingDetailId">
+                    <td class="tree son">
+                        @if (row.IsIncrease)
+                        {
+                            <div class="text-center">
+                                @string.Format("{0}.", row.IncreaseSequenceNumber.ToString())
+                            </div>
+                        }
+                    </td>
+                    <td>
+                        @(row.IsIncrease ? OPUSGlobalValues.INCREASE : OPUSGlobalValues.APPROVAL)
+                    </td>
+                    <td class="approvalnumber no-wrap">
+                        <span data-pagemode="edit">
+                            @EditApprovalNumber(row, parentRow)
+                        </span>
+                    </td>
+                    <td class="text-right" id="col-suffix">
+                        <span data-pagemode="edit">
+                            @if ((row.IsIncrease && !string.IsNullOrEmpty(row.ApprovalNumber)) ||
+                                !Model.HasEditSuffixPermission)
+                            {
+                                <span>@row.Suffix</span>
+                                @Confluence.InputHidden(
+                                    value: row.Suffix,
+                                    name: "Suffix",
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                        { "persist-parent-id", parentRow.ToString() }
+                                    })
+                            }
+                            else
+                            {
+                                @EditSufix(row, parentRow)
+                            }
+                        </span>
+                    </td>
+                    <td name="IdbUsApprovedAmountCol" class="text-right no-wrap">
+                        <span data-pagemode="read">
+                            @Confluence.LabelDecimal(row.USApprovedAmount)
+                        </span>
+                        <span data-pagemode="edit">
+                            @EditIDBUsAmount(row, parentRow, item.FundCurrency)
+                        </span>
+                    </td>
+                    <td name="IdbApprovedAmountCol" class="text-right no-wrap">
+                        <span data-pagemode="edit">
+                            @if (row.StatusCode == FundOperationStageCode.SENT_LMS ||
+                                row.StatusCode == OPUSGlobalValues.APPROVED_CODE)
+                            {
+                                @(row.IDBApprovedAmount > 0m ?
+                                    FormatHelper.Format(row.IDBApprovedAmount, formatDecimal) :
+                                    string.Empty)
+                                @Confluence.InputHidden(row.IDBApprovedAmount.ToString(),
+                                    "IDBApprovedAmount",
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                       { "idb-fieldname", "txtIDBApprovedAmount" },
+                                       { "persist-parent-id", parentRow.ToString() }
+                                    })
+                            }
+                            else
+                            {
+                                @EditIDBApprovedAmount(row, parentRow)
+                            }
+                        </span>
+                    </td>
+                    <td>
+                        <span data-pagemode="edit">
+                            @if (row.IsRequestIncrease ||
+                                row.StatusCode == FundOperationStageCode.SENT_LMS)
+                            {
+                                @Confluence.LabelGetDropDown(
+                                    row.Executor.ToString(),
+                                    dropDownAgencies)
+                                @Confluence.InputDropDown(
+                                    row.Executor.ToString() == null ?
+                                        dropDownAgencies.First().ToString() :
+                                        row.Executor.ToString(),
+                                    "Executor",
+                                    dropDownAgencies,
+                                    required: true,
+                                    dataAttributes: new Dictionary<string, string>
+                                    {
+                                        { "idb-fieldname", "ddlExecutor" },
+                                        { "persist-parent-id", parentRow.ToString() }
+                                    },
+                                    htmlClass: "hide")
+                            }
+                            else
+                            {
+                                @EditLoanExecutingAgency(row, dropDownAgencies, parentRow)
+                            }
+                        </span>
+                    </td>
+                    <td class="text-center no-wrap">
+                        <span data-pagemode="read">
+                            @if (row.IsIncrease)
+                            {
+                                @Confluence.Label((row.ApprovalDate == null) ?
+                                    string.Empty :
+                                    Convert.ToDateTime(row.ApprovalDate).ToString("dd MMM yyyy"))
+                            }
+                            else
+                            {
+                                @Confluence.Label(Model.ApprovalDate.ToString())
+                            }
+                        </span>
+                        <span data-pagemode="edit">
+                            @EditApprovalDate(row, parentRow, Model.ApprovalDate)
+                        </span>
+                    </td>
+                    <td name="ApprovalAuthorityCol">
+                        <span data-pagemode="edit">
+                            @EditApprovalAuthority(row, parentRow, dropDownAuthority)
+                        </span>
+                    </td>
+                    <td name="ApprovalProcessCol">
+                        <span data-pagemode="edit">
+                            @EditApprovalProcess(row, parentRow, dropDownProcess)
+                        </span>
+                    </td>
+                    <td class="resolutionnumber">
+                        <span data-pagemode="read">
+                            @CheckResolutionNumber(row.ResolutionNumber)
+                        </span>
+                        <span data-pagemode="edit">
+                            @EditResolutionNumber(row, parentRow)
+                        </span>
+                    </td>
+                    <td name="colDocumentNumber">
+                        <span data-pagemode="read">
+                            @Confluence.Label(row.DocumentNumber)
+                        </span>
+                        <span data-pagemode="edit">
+                            @EditDocumentNumber(row, parentRow, Model.IsPurchaseOrder)
+                        </span>
+                    </td>
+                    <td name="colDocumentDate" class="text-center no-wrap">
+                        <span data-pagemode="read">
+                            @Confluence.Label(row.DocumentDate == null
+                                ? string.Empty
+                                : Convert.ToDateTime(row.DocumentDate).ToString("dd MMM yyyy"))
+                        </span>
+                        <span data-pagemode="edit">
+                            @EditDocumentDate(row, parentRow, Model.IsPurchaseOrder)
+                        </span>
+                    </td>
+                    <td name="statusCol" class="fieldStatus">@row.Status</td>
+                    <td class="statusCode hide">@row.StatusCode</td>
+                    <td name="IsIncreaseCol" class="hide">
+                        <span data-pagemode="read">
+                            @row.IsIncrease
+                        </span>
+                        <span data-pagemode="edit">
+                            @EditIsIncrease(row, parentRow)
+                        </span>
+                    </td>
+                    <td name="IsRequestIncrease" class="hide">
+                        @row.IsRequestIncrease
+                    </td>
+                    <td name="actionCol" class="fieldStatus text-center" data-pagemode="edit">
+                        <span>
+                            @ActionColumnEdit(row)
+                            @AutomaticApproval(row)
+                            @EditIncrease(row)
+                            @SendToLms(row)
+                        </span>
+                    </td>
+                    <td class="hide">
+                        <span data-pagemode="edit">
+                            @row.CanGenerate
+                        </span>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@helper EditApprovalNumber(FinancingDetailViewModel row, int parentRow)
+{
+    if (((row.ApprovalNumber == null && row.StatusCode == FundOperationStageCode.DRAFT) || 
+        row.CanEditApprovalNumber) && 
+        !Model.IsPurchaseOrder)
+    {
+        @Confluence.InputDropDownAsync(
+            value: "",
+            name: "newApprovalNumber",
+            width: "170px",
+            required: false,
+            textSelected: row.ApprovalNumber ?? string.Empty,
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "ddlNewApprovalNumber" },
+                { "persist-parent-id", parentRow.ToString() }
+            },
+            searchUrl: Url.Action("GetApprovalNumber", "View", new { area = "OPUS" }))
+    }
+    else
+    {
+        @Confluence.Label(row.ApprovalNumber);
+        @Confluence.InputHidden(
+            value: row.ApprovalNumber,
+            name: "newApprovalNumber_text",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditSufix(FinancingDetailViewModel row, int parentRow)
+{
+    <span class="rowDataHide">
+        <input type="hidden" class="resolutionnumber_hide" />
+        <input type="hidden" class="approvalnumber_hide" />
+    </span>
+
+    var isEditable = row.StatusCode == FundOperationStageCode.REJECTED_LMS ||
+        row.StatusCode == FundOperationStageCode.DRAFT ||
+        row.StatusCode == FundOperationStageCode.REVOKED;
+
+    if (row.ApprovalNumber.IsEmpty() && isEditable)
+    {
+        <div>
+            @Confluence.InputText(
+                row.Suffix,
+                "Suffix",
+                dataAttributes: new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "txtSuffix01" },
+                    { "persist-parent-id", parentRow.ToString() }
+                },
+                required: false, width: "100%")
+        </div>;
+    }
+    else
+    {
+        <span>@row.Suffix</span>
+        @Confluence.InputHidden(
+            value: row.Suffix,
+            name: "Suffix",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditIDBApprovedAmount(FinancingDetailViewModel row, int parentRow)
+{
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+    <div>
+        @Confluence.InputDecimal(
+            row.IDBApprovedAmount,
+            "IDBApprovedAmount",
+            minValue: "0.00",
+            maxValue: "999999999999.99",
+            numberSeparator: ",",
+            decimalSeparator: ".",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "txtIDBApprovedAmount" },
+                { "persist-parent-id", parentRow.ToString() }
+            },
+            width: "100px")
+    </div>;
+}
+
+@helper EditLoanExecutingAgency(
+    FinancingDetailViewModel row,
+    IList<SelectListItem> dropDownAgencies,
+    int parentRow)
+{
+    var isEditable = row.StatusCode == FundOperationStageCode.REJECTED_LMS ||
+        row.StatusCode == FundOperationStageCode.DRAFT ||
+        row.StatusCode == FundOperationStageCode.REVOKED;
+
+    if (isEditable)
+    {
+        <div class="Executor">
+            @Confluence.InputDropDown(
+                row.Executor.ToString() == null ?
+                    dropDownAgencies.First().ToString() : row.Executor.ToString(),
+                "Executor",
+                dropDownAgencies,
+                required: true,
+                dataAttributes: new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "ddlExecutor" },
+                    { "persist-parent-id", parentRow.ToString() }
+                },
+                width: "100%")
+        </div>
+    }
+    else
+    {
+        <span class="ExecutorReadRow">
+            @Confluence.LabelGetDropDown(row.Executor.ToString(), dropDownAgencies.ToList())
+        </span>
+        <div class="Executor hide">
+            @Confluence.InputDropDown(
+                row.Executor.ToString() == null ?
+                    dropDownAgencies.First().ToString() : row.Executor.ToString(),
+                "Executor",
+                dropDownAgencies,
+                required: true,
+                dataAttributes: new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "ddlExecutor" },
+                    { "persist-parent-id", parentRow.ToString() }
+                },
+                width: "100%")
+        </div>
+    }
+}
+
+@helper EditIsIncrease(FinancingDetailViewModel row, int parentRow)
+{
+    <div>
+        @Confluence.InputText(
+            row.IsIncrease.ToString(), 
+            "IsIncrease", 
+            dataAttributes: new Dictionary<string, string> 
+            { 
+                { "idb-fieldname", "txtIsIncrease" }, 
+                { "persist-parent-id", parentRow.ToString() } 
+            }, 
+            width: "100%")
+    </div>;
+}
+
+@helper ActionColumnEdit(FinancingDetailViewModel row)
+{
+    if (row.ApprovalNumber.IsEmpty() &&
+        !Model.IsPurchaseOrder &&
+        row.StatusCode == FundOperationStageCode.DRAFT)
+    {
+        <span class="generateAPR">
+            @ApprovalOperation.ButtonGenerateAPRThird(
+                text: Localization.GetText("OP.AP.EditRegister.Loan.GenerateAPR"),
+                action: "generateApprovalNumber",
+                dataAttributes: new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "btnGenerateNumber" }
+                })
+        </span>
+        <span class="reusegenerateAPR hide">
+            @ApprovalOperation.ButtonGenerateAPRThird(
+                text: Localization.GetText("OP.AP.EditRegister.Loan.ReuseAPR"),
+                action: "generateApprovalNumber",
+                dataAttributes: new Dictionary<string, string>
+                {
+                    { "idb-fieldname", "btnReuseGenerateNumber" }
+                })
+        </span>
+    }
+}
+
+@helper CheckResolutionNumber(string resolutionNumber)
+{
+    if (string.IsNullOrEmpty(resolutionNumber))
+    {
+        @OPUSGlobalValues.RESOLUTION_NUMBER_DEFAULT;
+    }
+    else
+    {
+        @resolutionNumber;
+    }
+}
+
+@helper EditApprovalProcess(
+    FinancingDetailViewModel row,
+    int parentRow,
+    IList<SelectListItem> dropDownProcess)
+{
+    if ((row.StatusCode == FundOperationStageCode.DRAFT ||
+            row.StatusCode == FundOperationStageCode.REVOKED) &&
+        Model.IsGCMAdmin)
+    {
+        @Confluence.InputDropDown(
+            row.ApprovalProcess == null ?
+                row.ApprovalProcessByRule.ToString() : row.ApprovalProcess.ToString(),
+            "ApprovalProcessSubTable",
+            dropDownProcess,
+            width: "140px",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+    else
+    {
+        @Confluence.LabelGetDropDown(row.ApprovalProcess.ToString(), dropDownProcess.ToList())
+        @Confluence.InputHidden(
+            value: row.ApprovalProcess.ToString(),
+            name: "ApprovalProcessSubTable",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditApprovalAuthority(
+    FinancingDetailViewModel row,
+    int parentRow,
+    IList<SelectListItem> dropDownAuthority)
+{
+    if ((row.StatusCode == FundOperationStageCode.DRAFT ||
+            row.StatusCode == FundOperationStageCode.REVOKED) &&
+        Model.IsGCMAdmin)
+    {
+        @Confluence.InputDropDown(
+            row.ApprovalAuthority == null ?
+                row.ApprovalAuthorityByRule.ToString() : row.ApprovalAuthority.ToString(),
+            "ApprovalAuthority",
+            dropDownAuthority,
+            width: "150px",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+    else
+    {
+        @Confluence.LabelGetDropDown(row.ApprovalAuthority.ToString(), dropDownAuthority.ToList())
+        @Confluence.InputHidden(
+            value: row.ApprovalAuthority.ToString(),
+            name: "ApprovalAuthority",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditResolutionNumber(FinancingDetailViewModel row, int parentRow)
+{
+    var isBlocked = row.StatusCode == FundOperationStageCode.SENT_LMS ||
+        row.StatusCode == FundOperationStageCode.APPROVED ||
+        row.StatusCode == FundOperationStageCode.ACCEPTED_LMS;
+
+    if (!isBlocked)
+    {
+        @Confluence.InputText(
+            row.ResolutionNumber ?? string.Empty,
+            "ResolutionNumber",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "txtResolutionNumber" },
+                { "persist-parent-id", parentRow.ToString() }
+            },
+            required: true,
+            width: "100%")
+    }
+    else
+    {
+        @row.ResolutionNumber
+        @Confluence.InputHidden(
+            value: row.ResolutionNumber,
+            name: "ResolutionNumber",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditDocumentDate(
+    FinancingDetailViewModel row,
+    int parentRow, 
+    bool isPO)
+{
+    if (row.IsDocumentDataEditable && !isPO)
+    {
+        @Confluence.InputDatePicker(
+            (row.DocumentDate == null) ? (DateTime?)null : Convert.ToDateTime(row.DocumentDate),
+            "DocumentDate",
+            format: "dd MMM yyyy",
+            required: false,
+            dataAttributes:
+            new Dictionary<string, string>
+            {
+                { "idb-fieldname", "DocumentDate" },
+                { "persist-parent-id", parentRow.ToString() },
+                { "parsley-trigger", "change" }
+            },
+            width: "100%")
+    }
+    else
+    {
+        @Confluence.Label(
+            (row.DocumentDate == null) ?
+                string.Empty : Convert.ToDateTime(row.DocumentDate).ToString("dd MMM yyyy"))
+
+        @Confluence.InputHidden(
+            row.DocumentDate.ToString(),
+            "DocumentDate",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "DocumentDate" },
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditDocumentNumber(FinancingDetailViewModel row, int parentRow, bool isPO)
+{
+    if (row.IsDocumentDataEditable && !isPO)
+    {
+        @Confluence.InputText(
+            row.DocumentNumber,
+            "DocumentNumber",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "txtDocumentNumber" },
+                { "persist-parent-id", parentRow.ToString() }
+            },
+            required: false,
+            width: "100%")
+    }
+    else
+    {
+        @Confluence.Label(row.DocumentNumber)
+        @Confluence.InputHidden(
+            value: row.DocumentNumber,
+            name: "DocumentNumber",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditIncrease(FinancingDetailViewModel row)
+{
+    switch (row.StatusCode)
+    {
+        case FundOperationStageCode.SENT_LMS:
+        case FundOperationStageCode.APPROVED:
+        case FundOperationStageCode.ACCEPTED_LMS:
+            if (row.IsIncrease)
+            {
+                @Confluence.ListHelpers(new List<HelperResult>
+                {
+                    ApprovalOperation.ButtonRevoke(
+                        Localization.GetText("OP.AP.EditGenerateRegistry.Loan.Revoke"),
+                        "revokeIncrease",
+                        "revokeIncrease",
+                        dataAttributes: new Dictionary<string, string>()
+                        {
+                            { "idb-fieldname", "btnRevokeIncrease" }
+                        })
+                })
+            }
+            else
+            {
+                <span>
+                    @ApprovalOperation.ButtonRevoke(
+                       Localization.GetText("OP.AP.EditGenerateRegistry.Loan.Revoke"),
+                         action: "revokeapproval",
+                         dataAttributes: new Dictionary<string, string>
+                         {
+                             { "idb-fieldname", "btnRevokeapproval" }
+                         })
+                </span>
+            }
+            break;
+        case FundOperationStageCode.DRAFT:
+        case FundOperationStageCode.REVOKED:
+        case FundOperationStageCode.REJECTED_LMS:
+            if (row.IsIncrease)
+            {
+                @Confluence.ButtonTrash(
+                    Localization.GetText("Common.Delete"),
+                    action: "removeRowIncreases",
+                    dataAttributes: new Dictionary<string, string>
+                    {
+                        { "idb-fieldname", "btnDeleteIncrease"}
+                    })
+            }
+            break;
+    }
+}
+
+@helper AutomaticApproval(FinancingDetailViewModel row)
+{
+    if (row.IsIncrease && 
+        row.StatusCode == FundOperationStageCode.DRAFT &&
+        Model.IsPurchaseOrder && 
+        string.IsNullOrEmpty(row.ApprovalNumber))
+    {
+        @ApprovalOperation.ButtonApproval(
+            Localization.GetText("OP.AP.Approve"),
+            name: "btnIncreaseAutoApproval",
+            action: "submitTransaction")
+    }
+}
+
+@helper SendToLms(FinancingDetailViewModel row)
+{
+    if (row.IsIncrease &&
+        !string.IsNullOrEmpty(row.ApprovalNumber) &&
+        (row.StatusCode == FundOperationStageCode.DRAFT ||
+            row.StatusCode == FundOperationStageCode.REVOKED))
+    {
+        <span>
+            @ApprovalOperation.ButtonSendToLms(
+                Localization.GetText("OP.AP.SendLMS"),
+                name: "btnIncreaseSendToLms",
+                action: "submitTransaction")
+        </span>
+    }
+}
+
+@helper EditIDBUsAmount(FinancingDetailViewModel row, int parentRow, int? FundCurrencyId)
+{
+    var isEditable = row.StatusCode == FundOperationStageCode.DRAFT ||
+        row.StatusCode == FundOperationStageCode.REVOKED;
+
+    if (isEditable)
+    {
+        @Confluence.InputDecimal(
+            row.USApprovedAmount,
+            "USApprovedAmount",
+            minValue: "0.00",
+            maxValue: "999999999999.99",
+            numberSeparator: ",",
+            decimalSeparator: ".",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "txtIDBUsApprovedAmount" },
+                { "persist-parent-id", parentRow.ToString() }
+            },
+            width: "100px")
+    }
+    else
+    {
+        @Confluence.LabelDecimal(row.USApprovedAmount)
+        @Confluence.InputHidden(
+            row.USApprovedAmount.ToString(),
+            "USApprovedAmount",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "txtIDBUsApprovedAmount" },
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}
+
+@helper EditApprovalDate(FinancingDetailViewModel row, int parentRow, string approvalDate)
+{
+    if (row.IsIncrease &&
+        (row.StatusCode == FundOperationStageCode.DRAFT ||
+            row.StatusCode == FundOperationStageCode.REVOKED))
+    {
+        @Confluence.InputDatePicker(
+            (row.ApprovalDate == null) ? (DateTime?)null : Convert.ToDateTime(row.ApprovalDate),
+            "ApprovalDate",
+            format: "dd MMM yyyy",
+            dataAttributes:
+            new Dictionary<string, string>
+            {
+                { "idb-fieldname", "ApprovalDateIncrease" },
+                { "persist-parent-id", parentRow.ToString() },
+                { "parsley-trigger", "change" }
+            },
+            width: "90px")
+    }
+    else if (row.IsIncrease)
+    {
+        @Confluence.Label(
+            (row.ApprovalDate == null) ?
+                string.Empty : Convert.ToDateTime(row.ApprovalDate).ToString("dd MMM yyyy"))
+
+        @Confluence.InputHidden(
+            row.ApprovalDate.ToString(),
+            "ApprovalDate",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "ApprovalDateIncrease" },
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+    else
+    {
+        @Confluence.Label(approvalDate)
+        @Confluence.InputHidden(
+            row.ApprovalDate.ToString(),
+            "ApprovalDate",
+            dataAttributes: new Dictionary<string, string>
+            {
+                { "idb-fieldname", "ApprovalDateIncrease" },
+                { "persist-parent-id", parentRow.ToString() }
+            })
+    }
+}

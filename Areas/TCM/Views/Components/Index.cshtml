@@ -1,0 +1,2065 @@
+﻿@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Components
+@using IDB.MW.Domain.Values
+@model  ComponentsViewModel
+
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+}
+<input hidden data-idb-pagename="UI-COM-003Partial-TabFinancialProgress" />
+<input hidden data-idb-pagename="UI-COM-004Partial-TabMappingProgress"/>
+
+@Html.Partial("Partial/CNDForm", Model)
+
+<div class="header">
+    <div class="floatLeft">
+        @Confluence.LabelMainTitle(Localization.GetText("TCM.Outputs"))
+    </div>
+
+    @Html.Partial("Partial/ButtonHeader", Model)
+    
+    @if (Model.OperationInfo != null)
+    {
+        @Html.Partial("~/Areas/TCM/Views/Shared/ResultsMatrix/SharedHeader.cshtml", Model.OperationInfo)
+    }
+</div>
+
+<div class="body">
+    @Html.Partial("Partial/IndexHeader", Model)
+</div>
+
+<div id="divVerifyContent" hidden="hidden">
+    <button data-id="buttonVerifyContent" class="hide"
+            data-modal-allowclose="true"
+            data-custom-modal="verifyContentModal"
+            data-custom-modal-style=""
+            data-custom-modal-title="@Localization.GetText("TCM.VerifyContent.Header")"
+            data-custom-modal-validate="false"
+            data-custom-modal-closeonoverlayclick="false"></button>
+    <div id="verifyContentModal" class="hide modalBody"></div>
+</div>
+<input type="hidden" name="hdn-crf-indicators-path" value="@Url.Action("GetCRFLinkedIndicators", "ComponentsSave", new { area = "TCM" })" />
+
+@Html.Partial("Partial/ButtonHeader", Model)
+
+@section scripts{
+<script src="~/Scripts/Mainframe/fixIframe.js"></script>
+    <script type="text/javascript">
+
+        var CRFObject = (function() {
+            var filterElement = 'STANDARD_OUTPUT';
+            var categoryValidCodes = ['all', 'false-true']
+            var filterUnitOfMesure = $('[name="filter-Outputs-unit-measure"]');
+            var tcmElementSelected = null;
+            var unitOfMesureSelected = null;
+            var categorySelected = null;
+
+            function setTCMElement(value) {
+                tcmElementSelected = value;
+            }
+
+            function setUnitOfMesure(value) {
+                unitOfMesureSelected = value;
+            }
+
+            function setCategory(value) {
+                categorySelected = value;
+            }
+
+            function isCategoryValid() {
+                return categoryValidCodes.includes(categorySelected);
+            }
+
+            function ruleStandardOutput(){
+                if (tcmElementSelected === filterElement && isCategoryValid())
+                    filterUnitOfMesure.val(unitOfMesureSelected).prop('readonly', true);
+                else
+                    filterUnitOfMesure.val('').prop('readonly', false);
+            }
+
+            return {
+                SetTCMElement: setTCMElement,
+                SetUnitOfMesure: setUnitOfMesure,
+                SetIndicatorCategory: setCategory,
+                RuleStandardOutput: ruleStandardOutput
+            }
+        })();
+
+        $(document).ready(function() {
+            ShowHideButton();
+            loadingFunctions();
+            number();
+            $('[attr-inactive=true]').hide();
+            mappingProcessFilter();
+            ShoreMorePlus();
+
+            $('body').on("click", "[name='btn_link']", function() {
+                var tcmElement = $(this).data("tcm-element");
+                var tcmElementId = $(this).data("tcm-element-id");
+
+                if (Number(tcmElementId) > 0) {
+
+                    CRFObject.SetTCMElement(tcmElement);
+                    CRFObject.SetUnitOfMesure($(this).closest("tbody").find('[name="Output_UnitOfMeasure"]').val());
+
+                    var tcmElementFilter = $("#Outputs-link-modal").find("[name = 'filter-Outputs-output-type']").first();
+                    var tcmElementToLink = $("input[name = 'tcm-element-to-link-id']").first();
+
+                    $(tcmElementFilter).val(tcmElement);
+                    $(tcmElementToLink).val(tcmElementId);
+
+                    var indicatorsToExclude = $(this).closest("td").find("span.crf-indicator-edit-mode");
+                    var idsToExclude = new Array();
+                    $.each(indicatorsToExclude, function(index, indicatorToExclude) {
+                        idsToExclude.push($(indicatorToExclude).data("crf-indicator-id"));
+                    });
+                    $("#Outputs-link-modal").find("[name = 'filter-Outputs-indicators-to-exclude']").val(idsToExclude.join());
+
+                    $("#Outputs-link-modal").find("ul.chosen-choices li.search-choice").remove();
+                    var inputPriorityArea = $("#Outputs-link-modal").find("ul.chosen-choices li.search-field").find("input");
+                    $(inputPriorityArea).val("@Localization.GetText("PCR.SelectOption")");
+                    $(inputPriorityArea).attr("class", "default");
+                    $(inputPriorityArea).attr("autocomplete", "off");
+                    $(inputPriorityArea).css("width", "112px");
+
+                    $("input[name='filter-Outputs-indicator-number']").val('');
+                    $("input[name='filter-Outputs-indicator-name']").val('');
+                    $("input[name='filter-Outputs-unit-measure']").val('');
+
+                    $("#Outputs-link-modal").find("div[data-name='detail-indicator-section']").addClass("hide");
+                    $("#Outputs-link-modal").find("div[data-name='filter-section']").removeClass("hide");
+
+                    $("#OutputsLinkTable").find("tr:not(:first)").remove();
+                    $("#OutputsLinkTable tbody").append('<tr class="odd" data-id="id"><td valign="top" colspan="5" class="dataTables_empty">@Localization.GetText("No data available in table")</td></tr>');
+
+                    $("#OutputsLinkTable_paginate").html("");
+
+                    $("[name='Outputsopen-popup-btn']").trigger("click");
+
+                    CRFObject.SetIndicatorCategory($('input[name=filter-Outputs-indicator-category]:checked').val());
+                    CRFObject.RuleStandardOutput();
+                }
+            });
+
+            $('body').on("click", "[name='btn_unlink']", function() {
+                var modalContainer = $("#unlink-crf-modal");
+                var componentStatement = $(this).closest("table").find("input[name='Component_Statement']").val();
+                var outputDefinition = $(this).closest("td").find("textarea[name='Output_Definition']").val();
+                var path = $("input[name='hdn-crf-indicators-path']").val();
+                var outputId = $(this).data("output-id");
+
+                var GetLinkedCRFIndicatorsRequest =
+                {
+                    TcmElementToLink: "OUTPUT",
+                    TcmElementToLinkId: outputId,
+                    PredefinedIndicatorId: 0
+                };
+
+                $.ajax({
+                    url: path,
+                    type: 'post',
+                    dataType: 'json',
+                    data: GetLinkedCRFIndicatorsRequest,
+                    success: function(response) {
+                        if (response != null && response.IsValid) {
+                            buildUnlinkIndicatorsList(response.CRFIndicatorsLinked, modalContainer, outputId, componentStatement, outputDefinition);
+                            $("div#unlinked-predef-indicator-required").hide();
+                            $("[name='btn-open-popup-unlink']").trigger("click");
+                        } else {
+
+                        }
+                    }
+                });
+            });
+
+            $('body').on("click", "[name='unlink-check']", function() {
+                var checked = $(this).attr("data-checked");
+                if (checked == "true") {
+                    $(this).attr("data-checked", false);
+                } else {
+                    $(this).attr("data-checked", true);
+                }
+            });
+
+            if (getURLParameter("isTCM") === "true") {
+                $('.tabs li.active').removeClass('active');
+                $('.tabs li[dd-tab=#tabMappingProgress]').addClass('active');
+                $('.tab-pane.active').removeClass('active');
+                $('.tab-pane[id=tabMappingProgress]').addClass('active');
+                ShowHideButton();
+            }
+            ShowMessageNotCategory();
+            showMessageSave('@Request.QueryString["showMessageSave"]');
+
+            $('body').on('click', 'a[dd-name="Reassign_Output_indicator"]', function () {
+                var $scope = angular.element('[ng-controller="PhysicalProgressController"]').scope();
+                var component = new Object();
+
+                component.ComponentId = parseInt($(this).attr('dd-value'));
+                $scope.SetComponentToReassignOutput(component);
+            });
+
+            $('body').on('click', 'input:radio[name="filter-Outputs-indicator-category"]', function () {
+                CRFObject.SetIndicatorCategory($(this).val());
+                CRFObject.RuleStandardOutput();
+            })
+        });
+
+
+        function buildUnlinkIndicatorsList(htmlLinkedIndicators, modalContainer, outputId, componentStatement, outputDefinition) {
+            var parentContainer = $(modalContainer).find("div[data-section='parent-title']");
+            $(parentContainer).find("label").text(componentStatement);
+
+            var childTitleContainer = $(modalContainer).find("div[data-section='child-title']");
+            $(childTitleContainer).find("label").text(outputDefinition);
+
+            var unlinkIndicatorContainer = $(modalContainer).find("div#unlinked-predef-indicator-container");
+            $(unlinkIndicatorContainer).html("");
+            $.each(htmlLinkedIndicators, function(index, htmlLinkedIndicator) {
+                var lblCheck = $("<label class='checkbox-default'></label>");
+                $(lblCheck).append("<input name='unlink-check' type='checkbox' data-checked='false' data-id='" + htmlLinkedIndicator.Item1 + "'>");
+                $(lblCheck).append("<span class='checkbox-default-icon'></span>");
+                var spanText = $("<span class='checkbox-default-text'></span>");
+                var labelTitles = $("<label class='labelNormal'></span>");
+                var flagIcon = "crf-indicator-edit-mode";
+                $(labelTitles).append("<span class='predefined-indicator-icon " + flagIcon + "'>&#9873;</span>");
+                $(labelTitles).append("<span>" + htmlLinkedIndicator.Item2 + "</span>");
+                $(spanText).append(labelTitles);
+                $(lblCheck).append(spanText);
+                $(unlinkIndicatorContainer).append(lblCheck);
+                $(unlinkIndicatorContainer).append("<br/>");
+            });
+            $(unlinkIndicatorContainer).attr("data-unlink-parent-id", outputId);
+        }
+
+        function unlinkPredefinedIndicators() {
+            var indicatorsToUnlink = $("div#unlinked-predef-indicator-container")
+                .find("[name = 'unlink-check'][data-checked = 'true']");
+
+            if (indicatorsToUnlink.length > 0) {
+
+                var outputId = $("div#unlinked-predef-indicator-container").attr("data-unlink-parent-id");
+
+                var unlinkIndicatorIds = new Array();
+
+                if (indicatorsToUnlink != null) {
+
+                    $.each(indicatorsToUnlink, function(index, indicatorToUnlink) {
+                        unlinkIndicatorIds.push($(indicatorToUnlink).data("id"));
+                    });
+
+                    var physicalScope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+
+                    physicalScope.$apply(function() {
+                        var unLinkIndicatorRequest =
+                        {
+                            "TcmElementToUnlink": "OUTPUT",
+                            "TcmElementToUnlinkId": outputId,
+                            "PredefinedIndicatorIds": unlinkIndicatorIds
+                        };
+                        physicalScope.UnlinkToPredefinedIndicator(unLinkIndicatorRequest);
+                    });
+                }
+            } else {
+                $("div#unlinked-predef-indicator-required").show();
+            }
+        }
+
+        function cancelUnlinkPredefinedIndicators() {
+            vex.close();
+        }
+
+        function loadingFunctions() {
+            $('#hideFilter').addClass('hide');
+            HideShowFilterMP();
+            $('li').find('.default').attr("style", "width: 260px !important");
+            $('li').find('.default').addClass('w260');
+            enableEdit();
+            $('[attr-inactive=true]').hide();
+            number();
+            numberFinancial();
+            numberMapping();
+            AddNewVisualOuput();
+            bindHandlers($(".tab-pane.active"));
+            if ($(".tab-pane.active").attr('id') === "tabPhysicalProgress") {
+                finnancingCalculations();
+            }
+        }
+
+        function enableEdit() {
+            var EditableOutput = '@Model.EditableComponent.ToString().ToLower()';
+            if (EditableOutput === 'true') {
+                $('[name="editComponents"]').removeClass("hide");
+            } else {
+                $('[name="editComponents"]').addClass("hide");
+            }
+        }
+
+        function getUrlConcurrence() {
+            var url = '';
+            switch ($(".tab-pane.active").attr("id")) {
+            case "tabPhysicalProgress":
+                url = '@TCMGlobalValues.URL_PHYSICAL_PROGRESS';
+                break;
+            case "tabFinancialProgress":
+                url = '@TCMGlobalValues.URL_FINANCIAL_PROGRESS';
+                break;
+            case "tabMappingProgress":
+                url = '@TCMGlobalValues.URL_MAPPING_PROGRESS';
+                break;
+            }
+            return url;
+        }
+
+        function edit() {
+
+            postUrlWithOptions('@Url.Action("ToBlockByChangeInView", "Components", new {area = "TCM"})', { async: false }, { url: getUrlConcurrence() })
+                .done(function(data) {
+                    var tabActive = $(".tab-pane.active");
+                    if (data.IsValid === true) {
+                        var success = enterEditMode(false, tabActive, false);
+                        if (success) {
+                            enterEditMode(false, $('[data-id=headerButtons]'), false);
+                            disableEnableTabs(true);
+                            loadingFunctions();
+                            //disableEop();
+                            //disableEopActual();
+                            //disableEopAnnual();
+                            //disableOtherOriginal();
+                            //disableOtherAnnual();
+                            //disableOtherActual();
+                            $('[name="inactiveOutput"]').addClass('hide');
+                            if (tabActive.attr('id') === "tabMappingProgress") {
+                                AddNewVisualOuput();
+                                ShoreMorePlus();
+                            }
+
+                            if ($(".tab-pane.active").attr("id") === "tabPhysicalProgress") {
+                                var milestonesFilter = $("[name='btn-read-show-milestones']").attr("class");
+                                var disaggregationFilter = $("[name='btn-read-show-disaggregations']").attr("class");
+                                $("[name='btn-edit-show-milestones']").attr("class", milestonesFilter);
+                                $("[name='btn-edit-show-disaggregations']").attr("class", disaggregationFilter);
+
+                                var physicalScope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                                physicalScope.$apply(function() {
+                                    angular.forEach(physicalScope.PhysicalProgress.Components, function(component) {
+                                        angular.forEach(component.Outputs, function(output) {
+                                            if (output.IsDeactivated && output.IsVisible) {
+                                                output.IsVisible = false;
+                                            }
+                                        });
+                                    });
+                                });
+                            }
+                        }
+                    } else {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+
+        }
+
+        function disableEnableTabs(enableOne) {
+            if (enableOne) {
+                var idTab = $('.tab-pane.active').attr('data-tab-control-id');
+                $("[dd-tab]").not('[dd-tab=' + idTab + ']').addClass('disabled');
+            } else {
+                $("[dd-tab]").removeClass('disabled');
+            }
+        }
+
+        function savePhysicalProgress() {
+            var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+            scope.$apply(function() {
+                scope.Save();
+            });
+        }
+
+        function cancelSavePhysicalProgress() {
+            var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+            scope.$apply(function() {
+                scope.CancelSave();
+            });
+
+        }
+
+        function save() {
+            if ($(".tab-pane.active").attr("id") === "tabPhysicalProgress") {
+                savePhysicalProgress();
+            } else {
+                var modelSerialized = '#hidComponentsViewModel';
+                switch ($(".tab-pane.active").attr("id")) {
+                case "tabFinancialProgress":
+                    modelSerialized = '#hidFinancialProgressModel';
+                    break;
+                case "tabMappingProgress":
+                    modelSerialized = "#hidMappingProgressModel";
+                    break;
+                }
+
+                if (($(".tab-pane.active").attr("id"))) {
+                    var divSave = $('#' + $(".tab-pane.active").attr("id") + '');
+                    var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+                    var saveInRM = (interval == 3 || interval == 4);
+                    var changesWithChangesMatrixActive = $(divSave).find(".store-to-matrix-changes").length > 0;
+                    if (saveInRM && changesWithChangesMatrixActive) {
+                        var msg = '@Localization.GetText("TCM.RCMW.RegisterChanges.TextMessage")';
+                        confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Save")').done(function(pressOk) {
+                            if (pressOk) {
+                                var response = saveContainer(divSave, modelSerialized, true, $('#headerButtons'), null, true, null, null, true);
+                                if (response !== false) {
+                                    response.done(function(data) {
+                                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                                            errorBar(data.ErrorMessage, 3, true);
+                                        } else {
+                                            if (!response.IsValid) {
+                                                errorBar(data.ErrorMessage, 3, true);
+                                            }
+                                            successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+                                            exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                                            disableEnableTabs(false);
+                                            loadingFunctions();
+                                            $('[name="inactiveOutput"]').removeClass('hide');
+                                            ShowMessageNotCategory();
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        var response = saveContainer(divSave, modelSerialized, true, $('#headerButtons'), null, true, null, null, true);
+                        if (response !== false) {
+                            response.done(function(data) {
+                                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                                    errorBar(data.ErrorMessage, 3, true);
+                                } else {
+                                    if (!response.IsValid) {
+                                        errorBar(data.ErrorMessage, 3, true);
+                                    }
+                                    successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+                                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                                    disableEnableTabs(false);
+                                    loadingFunctions();
+                                    $('[name="inactiveOutput"]').removeClass('hide');
+                                    ShowMessageNotCategory();
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+
+        function cancel() {
+            var msg = "@Localization.GetText("OP.DL.Message.Cancel")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var editingTab = $('.tab-pane.active');
+                    if (editingTab.attr("id") === "tabPhysicalProgress") {
+                        cancelSavePhysicalProgress();
+                        loadingFunctions();
+                        number();
+                        numberFinancial();
+                        $('[name="inactiveOutput"]').removeClass('hide');
+                        numberMapping();
+                        ShowMessageNotCategory();
+                    } else {
+                        getTab(editingTab);
+                        bindHandlers(editingTab);
+                        postUrlWithOptions('@Url.Action("UnlockChangeInView", "Components", new {area = "TCM"})', { async: true }, { url: getUrlConcurrence() });
+                    }
+
+                }
+            });
+        }
+
+        function getTab(editingTab) {
+
+            var url;
+            if (editingTab.attr("id") == "tabFinancialProgress") {
+                url = "@Url.Action("IndexFinancialProgressReload", "Components", new {area = "TCM"})";
+            } else {
+                url = "@Url.Action("IndexMappingProgressReload", "Components", new {area = "TCM"})";
+            }
+
+            postUrlWithOptions(url, { async: true }).done(function(data) {
+                $(editingTab).html("").append(data);
+                exitEditModeLoader(false, editingTab, false, true);
+                exitEditModeLoader(false, $('[data-id=headerButtons]'), false, true);
+                disableEnableTabs(false);
+                loadingFunctions();
+                $('[name="inactiveOutput"]').removeClass('hide');
+                ShoreMorePlus();
+                ShowMessageNotCategory();
+            });
+        }
+
+        function isNullAllYearPlans(rowContainer, plannedInputName, annualInputName, actualInputName) {
+            var isNullAllYearPlans = true;
+
+            var originalPlans = $(rowContainer).find("[name='" + plannedInputName + "']");
+            $.each(originalPlans, function(index, originalPlan) {
+                if ($(originalPlan).val() != null && $(originalPlan).val() != "") {
+                    isNullAllYearPlans = false;
+                    return false;
+                }
+            });
+
+            var annualPlans = $(rowContainer).find("[name='" + annualInputName + "']");
+            $.each(annualPlans, function(index, annualPlan) {
+                if ($(annualPlan).val() != null && $(annualPlan).val() != "") {
+                    isNullAllYearPlans = false;
+                    return false;
+                }
+            });
+
+            var actualPlans = $(rowContainer).find("[name='" + actualInputName + "']");
+            $.each(actualPlans, function(index, actualPlan) {
+                if ($(actualPlan).val() != null && $(actualPlan).val() != "") {
+                    isNullAllYearPlans = false;
+                    return false;
+                }
+            });
+
+            return isNullAllYearPlans;
+        }
+
+        function blockEopFields(rowContainer, yearPlanInputs) {
+
+            var isNull = isNullAllYearPlans(rowContainer,
+                yearPlanInputs.plannedInputName,
+                yearPlanInputs.annualInputName,
+                yearPlanInputs.actualInputName);
+
+            if (isNull) {
+                validateEOP(rowContainer, yearPlanInputs.plannedInputName, yearPlanInputs.plannedEopInputName);
+                validateEOP(rowContainer, yearPlanInputs.annualInputName, yearPlanInputs.annualEopInputName);
+                validateEOP(rowContainer, yearPlanInputs.actualInputName, yearPlanInputs.actualEopInputName);
+            } else {
+                $(rowContainer).find("[name='" + yearPlanInputs.plannedEopInputName + "']").attr("disabled", "disabled");
+                $(rowContainer).find("[name='" + yearPlanInputs.annualEopInputName + "']").attr("disabled", "disabled");
+                $(rowContainer).find("[name='" + yearPlanInputs.actualEopInputName + "']").attr("disabled", "disabled");
+            }
+        }
+
+        function validateEOP(currentRow, element, totalElement) {
+            var isOriginalField = false;
+            switch (totalElement) {
+            case "ipdTotalOriginalPlan":
+                isOriginalField = true;
+                break;
+            case "TotalOriginalPlanOtherCost":
+                isOriginalField = true;
+                break;
+            }
+            var interval = parseInt($("input[name='hdSaveInResultMatrix']").val());
+            if ((interval > 2 && !isOriginalField) || interval < 3) {
+                var cons = false;
+                $(currentRow).find("[name = '" + element + "']").each(function() {
+                    cons = $(this).val() != "";
+                    if (cons) {
+                        $(currentRow).find("[name='" + totalElement + "']").attr("disabled", "disabled");
+                        return false;
+                    }
+                });
+                if (!cons) {
+                    $(currentRow).find("[name='" + totalElement + "']").removeAttr("disabled");
+                }
+            }
+        }
+
+        function finnancingCalculations() {
+            $('body').on("change", "[name='ipdOriginalPlan']", function() {
+                $("[name='ipdOriginalPlan']").off("change");
+                var currentRow = $(this).parents('tr').last();
+                var currentYear = $(this).parents('tr').first();
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+
+                var plannedCostInput = $(currentRow).find("[name='ipdTotalOriginalPlan']");
+                var annualCostInput = $(currentRow).find("[name='ipdTotalAnnualPlan']");
+                var actualCostInput = $(currentRow).find("[name='ipdTotalActualPlan']");
+
+                var disableCost = $(plannedCostInput).is('[disabled]');
+                var plannedCostVal = ($(plannedCostInput).val().replace(/,/g, '') * 1);
+                var annualCostVal = ($(annualCostInput).val().replace(/,/g, '') * 1);
+                var actualCostVal = ($(actualCostInput).val().replace(/,/g, '') * 1);
+
+                var currentInput = $(this);
+                var yearPlanInputs =
+                {
+                    "plannedInputName": "ipdOriginalPlan",
+                    "annualInputName": "ipdAnnualPlan",
+                    "actualInputName": "ipdActualValue",
+                    "plannedEopInputName": "ipdTotalOriginalPlan",
+                    "annualEopInputName": "ipdTotalAnnualPlan",
+                    "actualEopInputName": "ipdTotalActualPlan",
+                };
+
+                if ((plannedCostVal * 1 > 0 || annualCostVal * 1 > 0 || actualCostVal * 1 > 0) && disableCost === false) {
+                    var msg = '@Localization.GetText("TCM.Outputs.Message.UpdateYearPlanFinancialProgress")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Continue")').done(function(pressOk) {
+                        if (pressOk) {
+                            setAutoCalculatedEop(currentRow, "Outputs", "Original", "ipdOriginalPlan", "ipdTotalOriginalPlan");
+                            blockEopFields(currentRow, yearPlanInputs);
+                            setAutoCalculatedEop(currentRow, "Outputs", "Annual", "ipdAnnualPlan", "ipdTotalAnnualPlan");
+                            setAutoCalculatedEop(currentRow, "Outputs", "Actual", "ipdActualValue", "ipdTotalActualPlan");
+
+                            updateTotalYearPlanColumn(year, "Original");
+                            setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Original", "ipdOriginalPlanTotalByYear", "");
+
+                            if (interval === 3 || interval === 4) {
+                                setClassToStoreInMatrixChanges(currentYear, "ipdTotalOriginalPlan", true);
+                            }
+                        } else {
+                            $(currentInput).val("");
+                            return true;
+                        }
+                    });
+                } else {
+                    setAutoCalculatedEop(currentRow, "Outputs", "Original", "ipdOriginalPlan", "ipdTotalOriginalPlan");
+
+                    blockEopFields(currentRow, yearPlanInputs);
+                    setAutoCalculatedEop(currentRow, "Outputs", "Annual", "ipdAnnualPlan", "ipdTotalAnnualPlan");
+                    setAutoCalculatedEop(currentRow, "Outputs", "Actual", "ipdActualValue", "ipdTotalActualPlan");
+
+                    updateTotalYearPlanColumn(year, "Original");
+                    setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Original", "ipdOriginalPlanTotalByYear", "");
+
+                    if (interval === 3 || interval === 4) {
+                        setClassToStoreInMatrixChanges(currentYear, "ipdTotalOriginalPlan", true);
+                    }
+                }
+            });
+
+            $('body').on("change", "[name='ipdAnnualPlan']", function() {
+                $("[name='ipdAnnualPlan']").off("change");
+                var currentRow = $(this).parents('tr').last();
+                var currentYear = $(this).parents('tr').first();
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+
+                var plannedCostInput = $(currentRow).find("[name='ipdTotalOriginalPlan']");
+                var annualCostInput = $(currentRow).find("[name='ipdTotalAnnualPlan']");
+                var actualCostInput = $(currentRow).find("[name='ipdTotalActualPlan']");
+
+                var disableAnnualCost = $(annualCostInput).is('[disabled]');
+                var plannedCostVal = ($(plannedCostInput).val().replace(/,/g, '') * 1);
+                var annualCostVal = ($(annualCostInput).val().replace(/,/g, '') * 1);
+                var actualCostVal = ($(actualCostInput).val().replace(/,/g, '') * 1);
+
+                var currentInput = this;
+                var yearPlanInputs =
+                {
+                    "plannedInputName": "ipdOriginalPlan",
+                    "annualInputName": "ipdAnnualPlan",
+                    "actualInputName": "ipdActualValue",
+                    "plannedEopInputName": "ipdTotalOriginalPlan",
+                    "annualEopInputName": "ipdTotalAnnualPlan",
+                    "actualEopInputName": "ipdTotalActualPlan"
+                };
+
+                var rowToValidateChanges = $(this).closest('tr').first();
+                var inputNameToValidateChanges = $(this).attr("name");
+
+                if ((plannedCostVal * 1 > 0 || annualCostVal * 1 > 0 || actualCostVal * 1 > 0) && disableAnnualCost === false) {
+                    var msg = '@Localization.GetText("TCM.Outputs.Message.UpdateYearPlanFinancialProgress")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Continue")').done(function(pressOk) {
+                        if (pressOk) {
+                            setAutoCalculatedEop(currentRow, "Outputs", "Annual", "ipdAnnualPlan", "ipdTotalAnnualPlan");
+                            setAutoCalculatedEop(currentRow, "Outputs", "Original", "ipdOriginalPlan", "ipdTotalOriginalPlan");
+                            setAutoCalculatedEop(currentRow, "Outputs", "Actual", "ipdActualValue", "ipdTotalActualPlan");
+                            blockEopFields(currentRow, yearPlanInputs);
+                            updateTotalYearPlanColumn(year, "Annual");
+                            setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Annual", "ipdAnnualPlanTotalByYear", "");
+
+                            if (interval === 3 || interval === 4) {
+                                setClassToStoreInMatrixChanges(rowToValidateChanges, inputNameToValidateChanges, true);
+                            }
+                        } else {
+                            $(currentInput).val("");
+                            return true;
+                        }
+                    });
+
+                } else {
+                    setAutoCalculatedEop(currentRow, "Outputs", "Annual", "ipdAnnualPlan", "ipdTotalAnnualPlan");
+                    setAutoCalculatedEop(currentRow, "Outputs", "Original", "ipdOriginalPlan", "ipdTotalOriginalPlan");
+                    setAutoCalculatedEop(currentRow, "Outputs", "Actual", "ipdActualValue", "ipdTotalActualPlan");
+                    blockEopFields(currentRow, yearPlanInputs);
+                    updateTotalYearPlanColumn(year, "Annual");
+                    setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Annual", "ipdAnnualPlanTotalByYear", "");
+
+                    if (interval === 3 || interval === 4) {
+                        setClassToStoreInMatrixChanges(rowToValidateChanges, inputNameToValidateChanges, true);
+                    }
+                }
+            });
+
+            $('body').on("change", "[name='ipdActualValue']", function() {
+                $("[name='ipdActualValue']").off("change");
+                var currentRow = $(this).parents('tr').last();
+                var currentYear = $(this).parents('tr').first();
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+
+                var plannedCostInput = $(currentRow).find("[name='ipdTotalOriginalPlan']");
+                var annualCostInput = $(currentRow).find("[name='ipdTotalAnnualPlan']");
+                var actualCostInput = $(currentRow).find("[name='ipdTotalActualPlan']");
+
+                var disableAnnualCost = $(annualCostInput).is('[disabled]');
+                var plannedCostVal = ($(plannedCostInput).val().replace(/,/g, '') * 1);
+                var annualCostVal = ($(annualCostInput).val().replace(/,/g, '') * 1);
+                var actualCostVal = ($(actualCostInput).val().replace(/,/g, '') * 1);
+
+                var referenceYear = GetReferenceYear(currentRow, "ipdAnnualPlan");
+                var annualValues = $(currentRow).find("[name='ipdAnnualPlan']");
+                var annualValuesCount = 0;
+                var currentInput = this;
+                var yearPlanInputs =
+                {
+                    "plannedInputName": "ipdOriginalPlan",
+                    "annualInputName": "ipdAnnualPlan",
+                    "actualInputName": "ipdActualValue",
+                    "plannedEopInputName": "ipdTotalOriginalPlan",
+                    "annualEopInputName": "ipdTotalAnnualPlan",
+                    "actualEopInputName": "ipdTotalActualPlan",
+                };
+
+                $.each(annualValues, function(index, annualValue) {
+                    var value = ($(this).val().replace(/,/g, '') * 1);
+                    if (value > 0) {
+                        annualValuesCount++;
+                    }
+                });
+
+                if ((plannedCostVal * 1 > 0 || annualCostVal * 1 > 0 || actualCostVal * 1 > 0) && disableAnnualCost === false) {
+                    var msg = '@Localization.GetText("TCM.Outputs.Message.UpdateYearPlanFinancialProgress")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Continue")').done(function(pressOk) {
+                        if (pressOk) {
+                            setAutoCalculatedEop(currentRow, "Outputs", "Actual", "ipdActualValue", "ipdTotalActualPlan");
+                            blockEopFields(currentRow, yearPlanInputs);
+                            setAutoCalculatedEop(currentRow, "Outputs", "Annual", "ipdAnnualPlan", "ipdTotalAnnualPlan");
+                            setAutoCalculatedEop(currentRow, "Outputs", "Original", "ipdOriginalPlan", "ipdTotalOriginalPlan");
+                            updateTotalYearPlanColumn(year, "Actual");
+                            setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Actual", "ipdActualPlanTotalByYear", "");
+
+                            if ((interval === 3 || interval === 4)
+                                && (currentRow.attr("attr-acalc") != undefined && currentRow.attr("attr-acalc") === "true")) {
+                                setClassToStoreInMatrixChanges(currentYear, "ipdTotalAnnualPlan", true);
+                            }
+
+                        } else {
+                            $(currentInput).val("");
+                            return true;
+                        }
+
+
+                    });
+                } else {
+                    setAutoCalculatedEop(currentRow, "Outputs", "Actual", "ipdActualValue", "ipdTotalActualPlan");
+                    blockEopFields(currentRow, yearPlanInputs);
+                    setAutoCalculatedEop(currentRow, "Outputs", "Annual", "ipdAnnualPlan", "ipdTotalAnnualPlan");
+                    setAutoCalculatedEop(currentRow, "Outputs", "Original", "ipdOriginalPlan", "ipdTotalOriginalPlan");
+                    updateTotalYearPlanColumn(year, "Actual");
+                    setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Actual", "ipdActualPlanTotalByYear", "");
+
+                    if ((interval === 3 || interval === 4)
+                        && (currentRow.attr("attr-acalc") != undefined && currentRow.attr("attr-acalc") === "true")) {
+                        setClassToStoreInMatrixChanges(currentYear, "ipdTotalAnnualPlan", true);
+                    }
+                }
+            });
+
+            $('body').on("change", "[name='ipdOriginalPlanOtherCost']", function() {
+                $("[name='ipdOriginalPlanOtherCost']").off("change");
+                var currentRow = $(this).parents('tr').last();
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+
+                var plannedOtherCostInput = $(currentRow).find("[name='TotalOriginalPlanOtherCost']");
+                var annualOtherCostInput = $(currentRow).find("[name='TotalAnnualPlanOtherCost']");
+                var actualOtherCostInput = $(currentRow).find("[name='TotalActualPlanOtherCost']");
+
+                var disablePlannedCost = $(plannedOtherCostInput).is('[disabled]');
+                var plannedOtherCostVal = ($(plannedOtherCostInput).val().replace(/,/g, '') * 1);
+                var annualOtherCostVal = ($(annualOtherCostInput).val().replace(/,/g, '') * 1);
+                var actualOtherCostVal = ($(actualOtherCostInput).val().replace(/,/g, '') * 1);
+
+                var currentInput = this;
+                var yearPlanInputs =
+                {
+                    "plannedInputName": "ipdOriginalPlanOtherCost",
+                    "annualInputName": "ipdAnnualPlanOtherCost",
+                    "actualInputName": "ipdActualPlanOtherCost",
+                    "plannedEopInputName": "TotalOriginalPlanOtherCost",
+                    "annualEopInputName": "TotalAnnualPlanOtherCost",
+                    "actualEopInputName": "TotalActualPlanOtherCost"
+                };
+
+                if ((plannedOtherCostVal * 1 > 0 || annualOtherCostVal * 1 > 0 || actualOtherCostVal * 1 > 0) && disablePlannedCost === false) {
+                    var msg = '@Localization.GetText("TCM.Outputs.Message.UpdateYearPlanFinancialProgress")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Continue")').done(function(pressOk) {
+                        if (pressOk) {
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Original", "ipdOriginalPlanOtherCost", "TotalOriginalPlanOtherCost");
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Annual", "ipdAnnualPlanOtherCost", "TotalAnnualPlanOtherCost");
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Actual", "ipdActualPlanOtherCost", "TotalActualPlanOtherCost");
+                            blockEopFields(currentRow, yearPlanInputs);
+                            updateTotalYearPlanColumn(year, "Original");
+                            setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Original", "ipdOriginalPlanTotalByYear", "");
+                        } else {
+                            $(currentInput).val("");
+                            return true;
+                        }
+                    });
+                } else {
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Original", "ipdOriginalPlanOtherCost", "TotalOriginalPlanOtherCost");
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Annual", "ipdAnnualPlanOtherCost", "TotalAnnualPlanOtherCost");
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Actual", "ipdActualPlanOtherCost", "TotalActualPlanOtherCost");
+                    blockEopFields(currentRow, yearPlanInputs);
+                    updateTotalYearPlanColumn(year, "Original");
+                    setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Original", "ipdOriginalPlanTotalByYear", "");
+                }
+            });
+
+            $('body').on("change", "[name='ipdAnnualPlanOtherCost']", function() {
+                $("[name='ipdAnnualPlanOtherCost']").off("change");
+                var currentRow = $(this).parents('tr').last();
+                var currentYear = $(this).parents('tr').first();
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+
+                var plannedOtherCostInput = $(currentRow).find("[name='TotalOriginalPlanOtherCost']");
+                var annualOtherCostInput = $(currentRow).find("[name='TotalAnnualPlanOtherCost']");
+                var actualOtherCostInput = $(currentRow).find("[name='TotalActualPlanOtherCost']");
+
+                var disableannualCost = $(annualOtherCostInput).is('[disabled]');
+                var plannedOtherCostVal = ($(plannedOtherCostInput).val().replace(/,/g, '') * 1);
+                var annualOtherCostVal = ($(annualOtherCostInput).val().replace(/,/g, '') * 1);
+                var actualOtherCostVal = ($(actualOtherCostInput).val().replace(/,/g, '') * 1);
+
+                var currentInput = this;
+                var yearPlanInputs =
+                {
+                    "plannedInputName": "ipdOriginalPlanOtherCost",
+                    "annualInputName": "ipdAnnualPlanOtherCost",
+                    "actualInputName": "ipdActualPlanOtherCost",
+                    "plannedEopInputName": "TotalOriginalPlanOtherCost",
+                    "annualEopInputName": "TotalAnnualPlanOtherCost",
+                    "actualEopInputName": "TotalActualPlanOtherCost"
+                };
+
+                if ((plannedOtherCostVal * 1 > 0 || annualOtherCostVal * 1 > 0 || actualOtherCostVal * 1 > 0) && disableannualCost === false) {
+                    var msg = '@Localization.GetText("TCM.Outputs.Message.UpdateYearPlanFinancialProgress")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Continue")').done(function(pressOk) {
+                        if (pressOk) {
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Annual", "ipdAnnualPlanOtherCost", "TotalAnnualPlanOtherCost");
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Original", "ipdOriginalPlanOtherCost", "TotalOriginalPlanOtherCost");
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Actual", "ipdActualPlanOtherCost", "TotalActualPlanOtherCost");
+                            blockEopFields(currentRow, yearPlanInputs);
+                            updateTotalYearPlanColumn(year, "Annual");
+                            setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Annual", "ipdAnnualPlanTotalByYear", "");
+                        } else {
+                            $(currentInput).val("");
+                            return true;
+                        }
+                    });
+                } else {
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Annual", "ipdAnnualPlanOtherCost", "TotalAnnualPlanOtherCost");
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Original", "ipdOriginalPlanOtherCost", "TotalOriginalPlanOtherCost");
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Actual", "ipdActualPlanOtherCost", "TotalActualPlanOtherCost");
+                    blockEopFields(currentRow, yearPlanInputs);
+                    updateTotalYearPlanColumn(year, "Annual");
+                    updateTotalYearPlanColumn(year, "AnnualEOP");
+                    setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Annual", "ipdAnnualPlanTotalByYear", "");
+                }
+
+                updateTotalYearPlanColumn(year, "AnnualEOP");
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+
+                if (interval === 3 || interval === 4) {
+                    setClassToStoreInMatrixChanges(currentYear, "ipdAnnualPlanOtherCost", true);
+                }
+            });
+
+            $('body').on("change", "[name='ipdActualPlanOtherCost']", function() {
+                $("[name='ipdActualPlanOtherCost']").off("change");
+                var currentRow = $(this).parents('tr').last();
+                var currentYear = $(this).parents('tr').first();
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                var referenceYear = GetReferenceYear(currentRow, "ipdAnnualPlanOtherCost");
+
+                var annualValues = $(currentRow).find("[name='ipdAnnualPlanOtherCost']");
+                var annualValuesCount = 0;
+                var currentInput = this;
+                var yearPlanInputs =
+                {
+                    "plannedInputName": "ipdOriginalPlanOtherCost",
+                    "annualInputName": "ipdAnnualPlanOtherCost",
+                    "actualInputName": "ipdActualPlanOtherCost",
+                    "plannedEopInputName": "TotalOriginalPlanOtherCost",
+                    "annualEopInputName": "TotalAnnualPlanOtherCost",
+                    "actualEopInputName": "TotalActualPlanOtherCost"
+                };
+
+                $.each(annualValues, function(index, annualValue) {
+                    var value = ($(this).val().replace(/,/g, '') * 1);
+                    if (value > 0) {
+                        annualValuesCount++;
+                    }
+                });
+
+                var plannedOtherCostInput = $(currentRow).find("[name='TotalOriginalPlanOtherCost']");
+                var annualOtherCostInput = $(currentRow).find("[name='TotalAnnualPlanOtherCost']");
+                var actualOtherCostInput = $(currentRow).find("[name='TotalActualPlanOtherCost']");
+
+                var disableAnnualCost = $(annualOtherCostInput).is('[disabled]');
+                var plannedOtherCostVal = ($(plannedOtherCostInput).val().replace(/,/g, '') * 1);
+                var annualOtherCostVal = ($(annualOtherCostInput).val().replace(/,/g, '') * 1);
+                var actualOtherCostVal = ($(actualOtherCostInput).val().replace(/,/g, '') * 1);
+
+                if ((plannedOtherCostVal * 1 > 0 || annualOtherCostVal * 1 > 0 || actualOtherCostVal * 1 > 0) && disableAnnualCost === false) {
+                    var msg = '@Localization.GetText("TCM.Outputs.Message.UpdateYearPlanFinancialProgress")';
+                    confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Continue")').done(function(pressOk) {
+                        if (pressOk) {
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Actual", "ipdActualPlanOtherCost", "TotalActualPlanOtherCost");
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Annual", "ipdAnnualPlanOtherCost", "TotalAnnualPlanOtherCost");
+                            setAutoCalculatedEop(currentRow, "OtherCost", "Original", "ipdOriginalPlanOtherCost", "TotalOriginalPlanOtherCost");
+                            blockEopFields(currentRow, yearPlanInputs);
+                            updateTotalYearPlanColumn(year, "Actual");
+                            setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Actual", "ipdActualPlanTotalByYear", "");
+                        } else {
+                            $(currentInput).val("");
+                            return true;
+                        }
+                    });
+
+                } else {
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Actual", "ipdActualPlanOtherCost", "TotalActualPlanOtherCost");
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Annual", "ipdAnnualPlanOtherCost", "TotalAnnualPlanOtherCost");
+                    setAutoCalculatedEop(currentRow, "OtherCost", "Original", "ipdOriginalPlanOtherCost", "TotalOriginalPlanOtherCost");
+                    blockEopFields(currentRow, yearPlanInputs);
+                    updateTotalYearPlanColumn(year, "Actual");
+                    setAutoCalculatedEop($("#TotalCostsInactiveOutputs tbody").first(), "Total", "Actual", "ipdActualPlanTotalByYear", "");
+                }
+
+                //save in matrix change
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+                if (interval === 3 || interval === 4) {
+                    setClassToStoreInMatrixChanges(currentYear, "TotalAnnualPlanOtherCost", true);
+                }
+            });
+
+            $('body').on("change", "[name='ipdTotalOriginalPlan']", function() {
+                var currentRow = $(this).parents('tr').first();
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                updateTotalYearPlanColumn(year, "OriginalEOP");
+                if ((interval === 3 || interval === 4)) {
+                    setClassToStoreInMatrixChanges(currentRow, "ipdTotalOriginalPlan", true);
+                }
+            });
+
+            $('body').on("change", "[name='ipdTotalAnnualPlan']", function() {
+                var currentRow = $(this).parents('tr').last();
+                var currentYear = $(this).parents('tr').first();
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                updateTotalYearPlanColumn(year, "AnnualEOP");
+                if (interval === 3 || interval === 4) {
+                    setClassToStoreInMatrixChanges($(this).closest('tr').first(), $(this).attr("name"), true);
+                }
+            });
+
+            $('body').on("change", "[name='ipdTotalActualPlan']", function() {
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                updateTotalYearPlanColumn(year, "ActualEOP");
+            });
+
+            $('body').on("change", "[name='TotalOriginalPlanOtherCost']", function() {
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                updateTotalYearPlanColumn(year, "OriginalEOP");
+            });
+
+            $('body').on("change", "[name='TotalAnnualPlanOtherCost'] , [name='ipdAnnualPlanOtherCost']", function() {
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                updateTotalYearPlanColumn(year, "AnnualEOP");
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+                var currentRow = $(this).parents('tr').first();
+
+                if (interval === 3 || interval === 4) {
+                    setClassToStoreInMatrixChanges(currentRow, "TotalAnnualPlanOtherCost", true);
+                }
+            });
+
+            $('body').on("change", "[name='TotalActualPlanOtherCost']", function() {
+                var year = parseInt($(this).closest('table[data-attr]').attr("data-attr"));
+                updateTotalYearPlanColumn(year, "ActualEOP");
+            });
+
+            $('body').on("change", "[name='otherCostDefinition']", function() {
+                var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+                var currentRow = $(this).parents('tr').first();
+                if (interval === 3 || interval === 4) {
+                    setClassToStoreInMatrixChanges(currentRow, "otherCostDefinition", false);
+                }
+            });
+
+        }
+
+        function setClassToStoreInMatrixChanges(currentContainer, inputName, isNumeric) {
+            var input = $(currentContainer).find("[name = '" + inputName + "']");
+            var originalInput;
+            var isValid = true;
+
+            if (isNumeric != undefined && isNumeric === true) {
+
+                currentContainer = $(currentContainer).parents('tr');
+                var eopInputName = getEopInputName(inputName);
+                var eopInput = $(currentContainer).find("[name = '" + eopInputName + "']");
+
+                var currentEopValue = $(currentContainer).find("[name='" + eopInputName + "']").val() != ""
+                    ? convertToDecimal($(currentContainer).find("[name='" + eopInputName + "']").val())
+                    : "";
+
+                var originalEopValue = $(currentContainer).find("[name='original-" + eopInputName + "']").val() != ""
+                    ? convertToDecimal($(currentContainer).find("[name='original-" + eopInputName + "']").val())
+                    : "";
+
+                originalInput = $(currentContainer).find("[name='previous-" + eopInputName + "']").val() != ""
+                    ? convertToDecimal($(currentContainer).find("[name='previous-" + eopInputName + "']").val())
+                    : "";
+
+                var isPrevious = $(currentContainer).find("[name='previous-" + eopInputName + "']").val() != "-1";
+
+                input = $(currentContainer).find("[name='" + eopInputName + "']");
+
+                isValid = originalEopValue != currentEopValue && isPrevious;
+
+            } else {
+                originalInput = $(currentContainer).find("[name = 'original-" + inputName + "']").val();
+            }
+
+            $(input).val() != originalInput && isValid
+               ? $(input).addClass("store-to-matrix-changes")
+               : $(input).removeClass("store-to-matrix-changes");
+        }
+
+        function getEopInputName(inputName)
+        {
+            var eopInputName = "";
+            switch (inputName) {
+                case 'ipdAnnualPlan':
+                case 'ipdActualValue':
+                case 'ipdTotalAnnualPlan':
+                    eopInputName = "ipdTotalAnnualPlan";
+                    ; break;
+
+                case 'ipdAnnualPlanOtherCost':
+                case 'ipdActualPlanOtherCost':
+                case 'TotalAnnualPlanOtherCost':
+                    eopInputName = "TotalAnnualPlanOtherCost";
+                    ; break;
+            }
+
+            return eopInputName;
+        }
+
+        function IsIndicatorAutocalculated(yearPlansContainer, inputName, inputValue) {
+            var isAutoCalc = false;
+            if (inputName == "ipdAnnualPlan" || inputName == "ipdAnnualPlanOtherCost") {
+
+                var eopOriginalPlan = null;
+                var eopAnnualPlan = null;
+                var eopActualPlan = null;
+
+                switch (inputName) {
+
+                    case "ipdAnnualPlan":
+                        eopOriginalPlan = $(yearPlansContainer).find("[name = 'ipdTotalOriginalPlan']");
+                        eopAnnualPlan = $(yearPlansContainer).find("[name = 'ipdTotalAnnualPlan']");
+                        eopActualPlan = $(yearPlansContainer).find("[name = 'ipdTotalActualPlan']");
+                        ; break;
+                    case "ipdAnnualPlanOtherCost":
+                        eopOriginalPlan = $(yearPlansContainer).find("[name = 'TotalOriginalPlanOtherCost']");
+                        eopAnnualPlan = $(yearPlansContainer).find("[name = 'TotalAnnualPlanOtherCost']");
+                        eopActualPlan = $(yearPlansContainer).find("[name = 'TotalActualPlanOtherCost']");
+                        ; break;
+                }
+
+                if ($(eopOriginalPlan).attr('disabled') != null &&
+                    $(eopAnnualPlan).attr('disabled') != null &&
+                    $(eopActualPlan).attr('disabled') != null) {
+
+                    isAutoCalc = inputValue == "" ? false : true;
+                }
+            } else {
+                var OriginalPlan = null;
+                var AnnualPlan = null;
+                var ActualPlan = null;
+
+                switch (inputName) {
+                    case "ipdTotalAnnualPlan":
+                        var OriginalPlan = "ipdOriginalPlan";
+                        var AnnualPlan = "ipdAnnualPlan";
+                        var ActualPlan = "ipdActualValue";
+                        ; break;
+                    case "TotalAnnualPlanOtherCost":
+                        var OriginalPlan = "ipdOriginalPlanOtherCost";
+                        var AnnualPlan = "ipdAnnualPlanOtherCost";
+                        var ActualPlan = "ipdActualPlanOtherCost";
+                        ; break;
+                }
+
+                $(yearPlansContainer).find("[name = '" + OriginalPlan + "'], [name = '" + AnnualPlan + "'], [name = '" + ActualPlan + "']").each(function () {
+                    if ($(this).val() != "") {
+                        isAutoCalc = true;
+                        return false;
+                    }
+                });
+            }
+
+            return isAutoCalc;
+        }
+
+        function updateTotalYearPlanColumns() {
+            var outputYearplans = $("table.ouput-year-plans[data-attr='" + year + "']");
+            var otherCostYearplans = $("table.other-cost-year-plans[data-attr='" + year + "']");
+
+            var totalOriginal = 0;
+            var totalAnnual = 0;
+            var totalActual = 0;
+
+            if (outputYearplans != null) {
+                $.each(outputYearplans, function() {
+                    var originalPlan = $(this).find("[name = 'ipdOriginalPlan']");
+                    if (originalPlan != null) {
+                        totalOriginal = totalOriginal + ($(originalPlan).val() == "" ? 0 : ($(originalPlan).val().replace(/,/g, '') * 1));
+                    }
+                    var annualPlan = $(this).find("[name = 'ipdAnnualPlan']");
+                    if (annualPlan != null) {
+                        totalAnnual = totalAnnual + ($(annualPlan).val() == "" ? 0 : ($(annualPlan).val().replace(/,/g, '') * 1));
+                    }
+                    var actualPlan = $(this).find("[name = 'ipdActualValue']");
+                    if (actualPlan != null) {
+                        totalActual = totalActual + ($(actualPlan).val() == "" ? 0 : ($(actualPlan).val().replace(/,/g, '') * 1));
+                    }
+                });
+            }
+        }
+
+        function updateTotalYearPlanColumn(year, yearPlanInputType) {
+            var total = 0;
+
+            var outputInputName = yearPlanInputType === "Original" ?
+                "ipdOriginalPlan" : yearPlanInputType === "Annual" ?
+                "ipdAnnualPlan" : yearPlanInputType === "Actual" ?
+                "ipdActualValue" : yearPlanInputType === "OriginalEOP" ?
+                "ipdTotalOriginalPlan" : yearPlanInputType === "AnnualEOP" ?
+                "ipdTotalAnnualPlan" : "ipdTotalActualPlan";
+
+            var otherCostInputName = yearPlanInputType === "Original" ?
+                "ipdOriginalPlanOtherCost" : yearPlanInputType === "Annual" ?
+                "ipdAnnualPlanOtherCost" : yearPlanInputType === "Actual" ?
+                "ipdActualPlanOtherCost" : yearPlanInputType === "OriginalEOP" ?
+                "TotalOriginalPlanOtherCost" : yearPlanInputType === "AnnualEOP" ?
+                "TotalAnnualPlanOtherCost" : "TotalActualPlanOtherCost";
+
+            var totalInputName = yearPlanInputType === "Original" ?
+                "ipdOriginalPlanTotalByYear" : yearPlanInputType === "Annual" ?
+                "ipdAnnualPlanTotalByYear" : yearPlanInputType === "Actual" ?
+                "ipdActualPlanTotalByYear" : yearPlanInputType === "OriginalEOP" ?
+                "TotalOriginalPlan" : yearPlanInputType === "AnnualEOP" ?
+                "TotalAnnualPlan" : "TotalActualValue";
+
+            var outputYearplans = $("table.ouput-year-plans[data-attr='" + year + "']").find("[name = '" + outputInputName + "']");
+            var otherCostYearplans = $("table.other-cost-year-plans[data-attr='" + year + "']").find("[name = '" + otherCostInputName + "']");
+
+            if (outputYearplans.length > 0) {
+                $.each(outputYearplans, function() {
+                    total = total + ($(this).val() === "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+                });
+            }
+
+            if (otherCostYearplans.length > 0) {
+                $.each(otherCostYearplans, function() {
+                    total = total + ($(this).val() === "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+                });
+            }
+
+            var totalYearPlan = $("table.total-output-year-plans[data-attr='" + year + "']").find("[name = '" + totalInputName + "']");
+
+            if (totalYearPlan != null) {
+                $(totalYearPlan).val(convertToDecimal(parseFloat(total).toFixed(2)));
+                $(totalYearPlan).text(convertToDecimal(parseFloat(total).toFixed(2)));
+            }
+        }
+
+
+        function setAutoCalculatedEop(yearPlanContainer, tableType, yearPlanInputType, yearPlanInputName, EopInputName) {
+            var END_OF_PROJECT = -1;
+            var total = 0;
+            var yearPlanInputs = $(yearPlanContainer).find("[name = '" + yearPlanInputName + "']");
+
+            if (yearPlanInputs.length > 0) {
+                if ((tableType === "Outputs" && yearPlanInputType === "Annual") ||
+                (tableType === "OtherCost" && yearPlanInputType === "Annual")) {
+
+                    var input1 = tableType === "Outputs" ?
+                        "ipdAnnualPlan" :
+                        "ipdAnnualPlanOtherCost";
+
+                    var input2 = tableType === "Outputs" ?
+                        "ipdActualValue" :
+                        "ipdActualPlanOtherCost";
+                    total = AutoCalculateAnnualCost(yearPlanContainer, input1, input2);
+                } else {
+                    var nullCounter = 0;
+                    $.each(yearPlanInputs, function() {
+                        total = total + ($(this).val() === "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+                        if ($(this).val() == "" || $(this).val().length <= 0) {
+                            nullCounter++;
+                        }
+                    });
+                }
+            }
+
+            if (EopInputName !== "") {
+                if (nullCounter > 0 && nullCounter == yearPlanInputs.length) {
+                    $(yearPlanContainer).find("[name = '" + EopInputName + "']").val("");
+                } else {
+                    var totalFixed = parseFloat(total).toFixed(2);
+                    $(yearPlanContainer).find("[name = '" + EopInputName + "']").val(convertToDecimal(totalFixed));
+                    if (EopInputName == "TotalAnnualPlanOtherCost") {
+                        var totalFixed = parseFloat(total).toFixed(2);
+                        if (parseFloat($(yearPlanContainer).find("[name = '" + EopInputName + "']").closest('tr').find("input[type='hidden']").val()).toFixed(2) != totalFixed) {
+                            $(yearPlanContainer).find("[name = '" + EopInputName + "']").addClass("store-to-matrix-changes");
+                        } else {
+                            $(yearPlanContainer).find("[name = '" + EopInputName + "']").removeClass("store-to-matrix-changes");
+                        }
+                    }
+                }
+            }
+
+            updateTotalYearPlanColumn(END_OF_PROJECT, yearPlanInputType.concat("EOP"));
+        }
+
+
+        function convertToDecimal(elem) {
+            var total = "";
+            var number = "";
+            var integerVal = "";
+            var decimalVal = "";
+            var rgx = /\B(?=(\d{3})+(?!\d))/g;
+            if (elem != undefined && elem != "") {
+                number = elem.split('.');
+                if (number.length > 1) {
+                    integerVal = number[0];
+                    number[0] = integerVal.replaceAll(",", "").toString().replace(rgx, ",");
+
+                    if (number[1].length > 1) {
+                        decimalVal = '.' + number[1];
+                    } else {
+                        decimalVal = number[1].length == 1 ? '.' + number[1] + '0' : '.00';
+                    }
+                    if (!isNaN(parseInt(integerVal))) {
+                        total = number[0] + decimalVal;
+                    }
+
+                } else {
+                    integerVal = number[0];
+                    number[0] = integerVal.toString().replace(rgx, ",");
+
+                    if (!isNaN(parseInt(integerVal))) {
+                        total = number[0] + ".00";
+                    }
+                }
+
+            } else {
+                total = null;
+            }
+
+            return total;
+        }
+
+        function AutoCalculateAnnualCost(currentRow, inputName1, inputName2, tableType) {
+            var referenceYear = GetReferenceYear(currentRow, inputName1, tableType);
+
+            if (referenceYear == null)
+                return 0;
+
+            var currentYear = ($('input:hidden[name=hdnPeriodYear]').val().replace(/,/g, '') * 1);
+            var totalActualValues = 0;
+            var totalAnnualValues = 0;
+            var totalAnnualCost = 0;
+
+            var ipdAnnualPlans = $(currentRow).find("[name = '" + inputName1 + "']");
+            var ipdActualValues = $(currentRow).find("[name = '" + inputName2 + "']");
+
+            $.each(ipdAnnualPlans, function(index, ipdAnnualPlan) {
+                var yearPlan = parseInt($(ipdAnnualPlan).closest('table[data-attr]').attr("data-attr"));
+                var annualPlanValue = ($(ipdAnnualPlan).val().replace(/,/g, '') * 1);
+
+                if (yearPlan > referenceYear) {
+                    totalAnnualValues += annualPlanValue == null || annualPlanValue == ""
+                        ? 0
+                        : Number(annualPlanValue);
+                };
+
+            });
+
+            $.each(ipdActualValues, function(index, ipdActualValue) {
+                var yearPlan = parseInt($(ipdActualValue).closest('table[data-attr]').attr("data-attr"));
+                var actualValue = ($(ipdActualValue).val().replace(/,/g, '') * 1);
+
+                if (yearPlan <= referenceYear) {
+                    totalActualValues += actualValue == null || actualValue == ""
+                        ? 0
+                        : Number(actualValue);
+                }
+
+            });
+
+            return totalActualValues + totalAnnualValues;
+        }
+
+
+        function GetReferenceYear(currentRow, inputName1) {
+            var ipdAnnualPlans = $(currentRow).find("[name = '" + inputName1 + "']");
+            var currentYear = ($('input:hidden[name=hdnPeriodYear]').val().replace(/,/g, '') * 1);
+            var lastReportedAnnualYear = null;
+            var referenceYear = null;
+            var plannedYears = new Array();
+
+            $.each(ipdAnnualPlans, function(index, ipdAnnualPlan) {
+
+                var yearPlan = parseInt($(ipdAnnualPlan).closest('table[data-attr]').attr("data-attr"));
+                var annualPlanValue = $(ipdAnnualPlan).val();
+
+                plannedYears.push(yearPlan);
+
+                if (!isNaN(parseFloat(annualPlanValue)) && isFinite(parseFloat(annualPlanValue))) {
+                    lastReportedAnnualYear = yearPlan;
+                }
+            });
+
+            if (lastReportedAnnualYear == null) {
+                return null;
+            }
+
+            referenceYear = Math.min(currentYear, (lastReportedAnnualYear - 1));
+
+            return referenceYear;
+        }
+
+        function getTotalValue(content, inputName1, inputTotalName) {
+            var total = 0;
+            $(content).find("[name = '" + inputName1 + "']").each(function() {
+                total = total + ($(this).val() == "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+            });
+            $(content).find("[name = '" + inputTotalName + "']").val(parseFloat(total).toFixed(2));
+        }
+
+        function changeTotalData(element, inputName1, inputName2, totalInputName) {
+            var total = 0;
+            var last = $(element).find("[name = '" + inputName1 + "']").last().val();
+            var currentYear = (new Date()).getFullYear();
+            var lastYear = $(element).find("[name = '" + inputName1 + "']").length > 0 ?
+                parseInt($(element).find("[name = '" + inputName1 + "']").last().closest('table[data-attr]').attr("data-attr")) :
+                (new Date()).getFullYear();
+            lastYear = lastYear < (new Date()).getFullYear() ? lastYear : currentYear;
+
+            if ($(element).find("[name = '" + inputName1 + "']").length > 0) {
+                $(element).find("[name = '" + inputName1 + "']").each(function() {
+                    if (lastYear <= parseInt($(this).closest('table[data-attr]').attr("data-attr"))) {
+                        total = total + ($(this).val() == "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+                    }
+                });
+            }
+            if ($(element).find("[name = '" + inputName2 + "']").length > 0) {
+                $(element).find("[name = '" + inputName2 + "']").each(function() {
+                    if (lastYear > parseInt($(this).closest('table[data-attr]').attr("data-attr"))) {
+                        total = total + ($(this).val() == "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+                    }
+                });
+            }
+            $(element).find("[name = '" + totalInputName + "']").val(parseFloat(total).toFixed(2));
+        }
+
+        function globalChangeTotal(year, inputName1, inputName2, inputNameTotal) {
+            var globalDataTotal = 0;
+            $("table[data-attr='" + year + "']").find("[name='" + inputName1 + "'], [name='" + inputName2 + "']").each(function() {
+                globalDataTotal = globalDataTotal + ($(this).val() == "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+            });
+            $("table[data-attr='" + year + "']").find("[name='" + inputNameTotal + "']").val(parseFloat(globalDataTotal).toFixed(2));
+        }
+
+        function downloadFinancialProgressDocument(source) {
+            var inactive = false;
+            var buttoninactive = $('[name="inactiveOutput"]');
+            if ($(buttoninactive).hasClass('pressed')) {
+                inactive = true;
+            }
+            var formatDoc = source.attr('name');
+            var url = '@Url.Action("DownloadFileFinancialProgress", "Components", new {area = "TCM"})' + "?formatType=" + formatDoc + "&inactiveOutput=" + inactive;
+            var data = { formatType: formatDoc, inactiveOutput: inactive };
+            postUrlWithOptions(url, null, data).done(function() {
+                window.open(url, '_blank');
+            });
+        }
+
+        function VisualOutputVersionDelete(source) {
+            var msg = "@Localization.GetText("TCM.Outputs.Message.DeleteVisualOutput")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    var id = $(source).attr('data-vovid');
+                    var currentContent = $(source).closest("table[id^='Output']");
+
+                    postUrlWithOptions("@Url.Action("DeleteVisualOutputVersion", "Components", new {area = "TCM"})",
+                    { async: false }, { 'vovid': id }).done(function(data) {
+                        if (data.IsValid) {
+                            var tr = source.closest("tr");
+                            tr.remove();
+
+                            var year = data.Year;
+                            var value = data.AMapping == null ? "-" : data.AMapping.toFixed(2);
+
+                            $(currentContent).find("td[data-year='" + year + "']").each(function() {
+                                $(this).html(value);
+                            });
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            });
+        }
+
+        function verifyContent() {
+            var url = '@Url.Action("VerifyContent", "VerifyContent", new {area = "TCM", resultsMatrixId = Model.ResultsMatrixId})';
+            postUrlWithOptions(url, { async: false })
+                .done(function(data) {
+                    $('#verifyContentModal').html(data);
+                    $('[data-id="buttonVerifyContent"]').click();
+                    allowMultiPopUp();
+                    resizeIframeCloud(0, 1000);
+                }).fail(function(jqXhr, textStatus, errorThrown) {
+                    showMessage(errorThrown);
+                });
+        }
+
+        function HideShowFilterMP() {
+            $("[name='FilterButton']").off("click");
+            $("[name='FilterButton']").on("click", function() {
+                if ($('#hideFilter').is('.hide')) {
+                    $('#hideFilter').removeClass("hide");
+                    $('li').find('.default').attr("style", "width: 260px !important");
+                    $('li').find('.default').addClass('w260');
+                } else {
+                    $('#hideFilter').addClass("hide");
+                    $('li').find('.default').attr("style", "width: 260px !important");
+                    $('li').find('.default').addClass('w260');
+                }
+            });
+        }
+
+        $(document).on("click", "[name='inactiveOutput'].square-button", function(e) {
+            var collapsableElement = $(this);
+            var isExpanded = $(this).data("expanded");
+
+            if (isExpanded) {
+                $(this).addClass("pressed");
+                $('[attr-inactive=true]').addClass("inactive-output");
+                $('[attr-inactive=true]').show();
+                $(this).data("expanded", false);
+            } else {
+                $(this).removeClass("pressed");
+                $('[attr-inactive=true]').hide();
+                $('[attr-inactive=true]').addClass("inactive-output");
+                $(this).data("expanded", true);
+            }
+        });
+
+        function number() {
+            $('.tab-pane').each(function() {
+                $(this).find('.tablePrincipal-edit').each(function(i) {
+                    $(this).find('th.tree.icon div.number').text(i + 1);
+                    var x = 1;
+
+                    for (var j = 0; j < $(this).find('td.tree').length; j++) {
+                        var element = $($(this).find('td.tree')[j]);
+                        if (element.find('div.number').length === 0 && !element.is('.noCreateNumber')) {
+                            element.append('<div class="number"></div>');
+                        }
+                        if (element.closest('tr').find('th').length === 0) {
+                            if (element.find('div.number').length === 1 && !element.is('.noNumber')) {
+                                element.find('div.number').text((i + 1) + '.' + x);
+                                x++;
+                            }
+                        }
+                    }
+                    i++;
+                }).TableNumber();
+            });
+        }
+
+        function numberFinancial() {
+            $('.tab-pane').each(function() {
+                $(this).find('.tablePrincipal.financialOutput').each(function(i) {
+                    $(this).find('th.tree.icon div.number').text(i + 1);
+                    var x = 1;
+                    for (var j = 0; j < $(this).find('td.tree').length; j++) {
+                        var element = $($(this).find('td.tree')[j]);
+                        if (element.find('div.number').length === 0 && !element.is('.noCreateNumber')) {
+                            element.append('<div class="number"></div>');
+                        }
+                        if (element.closest('tr').find('th').length === 0) {
+                            if (element.find('div.number').length === 1 && !element.is('.noNumber')) {
+                                element.find('div.number').text((i + 1) + '.' + x);
+                                x++;
+                            }
+                        }
+                    }
+                    i++;
+                }).TableNumber();
+            });
+        }
+
+        function numberMapping() {
+            $('#tabMappingProgress').find('.numberMapping').each(function(i) {
+                $(this).find('label.componentMappingTitle').text(i + 1);
+                $(this).find('.treeNumber').each(function(j) {
+                    $(this).text((i + 1) + "." + (j + 1));
+                });
+            }).TableNumber();
+        }
+
+        function NewRowOtherCost(source) {
+            var interval = $("[name='hdSaveInResultMatrix']").val();
+            var year = $(source).attr('data-year') === undefined ? "" : $(source).attr('data-year');
+            var periodYear = $(source).attr('data-periodyear') === undefined ? "" : $(source).attr('data-periodyear');
+            var container = $('#OtherCostTable').children('tbody');
+            postUrlWithOptions('@Url.Action("AddRowTableOtherCost", "Components", new {area = "TCM"})', { async: false }, { 'interval': interval, 'year': year, 'periodYear': periodYear }).done(function(data) {
+                $(container).append(data);
+                bindHandlers($(".tab-pane.active"));
+            });
+        }
+
+        function OtherCostDelete(source) {
+            var id = $(source).attr('data-id');
+            var interval = parseInt($("[name='hdSaveInResultMatrix']").val());
+            var currentRow = $(source).closest('tr');
+            if ((interval === 3 || interval === 4) && id !=="0") {
+                var msg = '@Localization.GetText("TCM.RCMW.RegisterChanges.TextMessage")';
+                confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.OKUpper")').done(function(pressOk) {
+                    if (pressOk) {
+                        otherCostDeleteMessage(currentRow, id, interval);
+                    }
+                });
+            } else {
+                otherCostDeleteMessage(currentRow, id, interval);
+            }
+        }
+
+        function otherCostDeleteMessage(currentRow, id, interval) {
+            var msg = "@Localization.GetText("TCM.Outputs.Message.DeleteOtherCostAndAllOtherCostYearPlan")";
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    if (id !== "0") {
+                        postUrlWithOptions("@Url.Action("DeleteOtherCost", "Components", new {area = "TCM"})",
+                        { async: false }, { 'id': id, 'interval': interval }).done(function(data) {
+                            if (data.IsValid) {
+                                currentRow.remove();
+                            } else {
+                                showMessage(data.ErrorMessage);
+                            }
+                        });
+
+                    } else {
+                        currentRow.remove();
+                    }
+                }
+            });
+        }
+
+        function MoveUpOtherCost(source) {
+            var currentOtherCost = $(source).closest("tr");
+            var previousOtherCost = $(currentOtherCost).prev("tr");
+
+            if (previousOtherCost.length > 0) {
+                $(currentOtherCost).insertBefore(previousOtherCost);
+            }
+        }
+
+        function MoveDownOtherCost(source) {
+            var currentOtherCost = $(source).closest("tr");
+            var nextOtherCost = $(currentOtherCost).next("tr");
+            if (nextOtherCost.length > 0) {
+                $(currentOtherCost).insertAfter(nextOtherCost);
+            }
+        }
+
+        function ShowMainActionBar(row) {
+            $(row).find('div.action-bar').css("display", "block");
+        }
+
+        function HideMainActionBar(row) {
+            $(row).find('div.action-bar').css("display", "none");
+        }
+
+        function mappingProcessFilter() {
+            $('[name="msComponentOutputFilter"]').change(function() {
+                window.setTimeout(function() {
+                    var selectedChoicesText = [];
+                    var selectedChoicesTextFirstParts = [];
+
+                    $('.chosen-choices').find('li.search-choice').each(function() {
+                        selectedChoicesText.push($(this).find('span').text());
+                        selectedChoicesTextFirstParts.push($(this).find('span').text().split("-")[1].trim());
+                    });
+
+                    if (selectedChoicesText.length > 0) {
+                        selectedChoicesText.forEach(function(k, v) {
+                            var selectedTextFirstPart = k.split("-")[1].trim();
+                            var selectedChoicesFirstPartText = k.split("-")[0].trim();
+
+                            if (selectedChoicesFirstPartText !== "Component") {
+                                $('div.numberMapping').find('table.paddingTd').each(function() {
+                                    if (selectedChoicesTextFirstParts.indexOf($(this).find('tbody:first tr:first td').eq(1).text().trim()) >= 0) {
+                                        $(this).removeClass('hide');
+                                        $(this).next("div").removeClass('hide');
+                                    } else {
+                                        $(this).addClass('hide');
+                                        $(this).next("div").addClass('hide');
+                                    }
+                                });
+                            } else {
+                                $('div.numberMapping').each(function() {
+                                    if (selectedChoicesTextFirstParts.indexOf($(this).children().first().find('label').last().text().trim()) >= 0) {
+                                        $(this).removeClass('hide');
+                                    } else {
+                                        $(this).addClass('hide');
+                                    }
+                                });
+                            }
+                            selectedChoicesText = [];
+                        });
+                    } else {
+                        selectedChoicesText = [];
+                        selectedChoicesTextFirstParts = [];
+                        $('div.numberMapping').removeClass("hide");
+                        $('div.numberMapping').find('table.paddingTd').removeClass("hide");
+                    }
+                }, 10);
+            });
+        }
+
+
+        function ShowHideButton() {
+            var actualTab = $('.tab-pane.active');
+            if (actualTab.attr("id") === "tabMappingProgress") {
+                $("[name='verifyContentButton']").hide();
+                $("[name='publicationStatusButton']").show();
+            } else {
+                $("[name='verifyContentButton']").show();
+                $("[name='publicationStatusButton']").hide();
+            }
+        }
+
+        $('.tabs').click(function() {
+            ShowHideButton();
+        });
+
+        function PublicationStatus() {
+            var url = "@Url.Action("SendToMap", "VisualData", new {area = "Visualization"})";
+            window.location = url;
+        }
+
+        function AddNewVisualOuput() {
+            $('[name=NewVisualOutputButton]').off("click");
+            $('[name=NewVisualOutputButton]').click(function() {
+                var hasCategory = $(this).attr('data-hascategory');
+                var hasVisualUnits = $(this).attr('data-hasvisualunits');
+                var outputId = $(this).attr('data-id');
+                if (hasCategory === "false" && hasVisualUnits === "false") {
+                    showMessage("@Localization.GetText("TCM.Outputs.Message.NotActualPlanValueAndCategory")");
+                } else {
+                    if (hasCategory === "false") {
+                        showMessage("@Localization.GetText("TCM.Outputs.Message.NotCategoryAsignedError")");
+                    } else {
+                        if (hasVisualUnits === "false") {
+                            showMessage("@Localization.GetText("TCM.Outputs.Message.NotActualPlanAndValueError")");
+                        } else {
+                            var url = "@Url.Action("VisualOutputCreate", "VisualData", new {area = "Visualization"})" + '?outputId=' + outputId;
+                            window.location = url;
+                        }
+                    }
+                }
+            });
+        }
+
+        function ShowMessageNotCategory() {
+            $('a[rel=voDetail]').click(function() {
+                //$('a[rel=voDetail]').off("click");
+                var ref = $(this).attr("href");
+                if (ref === "javascript:void(0)") {
+                    showMessage("@Localization.GetText("TCM.Outputs.Message.NotCategoryAsignedError")");
+                }
+            });
+        }
+
+        function ShoreMorePlus() {
+            $('.show-more').click(function() {
+                var element = $(this);
+                element.prev().show();
+                element.hide();
+            });
+        }
+
+        function disableEop() {
+            var original = $('tr.trYc').find('td.originalP');
+
+            $(original).each(function() {
+                var originalCost = $(this).closest('table').closest('tr').find('.original-value-row input').not('[name="ipdOriginalPlan"]');
+
+                var yearPlan = $(this).closest('table').closest('tr').find('.original-value-row input').not('[name="ipdTotalOriginalPlan"]').not('[type="hidden"]');
+
+                var sumYear = eval($(yearPlan).map(function() {
+                    return $(this).val().replace(/,/g, '') * 1;
+                }).get().join('+'));
+
+                if (sumYear > 0) {
+                    $(originalCost).attr('disabled', true);
+                }
+            });
+        }
+
+        function disableEopAnnual() {
+            var annual = $('tr.trYc').find('td.annualP');
+
+            $(annual).each(function() {
+                var annualCost = $(this).closest('table').closest('tr').find('.annual-value-row input').not('[name="ipdAnnualPlan"]');
+
+                var yearPlan = $(this).closest('table').closest('tr').find('.annual-value-row input').not('[name="ipdTotalAnnualPlan"]').not('[type="hidden"]');
+
+                var sumYear = eval($(yearPlan).map(function() {
+                    return $(this).val().replace(/,/g, '') * 1;
+                }).get().join('+'));
+
+                if (sumYear > 0) {
+                    $(annualCost).attr('disabled', true);
+                }
+            });
+        }
+
+        function disableEopActual() {
+            var actual = $('tr.trYc').find('td.actualP');
+
+            $(actual).each(function() {
+                var actualCost = $(this).closest('table').closest('tr').find('.actual-value-row  input').not('[name="ipdActualValue"]');
+
+                var yearPlan = $(this).closest('table').closest('tr').find('.actual-value-row  input').not('[name="ipdTotalActualPlan"]').not('[type="hidden"]');
+
+                var sumYear = eval($(yearPlan).map(function() {
+                    return $(this).val().replace(/,/g, '') * 1;
+                }).get().join('+'));
+
+                if (sumYear > 0) {
+                    $(actualCost).attr('disabled', true);
+                }
+            });
+        }
+
+        function disableOtherOriginal() {
+            var originalOther = $('tr.oCost').find('td.oOriginal');
+
+            $(originalOther).each(function() {
+                var originalOtherCost = $(this).closest('table').closest('tr').find('.original-value-row  input').not('[name="ipdOriginalPlanOtherCost"]');
+
+                var yearPlan = $(this).closest('table').closest('tr').find('.original-value-row  input').not('[name="TotalOriginalPlanOtherCost"]').not('[type="hidden"]');
+
+                var sumYear = eval($(yearPlan).map(function() {
+                    return $(this).val().replace(/,/g, '') * 1;
+                }).get().join('+'));
+
+                if (sumYear > 0) {
+                    $(originalOtherCost).attr('disabled', true);
+                } else {
+                    $(originalOtherCost).attr('disabled', false);
+                }
+            });
+        }
+
+        function disableOtherAnnual() {
+            var annualOther = $('tr.oCost').find('td.oAnnual');
+
+            $(annualOther).each(function() {
+                var annualOtherCost = $(this).closest('table').closest('tr').find('.annual-value-row  input').not('[name="ipdAnnualPlanOtherCost"]');
+
+                var yearPlan = $(this).closest('table').closest('tr').find('.annual-value-row  input').not('[name="TotalAnnualPlanOtherCost"]').not('[type="hidden"]');
+
+                var sumYear = eval($(yearPlan).map(function() {
+                    return $(this).val().replace(/,/g, '') * 1;
+                }).get().join('+'));
+
+                if (sumYear > 0) {
+                    $(annualOtherCost).attr('disabled', true);
+                } else {
+                    $(annualOtherCost).attr('disabled', false);
+                }
+            });
+        }
+
+        function disableOtherActual() {
+            var actualOther = $('tr.oCost').find('td.oActual');
+
+            $(actualOther).each(function() {
+                var actualOtherCost = $(this).closest('table').closest('tr').find('.actual-value-row  input').not('[name="ipdActualPlanOtherCost"]');
+
+                var yearPlan = $(this).closest('table').closest('tr').find('.actual-value-row  input').not('[name="TotalActualPlanOtherCost"]').not('[type="hidden"]');
+
+                var sumYear = eval($(yearPlan).map(function() {
+                    return $(this).val().replace(/,/g, '') * 1;
+                }).get().join('+'));
+
+                if (sumYear > 0) {
+                    $(actualOtherCost).attr('disabled', true);
+                } else {
+                    $(actualOtherCost).attr('disabled', false);
+                }
+            });
+        }
+
+        function showMessageSave(saveValue) {
+            if (saveValue)
+                successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+        }
+
+        function eopSingleCalculationEop(yearPlanInputs) {
+            var eopValue = 0;
+
+            $.each(yearPlanInputs, function() {
+                eopValue = eopValue + ($(this).val() === "" ? 0 : ($(this).val().replace(/,/g, '') * 1));
+            });
+
+            return eopValue;
+        }
+
+        function eopGetReferenceYear(yearPlanInputs) {
+
+            var currentYear = ($('input:hidden[name=hdnPeriodYear]').val().replace(/,/g, '') * 1);
+            var currentReferenceYear = null;
+            var futureReferenceYear = null;
+            var pastReferenceYear = null;
+            var nullReferenceYear = null;
+
+            var nextFutureYear = Number.MAX_VALUE;
+            var recentPastYear = Number.MIN_VALUE;
+
+            $.each(yearPlanInputs, function(index, ipdAnnualPlan) {
+
+                var yearPlan = parseInt($(ipdAnnualPlan).closest('table[data-year]').attr("data-year"));
+                var annualPlanValue = $(ipdAnnualPlan).val();
+
+                if (annualPlanValue != null && annualPlanValue != "" && yearPlan == currentYear) {
+                    currentReferenceYear = currentYear;
+                }
+
+                if (annualPlanValue != null && annualPlanValue != "" && yearPlan > currentYear && yearPlan < nextFutureYear) {
+                    futureReferenceYear = yearPlan;
+                    nextFutureYear = yearPlan;
+                }
+
+                if (annualPlanValue != null && annualPlanValue != "" && yearPlan < currentYear && yearPlan > recentPastYear) {
+                    pastReferenceYear = yearPlan;
+                    recentPastYear = yearPlan;
+                }
+
+            });
+
+            return currentReferenceYear != null
+                ? { Year: currentReferenceYear, ReferenceYearType: 1 }
+                : futureReferenceYear != null
+                ? { Year: futureReferenceYear, ReferenceYearType: 2 }
+                : pastReferenceYear != null
+                ? { Year: pastReferenceYear, ReferenceYearType: 3 }
+                : { Year: null, ReferenceYearType: 0 };
+        }
+
+        function eopStepCalculation(anualYearPlanInputs, actualYearPlanInputs) {
+
+            var referenceYear = eopGetReferenceYear(anualYearPlanInputs);
+
+            if (referenceYear == null || (referenceYear != null && referenceYear.ReferenceYearType == 0))
+                return 0;
+
+            var currentYear = ($('input:hidden[name=hdnPeriodYear]').val().replace(/,/g, '') * 1);
+            var totalActualValues = 0;
+            var totalAnnualValues = 0;
+            var totalAnnualCost = 0;
+
+            var ipdAnnualPlans = anualYearPlanInputs;
+            var ipdActualValues = actualYearPlanInputs;
+
+            $.each(ipdAnnualPlans, function(index, ipdAnnualPlan) {
+                var yearPlan = parseInt($(ipdAnnualPlan).closest('table[data-year]').attr("data-year"));
+                var annualPlanValue = ($(ipdAnnualPlan).val().replace(/,/g, '') * 1);
+
+                switch (referenceYear.ReferenceYearType) {
+                case 1:
+                case 2:
+                case 3:
+                    if (yearPlan >= referenceYear.Year) {
+                        totalAnnualValues += annualPlanValue == null || annualPlanValue == ""
+                            ? 0
+                            : Number(annualPlanValue);
+                    };
+                    break;
+                }
+            });
+
+            $.each(ipdActualValues, function(index, ipdActualValue) {
+                var yearPlan = parseInt($(ipdActualValue).closest('table[data-year]').attr("data-year"));
+                var actualValue = ($(ipdActualValue).val().replace(/,/g, '') * 1);
+
+                switch (referenceYear.ReferenceYearType) {
+                case 1:
+                case 3:
+                    if (yearPlan < referenceYear.Year) {
+                        totalActualValues += actualValue == null || actualValue == ""
+                            ? 0
+                            : Number(actualValue);
+                    };
+                    break;
+                case 2:
+                    if (yearPlan < referenceYear.Year && yearPlan != currentYear) {
+                        totalActualValues += actualValue == null || actualValue == ""
+                            ? 0
+                            : Number(actualValue);
+                    };
+                    break;
+                }
+
+            });
+
+            return totalActualValues + totalAnnualValues;
+        }
+
+        function setDecimalFormat(input) {
+            if ($(input).val() === ".") {
+                $(input).val('0');
+                $(input).val() == "" ? null : $(input).val(parseFloat($(input).val()).toFixed(2));
+            } else if ($(input).val() !== "") {
+                var value = $(input).val().replaceAll(",", "") * 1;
+                $(input).val(value);
+                $(input).val() == "" ? null : $(input).val(parseFloat($(input).val()).toFixed(2));
+                var comaDec = $(input).val().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+                $(input).val(comaDec);
+            } else {
+                $(input).val("");
+            }
+        }
+
+        function removeComma(input) {
+
+            var value = $(input).val() !== "" ? $(input).val().replaceAll(",", "") * 1 : "";
+            $(input).val(value);
+
+        }
+
+        function eopGlobalCalculation() {
+
+        }
+
+        function getURLParameter(sParam) {
+            var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+                sURLVariables = sPageURL.split('&'),
+                sParameterName,
+                i;
+
+            for (i = 0; i < sURLVariables.length; i++) {
+                sParameterName = sURLVariables[i].split('=');
+
+                if (sParameterName[0] === sParam) {
+                    return sParameterName[1] === undefined ? true : sParameterName[1];
+                }
+            }
+        }
+
+        function setStandardOutputItem(element, type)
+        {
+            var id = parseInt($(element).attr('dd-value'));
+
+            if (id != NaN && id >= 0)
+            {
+                var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                scope.$apply(function () {
+                    scope.SetStandardOutputItem(id, type);
+                });
+            }
+        }
+
+        function checkSelectedThemeOperation(element)
+        {
+            var id = parseInt($(element).attr('dd-value'));
+
+            if (id != NaN && id >= 0) {
+                var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                scope.$apply(function () {
+                    scope.CheckSelectedThemeOperation(id);
+                });
+            }
+        }
+
+        function checkSelectedFundOperation(element)
+        {
+            var id = parseInt($(element).attr('dd-value'));
+
+            if (id != NaN && id >= 0) {
+                var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                scope.$apply(function () {
+                    scope.CheckSelectedFundOperation(id);
+                });
+            }
+        }
+
+        function getFundIndicatorsByTheme(element)
+        {
+            var id = parseInt($(element).attr('dd-value'));
+
+            if (id != NaN && id >= 0) {
+                var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                scope.$apply(function () {
+                    scope.GetFundIndicatorsByTheme(id);
+                });
+            }
+        }
+
+        function setSelectedFundIndicator(element)
+        {
+            var id = parseInt($(element).attr('dd-value'));
+
+            if (id != NaN && id >= 0) {
+                var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                scope.$apply(function () {
+                    scope.SetSelectedFundIndicator(id);
+                });
+            }
+        }
+
+        function addOutputToReassign(element)
+        { 
+            var content = $(element);
+            var componentId = parseInt(content.attr('dd-value'));
+            var outputId = parseInt(content.closest('ul').attr('dd-value'));
+
+            if (outputId != NaN && outputId >= 0 && componentId != NaN && componentId >= 0) {
+                var scope = angular.element(document.getElementsByClassName("physical-progress-controller")).scope();
+                scope.$apply(function () {
+                    scope.AddOutputToReassign(outputId, componentId);
+                });
+            }
+        }
+
+        RMCDN.Init();
+
+    </script>
+}

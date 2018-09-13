@@ -1,0 +1,203 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Domain.Values
+
+@model IDB.Presentation.MVC4.Areas.TC.Models.DocumentTableViewModel
+
+@{
+    var tableName = string.IsNullOrWhiteSpace(Model.DocumentTableName) ? "documentTable" : Model.DocumentTableName;
+    var addFunctionName = string.IsNullOrWhiteSpace(Model.AddFunctionName) ? "addDocument" : Model.AddFunctionName;
+    var dateFormat = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var operationNumber = IDBContext.Current.Operation;
+}
+
+<div class="row row-header">
+    <div class="col-md-12">
+        <h3 class="leftmarginh3">
+            @Localization.GetText("TC.Documents.Title").HtmlEncode()
+
+            @if (!string.IsNullOrWhiteSpace(Model.DocumentsInstructions))
+            {
+                @Display.IconInformation()
+                <span class="information"> @Model.DocumentsInstructions</span>
+            }
+        </h3>
+    </div>
+</div>
+
+@if (Model.ShowAddButton)
+{
+    var modalName = string.Format("{0}-modal-add", tableName);
+    <div id="@modalName" class="hide">
+        @Html.Partial("Controls/IDBDocsSG/AddIDBDoc", new SearchDocumentModalViewModel
+   {
+       SearchModalId = "documentTable",
+       MultipleSelection = false,
+       TargetFunction = addFunctionName,
+       IsOptional = true,
+       ModalPageAreaRequestIncrease = Model.PageAreaRequestIncrease,
+       BusinessAreaCode = BusinessAreaCode.FUND,
+       OperationNumber = operationNumber
+   })
+    </div>
+
+    <div class="row row-header text-right">
+        <div class="col-md-12">
+            <div data-pagemode="edit">
+                @Display.AddModalButton(new ModalViewModel("#" + modalName, type: CssClass.ModalSearchAddDocument, typeButton: CssClass.Button01, text: Localization.GetText("TC.Documents.Add")))
+            </div>
+        </div>
+    </div>
+}
+
+
+<div class="row-body-50">
+    @{
+
+        var config = Html.RenderDataTable(Model.Documents);
+        config.Name(tableName)
+            .PrimaryKey(m => m.DocumentId.ToString())
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+            columns.Template(
+                @<div data-pagemode="edit">
+                    <input type="hidden" name="@tableName-docNumber" value="@item.DocNumber" />
+                </div>).Hidden(true).Persistent();
+
+                columns.Bound(c => c.User).Header(@Localization.GetText("TC.Documents.User")).Persistent();
+
+                columns.Bound(c => FormatHelper.Format(c.Date, dateFormat)).Header(@Localization.GetText("TC.Documents.Date")).Persistent();
+
+                columns.Bound(c => c.DocNumber).Header(@Localization.GetText("TC.Documents.DocNumber")).Persistent();
+
+                columns.Bound(c => c.Description).Header(@Localization.GetText("TC.Documents.Description"))
+                    .EditableTemplate(x => ControlTemplates.InputText(x.Description, tableName + "-description", required: false));
+
+                if (Model.CanDelete)
+                {
+                    columns.Template(c => (
+
+                        Display.Button07_2(attributes:
+
+                        new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                            {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                            {"data-id",c.DocNumber}})))
+
+                        .EditableTemplate(c => GroupButtonDocumentEdit(c.DocNumber)).Header(@Localization.GetText("TC.Documents.Actions"));
+                }
+                else
+                {
+                    columns.Template(c => (
+
+                      Display.Button07_2(attributes:
+
+                      new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                            {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                            {"data-id",c.DocNumber}}))).Header(@Localization.GetText("TC.Documents.Actions")).Persistent();
+                }
+            });
+
+        config.TableClass = "table-default";
+
+        config.RowTemplates(x =>
+        {
+
+        if (Model.CanDelete)
+        {
+            x.Create(RowTemplateType.FirstRow,
+
+                @<tr data-id="newDocument" role="row" class="hide">
+                    <td class="hide">
+                        <div data-pagemode="edit" class="">
+                            <input type="hidden" name="@tableName-docNumber" value="">
+                        </div>
+                    </td>
+                    <td><span>@(((string)ViewBag.UserName).HtmlEncode())</span></td>
+                    <td data-name="idb-doc-date"><span></span></td>
+                    <td data-name="idb-doc-number"><span></span></td>
+                    <td>
+                        <div data-pagemode="edit" class="">
+                            @ControlTemplates.InputText("", @tableName + "-description", required: false, disabled: true)
+                        </div>
+                    </td>
+                    <td>
+
+                        @Display.Button07_2(attributes:
+
+                                new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                                {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                                {"data-id",""}})
+
+                        @Display.Button07_4(attributes:
+                                new Dictionary<string, string> {{"data-action","DeleteDocumentGeneric"}
+                                , {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName }})
+
+                    </td>
+                </tr>
+                    );
+        }
+        else
+        {
+            x.Create(RowTemplateType.FirstRow,
+                @<tr data-id="newDocument" role="row" class="hide">
+                    <td class="hide">
+                        <div data-pagemode="edit" class="">
+                            <input type="hidden" name="@tableName-docNumber" value="">
+                        </div>
+                    </td>
+                    <td><span></span></td>
+                    <td data-name="idb-doc-date"><span></span></td>
+                    <td data-name="idb-doc-number"><span></span></td>
+                    <td>
+                        <div data-pagemode="edit" class="">
+                            @ControlTemplates.InputText("", "DocumentDescription", required: false, disabled: true)
+                        </div>
+                    </td>
+                    <td>
+                        @Display.Button07_2(attributes:
+
+                                new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+
+                                {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })},
+
+                                {"data-id",""}})
+
+                    </td>
+                </tr>
+                    );
+            }
+        });
+    }
+    @Html.Partial("Controls/DataTable", config)
+</div>
+
+
+@helper GroupButtonDocumentEdit(string docNumber)
+{
+
+    @Display.Button07_2(attributes: new Dictionary<string, string> {{"data-action","DownloadDocumentGeneric"},
+      {"data-url",Url.Action("DownloadDocument", "DocumentModal", new { area = "" })}, {"data-id",docNumber}})
+
+    @Display.Button07_4(attributes: new Dictionary<string, string> {{"data-action","DeleteDocumentGeneric"}
+      , {"data-before-delete",string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : Model.BeforeDeleteFuncionName }})
+
+}
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+         $('#@tableName').data('autogenerate-id', 0);
+     </script>
+)

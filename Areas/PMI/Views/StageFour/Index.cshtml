@@ -1,0 +1,305 @@
+@using IDB.MW.Domain.Values;
+@using IDB.MW.Domain.Entities;
+@using IDB.Presentation.MVC4.Areas.PMI.Controllers;
+@using IDB.Architecture.Extensions;
+
+@model IDB.MW.Domain.Models.Supervision.PMI.PMIDetailsModel
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/PMI/StageFour/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/modal/modal.js")"></script>
+}
+
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/PMI/StageFour/ui_pmi_004.css")" />
+}
+
+@{
+    bool isSpecialOperation = StageController.IsSpecialOperationOrSUPWithoutRelation(
+        Model.OperationId);
+}
+
+<script>
+    $(document).ready(function () {
+        $('input[name = format]').bind('change', updateReportButtonLink);
+        updateReportButtonLink();
+    });
+
+    function serializeReportSettings() {
+        var reportSettings = {
+            'OperationId': $("#hdnOperationId").val(),
+            'ExportTypeReport': $('input[name=format]:checked').attr('id'),
+            'TypeReport': $('input[name=format]:checked').attr('id'),
+            'PMRCycleId': [parseInt($("#PmiCycleId").val())]
+        };
+
+        return JSON.stringify(reportSettings);
+    }
+
+    function updateReportButtonLink() {
+        var route = $('#hdnPMRReportPath').val();
+
+        $.ajax({
+            url: route,
+            data: serializeReportSettings(),
+            dataType: "json",
+            contentType: "application/json",
+            type: 'POST',
+            async: false,
+            success: function (resp) {
+                $('#lnkDownloadPMRReport').attr('data-nhref', resp.reportpath);
+            },
+            error: function (e, err, erro) {
+                $('#lnkDownloadPMRReport').attr('data-nhhref', '');
+                alert('Error: ' + e + ' - ' + err + ' - ' + erro);
+
+            }
+        });
+    }
+</script>
+
+<input id="hdnConfirmationStartWF" type="hidden" data-route="@Url.Action("ConfirmationMessage", "StageFour", new { area = "PMI", operationNumber = @ViewBag.NumberOperation })" />
+
+<div id="ui_pmi_004" class="mod_contenido_central">
+    <input type="hidden" value="@string.Join(",", IDBContext.Current.Roles)" />
+    @{
+        const int _year = 2016;
+        const string _cycle = "S";
+        Html.RenderAction("Header", "Stage", new
+        {
+            operationNumber = ViewBag.OperationNumber,
+            stage = 4
+        });
+    }
+    <div style="width: 100%;">
+    </div>
+    <input style="visibility: hidden" />
+    <div class="editingButtonsEdit topMargin16px">
+        @if (Model.ValidationProcess.StartupPlanValidationIsVisible)
+        {
+            if (Html.HasPermission("PMI Workflow"))
+            {
+                <input class="button blueButton inline-block verticalAlignMiddle actionStartupPlan" type="button" value="@Localization.GetText("Startup Plan Validation")" id="btnStartUpPlan" />
+            }
+        }
+
+        @if (Model.ValidationProcess.ClassificationValidationIsVisible &&
+            !Model.ValidationProcess.AreTLCompletedButtonsDisabled)
+        {
+            if (Html.HasPermission("PMI Workflow"))
+            {
+                <input class="button blueButton inline-block verticalAlignMiddle actionTLcompleted"
+                       type="button" value="@Localization.GetText("TL Completed")" id="btnTlCompleted" />
+            }
+        }
+
+        @if (Model.ValidationProcess.StartupPlanValidationIsVisible &&
+            Model.ValidationProcess.ClassificationValidationIsVisible &&
+            !Model.ValidationProcess.AreTLCompletedButtonsDisabled)
+        {
+            if (Html.HasPermission("PMI Workflow"))
+            {
+                <input class="button blueButton inline-block verticalAlignMiddle actionStartupPlan"
+                       type="button" value="@Localization.GetText("TL Completed/Startup")" id="btnCombined" />
+            }
+        }
+    </div>
+    <div class="operationData" style="margin-top:20px">
+        <div class="w48">
+            <div class="verticalMargin10">
+            </div>
+            <div class="w100 verticalMargin10">
+                <input type="radio" class="fancy-radio verticalAlignMiddle" name="format" id="excel" checked />
+                <label for="excel" id="excelIdValidationPmi" class="fancy-label-radio-circle verticalAlignMiddle">@Localization.GetText("Excel")</label>
+                <input type="radio" class="fancy-radio verticalAlignMiddle" name="format" id="pdf" />
+                <label for="pdf" id="pdfIdValidationPmi" class="fancy-label-radio-circle marginLeft5 verticalAlignMiddle">@Localization.GetText("PDF")</label>
+                <a id="lnkDownloadPMRReport" href="javascript:void(0)" onclick="openLinkInNewWindow($(this).attr('data-nhref'))" target="_blank" class="button download inline-block verticalAlignMiddle marginLeft5">@Localization.GetText("Download PMR Report")</a>
+            </div>
+        </div>
+    </div>
+    <div class="operationData">
+        <div class="verticalMargin10" style="width: 92%;">
+            @if (Model.IsModelComplete)
+            {
+                <table id="tableUIPMI004" class="grid w100" style="width: 100%; font-size: 12px">
+                    <thead>
+                        <tr>
+                            <th>@Localization.GetText("Date")</th>
+                            <th>@Localization.GetText("User")</th>
+                            <th>@Localization.GetText("Role")</th>
+                            <th>@Localization.GetText("Action")</th>
+                            <th>@Localization.GetText("Comment")</th>
+                            @if (!isSpecialOperation)
+                            {
+                                <th>@Localization.GetText("Classification")</th>
+                            }
+                            <th>@Localization.GetText("WorkFlow")</th>
+                        </tr>
+                    </thead>
+                    <tbody class="grayColor alignLeft">
+                        @foreach (var item in Model.ValidationProcess.ValidationActions.ToList())
+                        {
+                            <tr>
+                                <td>@item.ActionDate.ToStringSafe("dd MMM yyy HH:mm:ss")</td>
+                                <td>@item.UserName</td>
+                                <td style="font-weight:normal;color:gray">@item.Role</td>
+                                <td style="width:150px;">@item.ActionName</td>
+                                <td class="comments">
+                                    <p>@Html.Raw(Html.Encode(item.UserComment).Replace("\n", "<br /> "))</p>
+                                </td>
+                                @if (!isSpecialOperation)
+                                {
+                                    if (Model.CycleYear >= _year && Model.CycleTypeCode.ToUpper() == _cycle)
+                                    {
+                                        if (@item.WorkFlowCode != WorkflowCodes.WF_PMI_002.GetStringValue())
+                                        {
+                                            <td>
+                                                <span class="verticalAlignMiddle font08em blackColor">
+                                                    @Localization.GetText("PMI.NA.SeptemberCycle")
+                                                </span>
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <td><span class="bold verticalAlignMiddle font08em blackColor"></span></td>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (string.IsNullOrWhiteSpace(@item.ClassificationProposed))
+                                        {
+                                            <td>
+                                                <span class="bold verticalAlignMiddle font08em blackColor"></span>
+                                            </td>
+                                        }
+                                        else if (@item.ClassificationProposed.ToLower() == "problem")
+                                        {
+                                            <td>
+                                                <span class="classification problem inline-block verticalAlignMiddle marginRight3"></span>
+                                                <span class="bold verticalAlignMiddle font08em blackColor">Problem</span>
+                                            </td>
+                                        }
+                                        else if (@item.ClassificationProposed.ToLower() == "alert")
+                                        {
+                                            <td>
+                                                <span class="classification alert inline-block verticalAlignMiddle marginRight3"></span>
+                                                <span class="bold verticalAlignMiddle font08em blackColor">Alert</span>
+                                            </td>
+                                        }
+                                        else if (@item.ClassificationProposed.ToLower() == "satisfactory")
+                                        {
+                                            <td>
+                                                <span class="classification satisfactory inline-block verticalAlignMiddle marginRight3"></span>
+                                                <span class="bold verticalAlignMiddle font08em blackColor">Satisfactory</span>
+                                            </td>
+                                        }
+                                        else if (@item.ClassificationProposed == "N/A")
+                                        {
+                                            if (@Model.ValidationProcess.OperationTypeCode.Contains(OperationType.PDL) ||
+                                                @Model.ValidationProcess.OperationTypeCode.Contains(OperationType.PBL) ||
+                                                @Model.ValidationProcess.OperationTypeCode.Contains(OperationType.PBP) ||
+                                                @Model.ValidationProcess.OperationTypeCode.Contains(OperationType.HIB))
+                                            {
+                                                <td>
+                                                    <span class="bold verticalAlignMiddle font08em blackColor"></span>
+                                                </td>
+                                            }
+                                            else
+                                            {
+                                                if (@item.WorkFlowCode == "WF-PMI-001")
+                                                {
+                                                    <td>
+                                                        <span class="classification inline-block verticalAlignMiddle marginRight3"></span>
+                                                        <span class="bold verticalAlignMiddle font08em blackColor">N/A</span>
+                                                    </td>
+                                                }
+                                                else if (@item.WorkFlowCode == "WF-PMI-004")
+                                                {
+                                                    if (@Model.ValidationProcess.PmrCycleCode == "M")
+                                                    {
+                                                        <td>
+                                                            <span class="classification inline-block verticalAlignMiddle marginRight3"></span>
+                                                            <span class="bold verticalAlignMiddle font08em blackColor">N/A</span>
+                                                        </td>
+                                                    }
+                                                    else
+                                                    {
+                                                        <td>
+                                                            <span class="classification inline-block verticalAlignMiddle marginRight3"></span>
+                                                        </td>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <td>
+                                                        <span class="bold verticalAlignMiddle font08em blackColor"></span>
+                                                    </td>
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                <td>@item.WorkFlowName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                Html.RenderPartial("_WarningMessage", 3);
+            }
+        </div>
+    </div>
+</div>
+@Html.Hidden("WebStartUpPlan", Url.Action("BeginStartupPlan", "StageFour",
+new
+{
+    area = "PMI",
+    operationNumber = @ViewBag.OperationNumber
+}))
+@Html.Hidden("WebCombined", Url.Action("BeginPMRCycleStartup", "StageFour",
+new
+{
+    area = "PMI",
+    operationNumber = @ViewBag.OperationNumber
+}))
+<input type="hidden" />
+@{
+    var url = Url.Action("BeginTLcompleted", "StageFour",
+        new
+        {
+            area = "PMI",
+            operationNumber = @ViewBag.OperationNumber,
+            classification = HttpContext.Current.Items["classification"],
+        });
+}
+<input id="WebTLcompleted"
+       name="WebTLcompleted" type="hidden"
+       @Html.Raw("value=\"" + url + "\"") />
+
+<input id="hdnPMRReportPath" type="hidden" value="@Url.Action("GetFullUrlPMRReport", "PMROperationReport", new { area = "Reports" })" />
+<input id="hdnOperationId" type="hidden" value="@Model.OperationId" />
+
+
+<script>
+    function openLinkInNewWindow(link) {
+        var isChrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
+        if (isChrome) {
+            var a = document.createElement("a");
+            a.href = link;
+            var evt = document.createEvent("MouseEvents");
+            //the tenth parameter of initMouseEvent sets ctrl key
+            evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0,
+                true, false, false, false, 0, null);
+            a.dispatchEvent(evt);
+        } else {
+            var win = window.open(link, '_blank');
+        }
+    }
+
+</script>
+

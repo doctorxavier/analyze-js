@@ -1,0 +1,340 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+
+@model IDB.MW.Application.OPUSModule.ViewModels.FinancialDataPreparationService.FinancialDataPreparationViewModel
+
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Helpers
+@{ var subFundCode = string.Empty; }
+
+<table id="gridExpectedIDB" class="tableNormal gridExpectedIDB" style="margin-bottom: 18px">
+    <thead>
+    <tr>
+        <th class="tree icon singleTableCollapseCofinancing" colspan="5">
+            <span class="icon singleTableCollapse">-</span>
+            <span style="display:none"></span>
+            <div>
+                <div class="cofinancing-tables-header-wrapper">
+                    <div class="firstLabel">
+                        @Confluence.LabelBold(
+                            Localization.GetText("OP.FD.Preparation.ExpectedIDB"))
+
+                        <div name="localCounterpartAmount" 
+                            class="inlineBlock alignCPFinancing text-right">
+                            <div data-pagemode="edit"
+                                class="alignTotalAmount amounts-left-position">
+                                @Confluence.LabelDecimal(
+                                    Model.ExpectedIDBSumAmount,
+                                    true,
+                                    new Dictionary<string, string>()
+                                        { { "id", "expectedIdbTotalValue" } })
+                            </div>
+                            <div data-pagemode="read" class="amounts-left-position">
+                                @Confluence.LabelDecimal(
+                                    Model.ExpectedIDBSumAmount,
+                                    true,
+                                    new Dictionary<string, string>()
+                                        { { "id", "expectedIdbTotalValue" } })
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </th>
+    </tr>
+    <tr>
+        <th>@Localization.GetText("OP.FD.Preparation.ExpectedIDB.FinancingType")</th>
+
+        @if (Model.IsPsgOperation)
+        {
+            <th>@Localization.GetText("TC.FundInformation.PendingPledges.Donor")</th>
+        }
+
+        <th>@Localization.GetText("OP.FD.Preparation.ExpectedIDB.Fund")</th>
+        <th id="fundTbdTitle">@Localization.GetText("OP.CR.CreationForm.BD.FD.DTF")</th>
+        <th>@Localization.GetText("OP.FD.Preparation.ExpectedIDB.Amount")</th>
+        <th>@Localization.GetText("OP.FD.ExecutingAgency")</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var row in Model.ExpectedIDB)
+    {
+        bool isPsgEditTable = Model.IsPsgOperation && (row.FundEditable && !row.IsUnavailablePsgFund && 
+            (Model.Permissions.PSGWriteFinancialDataPermission || Model.Permissions.GCMWritePermission));
+        <tr data-id="@row.FinancingTypeId">
+            <td>
+                <div data-pagemode="read">@Confluence.Label(row.FinTypeDesc)</div>
+                <div data-pagemode="edit">
+                    @if ((row.FinTypeEditable && Model.Permissions.FinancialWritePermision && Model.HasEditByStagePermission && !Model.IsPsgOperation)
+                        || isPsgEditTable)
+                    {
+                        var FinancingTypes = Html.BuildSelectItemList(
+                            Model.FinancingTypeList,
+                            finType => finType.Text,
+                            finType => finType.Value);
+
+                        @Confluence.InputDropDown(
+                            row.FinancingTypeId.ToString(),
+                            "FinancingTypeId",
+                            FinancingTypes,
+                            width: "150px",
+                            dataAttributes: new Dictionary<string, string>() {
+                                { "idb-fieldname", "ddlFinancingType" }
+                            })
+                    }
+                    else
+                    {
+                        @Confluence.Label(row.FinTypeDesc)
+                        <input type="hidden" name="FinancingTypeId" 
+                               value="@row.FinancingTypeId.ToString()"/>
+                    }
+                </div>
+            </td>
+
+            @if (Model.IsPsgOperation)
+            {
+                var availableDonorsItems = Model.AvailablePsgDonors != null ?
+                    Html.BuildMultiSelectItemList(
+                        Model.AvailablePsgDonors.AsEnumerable(),
+                        ad => ad.DonorName,
+                        ad => ad.DonorId.ToString()) :
+                    new List<MultiSelectListItem>();
+
+                var unvailableDonorsItems = Model.UnavailablePsgDonors != null ?
+                    Html.BuildMultiSelectItemList(
+                        Model.UnavailablePsgDonors.AsEnumerable(),
+                        ad => ad.DonorName,
+                        ad => ad.DonorId.ToString()) :
+                    new List<MultiSelectListItem>();
+
+                <td>
+                    <div data-pagemode="read">
+                        @Confluence.LabelGetMultiDropDown(row.Donors, availableDonorsItems.ToList())
+                    </div>
+                    <div data-pagemode="edit">
+                        @if (isPsgEditTable)
+                        {
+                            @Confluence.InputDropDownMulti(
+                                "selectedPsgDonors",
+                                availableDonorsItems,
+                                width: "170px",
+                                required: false,
+                                values: row.Donors)
+                        }
+                        else
+                        {
+                            @Confluence.LabelGetMultiDropDown(
+                                row.Donors,
+                                row.IsUnavailablePsgFund ?
+                                    (row.HasAvailableAndUnavailablePsgDonors ?
+                                        unvailableDonorsItems.Union(availableDonorsItems).Distinct().ToList() :
+                                        unvailableDonorsItems.ToList()) :
+                                    availableDonorsItems.ToList())
+                            <input type="hidden" name="Donors" value="@row.Donors" />
+                        }
+                    </div>
+                </td>
+            }
+
+            <td class="fundAndSubFund">
+                <div data-pagemode="read">@Confluence.Label(row.FundDesc)</div>
+                <div data-pagemode="edit">
+                  @if ((!Model.IsPsgOperation && row.FundEditable &&
+                        Model.Permissions.FinancialWritePermision &&
+                        Model.HasEditByStagePermission) || isPsgEditTable)
+                  {
+                      var Funds = Html.BuildSelectItemList(
+                          Model.FundList,
+                          fund => fund.Text,
+                          fund => fund.Value);
+
+                        @Confluence.InputDropDown(
+                            row.FundId.ToString(),
+                            "FundId",
+                            Funds,
+                            width: "190px",
+                            dataAttributes: new Dictionary<string, string>() 
+                            { 
+                                { "idb-fieldname", "ddlFund" } 
+                            }
+                        )
+
+                        subFundCode = row.SubFund != null ? row.SubFund.SubFundCode : string.Empty;
+                        <input type="hidden"
+                               name="SubFundCode"
+                               data-id-fund=@row.FundId.ToString()
+                               value="@subFundCode" />
+                    }
+                    else
+                    {
+                        @Confluence.Label(row.FundDesc)
+                        <input type="hidden" name="FundId" value="@row.FundId.ToString()"/>
+                    }
+                </div>
+            </td>
+            <td id="fundTbdColumn">
+                @{
+                    var FundsTbd = new List<MultiSelectListItem>();
+
+                    foreach (var fund in Model.FundTDB)
+                    {
+                        FundsTbd.Add(new MultiSelectListItem()
+                        {
+                            Selected = fund.Selected,
+                            Text = fund.Text,
+                            Value = fund.Value
+                        });
+                    }
+                }
+                <div data-pagemode="read" style="width: 200px">
+                    @Confluence.LabelGetMultiDropDown(row.FundsTbd ?? new List<int>(),
+                        FundsTbd)                         
+                </div>
+                <div data-pagemode="edit">
+                    @if (row.FundEditable && 
+                        Model.Permissions.FinancialWritePermision &&
+                        Model.HasEditByStagePermission)
+                    {                        
+                        @Confluence.InputDropDownMulti("FundTBD",
+                            FundsTbd,
+                            width: "190px",
+                            required: false,
+                            values: row.FundsTbd != null ?
+                                string.Join(",", row.FundsTbd ?? new List<int>()) : string.Empty,
+                            placeholder: "N/A"
+                        )
+                    }
+                    else
+                    {
+                        @Confluence.LabelGetMultiDropDown(row.FundsTbd ?? new List<int>(), 
+                            FundsTbd)
+                        @Confluence.InputHidden(string.Empty, "FundTBD")
+                    }
+                    <input type="hidden" id="isTbd" />
+                </div>
+            </td>
+            <td name="IDBUsAmountColumn" class="text-right">
+                <div data-pagemode="read" style="margin-left: 10px; margin-right: 8px;">
+                    @Confluence.LabelDecimal(row.UsAmount + row.IncreaseUsAmount)
+                </div>
+                <div data-pagemode="edit">
+                    @if (row.IsEditableAmount)
+                    {
+                        @Confluence.InputDecimal(
+                            row.UsAmount,
+                            "UsAmount",
+                            minValue: "0.00",
+                            maxValue: "999999999999.99",
+                            width: "120px",
+                            dataAttributes: new Dictionary<string, string>()
+                            {
+                                { "idb-fieldname", "txtAmount" }
+                            }
+                        )
+                    }
+                    else
+                    {
+                        @Confluence.LabelDecimal(row.UsAmount + row.IncreaseUsAmount)
+                        @Confluence.InputDecimal(
+                            row.UsAmount,
+                            "UsAmount",
+                            minValue: "0.00",
+                            maxValue: "999999999999.99",
+                            width: "120px",
+                            dataAttributes: new Dictionary<string, string>()
+                            {
+                                { "idb-fieldname", "txtAmount" }
+                            },
+                            htmlClass: "hide"
+                        )
+                    }
+                </div>
+            </td>
+            <td class="text-left">
+                <div data-pagemode="read">
+                    @Confluence.Label(row.ExecutingAgency)
+                </div>
+                <div data-pagemode="edit">
+                @if (((Model.Permissions.FinancialWritePermision ||
+                    Model.Permissions.FinancialDataTLEAWritePermission ) &&
+                    Model.HasEditByStagePermission && !Model.IsPsgOperation) || isPsgEditTable) 
+                {
+                    var ExecutingAgencies = Html.BuildSelectItemList(
+                        Model.ExecutingAgenciesList,
+                        agency => agency.Text,
+                        agency => agency.Value);                    
+
+                    @Confluence.InputDropDown(
+                        row.ExecutingAgencyId.ToString(),
+                        "ExecutingAgencyId",
+                        ExecutingAgencies,
+                        width: "120px",
+                        dataAttributes: new Dictionary<string, string>() 
+                        {
+                            { "idb-fieldname", "ddlexecutingAgenc" }
+                        }
+                    )
+                }
+                else
+                {
+                    @Confluence.Label(row.ExecutingAgency)
+                    <input type="hidden" name="ExecutingAgencyId" value="@row.ExecutingAgencyId.ToString()" />
+                }
+                </div>
+            </td>
+            <td>
+                <div data-pagemode="edit">
+                    @if ((Model.HasEditByStagePermission && 
+                        !Model.IsPsgOperation && 
+                        ((row.IsGcmFund && Model.Permissions.GCMWritePermission) ||
+                            Model.Permissions.FinancialWritePermision)) || 
+                        isPsgEditTable)
+                    {
+                        @Confluence.ButtonTrash(null, null, "removeRowExpectedIDB",
+                            dataAttributes: new Dictionary<string, string>() 
+                            {
+                                { "idb-fieldname", "btnDeleteFund" }
+                            }
+                        )
+                    }
+
+                    <input type="hidden" name="isBld" value="@row.isBld.ToString()"/>
+                    <input type="hidden" name="FundOperationId" 
+                           value="@row.IdFundOperation.ToString()"/>
+                    <input type="hidden" name="SapCode" value="@row.SapCode"/>
+                    <input type="hidden" name="OCSpecialProgram" value="@row.OcSpecialProgram"/>
+                </div>
+            </td>
+        </tr>
+    }
+    <tr class="no-height"></tr>
+    </tbody>
+</table>
+
+@if (!Model.ExpectedIDB.Any())
+{
+    <div class='col-md-12 noRecords gridExpectedIDB'>
+        <p class='noRecords text-center mb10'>
+            @Localization.GetText("OP.FD.Preparation.NoRecords")
+        </p>
+    </div>
+}
+
+@if ((Model.Permissions.FinancialWritePermision && Model.HasAddFinancingPermission && Model.HasEditByStagePermission) ||
+    (Model.IsPsgOperation && (Model.Permissions.GCMWritePermission || Model.Permissions.PSGWriteFinancialDataPermission)))
+{
+    <div class="col-md-12 buttonWrapper gridExpectedIDB">
+        <div data-pagemode="edit" class="text-center" style="margin-bottom: 18px;">
+            @Confluence.ButtonAddNewRows(
+                Localization.GetText("OP.FD.Preparation.ExpectedIDB.Add"),
+                "gridExpectedIDB",
+                "Financing",
+                "addNewRowExpectedIDB",
+                dataAttributes: new Dictionary<string, string>() 
+                { 
+                    { "idb-fieldname", "btnNewExpected" } 
+                }
+            )
+        </div>
+    </div>
+}

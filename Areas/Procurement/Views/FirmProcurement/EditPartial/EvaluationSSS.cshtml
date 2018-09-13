@@ -1,0 +1,437 @@
+﻿@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Architecture.ApplicationParameter
+@using IDB.MW.Application.BEOProcurementModule.Enums;
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.Helpers;
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+
+
+@model EvaluationSSSViewModel
+
+<div class="row">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("EditPartial/DatatableDocsFirm",
+        new FirmDocViewModel
+        {
+            HasLink = false,
+            LinkURL = string.Empty,
+            Prefix = string.Empty,
+            Rows = Model.ProposalDocs,
+            SubTitle = Localization.GetText("TCP.FirmProcurement.TableSubTitle.ProposalDocuments"),
+            TableName = "ProposalDocs",
+            Title = Localization.GetText("TCP.FirmProcurement.TableTitle.ProposalDocuments"),
+            IsWinner = false
+        })
+        @Confluence.InputText("val", "nameDocProp", htmlClass: "hide", required: false, dataAttributes: new Dictionary<string, string>() { { "parsley-DocsProposalTab", "[name=ProposalDocs-FirmId]" } })
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xs-12">
+        @Html.Partial("EditPartial/DatatableProposalSummary", Model.ProposalSummary)
+    </div>
+</div>
+
+<div class="row mb10">
+    <div class="col-xs-12">
+        @Confluence.InputText(
+                value: "value",
+                name: "prosalValuesNew",
+                required: false,
+                htmlClass: "hide",
+                dataAttributes: new Dictionary<string, string> { { "parsley-singleWinners", "true" } })
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xs-12 mb50">
+        @Confluence.InputCheckbox(Model.IsProposalSummary, name: "IsCertifyProposalSumary", label: Localization.GetText("TCP.FirmProcurement.CheckboxText.ProposalSumary"), disabled: false)
+        @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.AccessSanctionsList"),
+                name: "accessSanctionsListLink",
+                url: AppParameter.GetText("Template.Site.Url.BEO.Templates.Sanction.List"),
+                htmlClass: "ml20 fontSize13")
+    </div>
+</div>
+
+
+<div class="row">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("EditPartial/DataTableDocsSimple",
+        new SimpleDocViewModel
+        {
+            HasLink = true,
+            LinkURL = AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+            Prefix = string.Empty,
+            SimpleTable = Model.CommunicationsRelatedDocsTable,
+            SubTitle = Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommunicationsRelatedDocs"),
+            TableName = "CommunicationsRelatedDocs",
+            Title = Localization.GetText("TCP.FirmProcurement.TableTitle.CommunicationsRelatedDocs")
+        })
+    </div>
+</div>
+
+<div class="mb5 aligment">
+    @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.EvaluationChecklist"))
+</div>
+
+<div class="mb10">
+    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.EvaluationChecklist"))
+</div>
+
+<div class="row mb40">
+    <div class="col-xs-12">
+        @(Html.Checklist("EvaChecklist")
+                .Items(Model.Checklist)
+                .HeaderItemName(Localization.GetText("TCP.FirmProcurement.TableHeader.ChecklistItem"))
+                .HeaderMandatory(Localization.GetText("TCP.FirmProcurement.TableHeader.Mandatory"))
+                .HeaderCompleted(Localization.GetText("TCP.FirmProcurement.TableHeader.Completed"))
+                .HeaderDateCompleted(Localization.GetText("TCP.FirmProcurement.TableHeader.DateCompleted"))
+                .HeaderUser(Localization.GetText("COMMON.User"))
+                .ValidationMessageFormat(ValidationMessageFormatEnum.ChecklistItemRed)
+                .ValidateOnLoad()
+                .Editable()
+                .CurrentUser(ViewBag.CurrentUser ?? "")
+        )
+    </div>
+</div>
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        registerCallback(function () {
+            function getFunctionShowHide(targetRegion) {
+                return
+            }
+
+            function selectionWinnerScore(sourceRow) {
+
+                var modalityScreens = '@Model.Modality';
+                var evaluatedStatus = '@ViewBag.evaluated';
+                var framework = '@ProcurementModalityEnum.Framework.GetEnumCode()';
+
+                var valueStatus = sourceRow.find('[name="FirmScoring-StatusId"]').val();
+
+                if (modalityScreens != framework) {
+
+                    var totalScoreStr = $('[name="FirmScoring-TotalScoring"]');
+                    var scores = [];
+                    var maxScore = 0;
+
+                    totalScoreStr.each(function () {
+
+                        var source = $(this);
+
+                        var scoreTotal = parseInt(source.val());
+                        var row = source.closest('tr');
+                        var winnerRadioButton = row.find('[name="ScoringWinner"]');
+                        var valueStatus = row.find('[name="FirmScoring-StatusId"]').val();
+
+                        if (valueStatus == evaluatedStatus) {
+                            if (scoreTotal > maxScore) {
+
+                                maxScore = scoreTotal;
+                                scores = [];
+                                scores.push(winnerRadioButton);
+
+                            } else if (scoreTotal == maxScore) {
+                                scores.push(winnerRadioButton);
+                            }
+                        }
+                    });
+
+                    var allWinners = $('[name="ScoringWinner"]');
+                    allWinners.prop('checked', false);
+                    var elementFirst = scores.pop();
+                    elementFirst.prop('checked', true);
+
+                } else if (evaluatedStatus == valueStatus) {
+
+                    var allWinners = $('[name="FirmScoring-Winner"]:checked');
+                    var minScoreSelected = allWinners.length == 0 ? 0 : 9999;
+
+                    allWinners.each(function () {
+                        var source = $(this);
+                        var row = source.closest('tr');
+                        var totalScoreInput = row.find('[name="FirmScoring-TotalScoring"]');
+                        var scoreTotal = parseInt(totalScoreInput.val());
+
+                        if (scoreTotal < minScoreSelected) {
+                            minScoreSelected = scoreTotal
+                        }
+                    });
+
+                    var totalScoreInputStr = sourceRow.find('[name="FirmScoring-TotalScoring"]');
+                    var allWinnersNoChecked = sourceRow.find('[name="FirmScoring-Winner"]');
+                    var totalScoreInput = parseInt(totalScoreInputStr.val());
+
+                    if (totalScoreInput > minScoreSelected) {
+                        allWinnersNoChecked.prop('checked', true);
+
+                    } else {
+                        allWinnersNoChecked.prop('checked', false);
+                    }
+                }
+            }
+
+
+            $(document).on('change', '[name="ProposalSummary-StatusId"]', function () {
+
+                var source = $(this);
+                var disqualifiedStatus = '@ViewBag.discualified';
+                var evaluatedStatus = '@ViewBag.evaluated';
+                var nonCualifiedStatus = '@ViewBag.nonResponsive';
+                var currencyInit = '(select option)';
+
+                var row = source.closest('tr');
+                var file = row.find('[name="currencyChange"]');
+
+                var price = row.find('[name="ProposalSummary-Price"]');
+                var currencyInput = row.find('[name="ProposalSummary-Currency"]');
+                var currencyDropDown = row.find('#id-ProposalSummary-Currency');
+                var statusDropDown = row.find('#id-ProposalSummary-StatusId');
+                var winner = row.find('[name="ProposalSummary-Winner"]');
+
+                var valueStatus = row.find('[name="ProposalSummary-StatusId"]').val();
+
+                currencyInput.removeAttr('data-optional-required');
+                source.removeAttr('data-optional-required');
+                price.removeAttr('data-optional-required');
+
+                if (valueStatus == disqualifiedStatus) {
+
+                    currencyInput.removeAttr('data-optional-required');
+                    price.removeAttr('data-optional-required');
+
+                    currencyInput.val("");
+                    price.val("");
+                    winner.removeAttr('checked');
+
+                    var dropdown = currencyDropDown.find('span.valueText');
+                    dropdown.html(currencyInit);
+                    file.addClass('dropdown placeholder w200 widthDrop');
+
+                    currencyInput.attr('disabled', 'disabled');
+                    currencyDropDown.attr('disabled', 'disabled');
+                    price.attr('disabled', 'disabled');
+                    winner.attr('disabled', 'disabled');
+                    source.attr('data-optional-required', 'true');
+
+                } else if (valueStatus == evaluatedStatus) {
+
+                    currencyInput.attr('data-optional-required', 'true');
+                    source.attr('data-optional-required', 'true');
+                    price.attr('data-optional-required', 'true');
+                    winner.prop('checked', true);
+
+                    file.addClass('dropdown w200 widthDrop');
+
+                    //disabled
+
+                    currencyInput.removeAttr('disabled');
+                    price.removeAttr('disabled');
+                    currencyDropDown.removeAttr('disabled');
+                    winner.removeAttr('disabled');
+
+                } else if (valueStatus == nonCualifiedStatus) {
+
+                    currencyInput.removeAttr('data-optional-required');
+                    price.removeAttr('data-optional-required');
+
+                    currencyInput.val("");
+
+                    var dropdown = currencyDropDown.find('span.valueText');
+                    dropdown.html(currencyInit);
+                    file.addClass('dropdown placeholder w200 widthDrop');
+
+                    price.val("");
+                    winner.removeAttr('checked');
+
+                    currencyInput.attr('disabled', 'disabled');
+                    currencyDropDown.attr('disabled', 'disabled');
+                    price.attr('disabled', 'disabled');
+                    winner.attr('disabled', 'disabled');
+                    source.attr('data-optional-required', 'true');
+
+                } else if (valueStatus == "") {
+
+                    currencyInput.val("");
+                    price.val("");
+
+                    var dropdown = currencyDropDown.find('span.valueText');
+                    dropdown.html(currencyInit);
+                    file.addClass('dropdown placeholder w200 widthDrop');
+
+                    winner.prop('checked', false);
+                    winner.removeAttr('checked');
+
+                    currencyInput.removeAttr('data-optional-required');
+                    price.removeAttr('data-optional-required');
+                    source.removeAttr('required');
+
+                    currencyInput.attr('disabled', 'disabled');
+                    currencyDropDown.attr('disabled', 'disabled');
+                    price.attr('disabled', 'disabled');
+                    winner.attr('disabled', 'disabled');
+
+                }
+            });
+
+            $(document).on('change', '[name="ProposalSummary-Currency"]', function () {
+                var source = $(this);
+                var row = source.closest('tr');
+                var file = row.find('[name="currencyChange"]');
+
+                if (source.val() != "") {
+                    file.removeClass('placeholder');
+                }
+
+            });
+
+            window.ParsleyValidator.addValidator('DocsProposalTab', function (value, requirement) {
+
+                var result = true;
+                resultFirm = true;
+                var codeEvaluated = '@ViewBag.evaluated';
+                var codeDisqualified = '@ViewBag.discualified';
+
+                var firmsStatusId = $('input[name="ProposalSummary-StatusId"]');
+                var firmStatusEvalIds = [];
+                var firmStatusDisqlIds = [];
+
+                firmsStatusId.each(function (key, item) {
+                    if (resultFirm && $(item).val() == codeEvaluated) {
+                        var firmId = $(item).closest('tr').attr('data-id');
+                        firmStatusEvalIds.push(firmId);
+                    }
+                });
+
+                firmsStatusId.each(function (key, item) {
+                    if (resultFirm && $(item).val() == codeDisqualified) {
+                        var firmId = $(item).closest('tr').attr('data-id');
+                        firmStatusDisqlIds.push(firmId);
+                    }
+                });
+
+
+                var documentProposal = $('#ProposalDocs tr:not(.template) [name$="FirmId"]');
+                var documentProposalIds = [];
+                documentProposal.each(function (key, item) {
+                    var firmId = $(item).val();
+                    if (documentProposalIds.indexOf(firmId) < 0) {
+                        documentProposalIds.push(firmId);
+                    }
+                });
+
+                var notIncludeFIrmId = firmStatusEvalIds.filter(function (ix, it) {
+                    return documentProposalIds.indexOf(ix) < 0;
+                });
+
+
+                result = notIncludeFIrmId.length == 0;
+                return result;
+
+
+            })
+          .addMessage('en', 'DocsProposalTab', '@(Localization.GetText("TCP.FirmProcurement.ParsleyValidationMessage.Evaluated"))');
+
+            window.ParsleyValidator.addValidator('singleWinners', function (value) {
+
+                var table = $('#ProposalSummary');
+                var trs = table.find('tbody tr:not(.template)');
+                var shorts = trs.find('[name="ProposalSummary-Winner"]:checked');
+                var count = 0;
+
+                shorts.each(function (key, item) {
+                    count++;
+                });
+                return count == 1 || count > 1;
+            })
+            .addMessage('en', 'singleWinners', '@(Localization.GetText("TCP.EvaluationScreen.SingleWinners.MinimunWinner"))');
+
+
+            window.ChecklistValidator.AddValidator(
+                'ReceivedProposalsRequired',
+                function (row, selector) {
+                    var codeEvaluated = '@ViewBag.evaluated';
+                    var codeDisqualified = '@ViewBag.discualified';
+                    var isValid = true;
+
+                    var proposalDocs = $('#ProposalDocs');
+                    var tableWinner = $('#ProposalSummary');
+
+                    var firmsStatusId = $('input[name="ProposalSummary-StatusId"]');
+                    var firmStatusEvalIds = [];
+                    var firmStatusDisqlIds = [];
+
+
+                    firmsStatusId.each(function (key, item) {
+                        var firmId = $(item).closest('tr').attr('data-id');
+                        var value = $(item).val();
+                        if (value == codeEvaluated) {
+                            firmStatusEvalIds.push(firmId);
+                        } else if (value == codeDisqualified) {
+                            firmStatusDisqlIds.push(firmId);
+                        }
+                    });
+
+                    while (isValid && firmStatusEvalIds.length > 0) {
+                        var firmId = firmStatusEvalIds.pop();
+                        var filterProposals = proposalDocs.find('[name*="FirmId"]').filter(function () {
+                            var value = $(this).val();
+                            return firmId == value;
+                        });
+
+                        isValid = isValid && (filterProposals.length > 0);
+                    }
+
+                    while (isValid && firmStatusDisqlIds.length > 0) {
+                        var firmId = firmStatusDisqlIds.pop();
+                        var filterProposals = proposalDocs.find('[name*="FirmId"]').filter(function () {
+                            var value = $(this).val();
+                            return firmId == value;
+                        });
+
+                        isValid = isValid && (filterProposals.length > 0);
+                    }
+
+                    return isValid;
+                },
+                'Faltan documentos de propuesta.',
+                true);
+
+            function desactivateItemList(item) {
+                var items = $(item).find('ul.dropdown-menu');
+                items.addClass('dropdown-listItems-selection');
+
+                var source = $(item).find('ul.dropdown-menu li a[dd-value="separator-1"]');
+                source.remove();
+
+                items.each(function () {
+
+                    var iteration = $(this);
+                    var ulListItems = iteration.find('li').eq(3);
+                    ulListItems.addClass('dropdown-separated-list');
+
+                });
+
+            }
+
+            $(document).ready(function () {
+                var evaluatedStatus = '@ViewBag.evaluated';
+                var statusDropDown = $('#id-ProposalSummary-StatusId');
+                var statusDropDownInput = $('[name="ProposalSummary-StatusId"]');
+                var winner = $('[name="ProposalSummary-Winner"]');
+                var source = $('div[name="currencyChange"]');
+                
+                desactivateItemList(source);
+                statusDropDownInput.change();
+                
+            });
+
+
+        });
+    </script>
+)

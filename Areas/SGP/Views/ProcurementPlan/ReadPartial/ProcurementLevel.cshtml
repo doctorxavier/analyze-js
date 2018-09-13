@@ -1,0 +1,172 @@
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.Architecture.DataTables.Common
+@using IDB.Presentation.MVC4.Helpers
+
+@model ProcurementLevelViewModel
+
+@{
+    var appSetting = ConfigurationServiceFactory.Current.GetApplicationSettings();
+}
+
+@if (Model != null)
+{
+    <div name="planSection">
+        <div class="row mb30">
+            <div class="col-xs-12 mb30">
+                @Html.Partial("ReadPartial/BasicData", Model)
+            </div>
+            <div class="col-xs-12 mb5">
+                <table class="table-transparent">
+                    <tr>
+                        <td class="table-transparent-text">
+                            <div class="mb5 aligment">
+                                @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.Filters"))
+                            </div>
+                        </td>
+                        <td class="table-transparent-text">
+                            @Confluence.ButtonBlue(Localization.GetText("SGP.Button.HideFilter"), name: "procLevelFilterHide", htmlClass: "floatRight" )
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div name="procLevelFilterSection" class="col-xs-12">
+                @Html.Partial("ReadPartial/FilterSearchProcLevel", Model.ViewContainer)
+            </div>
+        </div>
+        <div>
+
+            <div class="pending-proc">
+                @Confluence.Label(Localization.GetText("SGP.Label.CurrentInformationIncluded"))
+                @(new HtmlString("&nbsp;"))
+                @Confluence.ButtonExcel("procLevelExportExcel")
+            </div>
+
+            <div class="row mb30">
+                <div name="procurementsByAgency" class="col-xs-12">
+                    @Html.Partial("ReadPartial/PlanForAgencyDataTable", Model)
+                </div>
+            </div>
+
+            @Html.Partial("ReadPartial/Legend")
+            <div class="pending-proc">
+                @Confluence.Label(Localization.GetText("SGP.Label.CurrentInformationIncluded"))
+                @(new HtmlString("&nbsp;"))
+                @Confluence.ButtonExcel("procLevelExportExcel")
+            </div>
+        </div>
+    </div>
+    Html.ScriptBlockNoWrite(
+
+        @<script type="text/javascript">
+
+            registerCallback(function () {
+
+                function submitPlanFiltered(taskBucketId, keywordEnter, procurementTypeId, componentId, procurementMethodId, supervisionMethod, statusId) {
+                    showLoader();
+                    var containerProcurementByBucket = $('div[name="procurementsByAgency"]');
+
+                    $.ajax({
+                        url: razor.URLs.GetProcurementsProcLevelByFilter,
+                        data: {
+                            isEditMode: false,
+                            taskBucketId: taskBucketId,
+                            Keyword: keywordEnter,
+                            ProcurementTypeIds: procurementTypeId,
+                            ComponentIds: componentId,
+                            ProcurementMethodIds: procurementMethodId,
+                            SupervisionMethodIds: supervisionMethod,
+                            StatusIds: statusId,
+                        },
+                        cache: false,
+                        type: 'POST',
+                    }).done(function (data) {
+                        containerProcurementByBucket.html(data.ContentHTML);
+                        bindHandlers(containerProcurementByBucket);
+                        $('[data-name="collapseAllProcurements"]').click();
+                        hideLoader();
+                    });
+                }
+
+                function filterPlan() {
+                    var bucketId = $('[name="bucketId"]').val();
+                    var keyword = $('[name="procLevelKeywordSearch"]').val();
+                    var procurementType = $('[name="procLevelProcurementTypeSearch"]').val();
+                    var component = $('[name="procLevelComponentSearch"]').val();
+                    var procurementMethod = $('[name="procLevelProcurementMethodSearch"]').val();
+                    var supervisionMethod = $('[name="procLevelSupervisionMethodSearch"]').val();
+                    var status = $('[name="procLevelStatusSearch"]').val();
+
+                    submitPlanFiltered(bucketId, keyword, procurementType, component, procurementMethod, supervisionMethod, status);
+                }
+
+                $(document).on('click', '[name="processIdLink"]', function () {
+                    var source = $(this);
+
+                    var warningMsg = source.attr('data-warning-message');
+                    var url = source.attr('data-url');
+                    if ((warningMsg != null) && (warningMsg.trim() != '')) {
+                        var modalContent = $('[data-name="link-message-modal"]');
+                        modalContent.text(warningMsg);
+                        var btnModal = $('[name="btn-open-popup-link-message"]');
+                        btnModal.click();
+                    } else if ((url != null) && (url.trim() != '')) {
+                        LocationAssign(url);
+                    }
+
+                });
+
+                $(document).on('click', '[name="procLevelClearFilter"]', function () {
+                    $('[name="procLevelKeywordSearch"]').val("");
+                    $('[name="procLevelKeywordSearch"]').attr("value", "");
+                    $('[name="procLevelSupervisionMethodSearch"]').val(0).trigger("chosen:updated");
+                    $('[name="procLevelProcurementTypeSearch"]').val(0).trigger("chosen:updated");
+                    $('[name="procLevelProcurementMethodSearch"]').val(0).trigger("chosen:updated");
+                    $('[name="procLevelComponentSearch"]').val(0).trigger("chosen:updated");
+                    $('[name="procLevelStatusSearch"]').val(0).trigger("chosen:updated");
+                    $('[name="procLevelFilteredFilter"]').click();
+
+                    filterPlan();
+                });
+
+                $(document).on('click', '[name="procLevelFilteredFilter"]', function () {
+
+                    filterPlan();
+
+                });
+
+                $(document).on('click', '[name="procLevelFilterHide"]', function () {
+                    var source = $(this);
+                    var nameShowFilter = razor.Texts.ShowFilter;
+                    var nameHideFilter = razor.Texts.HideFilter;
+                    var sectionHide = $('div[name="procLevelFilterSection"]');
+
+                    if (sectionHide.hasClass('hide')) {
+                        sectionHide.removeClass('hide');
+                        source.html(nameHideFilter);
+                    } else {
+                        sectionHide.addClass('hide', 'hide');
+                        source.html(nameShowFilter);
+                    }
+                });
+
+                $(document).on('click', 'td.columnActionOnlyCollapse', function (e) {
+                    var source = $(this);
+                    if (e.currentTarget == e.target) {
+                        var collapse = source.find('[data-role="collapse-single"]');
+                        var data = collapse.data('CollapseSingle');
+                        data.SlideContent();
+                    }
+                });
+
+                $(document).on('click', '[name="procLevelExportExcel"]', function () {
+                    var bucketId = $('[name="bucketId"]').val();
+                    var url = razor.URLs.GetReportPlanAgencyByFilter;
+
+                    window.open(url, '_blank');
+                })
+            });
+        </script>
+);
+}

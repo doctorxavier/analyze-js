@@ -1,0 +1,341 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MW.Application.MrBlueModule.Enums
+@using IDB.Presentation.MVC4.Areas.MrBlue.Models
+
+@model SupervisionReportStep2ViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@Html.Partial("_MockReadWritePermissions", IDB.Presentation.MVC4.Models.Mock.MockReadWritePermissionsViewModel.Create(Permission.ESG_SPECIALIST_WRITE_PERMISSIONS))
+
+<div class="row">
+    <div class="col-md-12">
+        <div id="Data"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-loadurl="@Url.Action("SupervisionReportStep1", "SupervisionReport", new { area = "MrBlue", isEditable = true, versionId = Model.SupervisionReportId, isNew = false})"
+             data-url="@Url.Action("SupervisionReportStep2Save", "SupervisionReport", new { area = "MrBlue" })">
+            @if (Model != null)
+            {
+                @Html.Partial("Partials/Step2/SupervisionReport2Partial", Model)
+            }
+        </div>
+        <div id="documentMediaTable-modal" class="hide">
+            @Html.Partial("Controls/IDBMedia/AddIDBMedia", new IDB.Presentation.MVC4.Models.Documents.MediaFileModalViewModel { MediaFileModalId = "documentMediaTable", MultipleSelection = true, TargetFunction = "addDocumentMedia", OperationNumber = Model.OperationNumber })
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+
+
+    @MrBlue.HistoryTablesCommon()
+    @MrBlue.DynamicQuestionnaire(Model.SupervisionReportDynamicQuestionnaire)
+    @MrBlue.SupervisionReportCommon()
+    @MrBlue.MediaFiles()
+    @MrBlue.SelectRow()
+    @MrBlue.ParsleyOptionalFunctions()
+    @ModuleScripts.KeyWordsToolkit(Url)
+    @ModuleScripts.AddNoRepeatValueValidator()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.TableFunctions()
+    @MrBlue.RadioButtonFix()
+
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+            $(document).on("keyup", 'input[name="esgPersonRow_text"]', function () {
+                var inputText = $(this);
+                var inputValue = inputText.parent().find('input:last');
+
+                var inputTextValue = inputText.val();
+
+                if (inputTextValue.length > 0) {
+                    inputValue.val('0');
+                    inputValue.attr('value', inputTextValue);
+                } else {
+                    inputValue.val('');
+                    inputValue.removeAttr('value')
+                }
+            });
+
+            questionarieWithoutBorder();
+
+            //Validator Leader Number
+            window.ParsleyValidator
+             .addValidator('typeEnviromentalSocialPerfomance', function (value, requirement) {
+
+                 var resul = true;
+
+                 var options = requirement.split(";");
+                 if (options.length != 2) return false;
+
+                 var tableRows = $(options[0] + ' tbody tr');
+                 var selectorType = options[1];
+                 var arrayTypes = new Array();
+
+                 tableRows.each(function (index) {
+                     var row1 = $(this);
+                     if (!row1.hasClass('hide') && !row1.hasClass('template')) {
+                         var valueinput = row1.find(selectorType).closest('div.dropdown')
+                             .find('span.valueText').html();
+                         if (valueinput.indexOf('(select an option)') == -1 && valueinput.indexOf('Other') == -1) {
+                             if ((arrayTypes.indexOf(valueinput) > -1) == false) {
+                                 arrayTypes.push(valueinput);
+                             } else {
+                                 resul = false;
+                             }
+                         }
+                     }
+                 });
+
+                 return resul;
+
+             }, 32)
+             .addMessage('en', 'typeEnviromentalSocialPerfomance', 'Repeated Types of Environmental and Social Performance Items.');
+
+            var success = enterEditMode(false, $('#Data'), false);
+            if (success) {
+                $("[dd-table=newESPI]").data("autoincrement", getMostRecentRowId('espiTable'));
+                $("[dd-table=newAction]").data("autoincrement", getMostRecentRowId('newActionsTable'));
+                $("[dd-table=newStaff]").data("autoincrement", getMostRecentRowId('esgPersonTable'));
+                $("#Data").parsley();
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+                InitialStateCollapsableRows();
+            }
+
+            $(document).on("click", '[name="removeStarDraftRow"]', function () {
+                destroyParsley($('#linktab1'));
+                initParsley($('#linktab1'));
+            });
+
+            $(document).on("keyup", 'textarea[data-type="expandable"]', function () {
+                var source = $(this);
+                var trSource = source.closest('tr').prev();
+                var labeltrSource = trSource.find('label[name="' + source.attr("name") + 'Label"]');
+                var spantrSource = trSource.find('td.period').find('span:first');
+                spantrSource.html(source.val());
+                if (source.val().length < 21) {
+                    labeltrSource.html(source.val());
+                } else if (source.val().length == 21) {
+                    if (!(labeltrSource.html().indexOf("...") > -1)) {
+                        labeltrSource.html(labeltrSource.html() + "...");
+                    }
+                }
+            });
+
+
+            $(document).on("blur", 'textarea[data-type="expandable"]', function () {
+                var source = $(this);
+                var trSource = source.closest('tr').prev();
+                var labeltrSource = trSource.find('label[name="' + source.attr("name") + 'Label"]');
+                var spantrSource = trSource.find('td.period').find('span:first');
+                spantrSource.html(source.val());
+                if (source.val().length >= 20) {
+                    var substring = source.val().substring(0, 20);
+                    labeltrSource.html(substring + "...");
+                }
+            });
+
+            reestructurePage();
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+            initParsley();
+        });
+
+        function reestructurePage() {
+            var sectionTables1 = $('#sectionTables1'); // to actions table included
+            var sectionTables2 = $('#sectionTables2'); // last 2 tables
+
+            var prevSectionTables1 = $('#Questionarie').find('div.row.mb20:eq(3)'); // Key Issues block
+            var prevSectionTables2 = $('#Questionarie').find('div.row.mb20:eq(4)'); // Final rating block
+
+            sectionTables1.insertAfter(prevSectionTables1);
+            sectionTables2.insertAfter(prevSectionTables2);
+        }
+
+        function finalize() {
+            var containerQuestionnarie = $('#Questionarie');
+            transformOptionalRequiredToRequired(containerQuestionnarie);
+            $('[name="isFinalize"]').val(true);
+            var response = saveContainer($('#Data'), '#hidViewModel', false, null, null, false);
+            if ($("#Data").parsley().isValid() == false) {
+                var textAreasError = $('#newActionsTable textarea.inputTextarea.parsley-error, #espiTable textarea.inputTextarea.parsley-error ');
+                textAreasError.each(function (index) {
+                    var textAreaAux = $(this);
+                    var trTexAreaAux = textAreaAux.closest('tr');
+                    var cssTr = trTexAreaAux.attr('style');
+                    if (cssTr != "display: table-row;") {
+                        trTexAreaAux.prev().find('label.expandable-triangle').click();
+                        trTexAreaAux.attr('style', 'display: table-row;');
+                    }
+                });
+            }
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+                        var url = '@Html.Raw(Url.Action("SupervisionReportDashboard", "SupervisionReport", new { area = "MrBlue" }))';
+                        window.location.assign(url);
+                    }
+                });
+            }
+        };
+
+        function save() {
+            var container = $('#Data');
+
+            var containerQuestionnarie = $('#Questionarie');
+            var sectionTables1 = $('#sectionTables1');
+            var sectionTables2 = $('#sectionTables2');
+
+            transformRequiredToOptional(containerQuestionnarie);
+            transformOptionalRequiredToRequired(sectionTables1);
+            transformOptionalRequiredToRequired(sectionTables2);
+
+            if (container.parsley().isValid() == false) {
+
+                var textAreasError = container.find('#newActionsTable textarea.inputTextarea.parsley-error, #espiTable textarea.inputTextarea.parsley-error');
+                textAreasError.each(function (index) {
+                    var textAreaAux = $(this);
+                    var trTexAreaAux = textAreaAux.closest('tr');
+                    var cssTr = trTexAreaAux.attr('style');
+                    if (cssTr != "display: table-row;") {
+                        trTexAreaAux.prev().find('label.expandable-triangle').click();
+                        trTexAreaAux.attr('style', 'display: table-row;');
+                    }
+                });
+            }
+
+            $('[name="isFinalize"]').val(false);
+            var response = saveContainer($('#Data'), '#hidViewModel', false, null, null, false);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    } else if (data.IsValid == true) {
+                        var url = '@Html.Raw(Url.Action("SupervisionReportDashboard","SupervisionReport", new { area = "MrBlue" }))';
+                        window.location.assign(url);
+                    }
+                });
+            }
+            return response;
+        }
+
+        function buttonPDF() {
+            // var url = '@Html.Raw(Url.Action("SupervisionReportDownload", "SupervisionReport", new { area = "MrBlue" }))';
+            // window.location.assign(url);
+        }
+
+        //generic functionto add cloned rows to newActionTable, espiTable and esgPersonTable
+        function newRow(source) {
+            var templateTr;
+            var templateTrExpandable;
+            var clonedTr;
+            var clonedTrExpandable;
+
+            //assignment of var values depending on the table
+            switch (source.attr("dd-table")) {
+                case "newESPI":
+                    templateTr = $('#espiTable tbody tr:first');
+                    clonedTr = templateTr.clone(false).appendTo("#espiTable tbody");
+                    templateTrExpandable = $('#espiTable tbody tr').eq(1);
+                    clonedTrExpandable = templateTrExpandable.clone(false).appendTo("#espiTable tbody");
+                    break;
+                case "newAction":
+                    templateTr = $('#newActionsTable tbody tr:first');
+                    clonedTr = templateTr.clone(false).appendTo("#newActionsTable tbody");
+                    var inputDatePicker = clonedTr.find('input[name="newActionCompleteActionDate"]');
+                    inputDatePicker.removeClass('hasDatepicker');
+                    inputDatePicker.removeAttr('id');
+                    templateTrExpandable = $('#newActionsTable tbody tr').eq(1);
+                    clonedTrExpandable = templateTrExpandable.clone(false).appendTo("#newActionsTable tbody");
+                    break;
+                case "newStaff":
+                    templateTr = $('#esgPersonTable tbody tr:first');
+                    clonedTr = templateTr.clone(false).appendTo("#esgPersonTable tbody");
+                    break;
+            };
+
+            var newId = source.data("autoincrement") + 1;
+            source.data("autoincrement", newId);
+
+            clonedTr.attr('data-id', "new-" + newId);
+            clonedTr.find("input, select,button").removeAttr('disabled');
+            clonedTr.find("input, textarea").attr('data-id', "");
+
+            //expandables config depending on the table
+            if (source.attr("dd-table").localeCompare("newStaff") != 0) {
+                clonedTrExpandable.attr('data-id', "new-" + newId);
+                clonedTrExpandable.find("input, select, button, textarea").removeAttr('disabled');
+                clonedTrExpandable.find("input, textarea").attr('data-id', "");
+                clonedTrExpandable.find("td").removeClass("hide");
+
+                switch (source.attr("dd-table")) {
+                    case "newESPI":
+                        clonedTr.find('label.expandable-triangle').attr('data-btn-expandable', "#espiTable [data-name='detail-Comment-" + newId + "']");
+                        break;
+                    case "newAction":
+                        clonedTr.find('label.expandable-triangle').attr('data-btn-expandable', "#newActionsTable [data-name='detail-Comment-" + newId + "']");
+                        break;
+                }
+                clonedTrExpandable.attr("data-name", "detail-Comment-" + newId + "")
+            }
+
+            clonedTr.removeClass("hide");
+            enterEditMode(false, clonedTr, false);
+            clonedTr.attr("data-new-id", "new");
+            bindHandlers(clonedTr);
+
+            destroyParsley();
+            initParsley();
+            destroyParsley();
+            initParsley();
+
+            clonedTr.find('[data-btn-expandable] input').click();
+
+        }
+
+        function resetModal() {
+            var divModal = $('#documentMediaTable-modal');
+            var inputsDivModal = divModal.find('input');
+            var ckechsDivModal = divModal.find('input[type="checkbox"]');
+            var formAdd = divModal.find('div[data-name="addContent"]');
+            var formSearch = divModal.find('div[data-name="searchContent"]');
+
+            formAdd.parsley().reset();
+            formSearch.parsley().reset();
+
+            inputsDivModal.each(function () {
+                var source = $(this);
+                source.val('');
+            });
+
+            ckechsDivModal.each(function () {
+                var source = $(this);
+                source.removeAttr('checked');
+            });
+
+            divModal.find('li[dd-tab="#linktab1"]').click();
+            divModal.find('#imgMediaFile').attr(
+                'src', '@Globals.GetSetting("BasePath")/Content/images/image-blank.png');
+
+            formSearch.find('div[name="resultFileMediaFilter"]').empty();
+        }
+
+    </script>
+}

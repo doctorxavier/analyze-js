@@ -1,0 +1,446 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MediaGalleryModule.ViewModels.MediaGallery
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+    var numberMaxPaginable = ConfigurationServiceFactory.Current.GetApplicationSettings().NumberMaxPaginableMediaGallery;
+}
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.LabelMainTitle(Localization.GetText("MediaGallery.Title"))
+    </div>
+</div>
+
+<div class="padding20">
+    @Confluence.LabelBold(Localization.GetText("MediaGallery.eZshareMSG"))
+</div>
+
+<div class="page">
+    <div id="Data"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]">
+        @Html.Partial("Partials/MediaGalleryPartial")
+    </div>
+    <div id="modalAddMediaFile" class="hide">
+        @Html.Partial("Partials/AddIDBMediaForm")
+    </div>
+</div>
+
+@section scripts{
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+            //Validation Location , Latitude
+            window.ParsleyValidator.addValidator('rangeValueGeography', function (value, requirement) {
+                var inputNumber = parseFloatFormated(value);
+                return (inputNumber > -90 && inputNumber < 90);
+            }, 32)
+            .addMessage('en', 'rangeValueGeography', 'Value Invalid [-90,90]');
+
+            //Validator DocumentMedia
+            window.ParsleyValidator.addValidator('formatDocumentMedia', function (value, requirement) {
+                var validExtensions = false;
+                var inputFile = $('#modalAddMediaFile input[name=fileMedia]');
+                var inputFileInput = $('#modalAddMediaFile input.inputFileInput');
+                var file = inputFile.prop('files')[0];
+                var fileName = file.name.toString();
+                var fileNameArray = fileName.split('.');
+                var fileExtension = fileNameArray[(fileNameArray.length - 1)].toLowerCase();
+
+
+                $.each(['png', 'jpg', 'jpeg', 'gif', 'bpm', 'avi', 'wmf', 'mp4', 'flv'], function (index, value) {
+                    if (fileExtension == value) {
+                        validExtensions = true;
+                    }
+                });
+
+                if (!validExtensions) {
+                    inputFile.val('');
+                    inputFileInput.val('');
+                    $('#imgMediaFile').attr('src', '@Globals.GetSetting("BasePath")/Content/images/image-blank.png');
+                } else {
+                    readURL(file);
+                }
+                return validExtensions;
+            }, 32).addMessage('en', 'formatDocumentMedia', 'Format Incorrect. Requiered png, jpg, jpeg, gif, bpm, avi, wmf, mp4, flv');
+
+            //Edit Class Selectable DocumentMedia
+            $(document).off('click', 'div[name="contentResultMediaGallery"] div[data-id="selectableMediaDocument"]');
+            $(document).on('click', 'div[name="contentResultMediaGallery"] div[data-id="selectableMediaDocument"]', function () {
+
+                var source = $(this);
+                var sourceEditChecked = $(source.find('div[name="editDocumentMedia"]'));
+                var divsContentMedia = $('div[name="contentResultMediaGallery"] div[data-id="selectableMediaDocument"]');
+                var isSelected = source.hasClass('selected');
+                divsContentMedia.removeClass('selected');
+
+                if (!isSelected) {
+                    source.addClass('selected');
+                }
+            });
+
+            $(document).off("click", 'div[name="contentResultMediaGallery"] div[name="editDocumentMedia"]');
+            $(document).on("click", 'div[name="contentResultMediaGallery"] div[name="editDocumentMedia"]', function (event) {
+
+                event.stopPropagation();
+
+                var source = $(this);
+                var img = source.closest('[data-id="selectableMediaDocument"]').find('img.imgMediaDocument');
+                var documentMediaText = source.closest('[data-id="selectableMediaDocument"]').attr('data-json');
+                var documentMedia = $.parseJSON(documentMediaText);
+                var buttonModal = $('button[data-new-modal="#modalAddMediaFile"]');
+
+                //Set Values Modal
+                for (var name in documentMedia) {
+                    var item = $(String.format('#modalAddMediaFile input[name="{0}"]', name));
+                    var isDatePicker = item.hasClass('datepicker-default');
+                    if (isDatePicker) {
+                        var value = documentMedia[name];
+                        if (value != null) {
+                            item.datepicker('setDate', new Date(value));
+                        }
+                    }
+                    else {
+                        item.val(documentMedia[name]);
+                    }
+                }
+
+                $('#modalAddMediaFile #imgMediaFile').attr('src', img.attr('src'));
+                $('#modalAddMediaFile div.inputSearch.uploadFile').closest('div.LabelsGroup').addClass('hide');
+                $('#modalAddMediaFile input[name="fileMedia"]').attr('disabled', 'disabled');
+
+                buttonModal.click();
+            });
+
+            $(document).off("change", 'div[data-id="modalContent"] input[name=fileMedia]');
+            $(document).on("change", 'div[data-id="modalContent"] input[name=fileMedia]', function () {
+
+                var inputFile = $('div[data-id="modalContent"] input[name=fileMedia]');
+                var file = this.files[0];
+
+                if (inputFile.parsley().validate()) {
+                    var dataForm = new FormData();
+                    dataForm.append('fileMedia', file);
+
+                    var url = '@Url.Action("GetMetadataMediaFile", "MediaGallery", new { area = "MediaGallery" })';
+                    var options = {
+                        dataType: 'json',
+                        async: true,
+                        contentType: false,
+                        processData: false,
+                    };
+                    var promise = postUrlWithOptions(url, options, dataForm);
+                    promise.done(function (data) {
+                        if (data.IsValid) {
+                            $('input[name="Date"]').val(data.Date);
+                            $('input[name="Latitud"]').val(parseFloatFormated(data.Latitude.toString(), 2));
+                            $('input[name="Longitud"]').val(parseFloatFormated(data.Longitud.toString(), 2));
+                        }
+                        if (data.ErrorMessage != null && data.ErrorMessage.length > 0) {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            });
+
+            $(document).off("click", 'div[data-PageNumber]:not(.Pagination_Active)');
+            $(document).on("click", 'div[data-PageNumber]:not(.Pagination_Active)', function () {
+
+                var numberMaxPaginable = parseInt('@numberMaxPaginable');
+
+                var source = $(this);
+                var cointainerDocuments = $('div[data-id-selector="documents-container"]');
+                var cointainerPagination = $('div.Pagination');
+                var selectedPage = source.attr('data-PageNumber');
+
+                function SelectPage(page, element) {
+
+                    var totalPage = cointainerPagination.find('div[data-pagenumber]').length - 4;
+
+                    var pagesToShowLeft = 2;
+                    var pageToShowRight = 2;
+
+                    element.siblings().removeClass('Pagination_Active');
+                    element.addClass('Pagination_Active');
+
+                    cointainerPagination.find('div').addClass('hide');
+                    cointainerPagination.find('div[data-pagenumber="Prev"]').removeClass('hide');
+                    cointainerPagination.find('div[data-pagenumber="Next"]').removeClass('hide');
+
+                    cointainerPagination.find('div:not([data-pagenumber="Prev"]):not([data-pagenumber="Next"]):not([data-pagenumber="First"]):not([data-pagenumber="Last"])').each(function () {
+                        var sourceAux = $(this);
+                        var numberPage = sourceAux.attr('data-pagenumber');
+                        var numberPageInt = parseInt(sourceAux.attr('data-pagenumber'));
+
+                        if ((numberPageInt >= (parseInt(page) - pagesToShowLeft)) && (numberPageInt <= (parseInt(page) + pageToShowRight))) {
+                            sourceAux.removeClass('hide');
+                        }
+                    });
+
+                    if (!((1 >= (parseInt(page) - pagesToShowLeft)) && (1 <= (parseInt(page) + pageToShowRight)))) {
+                        cointainerPagination.find('div[data-pagenumber="First"]').removeClass('hide');
+                    }
+
+                    if (!((totalPage >= (parseInt(page) - pagesToShowLeft)) && (totalPage <= (parseInt(page) + pageToShowRight)))) {
+                        cointainerPagination.find('div[data-pagenumber="Last"]').removeClass('hide');
+                    }
+                }
+                if (!isNaN(selectedPage)) {
+
+                    SelectPage(selectedPage, source);
+                    applyFilterNavigation((selectedPage - 1), numberMaxPaginable);
+
+                } else {
+
+                    var activePage = cointainerPagination.find('div.Pagination_Active');
+                    var targetPageNumber = null;
+                    var currentButton = null;
+
+                    if (selectedPage == 'Prev') {
+                        currentButton = activePage.prev();
+                        var prevButtonNumber = currentButton.attr('data-PageNumber');
+                        if (!isNaN(prevButtonNumber)) {
+                            targetPageNumber = prevButtonNumber;
+                        }
+                    } else if (selectedPage == 'First') {
+                        currentButton = source.next();
+                        var firstButtonNumber = currentButton.attr('data-PageNumber');
+                        if (!isNaN(firstButtonNumber)) {
+                            targetPageNumber = firstButtonNumber;
+                        }
+                    } else if (selectedPage == 'Last') {
+                        currentButton = source.prev();
+                        var lastButtonNumber = currentButton.attr('data-PageNumber');
+                        if (!isNaN(lastButtonNumber)) {
+                            targetPageNumber = lastButtonNumber;
+                        }
+                    } else if (selectedPage == 'Next') {
+                        currentButton = activePage.next();
+                        var nextButtonNumber = currentButton.attr('data-PageNumber');
+                        if (!isNaN(nextButtonNumber)) {
+                            targetPageNumber = nextButtonNumber;
+                        }
+                    }
+
+                    if (targetPageNumber != null) {
+                        SelectPage(targetPageNumber, currentButton);
+                        applyFilterNavigation((targetPageNumber - 1), numberMaxPaginable);
+                    }
+                }
+            });
+
+            $(document).on('mouseover', 'div[data-id="selectableMediaDocument"]', function () {
+                var source = $(this);
+                var editDocumentMedia = source.find('div[name="editDocumentMedia"]');
+                editDocumentMedia.removeClass("hide");
+            });
+
+            $(document).on('mouseleave', 'div[data-id="selectableMediaDocument"]', function () {
+                var source = $(this);
+                var editDocumentMedia = source.find('div[name="editDocumentMedia"]');
+                editDocumentMedia.addClass("hide");
+            });
+
+
+            $('[name="ApplyFilter"]').click();
+
+        });
+
+
+        function submitAttachAddMediaFile() {
+
+            showLoader();
+
+            var content = $('#modalAddMediaFile');
+            var inputsContent = content.find('input:not([name="fileMedia"])');
+            var inputFile = content.find('input[name=fileMedia]');
+            var file = inputFile.prop('files')[0];
+            var modalContent = $('div[data-id="modalContent"]');
+            var numberMaxPaginable = parseInt('@numberMaxPaginable');
+
+
+            if (modalContent.parsley().validate()) {
+
+                var dataForm = new FormData();
+                inputsContent.each(function () {
+                    var source = $(this);
+                    var name = source.attr('name');
+                    var value = null;
+                    if (source.attr('data-input') == 'decimal') {
+                        value = parseFloatFormated(source.val());
+                    }
+                    else if (source.attr('type') == 'text' && source.attr('data-input') != 'decimal') {
+                        value = source.val();
+                    }
+                    dataForm.append(name, value);
+                });
+
+                dataForm.append('fileMedia', file);
+
+                var url = '@Url.Action("AttachAddMediaFile", "MediaGallery", new { area = "MediaGallery" })';
+                var options = {
+                    data: dataForm,
+                    dataType: 'json',
+                    async: false,
+                    contentType: false,
+                    processData: false,
+                };
+                var promise = postUrlWithOptions(url, options, dataForm);
+                promise.done(function (data) {
+                    if (data.IsValid) {
+                        exitModal();
+                        var cointainerPagination = $('div.Pagination.clickable');
+                        var pageActive = cointainerPagination.find('div.Pagination_Number.Pagination_Active');
+                        var numberPage = pageActive.attr('data-pagenumber');
+                        var inputOperationNumber = modalContent.find('input[name="OperationNumberValue"]').val();
+                        if (inputOperationNumber.length > 0) {
+                            applyFilterNavigation(numberPage - 1, numberMaxPaginable)
+                        }
+                        applyFilter();
+                    }
+                    if (data.ErrorMessage != null && data.ErrorMessage.length > 0) {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+
+                hideLoader();
+            }
+        }
+
+        function applyFilter() {
+
+            showLoader();
+
+            var content = $('div[name="contentFilterMediaGallery"]');
+            var inputs = content.find('input');
+            var contentResultMediaGallery = $('div[name="contentResultMediaGallery"]');
+            var dataForm = new FormData();
+            var numberMaxPaginable = parseInt('@numberMaxPaginable');
+
+            //OverWrite Values Inuts Hidden
+            $('input[name="filter-MainFilter"]').val($('input[name="MainFilter"]').val());
+            $('input[name="filter-DateFrom"]').val($('input[name="DateFrom"]').val());
+            $('input[name="filter-DateTo"]').val($('input[name="DateTo"]').val());
+
+            //Set Values DataForm
+            dataForm.append('MainFilter', $('input[name="filter-MainFilter"]').val());
+            dataForm.append('DateFrom', $('input[name="filter-DateFrom"]').val());
+            dataForm.append('DateTo', $('input[name="filter-DateTo"]').val());
+
+            //form.submit();
+            $.ajax({
+                url: '@Url.Action("LoadFilterMediaFiles", "MediaGallery", new { area = "MediaGallery" })?elementsForPage=' + numberMaxPaginable,
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                async: false,
+                type: 'POST'
+            }).done(function (data) {
+                contentResultMediaGallery.html(data);
+                replaceImgNotFound();
+            });
+
+            hideLoader();
+        }
+
+        function applyFilterNavigation(numberPage, elementsForPage) {
+
+            showLoader();
+
+            var dataForm = new FormData();
+            var cointainerPagination = $('div.Pagination');
+            var totalPage = cointainerPagination.find('div[data-pagenumber]').length - 4;
+            var contentResultMediaGallery = $('div[data-id-selector="documents-container"]');
+
+            //Set Values DataForm
+            dataForm.append('MainFilter', $('input[name="filter-MainFilter"]').val());
+            dataForm.append('DateFrom', $('input[name="filter-DateFrom"]').val());
+            dataForm.append('DateTo', $('input[name="filter-DateTo"]').val());
+
+            //form.submit();
+            $.ajax({
+                url: '@Url.Action("LoadFilterMediaFilesNavigation", "MediaGallery", new { area = "MediaGallery" })?numberPage=' + numberPage + '&elementsForPage=' + elementsForPage,
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                async: false,
+                type: 'POST'
+            }).done(function (data) {
+                contentResultMediaGallery.html(data);
+                replaceImgNotFound();
+            });
+
+            hideLoader();
+        }
+
+        function replaceImgNotFound() {
+            var inputsImg = $('div[name="contentResultMediaGallery"] img.imgMediaDocument');
+            inputsImg.each(function () {
+                var source = $(this);
+                source.error(function () {
+                    	source.attr('src', '@Globals.GetSetting("BasePath")/Content/images/image-notfound.png');
+                });
+            });
+        }
+
+        function resetModal() {
+
+            var divModal = $('#modalAddMediaFile');
+            var inputsDivModal = divModal.find('input');
+
+            inputsDivModal.each(function () {
+                var source = $(this);
+                source.val('');
+            });
+
+            $('#modalAddMediaFile div.inputSearch.uploadFile').closest('div.LabelsGroup').removeClass('hide');
+            $('#modalAddMediaFile input[name="fileMedia"]').removeAttr('disabled');
+
+            readURL(null);
+        }
+
+        //Load Imge Preview
+        function readURL(file) {
+            if (file != null) {
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    $('#imgMediaFile').attr('src', e.target.result);
+                }
+                reader.readAsDataURL(file);
+            }
+            else {
+                $('#imgMediaFile').attr('src', '@Globals.GetSetting("BasePath")/Content/images/image-blank.png');
+            }
+        }
+
+        function cancelAttach() {
+            exitModal();
+        }
+
+        function exitModal() {
+            var container = $('div#modalAddMediaFile');
+            var modal = container.closest('div.vex-content');
+            var buttonClose = modal.find('div.vex-close');
+            buttonClose.click();
+        }
+
+        function sleep(miliseconds) {
+            var currentTime = new Date().getTime();
+
+            while (currentTime + miliseconds >= new Date().getTime()) {
+            }
+        }
+
+    </script>
+}

@@ -1,0 +1,714 @@
+﻿@using IDB.Architecture.Language
+@using IDB.Architecture.BusinessRules;
+@using IDB.MW.Domain.Models.Architecture.Enumerations;
+@using IDB.Presentation.MVC4.Areas.Visualization.Enums;
+@using IDB.Presentation.MVC4.Areas.Visualization.Business
+@using IDB.Architecture.Extensions;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+
+@{
+    Layout = "~/Views/Shared/_ClearLayout.cshtml";
+    var operation = Model.OperationContext;
+    var vpv = Model.VisualProject.VisualProjectVersionsData;
+    var editRule = Model.Execute("Visualization.VPV.IsEditable");
+}
+
+@section javascript {
+    <script type="text/javascript" src="~/scripts/kendo.web.js"></script>
+    <script type="text/javascript" src="~/scripts/jqplugins/jquery-ui-1.11.3.js"></script>
+    <script type="text/javascript" src="~/scripts/modules/visualization/common.js"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Mainframe/fixIframe.js")"></script>
+}
+
+@section css{
+    <style type="text/css">
+        .documentSupportDownloadIcon {
+            background: #ffffff url("../../../Images/icons/downloadSupportDocumentIcon.png") no-repeat center center;
+        }
+
+        .operationButton {
+            width: 30px;
+            height: 25px;
+            background-color: transparent;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid #cbdcf2;
+        }
+    </style>
+}
+
+@section scripts {
+    <script type="text/javascript">
+    $(document).ready(function () {
+        $("#removeDialogWait").hide();
+        $("#sendDialogWait").hide();
+
+        $('.show-details').click(function () {
+            var btn = $(this).children('i');
+            if (btn.hasClass('fa-caret-square-o-down')) {
+                btn.parentsUntil('tr').parent().next().show();
+                btn.removeClass('fa-caret-square-o-down');
+                btn.addClass('fa-caret-square-o-up');
+
+            } else {
+                btn.parentsUntil('tr').parent().next().hide();
+                btn.addClass('fa-caret-square-o-down');
+                btn.removeClass('fa-caret-square-o-up');
+            }
+        });
+    });
+
+    function validateVPConcurrenceAndConfirmEdition() {
+        var currentLocation = window.location.href;
+
+        $.get(idbg.getPath('@(Model.VerifyConcurrenceUrl)' + '?path=' +
+            '@(Model.VerifyConcurrenceData[0])' + '&query=' + '@(Model.VerifyConcurrenceData[1])'),
+                function (res, status, xhr) {
+                    if (res != '') {
+                        var alertMessage = "@(Html.Raw(Localization.GetText("VIS.current.object.being.edited.by")))";
+                        alertMessage = alertMessage
+                            .replace("{0}", "@(Html.Raw(Localization.GetText("Map Operation")))").replace("{1}", res);
+
+                        alert(alertMessage);
+
+                        document.location.href = currentLocation;
+                        return false;
+                    }
+                    else {
+                        var confirmTitle = '@(Localization.GetText("Warning"))';
+                        var confirmMessage = '@(Html.Raw(editRule.GetResult<string>("Confirmation")))';
+                        var actionUrl = '@(editRule.GetResult<string>("Action"))';
+
+                        if (confirmMessage) {
+                            kendoConfirm({
+                                title: confirmTitle,
+                                message: confirmMessage,
+                                data: actionUrl,
+                                onConfirm: function (data) {
+                                    document.location.href = data;
+                                }
+                            });
+                            return;
+                        }
+
+                        document.location.href = actionUrl;
+                    }
+                })
+            .fail(function (res, status, xhr) {
+                if (!(res.responseText.trim() == "" && status.trim() == "error" && xhr.trim() == "")) {
+                    alert("error: " + res.responseText + " " + status + " " + xhr);
+
+                    return false;
+                }
+            })
+    }
+
+        function downloadDocumentNewSection(register) {
+            var docNumber = $(register.closest('tr')).find('td:nth-child(3)')[0].outerText;
+            var url = '@Url.Action("GetDocument", "Document", new { area = string.Empty})' + '?docNum=' + docNumber;
+            window.open(url, '_blank');
+        }
+
+</script>
+}
+
+@section contentheader{
+    <div class="content-block">
+        <div class="left">
+            <h1>@Localization.GetText("Map Operation")</h1>
+        </div>
+        <div class="right">
+            @renderActions(editRule, Model)
+        </div>
+    </div>
+}
+
+<div class="content-block">
+    <ul class="content-block content-list three">
+        <li>
+            <div class="title">@Localization.GetText("Last update")</div>
+            <div class="content">@vpv.Modified.Value.ToString("dd MMM yyyy")</div>
+        </li>
+        <li>
+            <div class="title">@Localization.GetText("Validation status")</div>
+            <div class="content">
+                @Model.GetVisualDataValidationStageName(vpv.ValidationStageId.Value, vpv.IsValidated)
+
+                @if (vpv.IsDeleted.IsTrue())
+                {
+                    <br />
+                    <span style="color: red; font-family: 'OpenSans-Regular', Arial">
+                        (@Localization.GetText("Deleted"))
+                    </span>
+                }
+            </div>
+        </li>
+        <li>
+            <div class="title">@Localization.GetText("Published")</div>
+
+            @if (vpv.ValidationStageCode == "VIS_DRAFY")
+            {
+                <div class="content">@Localization.GetText("VIS.UNPUBLISHED")</div>
+            }
+            else if (vpv.ValidationStageCode == "VIS_TL")
+            {
+                <div class="content">@Localization.GetText("VIS.Internal")</div>
+            }
+            else if (vpv.ValidationStageCode == "VIS_COO" && !vpv.IsValidated)
+            {
+                <div class="content">@Localization.GetText("VIS.AWAITING.VALIDATION")</div>
+            }
+            else if (vpv.ValidationStageCode == "VIS_COO" && vpv.IsValidated)
+            {
+                <div class="content">@Localization.GetText("VIS.External")</div>
+            }
+        </li>
+    </ul>
+
+    <div>
+        <div class="title">@Localization.GetText("Operation objective")</div>
+        <div class="content">@operation.CurrentOperationData.Objective</div>
+    </div>
+</div>
+
+<div class="content-block">
+    <h2>@Localization.GetText("Location data")</h2>
+    <div style="width: 100%; border: solid 2px #ccc; height: 590px">
+        <iframe id="map" style="width:100%;height:590px"
+                src="@Url.Action("MapSelection",
+                    new {
+	                    language = IDBContext.Current.CurrentLanguage,
+	                    visualObjectId = Model.VisualProject.VisualProjectId,
+                        visualObjectVersionId = Model.VisualProjectVersionId,
+	                    objectType = "vp"
+                    })"></iframe>
+    </div>
+</div>
+
+<div class="content-block">
+    <h2>@Localization.GetText("Media")</h2>
+    <div class="content-separator"></div>
+    <table class="grid visualization-table td-middle">
+        <thead>
+            <tr>
+                <th>@Localization.GetText("Year")</th>
+                <th>@Localization.GetText("Media file")</th>
+                <th>@Localization.GetText("Name")</th>
+                <th>@Localization.GetText("Source")</th>
+                <th>@Localization.GetText("Permission documentation")</th>
+                <th>@Localization.GetText("Actions")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var media in vpv.VisualProjectMedia)
+            {
+                <tr>
+                    <td>
+                        @media.Media.Year
+                    </td>
+                    <td>
+                        <img class='image-loader' src='@media.Media.MediaUrl' style='width:96px; height:60px;' />
+                    </td>
+                    <td>@media.Media.Name</td>
+                    <td>@media.Media.MediaSource</td>
+                    <td>
+                       
+                        @foreach (var document in media.Media.DocumentMedias)
+                        {
+                            var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocumentReference);
+
+                            <div class="single-line">
+                                <a href=@secureUrl target="_blank">
+                                    @document.Description
+                                </a>
+                            </div>
+                        }
+                    </td>
+                    <td>
+                        <a href="javascript:void(0)" class="show-details"
+                           title="@Localization.GetText("View details")">
+                            <i class="fa fa-caret-square-o-down"></i>
+                        </a>
+                    </td>
+                </tr>
+                <tr style="display: none">
+                    <td colspan="7">
+                        <ul class="content-list two">
+                            <li>
+                                <div class="title">@Localization.GetText("Content")</div>
+                                <div class="content">@media.Media.Content</div>
+                            </li>
+                            <li>
+                                <div class="title">@Localization.GetText("Type")</div>
+                                <div class="content">@media.Media.MediaType</div>
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            }
+            <tr></tr>
+        </tbody>
+    </table>
+</div>
+
+<!--  Section Documents - Initial -->
+@if (ViewBag.CycleTypeOperation == "TCM")
+{
+<div class="content-block">
+    <h2>@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Documents")</h2>
+    <div class="content-separator"></div>
+    <table id="SectionDocumentsTable" class="grid visualizationDoc-table td-middle">
+        <thead>
+            <tr>
+                <th style="text-align: center; width:15%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.User")</th>
+                <th style="text-align: center; width:10%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Date")</th>
+                <th style="text-align: center; width:15%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.IDBDocNumber")</th>
+                <th style="text-align: center; width:50%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Description")</th>
+                <th style="text-align: center; width:10%">@Localization.GetText("TCM.Visualizacion.VisualData.Documents.Action")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int index = 0; (Model.VisualProject.VisualProjectDocument != null) && (index < Model.VisualProject.VisualProjectDocument.Count()); index++)
+            {
+                var document = Model.VisualProject.VisualProjectDocument[index];
+                <tr id="row-index-@document.Document.DocumentId" class="row-child">
+                    <td>@document.Document.CreatedBy</td>
+                    <td>@String.Format("{0:dd MMM yyyy}", document.Document.Created)</td>
+                    <td>@document.Document.DocumentReference</td>
+                    <td>@document.Document.Description</td>
+                    <td><input type="button" class="operationButton documentSupportDownloadIcon cursorPointer" onclick="downloadDocumentNewSection(this)" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+}
+<!-- Section Documents - Final -->
+
+<div class="content-block">
+    <div class="right">
+        @renderActions(editRule, Model)
+    </div>
+</div>
+
+@helper renderActions(RuleContext editRule, VisualizationBusinessContext model)
+{
+    var visualProjectVersionModel = model.VisualProject.VisualProjectVersionsData;
+    var alreadyExistsInDB = 
+        visualProjectVersionModel.VisualProjectId > 0 && visualProjectVersionModel.VisualProjectVersionId > 0;
+
+    if (editRule.GetResult<bool>
+    ())
+    {
+        var tlCompleted = Model.Execute("Visualization.VP.TLCompleted.IsEnable");
+
+    if (tlCompleted.GetResult<bool>
+        () ||
+            (visualProjectVersionModel.ValidationStageCode == "VIS_DRAFY" ||
+            visualProjectVersionModel.ValidationStageCode == "VIS_TL"))
+        {
+                <input type="button"
+                class="button click-action yellow@(alreadyExistsInDB ? string.Empty : " disabled")"
+                    value=@Localization.GetText("VIS.send.to.map")
+                onclick="MapDialogs.SendToMap()"
+                @(alreadyExistsInDB ? string.Empty : "disabled=disabled") />
+            }
+
+            if (visualProjectVersionModel.ValidationStageCode == "VIS_COO" &&
+                visualProjectVersionModel.IsValidated &&
+                !IDBContext.Current.HasRole(Role.RM_ADMINISTRATOR))
+            {
+                <input type="button"
+                    class="button click-action white"
+                    value=@Localization.GetText("VIS.remove.to.map")
+                    onclick="MapDialogs.CooAuthorizationDialog()" />
+            }
+            else
+            {
+                if (visualProjectVersionModel.ValidationStageCode == "VIS_COO" &&
+                    !visualProjectVersionModel.IsValidated)
+                {
+                    <input type="button"
+                        class="button click-action white"
+                        value=@Localization.GetText("VIS.remove.to.map")
+                        onclick="MapDialogs.FlowInProgressDialog()" />
+                }
+            else if (visualProjectVersionModel.ValidationStageCode == "VIS_TL" ||
+                visualProjectVersionModel.ValidationStageCode == "VIS_COO")
+                {
+                    <input type="button"
+                        class="button click-action white"
+                        value=@Localization.GetText("VIS.remove.to.map")
+                        onclick="MapDialogs.RemoveFromMap()" />
+                }
+            }
+
+        <input type="button"
+               class="button click-action"
+               value="@Localization.GetText("Edit")"
+               onclick="validateVPConcurrenceAndConfirmEdition()" />
+    }
+}
+
+<div class="hidden">
+    <div class="k-window-content k-content" data-role="window" tabindex="0"
+         style="overflow: visible;" id="SendToMapDialog">
+        <div id="sendDialogContent" style="padding: 20px;">
+            @Html.Raw(Localization.GetText("VIS.you.are.about.send.new.updates"))
+            <br /><br />
+            @Html.Raw(Localization.GetText("VIS.remember.if.you.choose.internal"))
+            <br /><br />
+            @Html.Raw(Localization.GetText("VIS.select.on.which.map.publish")):
+            <br /><br />
+
+            <span class="radio">
+                @{
+                    var isInternalPublished =
+                        Model.VisualProject.VisualProjectVersionsData.ValidationStageId ==
+                            Model.VIS_TL.MasterId;
+                }
+
+                <input type="radio" name="sendtomap" id="sendtomap-internal" value="Internal"
+                       @(isInternalPublished ? "disabled" : string.Empty) />
+                <label for="sendtomap-internal">@Localization.GetText("VIS.Internal")</label>
+
+                &nbsp;&nbsp;
+
+                <input type="radio" name="sendtomap" id="sendtomap-external" value="External" />
+                <label for="sendtomap-external">@Localization.GetText("VIS.External")</label>
+
+            </span>
+        </div>
+
+        <div class="pie pieReassign" id="sendDialogFooter">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;">
+                <input type="button" class="button click-action white"
+                       value="@Localization.GetText("Cancel")"
+                       onclick="MapDialogs.SendToMap.Dialog.close()" />
+                &nbsp;&nbsp;&nbsp;
+                <input type="button" class="button click-action" id="sendToMapDialogOk"
+                       value="@Localization.GetText("Save & Validate")"
+                       onclick="sendToMap(@(Model.VisualProject.VisualProjectVersionsData.VisualProjectVersionId), @((int)SendToMapSourceEnum.Map), '@Url.Action("VisualProjectSendToMap")')" />
+            </div>
+        </div>
+
+        <div id="sendDialogWait" style="text-align:center;padding: 20px 20px 20px 20px;">
+            <br /><br />
+            @Localization.GetText("VIS.wait")
+            <img src="~/Content/images/loading.gif" />
+            <br /><br />
+        </div>
+    </div>
+</div>
+
+<div class="hidden">
+    <div class="k-window-content k-content warning" data-role="window" tabindex="0"
+         style="overflow: visible;" id="RemoveFromMapDialog">
+        <div id="removeDialogContent" style="padding: 20px;">
+            @Localization.GetText("VIS.you.are.about.remove")
+            <br /><br />
+            @Localization.GetText("VIS.this.action.will.remove.current.version")
+            <br /><br />
+            @Localization.GetText("VIS.select.on.which.map.remove"):
+            <br /><br />
+
+            <span class="radio">
+                @if (vpv.ValidationStageCode == "VIS_TL" || vpv.ValidationStageCode == "VIS_COO")
+                {
+                    <input type="radio" name="removefrommap" id="removefromamp-internal" value="Internal" />
+                    <label for="removefromamp-internal">@Localization.GetText("Internal")</label>
+                }
+
+                &nbsp;&nbsp;
+
+                @if (vpv.ValidationStageCode == "VIS_COO" && vpv.IsValidated &&
+                    IDBContext.Current.HasRole(Role.RM_ADMINISTRATOR))
+                {
+                    <input type="radio" name="removefrommap" id="removefromamp-external" value="External" />
+                    <label for="removefromamp-external">@Localization.GetText("External")</label>
+                }
+            </span>
+        </div>
+
+        <div class="pie pieReassign" id="removeDialogFooter">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;">
+                <input type="button" class="button click-action white"
+                       value="@Localization.GetText("Cancel")"
+                       onclick="MapDialogs.RemoveFromMap.Dialog.close()" />
+                &nbsp;&nbsp;&nbsp;
+                <input type="button" class="button click-action yellow"
+                       value="@Localization.GetText("Remove")"
+                       onclick="removeFromMap(@Model.VisualProject.VisualProjectVersionsData.VisualProjectVersionId, @((int)SendToMapSourceEnum.Map), '@Url.Action("VisualProjectRemoveFromMap")')" />
+            </div>
+        </div>
+
+        <div id="removeDialogWait" style="text-align:center;padding: 20px 20px 20px 20px;">
+            <br /><br />
+            @Localization.GetText("VIS.wait")
+            <img src="~/Content/images/loading.gif" />
+            <br /><br />
+        </div>
+    </div>
+</div>
+
+<div class="hidden">
+    <div class="k-window-content k-content warning" data-role="window" tabindex="0"
+         style="overflow: visible;" id="cooAuthorizationDialog">
+        <div style="padding: 20px;">
+            @Localization.GetText("VIS.you.wish.to.remove.the.mo.ext")
+            <br /><br />
+            @Localization.GetText("VIS.the.current.version.of.mo.is.published.to.ext")
+            <br /><br />
+        </div>
+
+        <div class="pie pieReassign">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;">
+                <input type="button" class="button click-action yellow" value="OK"
+                       onclick="MapDialogs.CooAuthorizationDialog.Dialog.close()" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="hidden">
+    <div class="k-window-content k-content warning" data-role="window" tabindex="0"
+         style="overflow: visible;" id="flowInProgressDialog">
+        <div style="padding: 20px;">
+            @Localization.GetText("VIS.you.wish.to.remove.the.mo.ext")
+            <br /><br />
+            @Localization.GetText("VIS.the.current.version.of.mo.is.awaiting.for.COO")
+            <br /><br />
+        </div>
+
+        <div class="pie pieReassign">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;">
+                <input type="button" class="button click-action yellow" value="OK"
+                       onclick="MapDialogs.FlowInProgressDialog.Dialog.close()" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<style type="text/css">
+    .k-widget.k-window {
+        z-index: 20;
+        background: #FFF !important;
+        border-radius: 12px;
+    }
+
+
+    .k-overlay {
+        z-index: 10;
+        opacity: 0.7 !important;
+    }
+
+    .k-window-titlebar.k-header.warning {
+        background: #e19c23 !important;
+    }
+</style>
+
+<script type="text/javascript">
+    var MapDialogs = new Object();
+
+    MapDialogs.SendToMap = function () {
+        if (MapDialogs.SendToMap.Dialog == null) {
+            $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+
+            var stmTitle = '@Localization.GetText("VIS.send.to.map")';
+
+            MapDialogs.SendToMap.Dialog = $("#SendToMapDialog").kendoWindow({
+                width: "800px",
+                title: stmTitle,
+                draggable: false,
+                resizable: false,
+                pinned: true,
+                actions: ["Close"],
+                modal: true,
+                visible: false,
+                close: function () {
+                    $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                    $(".ui-widget-overlay").remove();
+                }
+            }).data("kendoWindow");
+
+            $(".k-window-title").addClass("ico_warning");
+        }
+
+        MapDialogs.SendToMap.Dialog.center().open();
+    };
+
+    MapDialogs.RemoveFromMap = function () {
+        if (MapDialogs.RemoveFromMap.Dialog == null) {
+            $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+
+            var rfmTitle = '@Localization.GetText("VIS.remove.to.map")';
+
+            MapDialogs.RemoveFromMap.Dialog = $("#RemoveFromMapDialog").kendoWindow({
+                width: "800px",
+                title: rfmTitle,
+                draggable: false,
+                resizable: false,
+                pinned: true,
+                actions: ["Close"],
+                modal: true,
+                visible: false,
+                close: function () {
+                    $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                    $(".ui-widget-overlay").remove();
+                }
+            }).data("kendoWindow");
+
+            $(".k-window-titlebar").addClass("warning");
+            $(".k-window-title").addClass("ico_warning");
+        }
+
+        MapDialogs.RemoveFromMap.Dialog.center().open();
+    };
+
+    MapDialogs.CooAuthorizationDialog = function () {
+        if (MapDialogs.CooAuthorizationDialog.Dialog == null) {
+            $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+
+            var authTitle = '@Localization.GetText("VIS.remove.to.map")';
+
+            MapDialogs.CooAuthorizationDialog.Dialog = $("#cooAuthorizationDialog").kendoWindow({
+                width: "800px",
+                title: authTitle,
+                draggable: false,
+                resizable: false,
+                pinned: true,
+                actions: ["Close"],
+                modal: true,
+                visible: false,
+                close: function () {
+                    $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                    $(".ui-widget-overlay").remove();
+                }
+            }).data("kendoWindow");
+
+            $(".k-window-titlebar").addClass("warning");
+            $(".k-window-title").addClass("ico_warning");
+        }
+
+        MapDialogs.CooAuthorizationDialog.Dialog.center().open();
+    };
+
+    MapDialogs.FlowInProgressDialog = function () {
+        if (MapDialogs.FlowInProgressDialog.Dialog == null) {
+            $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+            $(window).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+
+            var fipTitle = '@Localization.GetText("VIS.remove.to.map")';
+
+            MapDialogs.FlowInProgressDialog.Dialog = $("#flowInProgressDialog").kendoWindow({
+                width: "800px",
+                title: fipTitle,
+                draggable: false,
+                resizable: false,
+                pinned: true,
+                actions: ["Close"],
+                modal: true,
+                visible: false,
+                close: function () {
+                    $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                    $(".ui-widget-overlay").remove();
+                }
+            }).data("kendoWindow");
+
+            $(".k-window-titlebar").addClass("warning");
+            $(".k-window-title").addClass("ico_warning");
+        }
+
+        MapDialogs.FlowInProgressDialog.Dialog.center().open();
+    };
+
+    MapDialogs.SendToMap.Dialog = null;
+    MapDialogs.RemoveFromMap.Dialog = null;
+    MapDialogs.CooAuthorizationDialog.Dialog = null;
+    MapDialogs.FlowInProgressDialog.Dialog = null;
+
+    function getHRefMessage(success) {
+        if (success != undefined && success) {
+            return '@Html.Raw(Url.Action("VPDetails", new
+                {
+                    visualOutputId = Model.VisualProject.VisualProjectId,
+                    messageStatus = MessageNotificationCodes.SaveDataSucessfully
+                }))';
+        }
+        else {
+            return '@Html.Raw(Url.Action("VPDetails", new
+                {
+                    visualOutputId = Model.VisualProject.VisualProjectId,
+                    messageStatus = MessageNotificationCodes.SaveDataFail
+                }))';
+        }
+    }
+
+    function sendToMap(visualProjectVersionId, operationOrigin, destinationUrl) {
+        var sendMapTo = $("input[name='sendtomap']:checked").val();
+
+        if (sendMapTo != undefined) {
+            $("#sendDialogContent").hide();
+            $("#sendDialogFooter").hide();
+            $("#sendDialogWait").show();
+
+            $.ajax({
+                type: "POST",
+                url: destinationUrl,
+                data: JSON.stringify({
+                    visualProjectVersionId: visualProjectVersionId,
+                    operationOrigin: operationOrigin,
+                    destination: sendMapTo
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    MapDialogs.SendToMap.Dialog.close();
+                    location.href = getHRefMessage(data.success);
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    MapDialogs.SendToMap.Dialog.close();
+                    location.href = getHRefMessage(false);
+                }
+            });
+        }
+    }
+
+    function removeFromMap(visualProjectVersionId, operationOrigin, destinationUrl) {
+        var removeMapFrom = $("input[name='removefrommap']:checked").val();
+
+        if (removeMapFrom != undefined) {
+            $("#removeDialogContent").hide();
+            $("#removeDialogFooter").hide();
+            $("#removeDialogWait").show();
+
+            $.ajax({
+                type: "POST",
+                url: destinationUrl,
+                data: JSON.stringify({
+                    visualProjectVersionId: visualProjectVersionId,
+                    operationOrigin: operationOrigin,
+                    destination: removeMapFrom
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    MapDialogs.RemoveFromMap.Dialog.close();
+                    location.href = getHRefMessage(data.success);
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    MapDialogs.RemoveFromMap.Dialog.close();
+                    location.href = getHRefMessage(false);
+                }
+            });
+        }
+    }
+</script>

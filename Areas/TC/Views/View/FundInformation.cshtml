@@ -1,0 +1,688 @@
+﻿@using System.Web.Mvc
+@using System.Web.Mvc.Html
+@using System.Web.Script.Serialization
+
+@using Newtonsoft.Json
+
+@using IDB.Architecture.Language
+@using IDB.MW.Infrastructure.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.TCAbstractModule.ViewModels.TCAbstractService
+@using IDB.MW.Application.TCAbstractModule.Enums
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.FundInformation.FundInformationViewModel
+
+@if (MvcHelpers.CheckRole(ViewBag.GLobalRoleList, ActionEnum.ConvergenceReadPermission))
+{
+    <div class="header">
+        <div class="row header-fundInform">
+            <div class="col-md-3">
+                <h1 style="font-family: OpenSans-Bold;font-size: 30px">@Model.Header.TitleFundName.HtmlEncode()</h1>
+            </div>
+            <div class="col-md-9" style="min-width:769px;">
+                <div class="row mb10">
+                    <div class="col-md-5">
+                        @Confluence.Label(@Localization.GetText("TC.FundInformation.Title.FundCoordinator"))
+                    </div>
+                    <div class="col-md-7">
+                        @Confluence.Label(@Localization.GetText("TC.FundInformation.Title.Donors"))
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-5">
+                        @Confluence.LabelBold(@Model.Header.FundCoordinator)
+                    </div>
+                    <div class="col-md-7">
+                        <label class="labelNormal bold">
+                            @Html.Raw(Model.Header.Donors)
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mb40 mt40" style="min-height:39px;">
+            <div class="col-md-12">
+                @Html.Partial("Partials/Controls/FundInformationButtons")
+                @Confluence.Navigation(Confluence.LabelMainTitle(@Localization.GetText("TC.FundInformation.Title")), Url.Action("FilterFunds", "View", new { area = "TC" }))
+            </div>
+        </div>
+    </div>
+    <div class="page">
+        <input type="hidden" id="hidTrustFundId" value="@ViewBag.HiddenFundId" />
+        <input type="hidden" id="deleteDelegate" name="DelegateHidden" />
+
+        @Html.Partial("Partials/FundInformationPartial", Model)
+
+        <div class="row mt50">
+            <div class="col-md-12">
+                @Html.Partial("Partials/Controls/FundInformationButtons")
+            </div>
+        </div>
+
+        <div data-id="ModalRegion" class="hide">
+            <div id="deleteDelegateModal" class="hide modalBody">
+                @Confluence.Label(Localization.GetText("TC.FundingInformation.Delegates.Delete.Title"))
+            </div>
+            <div id="deleteDocumentModal" class="hide modalBody">
+                @Confluence.Label(Localization.GetText("TC.FundingInformation.Document.Delete"))
+            </div>
+            <div id="saveMessageModal" class="hide modalBody">
+                @Localization.GetText("TC.FundingInformation.SaveMessage")
+            </div>
+            <div data-id="DonorContactDetailsModal" class="hide modalBody">
+            </div>
+
+            @Display.AddModalButton(new ModalViewModel(
+            name: "butttonDonorContactDetailsModal",
+            allowClose: true,
+            contentSelector: "[data-id='DonorContactDetailsModal']",
+            type: CssClass.ModalInformation,
+            title: Localization.GetText("TC.FundInformation.Donors.ModalTitle"),
+            validateForm: false,
+            actionOnClose: "addNewRelatedOperation",
+            closeOnOverlay: false))
+
+            @Display.AddModalButton(new ModalViewModel(name: "buttonDeleteDelegateModal",
+             allowClose: true,
+             contentSelector: "#deleteDelegateModal",
+             type: CssClass.ModalWarning,
+             title: "",
+             validateForm: false,
+             closeOnOverlay: false)
+                .AddButton(name: "no",
+                text: Localization.GetText("COMMON.No"),
+                type: CssClass.ButtonLink,
+                callback: "cancelDelete",
+                closeAtEnd: true)
+                .AddButton(name: "yes",
+                id: "Delete_Delegate_Yes",
+                text: Localization.GetText("COMMON.Yes"),
+                type: CssClass.Button05,
+                callback: "confirmDelete",
+                closeAtEnd: true))
+
+            @Display.AddModalButton(new ModalViewModel(name: "buttonSaveMessageModal",
+             allowClose: true,
+             contentSelector: "saveMessageModal",
+             type: CssClass.ModalWarning,
+             title: ""))
+            
+            @Display.AddModalButton(new ModalViewModel(name: "buttonDeleteDocumentModal",
+                allowClose: true,
+                contentSelector: "#deleteDocumentModal",
+                type: CssClass.ModalWarning,
+                title: Localization.GetText("COMMON.Warning"),
+                validateForm: false,
+                actionOnClose: "closeDeleteDocumentModal",
+                closeOnOverlay: false)
+            .AddButton(name: "no",
+                id: "Delete_Document_Cancel",
+                text: Localization.GetText("COMMON.Cancel"),
+                type: CssClass.ButtonLink,
+                callback: "",
+                closeAtEnd: true)
+            .AddButton(name: "yes",
+                id: "Delete_Document_Ok",
+                text: Localization.GetText("COMMON.Ok"),
+                type: CssClass.Button05,
+                callback: "",
+                closeAtEnd: true))
+        </div>
+    </div>
+}
+
+@section scripts{
+
+    @ModuleScripts.AddNoRepeatValueValidator()
+
+
+    @ModuleScripts.AddCompareExctrictDatesValidator(Localization.GetText("TC.FundInformation.BasicData.NextAuditDate.RangeValidation"), Localization.GetText("TC.FundInformation.BasicData.LastAuditDate.RangeValidation"))
+
+    <script type="text/javascript">
+
+        var primiseDeleteDocument = null;
+        function deleteDocumentPopup() {
+            primiseDeleteDocument = $.Deferred();
+            var button = $('[name="buttonDeleteDocumentModal"]');
+            button.click();
+            return primiseDeleteDocument;
+        }
+
+        function closeDeleteDocumentModal(id) {
+            primiseDeleteDocument.resolve(id === "Delete_Document_Ok");
+        }
+
+        registerCallback(function () {
+
+            hideLoader();
+            moveScrollTop();
+
+            $(document).on('click', 'input[name=TyingCondition]', function (e) {
+                var source = $(this);
+                checkTyingCondition(source.val());
+            });
+
+
+            $(document).on('change', '[name=SendToESC]', function () {
+                var input = $(this);
+                if (input.is(':checked')) {
+                    $('#applicableESCEmail').removeClass('hide');
+                }
+                else {
+                    $('#applicableESCEmail').addClass('hide');
+                    $('[name=templateContent]').addClass('hide');
+                    $('#applicableESCEmail').find('input[type="radio"]').prop('checked', false);
+                }
+            });
+
+            $(document).on('change', '[name=EligibilityByelegation]', function () {
+                var input = $(this);
+                if (input.is(':checked')) {
+                    $('[name=DelegatedForAmountUpto]').prop('disabled', false);;
+                }
+                else {
+                    $('[name=DelegatedForAmountUpto]').prop('disabled', true);;
+                }
+            });
+
+            $(document).on('change', '[name=Template]', function () {
+                var input = $(this);
+                var typeTemplate = input.attr("data-type-template");
+                var contentTemplate = $('[name=templateContent]');
+                contentTemplate.addClass('hide');
+                $('#' + typeTemplate).removeClass('hide');
+            });
+
+            $(document).on('draw.dt', 'table[role="grid"]', function () {
+                var source = $(this);
+                var trs = source.find('tbody tr');
+                trs.removeClass('custom-odd');
+                trs.removeClass('custom-even');
+                trs.removeClass('odd');
+                trs.removeClass('even');
+                source.find('tbody tr:even').addClass('even');
+                source.find('tbody tr:even').addClass('custom-even');
+                source.find('tbody tr:odd').addClass('odd');
+                source.find('tbody tr:odd').addClass('custom-odd');
+            });
+
+
+            $('span[name="iconInformationToolkit"]').tooltipster({
+                theme: 'tooltipster-mrblue',
+                content: '<label>Loading ...</label>',
+                contentAsHTML: true,
+                multiple: true,
+                maxWidth: 310,
+                interactive: true,
+                offsetY: 2,
+                functionBefore: function (origin, continueTooltip) {
+                    continueTooltip();
+                    if (origin.data('ajax') !== 'cached') {
+                        var contentToolTip = '<div class="row"><div class="col-md-12 title">' + '@Localization.GetText("TC.FundInformation.DisplayFundWeb.InformationNote")' + '</div></div>';
+                       origin.tooltipster('content', contentToolTip).data('ajax', 'cached');
+                    }
+                }
+            });
+
+        });
+
+
+        function checkTyingCondition(condition) {
+            var divTiedPercentage = $('#tiedPercentage');
+            var inputTiedPercentage = $('input[name=TiedPercentage]');
+            var inputTied = $('input[value=Tied]');
+            var inputUntied = $('input[value=Untied]');
+            if (condition == "Tied") {
+                divTiedPercentage.removeClass('hide');
+                inputTiedPercentage.removeAttr('disabled');
+                inputTied.attr('checked', 'checked');
+                inputUntied.removeAttr('checked');
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            }
+            else {
+                divTiedPercentage.addClass('hide');
+                inputTiedPercentage.attr('disabled', 'disabled');
+                inputTied.removeAttr('checked');
+                inputUntied.attr('checked', 'checked');
+            }
+        }
+
+        var promiseDeleteDelegate;
+        function PreventDeleteDelegate(source) {
+            promiseDeleteDelegate = $.Deferred();
+            $("[name=buttonDeleteDelegateModal]").click();
+            return promiseDeleteDelegate;
+        }
+
+        function confirmDelete(event, source) {
+            var promise = $.Deferred();
+            if (promiseDeleteDelegate != null) {
+                promiseDeleteDelegate.resolve(true);
+            }
+            promise.resolve();
+            return promise;
+        }
+
+        function cancelDelete(event, source) {
+            var promise = $.Deferred();
+            if (promiseDeleteDelegate != null) {
+                promiseDeleteDelegate.resolve(false);
+            }
+            promise.resolve();
+            return promise;
+        }
+
+        function searchDelegates(source, filter) {
+            var promise = $.Deferred();
+
+            var result = postUrl('@Url.Action("SearchableAction", "View", new { area = "TC" })', { filter: filter });
+            result.done(function (response, textStatus, jqXHR) {
+                if (response.IsValid) {
+                    var fields = [{ Field: "Text", Rename: "label" }];
+                    var items = extractFieldsFromComplexArray(response.Data, fields);
+                    promise.resolve(items);
+                }
+            });
+
+            return promise;
+        }
+
+        function reloadSubsectors() {
+            var subSectorsSelect = @( new JavaScriptSerializer().Serialize(Model.BasicData.EconomicSubSectorsAssigned))
+
+                subSectorsSelect.forEach(function (item) {
+                    var select = String.format('[name=EconomicSubSectorsAssignedList] option[value={0}]', item)
+                    $(select).attr('selected', 'selected')
+                });
+        }
+
+        function initialStateBasicInformation() {
+            var isRetroactiveExpense = $('[name=IsRetroactiveExpense]:checked');
+            if (isRetroactiveExpense.val() == "Yes") {
+                $('#fundingAuthority').show();
+            } else {
+                $('#fundingAuthority').hide();
+            }
+
+            var eligibilityByelegation = $('[name=EligibilityByelegation]');
+            if (eligibilityByelegation.is(':checked')) {
+                $('[name=DelegatedForAmountUpto]').prop('disabled', false);
+            }
+            else {
+                $('[name=DelegatedForAmountUpto]').prop('disabled', true);
+            }
+
+            var sendToESC = $('[name=SendToESC]');
+            if (sendToESC.is(':checked')) {
+                $('#applicableESCEmail').removeClass('hide');
+            }
+            else {
+                $('#applicableESCEmail').addClass('hide');
+                $('[name=templateContent]').addClass('hide');
+                $('#applicableESCEmail').find('input[type="radio"]').prop('checked', false);
+            }
+
+            checkTyingCondition($('input[checked=checked]').val());
+
+            var inputTemplate = $('[name=Template]:checked');
+            var typeTemplate = inputTemplate.attr("data-type-template");
+            var contentTemplate = $('[name=templateContent]');
+            contentTemplate.addClass('hide');
+            $('#' + typeTemplate).removeClass('hide');
+
+            $('span[name="iconInformationToolkit"]').tooltipster({
+                theme: 'tooltipster-mrblue',
+                content: '<label>Loading ...</label>',
+                contentAsHTML: true,
+                multiple: true,
+                maxWidth: 310,
+                interactive: true,
+                offsetY: 2,
+                functionBefore: function (origin, continueTooltip) {
+                    continueTooltip();
+                    if (origin.data('ajax') !== 'cached') {
+                        var contentToolTip = '<div class="row"><div class="col-md-12 title">' + '@Localization.GetText("TC.FundInformation.DisplayFundWeb.InformationNote")' + '</div></div>';
+                        origin.tooltipster('content', contentToolTip).data('ajax', 'cached');
+                    }
+                }
+            });
+        }
+
+        registerCallback(function () {
+
+            $(document).on('click', '[data-donor-link=true]', function (e) {
+                e.preventDefault();
+                var donorName = $(this).attr('data-id');
+                var fundId = $(this).attr('data-fundId');
+                var url = '@Url.Action("DonorContactDetails", "View", new { area = "TC" })?donorName=' + donorName + '&fundId=' + fundId;
+                var response = postUrl(url);
+                response.done(function (data) {
+                    $('[data-id="DonorContactDetailsModal"]').html(data);
+                    exitEditMode(false, $('[data-id="DonorContactDetailsModal"]'), false, false);
+                    $('[name="butttonDonorContactDetailsModal"]').click();
+                });
+            });
+
+        });
+
+        function editDonorContactDetails(source) {
+            success = enterEditMode(true, $('[data-id="DataContact"]').last(), false);
+            if (success) {
+                enterEditMode(false, $('[data-id="buttonsDonorContact"]').last(), false);
+            }
+        }
+
+        function candelDonorContactDetails(source) {
+            exitEditMode(true, $('[data-id="DataContact"]').last(), false, false);
+            exitEditMode(false, $('[data-id="buttonsDonorContact"]').last(), false, false);
+        }
+
+        function saveDonorContactDetails(source) {
+            var resp = $.Deferred();
+            var response = saveContainer($('[data-id="DataContact"]').last(), '#hidViewModelContact', true, $('[data-id="buttonsDonorContact"]').last(), $(source.target), true, false);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    resp.resolve(data);
+                });
+            }
+            return resp;
+        }
+
+        function closeDonorContactDetails() {
+            vex.close();
+        }
+
+        registerCallback(function () {
+
+            $(document).on('draw.dt', '#externallyFundedWorkforceTable', function () {
+                var flag = $('div[data-type="exportExcelArea"]');
+                if (flag.hasClass('hide')) {
+                    enterEditMode(false, $('#externallyFundedWorkforceTable tbody'), true);
+                } else {
+                    exitEditMode(false, $('#externallyFundedWorkforceTable tbody'), true, true);
+                }
+            });
+
+        });
+
+        function downloadExcelEFundedContractuals(source) {
+            var url = '@Url.Action("FundInformationExportEFundedContractualsToExcel", "View", new { area = "TC", fundid = Model.FundID })';
+            window.open(url, '_blank');
+        }
+
+        function downloadExcelOperations(source) {
+            var url = '@Url.Action("FundInformationExportOperationsToExcel", "View", new { area = "TC", fundid = Model.FundID })';
+            window.open(url, '_blank');
+        }
+
+        function downloadExcelOApprovedConvergence(source) {
+            var url = '@Url.Action("FundInformationExportOApprovedConvergenceToExcel", "View", new { area = "TC", fundid = Model.FundID })';
+            window.open(url, '_blank');
+        }
+
+        function addDocuments(documentList, sourceType) {
+            var documentTable = $("#FundInformationDocuments");
+            AddDocumentsGeneric(sourceType, documentTable, documentList);
+        }
+
+        registerCallback(function () {
+
+            window.ParsleyValidator.addValidator('iscorrect', function (value, requirement) {
+                var valueResultValidate = requirement;
+                return valueResultValidate == "yes";
+            }, 32).addMessage('en', 'iscorrect', 'The field is not correct');
+
+
+            window.ParsleyValidator
+            .addValidator('isvalidated', function (value, requirement) {
+                var valueValidated = requirement;
+                return valueValidated == "yes";
+            }, 32).addMessage('en', 'isvalidated', 'The field must be validated before save.');
+
+        });
+
+        registerCallback(function () {
+
+            $(document).on('click', 'li[dd-tab]:not(.disabled)', function () {
+                var source = $(this);
+                var tabName = source.attr('dd-tab');
+                var contentButtons = $('div[data-type="contentButtons"]');
+                var divButtons = contentButtons.find('div[data-id]');
+                divButtons.addClass('hide');
+
+                switch (tabName) {
+                    case '#tabBasicInformation':
+                        $('div[data-id="buttons-BI"]').removeClass('hide');
+                        break;
+                    case '#tabFundedOperations':
+                        $('div[data-id="buttons-FO"]').removeClass('hide');
+                        break;
+                    case '#tabDocuments':
+                        $('div[data-id="buttons-DC"]').removeClass('hide');
+                        break;
+                    default:
+                        break;
+                }
+            });
+
+        });
+
+        function editBasicInformation(source) {
+            var sucess = enterEditMode(true, $('#tabBasicInformation'), true);
+            if (sucess) {
+                enterEditMode(false, $('div[data-id="buttons-BI"]'), false);
+                initialStateBasicInformation();
+                $('li[dd-tab]').addClass('disabled');
+                $('li[dd-tab="#tabBasicInformation"]').removeClass('disabled');
+            }
+        }
+
+        function editFundedOperations(source) {
+            var sucess = enterEditMode(true, $('#tabFundedOperations'), true);
+            if (sucess) {
+                enterEditMode(false, $('div[data-id="buttons-FO"]'), false);
+                enterEditMode(false, $('.buttonExcel'), false);
+                $('li[dd-tab]').addClass('disabled');
+                $('li[dd-tab="#tabFundedOperations"]').removeClass('disabled');
+            }
+        }
+
+        function editDocument(source) {
+            var sucess = enterEditMode(true, $('#tabDocuments'), true);
+            if (sucess) {
+                enterEditMode(false, $('div[data-id="buttons-DC"]'), false);
+                $('li[dd-tab]').addClass('disabled');
+                $('li[dd-tab="#tabDocuments"]').removeClass('disabled');
+            }
+        }
+
+        function cancelBasicInformation(source) {
+            exitEditMode(true, $('#tabBasicInformation'), true, true);
+            exitEditMode(false, $('div[data-id="buttons-BI"]'), false, false);
+            $('li[dd-tab]').removeClass('disabled');
+            initialStateBasicInformation();
+        }
+
+        function cancelFundedOperations(source) {
+            exitEditMode(true, $('#tabFundedOperations'), true, true);
+            exitEditMode(false, $('div[data-id="buttons-FO"]'), false, false);
+            $('li[dd-tab]').removeClass('disabled');
+        }
+
+        function cancelDocument(source) {
+            exitEditMode(true, $('#tabDocuments'), true, true);
+            exitEditMode(false, $('div[data-id="buttons-DC"]'), false, false);
+            $('li[dd-tab]').removeClass('disabled');
+        }
+
+        function saveBasicInformation() {
+            var response = saveContainer($('#tabBasicInformation'), '#hiddenFIData', true, null, null, true);
+            var resp = $.Deferred();
+            if (response !== false) {
+                response.done(function (data) {
+                    if (data.ErrorMessage != null && data.ErrorMessage !== "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    if (data.IsValid) {
+                        exitEditMode(false, $('div[data-id="buttons-BI"]'), false, false);
+                        $('li[dd-tab]').removeClass('disabled');
+                        initialStateBasicInformation();
+                    showNotification({ 'message': '@Localization.GetText("TC.FundingInformation.Save.Message")', "autoClose": "true", "duration": "5" });
+                    }
+                    resp.resolve(data);
+                });
+            }
+            return resp;
+        }
+
+        function saveFundedOperations() {
+            var response = saveContainer($('#tabFundedOperations'), '#hiddenFIFOperations', true, null, null, true);
+            var resp = $.Deferred();
+            if (response !== false) {
+                response.done(function (data) {
+                    if (data.ErrorMessage != null && data.ErrorMessage !== "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    if (data.IsValid) {
+                        exitEditMode(false, $('div[data-id="buttons-FO"]'), false, false);
+                        $('li[dd-tab]').removeClass('disabled');
+                    showNotification({ 'message': '@Localization.GetText("TC.FundingInformation.Save.Message")', "autoClose": "true", "duration": "5" });
+                    }
+                    resp.resolve(data);
+                });
+            }
+            return resp;
+        }
+
+        function saveDocuments() {
+            var response = saveContainer($('#tabDocuments'), '#hiddenFIDocumentsTable', true, null, null, true);
+            var resp = $.Deferred();
+            if (response !== false) {
+                response.done(function (data) {
+                    if (data.ErrorMessage != null && data.ErrorMessage !== "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    if (data.IsValid) {
+                        exitEditMode(false, $('div[data-id="buttons-DC"]'), false, false);
+                        $('li[dd-tab]').removeClass('disabled');
+                        showNotification({ 'message': '@Localization.GetText("TC.FundingInformation.Save.Message")', "autoClose": "true", "duration": "5" });
+                    }
+                    resp.resolve(data);
+                });
+            }
+            return resp;
+        }
+
+        registerCallback(function () {
+            $(document).on('change', '[name=FundSelector]', function () {
+
+                var FundSelectorValue = $(this).val();
+                var reloadUrl = "@Url.Action("FundInformation", "View", new { area = "TC" })?fundId=" + FundSelectorValue;
+                document.location = reloadUrl;
+            });
+
+            $(document).on('change', '[name=EconomicSectorsAssignedList]', function () {
+                var sectorsIdList = $('select[name=EconomicSectorsAssignedList]').val();
+
+                var url = '@Url.Action("SearchEconomicSubSectorsSectors", "View", new { area = "TC" })';
+                var list = postUrl(url, { parentValue: sectorsIdList });
+                list.done(function (result) {
+                    var subsectorDropDown = $('select[name=EconomicSubSectorsAssignedList]');
+                    subsectorDropDown.empty();
+                    var results = $(result.Data);
+                    results.each(function () {
+                        var option = $(document.createElement('option'));
+
+                        option.text(this.Text);
+                        option.val(this.Value);
+
+                        subsectorDropDown.append(option);
+                    });
+                    subsectorDropDown.chosen('destroy');
+                    subsectorDropDown.ChosenMultiDropdown();
+                });
+            });
+
+            $('.datepicker-default').datepicker({
+                selectOtherMonths: true,
+                dateFormat: 'dd M yy',
+            });
+
+            $(document).on('click', '[data-identity-validate]:not([disabled]) ~ [data-identity-validate-button]',
+                function () {
+                    var container = $(this).closest('div.text-searchable');
+                    var inputForValidate = container.find('[name="DelegateName"]');
+                    var valueForValidate = inputForValidate.val();
+                    var inputValidator = container.parent().find('[name="ValidateIdentityService"]:enabled');
+
+                    var result = postUrl('@Url.Action("ValidateAction", "View", new { area = "TC" })', { valueForValidate: valueForValidate });
+
+                    result.done(function (response) {
+                        if ((response.IsValid == false) || (response.CorrectUser == false)) {
+                            inputValidator.attr('data-parsley-iscorrect', 'no');
+                        } else {
+                            inputValidator.attr('data-parsley-iscorrect', 'yes');
+                            var userName = container.nextAll('[name=DelegateName_UserName]');
+                            var fullName = container.nextAll('[name=DelegateName_FullName]');
+                            userName.val(response.UserName);
+                            fullName.val(response.FullName);
+                            inputForValidate.val(response.FullName);
+                        }
+                        inputValidator.attr('data-parsley-isvalidated', 'yes');
+                    });
+
+                    inputValidator.parsley().validate();
+                });
+
+            $(document).on('change', 'div.dropPagination input', function () {
+                var source = $(this);
+                var pageSize = source.val();
+                var tableName = source.attr('name').replace('Displayed', '');
+                var table = $('#' + tableName).DataTable();
+                var maxLength = table.rows()[0].length;
+                if (typeof (table.ajax.json()) != "undefined") {
+                    maxLength = table.ajax.json().recordsTotal;
+                }
+
+                if (parseInt(pageSize) != -1) {
+                    table.page.len(parseInt(pageSize)).draw();
+                } else {
+                    table.page.len(maxLength).draw();
+                }
+            });
+
+            $(document).on('change', '[data-identity-validate]:not([disabled])',
+                function () {
+                    var container = $(this).closest('div.text-searchable');
+                    var inputValidator = container.parent().find('[name="ValidateIdentityService"]:enabled');
+                    inputValidator.attr('data-parsley-iscorrect', 'no');
+                    inputValidator.attr('data-parsley-isvalidated', 'no');
+                });
+
+
+            $(document).on('click', '[name=IsRetroactiveExpense]', function () {
+                var input = $(this);
+                if (input.val() == "Yes") {
+                    $('#fundingAuthority').show();
+                } else {
+                    $('#fundingAuthority').hide();
+                }
+            });
+        });
+
+    </script>
+}

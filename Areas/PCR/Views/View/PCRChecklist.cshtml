@@ -1,0 +1,469 @@
+﻿@using System.Collections.Generic
+@using IDB.MW.Application.PCRModule.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.Architecture.Language
+@using IDB.MW.Domain.EntityHelpers
+@using IDB.MW.Domain.Values
+@model IDB.MW.Application.PCRModule.ViewModels.ChecklistService.PCRChecklistViewModel
+@{
+    var title = Localization.GetText("PCR.Checklist.Title");
+    ViewBag.Title = title;
+    bool isSpecialOperation =
+        ((List<string>)@ViewBag.OperationType).Contains(@OperationType.PBL) ||
+        ((List<string>)@ViewBag.OperationType).Contains(@OperationType.PBP);
+}
+<div id="header-section" data-loadurl="@Url.Action("PCRHeader", "View", new { area = "PCR" })">
+    @Html.Partial("Partials/PCRHeader", (IDB.MW.Application.PCRModule.ViewModels.ChecklistService.HeaderViewModel)ViewBag.Header)
+</div>
+<div id="verifyContentModal" class="hide" data-loadurl="@Url.Action("PCRFollowUpVerify", "View", new { area = "PCR" })">
+    @Html.Partial("Partials/Modals/PCRFollowUpVerify", (IDB.MW.Application.PCRModule.ViewModels.FollowUpService.PCRFollowUpVerifyViewModel)ViewBag.Verify)
+</div>
+<div class="page"
+     @(HTMLEncodeHelper.GetPCREncodedDisplayStyle(ViewBag.IsPCRRequired)) >
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="active"><a href="#Effectiveness" role="tab" data-toggle="tab">@Localization.GetText("PCR.Checklist.TabEffectiveness")</a></li>
+        <li><a href="#General" role="tab" data-toggle="tab">@Localization.GetText("PCR.Checklist.TabGeneral")</a></li>
+        <li><a href="#Validation" role="tab" data-toggle="tab">@Localization.GetText("PCR.Checklist.TabValidation")</a></li>
+    </ul>
+    <div class="tab-content marginTop-26px">
+        <div class="tab-pane active" id="Effectiveness" data-parsley-validate="data-parsley-validate"
+             data-loadurl="@Url.Action("PCREffectiveness", "View", new
+                           {
+                               area = "PCR"
+                           })" data-url="@Url.Action("Effectiveness", "Save", new
+                                         {
+                                             area = "PCR"
+                                         })">
+            @Html.Partial("Partials/PCREffectiveness", Model.PCREffectivenessViewModel)
+        </div>
+        <div id="effectivenessModal" class="hide">
+            @Html.Partial("Partials/Modals/PCREffectivenessGuidelines", Model.PCREffectivenessViewModel.EffectivenessGuidelinesViewModel)
+        </div>
+        <div class="tab-pane active" id="General" data-parsley-validate="data-parsley-validate"
+             data-loadurl="@Url.Action("PCRGeneral", "View", new
+                           {
+                               area = "PCR"
+                           })"
+             data-url="@Url.Action("General", "Save", new
+                       {
+                           area = "PCR"
+                       })">
+            @Html.Partial("Partials/PCRGeneral", Model.PCRGeneralViewModel)
+        </div>
+        <div id="generalModal" class="hide">
+            @Html.Partial("Partials/Modals/PCRGeneralGuidelines", Model.PCRGeneralViewModel.GeneralGuidelinesViewModel)
+        </div>
+        <div class="tab-pane active" id="Validation" data-parsley-validate="data-parsley-validate"
+             data-loadurl="@Url.Action("PCRValidation", "View", new
+                           {
+                               area = "PCR"
+                           })"
+             data-url="@Url.Action("Validation", "Save", new
+                       {
+                           area = "PCR"
+                       })">
+            @Html.Partial("Partials/PCRValidation", Model.PCRValidationsViewModel)
+        </div>
+
+    </div>
+</div>
+<input type="hidden" id="hidPCR" value="@ViewBag.PCRId" />
+
+<div id="documentModal" class="hide">
+    @Html.Partial("Controls/AddDocumentModal", new DocumentModalViewModel { AreaName = "PCR", ControllerName = "PCRDocument", OperationNumber = ViewBag.OperationNumber, PCRId = Model.PCRId })
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+
+    @if (ViewBag.LockScreenWorkflowValidation)
+    {
+        @:$('input, select, textarea, button').not('.vex-dialog-button').not('.header button').attr('disabled', 'disabled');
+                @:$('[data-toggle]').attr('data-toggle', null);
+                @:var msg = "@Localization.GetText("PCR.FollowUp.ModalOperationCancelled")";
+                @:showMessage(msg);
+            }
+
+    registerCallback(function () {
+
+        $('.tab-pane').removeClass('active');
+        $('.tab-pane:first-child').addClass('active');
+
+        @if (!string.IsNullOrWhiteSpace(ViewBag.ErrorMessage))
+            {
+
+                if (ViewBag.LockScreen)
+                {
+                    @:$('input, select, textarea, button').not('.vex-dialog-button').not('.header button').attr('disabled', 'disabled');
+                                        @:$('[data-toggle]').attr('data-toggle', null);
+                                }
+                if (ViewBag.No95)
+                {
+                    @:hideChecklist(true);
+                                }
+            }
+
+        @if (ViewBag.Header.IsPCRRequired != null && !ViewBag.Header.IsPCRRequired)
+            {
+                @:$('button[data-action^="edit"],button[data-action^="cancel"],button[data-action^="save"]').remove();
+                            }
+
+        $('ul.nav-tabs li:eq(@ViewBag.SelectedTab) a').click();
+        $('ul.nav-tabs li a').click(function () {
+            window.setTimeout(function () {
+                resizeIframe();
+            }, 0); //Let handler execute and come back afterwards
+        });
+        processDataTables();
+        processDataTablesOutput();
+    }, true);
+
+    $(document).on('change', '[name=txtOutcomeAchieved]', function (e) {
+        var sender = $(e.currentTarget);
+        var td = sender.parents('td.highlight-outcome');
+        var curAchiev = td.siblings('.AchievCurrentStage').children('span:not([data-pagemode=edit])');
+        var curAttAchiev = td.siblings('.AttAchievCurrentStage').children('span:not([data-pagemode=edit])');
+
+        var attValue = td.next().children('[data-pagemode=edit]').children('select').val();
+
+
+        curAchiev.html(sender.val());
+        if (attValue === 'true') {
+            curAttAchiev.html(sender.val());
+        }
+        else {
+            if (attValue == '') {
+                curAttAchiev.html('');
+            }
+            else {
+                curAttAchiev.html('0.00');
+            }
+        }
+    });
+
+    $(document).on('change', '[name=cboOutcomeAttributable]', function (e) {
+        var sender = $(e.currentTarget);
+        var td = sender.parents('td.highlight-outcome');
+        var curAtt = td.siblings('.AttBCurrentStage').children('span:not([data-pagemode="edit"])');
+        var curAttAchiev = td.siblings('.AttAchievCurrentStage').children('span:not([data-pagemode="edit"])');
+
+        var achievValue = td.prev().children('[data-pagemode="edit"]').children('input').val();
+
+
+        if (sender.val() === 'true') {
+            curAtt.text('@Localization.GetText("PCR.Y")');
+            curAttAchiev.text(achievValue);
+        }
+        else if (sender.val() === 'false') {
+            curAtt.text('@Localization.GetText("PCR.N")');
+            curAttAchiev.text('0.00');
+        }
+        else {
+            curAtt.text('');
+            curAttAchiev.text('');
+        }
+    });
+
+    $(document).on('change', '[name=txtOutputAchieved]', function (e) {
+        var sender = $(e.currentTarget);
+        var td = sender.parents('td.highlight-output');
+        var current = td.siblings('.AchievCurrentStage').children('span:not([data-pagemode="edit"])');
+
+        current.html(sender.val());
+    });
+
+    $(document).on('change', '[name=cboScore]', function (e) {
+        var sender = $(e.currentTarget);
+        var td = sender.parents('td.highlight-core');
+        var current = td.siblings('.GeneralCurrent').children('span:not([data-pagemode="edit"])');
+
+        var table = td.parents('table[id*="nonCoreCriteriaTable"]');
+
+        if ((table == undefined) || (table.length == undefined) || (table.length == 0)) {
+            current.html(sender.val());
+        }
+        else {
+            var value = sender.val();
+            if (sender.prop('tagName') === 'INPUT') {
+                if ((value == undefined) || (value === '')) {
+                    current.html('@Localization.GetText("PCR.Summary.NonCoreCriterion.NA")');
+                }
+                else {
+                    current.html(sender.val());
+                }
+            }
+            else {
+                if (value === '0') {
+                    current.html('@Localization.GetText("PCR.Summary.NonCoreCriterion.Unsatisfactory")');
+                }
+                else if (value === '1') {
+                    current.html('@Localization.GetText("PCR.Summary.NonCoreCriterion.Satisfactory")');
+                }
+                else if (value === '-1') {
+                    current.html('@Localization.GetText("PCR.Summary.NonCoreCriterion.NA")');
+                }
+                else if (value === '2') {
+                    current.html('@Localization.GetText("PCR.Summary.NonCoreCriterion.PartiallyUnsatisfactory")');
+                }
+                else if (value === '3') {
+                    current.html('@Localization.GetText("PCR.Summary.NonCoreCriterion.PartiallySatisfactory")');
+                }
+                else {
+                    current.html('');
+                }
+            }
+        }
+    });
+
+    function editEffectiveness(source) {
+        enterEditMode(true, $('#Effectiveness'), true);
+        showCommentIcons($('#Effectiveness'));
+        reloadContainer($('#header-section'), false, 'read');
+    }
+
+    function cancelEditEffectiveness(source) {
+        exitEditMode(true, $('#Effectiveness'), true, true);
+        processDataTables();
+        processDataTablesOutput();
+        hideCommentIcons($('#Effectiveness'));
+    }
+
+    function saveEffectiveness(source) {
+        var response = saveContainer($('#Effectiveness'), '.hidViewModel', true);
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                    showMessage(data.ErrorMessage);
+                }
+                else {
+                    reloadContainer($('#header-section'), false, 'read');
+                    reloadContainer($('#verifyContentModal'), false, 'read');
+                }
+            });
+        }
+        processDataTables();
+        processDataTablesOutput();
+    }
+
+    function editGeneral(source) {
+        enterEditMode(true, $('#General'), true);
+        showCommentIcons($('#General'));
+        reloadContainer($('#header-section'), false, 'read');
+    }
+
+    function cancelEditGeneral(source) {
+        exitEditMode(true, $('#General'), true, true);
+        processDataTables();
+        processDataTablesOutput();
+        hideCommentIcons($('#General'));
+    }
+
+    function saveGeneral(source) {
+        var response = saveContainer($('#General'), '.hidViewModel', true);
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                    showMessage(data.ErrorMessage);
+                }
+                else {
+                    reloadContainer($('#header-section'), false, 'read');
+                    reloadContainer($('#verifyContentModal'), false, 'read');
+                }
+            });
+        }
+        processDataTables();
+        processDataTablesOutput();
+    }
+
+    function editValidation(source) {
+        enterEditMode(true, $('#Validation'), true);
+    }
+
+    function cancelEditValidation(source) {
+        exitEditMode(true, $('#Validation'), true, true);
+        processDataTables();
+        processDataTablesOutput();
+    }
+
+    function saveValidation(source) {
+        var response = saveContainer($('#Validation'), '#hidViewModel');
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                    showMessage(data.ErrorMessage);
+                }
+                else {
+                    reloadContainer($('#verifyContentModal'), false, 'read');
+                }
+            });
+        }
+        processDataTables();
+        processDataTablesOutput();
+    }
+
+    function downloadChecklist(source) {
+        var url = '@Url.Action("DownloadStageReport", "View", new { area = "PCR" })';
+        url = url + '?pcrId=' + source.attr('data-id');
+        window.open(url, '_blank');
+    }
+
+    function downloadPCRDoc(source) {
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})';
+        url = url + '?documentNumber=' + source.attr('data-docnum');
+        window.open(url, '_blank');
+    }
+
+    function activeRedoChecklist(source) {
+
+        confirmAction('@Model.RedoResponse.MessageRedo').done(function (value) {
+            if (value) {
+                var urlf = '@Url.Action("RedoChecklist", "PCRK2")';
+                var result = postUrl(urlf,
+                {
+                    operationNumber: '@Model.OperationNumber',
+                    idPCRPoint: source.attr('data-id'),
+                    idStageRedo: '@Model.RedoResponse.IdStageRedo',
+                    numberTaskRedo: '@Model.RedoResponse.NumberTaskRedo'
+                });
+
+                if (result.responseJSON.IsValid) {
+                    location.href = getHRef();
+                }
+                else {
+                    showMessage(result.responseJSON.ErrorMessage);
+                }
+            }
+        });
+    }
+
+    function getHRef() {
+        return '@Url.Action("PCRFollowUp", "View", new { area = "PCR", operationNumber = Model.OperationNumber })';
+    }
+
+    function editEffectivenessModal(source) {
+        enterEditMode(true, $('#effectivenessGuidelines'), false);
+    }
+
+    function cancelEditEffectivenessModal(source) {
+        exitEditMode(true, $('#effectivenessGuidelines'), false, true);
+    }
+
+    function saveEffectivenessModal(source) {
+        var response = saveContainer($('#effectivenessGuidelines'), '#hidViewModel');
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                    showMessage(data.ErrorMessage);
+                }
+            });
+        }
+    }
+
+    function editGeneralModal(source) {
+        enterEditMode(true, $('#generalGuidelines'), false);
+    }
+
+    function cancelGeneralModal(source) {
+        exitEditMode(true, $('#generalGuidelines'), false, true);
+    }
+
+    function saveGeneralModal(source) {
+        var response = saveContainer($('#generalGuidelines'), '#hidViewModel');
+        if (response !== false) {
+            response.done(function (data) {
+                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                    showMessage(data.ErrorMessage);
+                }
+            });
+        }
+    }
+
+    function showCommentIcons(container) {
+        container.find('.template textarea').change();
+    }
+
+    function hideCommentIcons(container) {
+        container.find('img.commentIcon').remove();
+    }
+
+    function processDataTables() {
+        $('table.dataTable tbody tr').each(function () {
+            var row = $(this);
+            var cellsScore = row.find('td[data-valueScore="true"]');
+            var currentValue = row.find('td[data-initialValue="true"][data-valueScore="true"]:eq(0) span:eq(0)').text();
+
+            var cellsAttributable = row.find('td[data-valueAttributable="true"]');
+            var currentValueAttributable = row
+                .find('td[data-initialValueAttributable="true"][data-valueAttributable="true"]:eq(0) span:eq(0)').text();
+
+            cellsScore.each(function () {
+                var currentCellScore = $(this);
+                var currentAttributable = $(this).next();
+                if (currentCellScore.attr('data-initialValue') != 'true') {
+                    var valueContainer = currentCellScore.find('span:eq(0)');
+                    var value = valueContainer.text();
+                    var valueContainerAttr = currentAttributable.find('span:eq(0)');
+                    var valueAttr = valueContainerAttr.text();
+                    if (value == currentValue && valueAttr == currentValueAttributable) {
+                        valueContainer.text('');
+                        valueContainerAttr.text('');
+                    }
+                    currentValue = value;
+                    currentValueAttributable = valueAttr;
+                }
+            });
+        });
+            hideEffectivenessComment();
+        }
+
+
+        function hideEffectivenessComment() {
+            if (@Json.Encode(isSpecialOperation)) {
+                $('table.dataTable tbody tr td[data-operationsubtype="True"]').parent()
+                .find('td').not(':eq(0)').find('span').html('');
+        }
+    }
+
+    function processDataTablesOutput() {
+        $('table.dataTable tbody tr').each(function () {
+            var row = $(this);
+            var cellsScore = row.find('td[data-valueOutput="true"]');
+            var currentValue = row
+                .find('td[data-initialValue="true"][data-valueScore="true"]:eq(0) span:eq(0)').text();
+
+            cellsScore.each(function () {
+                var currentCell = $(this);
+                if (currentCell.attr('data-initialValue') != 'true') {
+                    var valueContainer = currentCell.find('span:eq(0)');
+                    var value = valueContainer.text();
+                    if (value == currentValue) {
+                        valueContainer.text('');
+                    }
+                    currentValue = value;
+                }
+            });
+        });
+            hideEffectivenessComment();
+        }
+
+
+    function hideChecklist(flag) {
+        if (flag) {
+            $('#headerInnerSection').addClass('hide');
+            $('.page').addClass('hide');
+            $('#95Error').removeClass('hide');
+        }
+    }
+
+    //When the height of the content is not enough to show the entire pop-up, we have to make it bigger adding the pop-up's height (vex-content) plus the top space.
+    function resizeContentLocal() {
+        if ($('html').height() < ($(".vex-content").height() + Number($(".vex-content").css("top").replace("px", "")) + 120)) {
+            $('html').height($(".vex-content").height() + Number($(".vex-content").css("top").replace("px", "")) + 120);
+        }
+    }
+
+
+
+    </script>
+}

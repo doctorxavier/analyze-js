@@ -1,0 +1,200 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.PCRModule.Enums
+@using IDB.MW.DomainModel.Entities.PCRModule.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.PCRModule.ViewModels.ChecklistService;
+@using IDB.MW.Domain.EntityHelpers;
+@using IDB.MW.Domain.Values
+
+@model List<IDB.MW.Application.PCRModule.ViewModels.ChecklistService.PCRGeneralRowViewModel>
+
+@{
+    var teamLeaderPreValStyle = string.Empty;
+    var spdPreValStyle = string.Empty;
+    var teamLeaderValStyle = string.Empty;
+    var spdValStyle = string.Empty;
+
+    if (ViewBag.CurrentStage != null)
+    {
+        switch ((PCRStageTypeEnum)ViewBag.CurrentStage)
+        {
+            case PCRStageTypeEnum.TeamLeaderPreValidationStage:
+                teamLeaderPreValStyle = "highlight-core";
+                break;
+            case PCRStageTypeEnum.SPDPreValidationStage:
+                spdPreValStyle = "highlight-core";
+                break;
+            case PCRStageTypeEnum.TeamLeaderValidationStage:
+                teamLeaderValStyle = "highlight-core";
+                break;
+            case PCRStageTypeEnum.SPDValidationStage:
+                spdValStyle = "highlight-core";
+                break;
+        }
+    }
+
+    var isPBPOrPBLSubType =
+        ViewBag.OperationType.Contains(OperationType.PBL) ||
+        ViewBag.OperationType.Contains(OperationType.PBP);
+
+    var config = Html.RenderDataTable(Model.Where(x => x.IsCore).ToList());
+    config.Name("coreCriteriaTable")
+        .PrimaryKey(m => m.PCRGeneralId.ToString(CultureInfo.InvariantCulture))
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.Description).Persistent();
+
+            columns.Bound(
+                c => isPBPOrPBLSubType &&
+                        c.PCRGeneralType == PCRGeneralTypeEnum.CoreEfficiency &&
+                        c.ScoreBasedOnTeamLeaderPreValidation.HasValue ?
+                            0M : c.ScoreBasedOnTeamLeaderPreValidation,
+                    f => FormatHelper.Format(f, "#0.00"))
+            .CssClass(teamLeaderPreValStyle)
+            .Attribute("data-operation-type",
+                m => (isPBPOrPBLSubType &&
+                        m.PCRGeneralType == PCRGeneralTypeEnum.CoreEfficiency).ToString())
+            .SecuredCommentToolTip(
+                m => m.ScoreBasedOnTeamLeaderPreValidationTooltip,
+                m => m.ScoreBasedOnTeamLeaderPreValidationTitle,
+                IDBContext.Current.HasPermission(Permission.PCR_COMMENT_READ_PERMISSION))
+            .Attribute("data-initialValue", m => "true")
+            .Attribute("data-valueScore", m => "true")
+            .MakeEditableIf(
+                ViewBag.CurrentStage == PCRStageTypeEnum.TeamLeaderPreValidationStage &&
+                    ViewBag.WritePermissionStage,
+                (Func<PCRGeneralRowViewModel, HelperResult>)(modelRow =>
+                    ControlTemplatesPCR.GridSelectListCore(
+                        modelRow.ScoreBasedOnTeamLeaderPreValidation,
+                        "cboScore",
+                        (List<SelectListItem>)ViewBag.Categories,
+                        ViewBag.OperationType,
+                        modelRow.PCRGeneralType)),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Attribute("data-tooltip-hideonedit", m => "true"); }),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Persistent(); }));
+
+            columns.Bound(
+                c => isPBPOrPBLSubType &&
+                        c.PCRGeneralType == PCRGeneralTypeEnum.CoreEfficiency &&
+                        c.ScoreBasedOnSPDPreValidation.HasValue ?
+                            0M : c.ScoreBasedOnSPDPreValidation,
+                    f => FormatHelper.Format(f, "#0.00"))
+            .CssClass(spdPreValStyle)
+            .SecuredCommentToolTip(
+                m => m.ScoreBasedOnSPDPreValidationTooltip,
+                m => m.ScoreBasedOnSPDPreValidationTitle,
+                IDBContext.Current.HasPermission(Permission.PCR_COMMENT_READ_PERMISSION))
+            .Attribute("data-initialValue", m => "true")
+            .Attribute("data-valueScore", m => "true")
+            .MakeEditableIf(
+                ViewBag.CurrentStage == PCRStageTypeEnum.SPDPreValidationStage &&
+                    ViewBag.WritePermissionStage,
+                (Func<PCRGeneralRowViewModel, HelperResult>)(modelRow =>
+                    ControlTemplatesPCR.GridSelectListCore(
+                        modelRow.ScoreBasedOnSPDPreValidation,
+                        "cboScore",
+                        (List<SelectListItem>)ViewBag.Categories,
+                        ViewBag.OperationType,
+                        modelRow.PCRGeneralType)),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Attribute("data-tooltip-hideonedit", m => "true"); }),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Persistent(); }));
+
+            columns.Bound(
+                c => isPBPOrPBLSubType &&
+                        c.PCRGeneralType == PCRGeneralTypeEnum.CoreEfficiency &&
+                        c.ScoreBasedOnTeamLeaderValidation.HasValue ?
+                            0M : c.ScoreBasedOnTeamLeaderValidation,
+                    f => FormatHelper.Format(f, "#0.00"))
+            .CssClass(teamLeaderValStyle)
+            .SecuredCommentToolTip(
+                m => m.ScoreBasedOnTeamLeaderValidationTooltip,
+                m => m.ScoreBasedOnTeamLeaderValidationTitle,
+                IDBContext.Current.HasPermission(Permission.PCR_COMMENT_READ_PERMISSION))
+            .Attribute("data-initialValue", m => "true")
+            .Attribute("data-valueScore", m => "true")
+            .MakeEditableIf(
+                ViewBag.CurrentStage == PCRStageTypeEnum.TeamLeaderValidationStage &&
+                    ViewBag.WritePermissionStage,
+                (Func<PCRGeneralRowViewModel, HelperResult>)(modelRow =>
+                    ControlTemplatesPCR.GridSelectListCore(
+                        modelRow.ScoreBasedOnTeamLeaderValidation,
+                        "cboScore",
+                        (List<SelectListItem>)ViewBag.Categories,
+                        ViewBag.OperationType,
+                        modelRow.PCRGeneralType)),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Attribute("data-tooltip-hideonedit", m => "true"); }),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Persistent(); }));
+
+            columns.Bound(
+                c => isPBPOrPBLSubType &&
+                        c.PCRGeneralType == PCRGeneralTypeEnum.CoreEfficiency &&
+                        c.ScoreBasedOnSPDValidation.HasValue ?
+                            0M : c.ScoreBasedOnSPDValidation,
+                    f => FormatHelper.Format(f, "#0.00"))
+            .CssClass(spdValStyle)
+            .SecuredCommentToolTip(
+                m => m.ScoreBasedOnSPDValidationTooltip,
+                m => m.ScoreBasedOnSPDValidationTitle,
+                IDBContext.Current.HasPermission(Permission.PCR_COMMENT_READ_PERMISSION))
+            .Attribute("data-initialValue", m => "true")
+            .Attribute("data-valueScore", m => "true")
+            .MakeEditableIf(
+                ViewBag.CurrentStage == PCRStageTypeEnum.SPDValidationStage &&
+                    ViewBag.WritePermissionStage,
+                (Func<PCRGeneralRowViewModel, HelperResult>)(modelRow =>
+                    ControlTemplatesPCR.GridSelectListCore(
+                        modelRow.ScoreBasedOnSPDValidation,
+                        "cboScore",
+                        (List<SelectListItem>)ViewBag.Categories,
+                        ViewBag.OperationType,
+                        modelRow.PCRGeneralType)),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Attribute("data-tooltip-hideonedit", m => "true"); }),
+                (Action<ColumnDefinition<PCRGeneralRowViewModel>>)(c =>
+                    { c.Persistent(); }));
+
+            columns.Bound(c => isPBPOrPBLSubType &&
+                      c.PCRGeneralType == PCRGeneralTypeEnum.CoreEfficiency &&
+                      c.ScoreBasedOnCurrentStage.HasValue ? 0M : c.ScoreBasedOnCurrentStage,
+                f => FormatHelper.Format(f, "#0.00"))
+                .Persistent().CssClass("GeneralCurrent highlight");
+            columns.Bound(c => "").Attribute("data-pagemode", x => "edit").CssClass("pcr-column-white highlight")
+                .EditableTemplate(@<button class="btn btn-xs toggleRow">&nbsp;</button>);
+        })
+        .RowTemplates(rows => rows.Create(RowTemplateType.AllRows, 
+            m => ControlTemplatesPCR.GridCoreCriteriaCommentsRow(m.CommentList, config.ResolvedPrimaryKey(m), 
+                (PCRStageTypeEnum)ViewBag.CurrentStage, 
+                m.CommentList.FirstOrDefault(x => x.PCRGeneralStageType == (PCRStageTypeEnum)ViewBag.CurrentStage), 
+                ViewBag.WritePermissionStage, ViewBag.StageName, ViewBag.UserName)));
+
+    config.TableClass = config.DefaultTableClass + "highlight-last checklist-row-template";
+    config.UseCustomHeader = true;
+    config.CustomHeader = (@<thead>
+        <tr>
+            <th>@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColDescription")</th>
+            <th colspan="5" class="text-center">@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColScore")</th>
+            <th class="pcr-column-white" data-pagemode="edit"></th>
+        </tr>
+        <tr>
+            <th></th>
+            <th>@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColTLPreVal")</th>
+            <th>@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColSPDDPreVal")</th>
+            <th>@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColTLVal")</th>
+            <th>@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColSPDVal")</th>
+            <th>@Localization.GetText("PCR.Checklist.TabGeneral.Core.ColCurrent")</th>
+            <th class="pcr-column-white" data-pagemode="edit"></th>
+        </tr>
+    </thead>);
+}
+
+@Html.Partial("Controls/DataTable", config)

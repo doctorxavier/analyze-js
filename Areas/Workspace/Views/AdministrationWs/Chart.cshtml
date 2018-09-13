@@ -1,0 +1,216 @@
+﻿@using IDB.MW.Business.WorkSpaceModule.ViewModels
+@model AdministrationViewModel
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+<div class="header">
+    <div class="row">
+        <div class="col-md-12">
+            @if (ViewBag.ChartId > 0)
+            {
+                <div class="titlePrincipal">
+                    @Confluence.Navigation(Confluence.LabelMainTitle(""),
+                         Url.Action(controllerName: "AdministrationWs", actionName: "Index"))
+                    @Localization.GetText("Workspace.ChartEdit.TittleEdit")
+                </div>
+            }
+            else
+            {
+                <h3 class="titlePrincipal">@Localization.GetText("Workspace.ChartEdit.TittleCreate")</h3>
+            }
+
+            @Html.Partial("Partials/EditChartButtons")
+        </div>
+    </div>
+</div>
+<br />
+<div class="page">
+    <div name="ContentEdit" id="ContentEdit" data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-url="@Url.Action("ChartEditSave", "AdministrationWs", new { area = "Workspace" })"
+         data-loadurl="@Url.Action("ChartEditReload", "AdministrationWs", new { area = "Workspace", id = ViewBag.ChartId })">
+        @Html.Partial("Partials/ChartEdit")
+       
+    </div>
+</div>
+@Html.Partial("Partials/EditChartButtons")
+
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        if (parseInt($("[name='ChartId']").val()) === 0) {
+            edit();
+            $("[aria-labelledby='id-TypeChart']").find('a').filter('[dd-value=@ViewBag.StaticId]').css('display', 'none');
+            $('input[name="MaxDeep"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+            $('textarea[name="Query"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+            $('textarea[name="QueryExcel"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+            $('input[name="Url"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+        }
+
+    });
+    function edit() {
+        enterEditMode(false, $('#PageContent'), false);
+        enterEditMode(false, $('[data-id=headerButtons]'), false);
+        bindHandlers($('#PageContent'));
+    }
+
+    function cancel() {
+        var msg = "@Localization.GetText("Workspace.ChartEdit.CancelMsg")";
+        confirmAction(msg).done(function (pressOk) {
+            if (pressOk) {
+                if ($("[name='ChartId']").val() === "0") {
+                    window.location.href = '@Url.Action(controllerName: "AdministrationWs", actionName: "Index")';
+                } else {
+                    exitEditMode(true, $('#ContentEdit'), true, true);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                }
+
+            }
+        });
+    }
+
+    function save() {
+        if (validateContainer($('#ContentEdit'))) {
+            if ($("[name='ChartId']").val() * 1 === 0) {
+                var msg = "@Localization.GetText("Workspace.ChartEdit.CreateMsg")";
+                confirmAction(msg)
+                    .done(function (pressOk) {
+                        if (pressOk) {
+                            saveAttributeInDb();
+                        }
+                    });
+            } else {
+                var wtemp = $("[name='WidthTemp']").val() * 1;
+                var htemp = $("[name='HeightTemp']").val() * 1;
+                var w = $("[name='Width']").val() * 1;
+                var h = $("[name='Height']").val() * 1;
+
+                if ((w !== wtemp) || (h !== htemp)) {
+                    postUrlWithOptions("@Url.Action("ChartInTemplate", "AdministrationWs")", { async: false }, { id: $("[name='ChartId']").val() })
+                        .done(function(data) {
+                            if (data.Exist) {
+                                var msg = "@Localization.GetText("Workspace.ChartEdit.WarningChartEdit")";
+                                confirmAction(msg)
+                                    .done(function(pressOk) {
+                                        if (pressOk) {
+                                            postUrlWithOptions("@Url.Action("DeleteChartInTemplate", "AdministrationWs")", { async: false }, { id: $("[name='ChartId']").val() })
+                                                .done(function() {
+                                                    saveAttributeInDb();
+                                                });
+                                        }
+                                    });
+                            } else {
+                                saveAttributeInDb();
+                            }
+                        });
+                } else {
+                    saveAttributeInDb();
+                }
+            }
+        }
+    }
+
+    function saveAttributeInDb() {
+        var modelSerialized = '#SerializedViewModel';
+        var chartId = parseInt($("[name='ChartId']").val());
+        var response = saveContainer($('#ContentEdit'), modelSerialized, true, $('#headerButtons'), null, !(chartId === 0));
+        if (response !== false) {
+            response.done(function (data) {
+                if (data.ErrorMessage == null || data.ErrorMessage === "") {
+                    if (chartId !== 0) {
+                        exitEditMode(true, $('#ContentEdit'), false, false);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    }
+
+                    if (chartId === 0) {
+                        var url = '@Url.Action(controllerName: "AdministrationWs", actionName: "Chart")' + "?chartId=" + data.ChartId;
+                        showMessage("@Localization.GetText("Workspace.CreateChart.MessageSuccess")", true, url);
+                    } else {
+                        showMessage("@Localization.GetText("Workspace.UpdateChart.MessageSuccess")");
+                    }
+                } else {
+                    showMessage(data.ErrorMessage);
+                }
+            });
+        }
+    }
+
+
+    $(document).on("change", "[name='TypeChart']", function () {
+        var nameType = $(this).GetText();
+        var valueType = $(this).GetValue();
+        reloadParsley();
+        forceParsleyValidation($('input[name="MaxDeep"]'));
+        forceParsleyValidation($('input[name="Height"]'));
+        forceParsleyValidation($('input[name="Width"]'));
+        
+
+        $('input[name="MaxDeep"]').attr("disabled", "disabled");
+        $('input[name="MaxDeep"]').attr("data-parsley-required", false);
+        $('input[name="MaxDeep"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+        $('textarea[name="Query"]').attr("disabled", "disabled");
+        $('textarea[name="Query"]').attr("data-parsley-required", false);
+        $('textarea[name="Query"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+        $('textarea[name="QueryExcel"]').attr("disabled", "disabled");
+        $('textarea[name="QueryExcel"]').attr("data-parsley-required", false);
+        $('textarea[name="QueryExcel"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+        $('input[name="Url"]').attr("disabled", "disabled");
+        $('input[name="Url"]').attr("data-parsley-required", false);
+        $('input[name="Url"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'none');
+        $('#id-PartialName').attr("disabled", "disabled");
+        if (nameType === "@Localization.GetText("Workspace.ChartEdit.FrameChart")") {
+            $('input[name="Url"]').removeAttr("disabled");
+            $('input[name="Url"]').attr("data-parsley-required", true);
+            $('input[name="Url"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'inline');
+            forceParsleyValidation($('input[name="Url"]'));
+            $('#id-PartialName').attr("data-parsley-required", true);
+            forceParsleyValidation($('input[name="PartialName"]'));
+        } else if (nameType === "@Localization.GetText("Workspace.ChartEdit.GraphChart")") {
+            $('input[name="MaxDeep"]').removeAttr("disabled");
+            $('input[name="MaxDeep"]').attr("data-parsley-required", true);
+            $('input[name="MaxDeep"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'inline');
+            $('textarea[name="Query"]').removeAttr("disabled");
+            $('textarea[name="Query"]').attr("data-parsley-required", true);
+            $('textarea[name="Query"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'inline');
+            forceParsleyValidation($('textarea[name="Query"]'));
+            $('textarea[name="QueryExcel"]').removeAttr("disabled");
+            $('textarea[name="QueryExcel"]').attr("data-parsley-required", true);
+            $('textarea[name="QueryExcel"]').closest('.LabelsGroup').find('.asteriskColor').css('display', 'inline');
+            forceParsleyValidation($('textarea[name="QueryExcel"]'));
+        }
+
+        if (valueType !== "") {
+            var url = "@Url.Action("GetPartialList", "AdministrationWs", new { area = "Workspace" })";
+            var response = postUrl(url, { chartType: valueType }).responseJSON.Data;
+
+            $('#id-PartialName').removeAttr("disabled");
+
+            var listdata = $.map(response, function (item) {
+                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+            });
+
+            listdata.unshift("<li><a dd-value>(select an option)</a></li>");
+
+            $('ul.dropdown-menu[aria-labelledby="id-PartialName"]').html(listdata.join(""));
+
+            $('[name="PartialName"]').attr("data-parsley-required", "true");
+            $('ul.dropdown-menu[aria-labelledby="id-PartialName"]').FirstorDefault();
+        }
+
+       
+    });
+
+    function forceParsleyValidation(container) {
+        var parentContainer = container.parent();
+
+        
+
+        if (parentContainer.find('ul.parsley-error-list')) {
+            parentContainer.remove('ul');
+        }
+        parentContainer.append('<ul class="parsley-errors-list" id="parsley-id-' + container.attr('data-parsley-id') + '"></ul>');
+
+        
+    }
+</script>

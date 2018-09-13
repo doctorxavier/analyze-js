@@ -1,0 +1,149 @@
+﻿@using System.Globalization
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.CPDModule.ViewModels.ProductProfile
+@using IDB.MVCControls.DataTable.Models
+
+@model  List<ResponsibleRowViewModel>
+<div class="row row-header">
+    <div class="col-md-12 subtitleGroup">
+        <p>@Localization.GetText("CS.ProductData.ResponsibilityUnit").HtmlEncode()</p>
+    </div>
+</div>
+<div class="row mb20">
+    <div class="col-md-12">
+        @{
+
+            var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+            var formatPercent = appSettings.FormatPercent;
+            var formatDecimal = appSettings.FormatDecimalThree;
+
+            var config = Html.RenderDataTable(Model);
+            config.TableClass = "tableNormal endSpacing";
+            config.Name("responsibleUnitsTable")
+                .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .UsePageMode(false)
+                .Columns(columns =>
+                {
+                    columns.Template(c => ColumnRole(c, isTemplate: false))
+                        .CssClass("w300")
+                        .Header(Localization.GetText("CS.ProductData.Role"));
+
+                    columns.Template(c => ColumnOrganizationalUnit(c, isTemplate: false))
+                        .CssClass("w300")
+                        .Header(Localization.GetText("CS.ProductData.OrganizationlUnit"));
+
+                    columns.Template(c => ColumnEffortInDays(c, isTemplate: false))
+                        .CssClass("text-right w150")
+                        .Header(Localization.GetText("CS.ProductData.EffortDays"));
+
+                    columns.Bound(c => FormatHelper.Format(c.FTEcontribution, formatDecimal))
+                        .Persistent()
+                        .CssClass("text-right w300")
+                        .Header(Localization.GetText("CS.ProductData.FTEContribution"));
+
+                    columns.Bound(c => c.ContributionPerCent.HasValue ? FormatHelper.Format((c.ContributionPerCent / 100), formatPercent) : null)
+                        .Persistent()
+                        .CssClass("text-right w300")
+                        .Header(Localization.GetText("CS.ProductData.Contribution"));
+
+                    columns.Template(ColumnActions)
+                        .Attribute("style", c => "width:50px;")
+                        .Center();
+                });
+            config.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow, Template);
+            });
+
+        }
+        @Html.Partial("Controls/DataTable", config)
+        <div class="col-md-12 mb5">
+            @Confluence.InputText("hide", "inputhide", htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-OnlyOneRole", ViewBag.ReponseRoleId.Id.ToString() } })
+        </div>
+        <div class="col-md-12 text-center">
+            @Confluence.ButtonAddNewRows(Localization.GetText("CS.ProductData.NewUnit"), "responsibleUnitsTable", name: "addNewUnit")
+        </div>
+    </div>
+</div>
+@helper Template(ResponsibleRowViewModel row)
+{
+    row = new ResponsibleRowViewModel()
+    {
+        RowId = 0,
+        RoleId = null,
+        RoleName = "",
+        OrganizationalUnitName = "",
+        OrganizationalUnitId = null,
+        EffortInDays = 0,
+        FTEcontribution = 0,
+        ContributionPerCent = 0
+    };
+    <tr data-id="new-" class="hide" data-name="templateTeam">
+        <td class="w300">
+            @ColumnRole(row, isTemplate: true)
+        </td>
+        <td data-name="organizationalUnit" class="w300">
+            @ColumnOrganizationalUnit(row, isTemplate: true)
+        </td>
+        <td class="text-right w150">
+            @ColumnEffortInDays(row, isTemplate: true)
+        </td>
+        <td class="w300">
+            @Confluence.Label(string.Empty)
+        </td>
+        <td class="w300">
+            @Confluence.Label(string.Empty)
+        </td>
+        <td class="text-center">
+            @ColumnActions(row)
+        </td>
+    </tr>
+}
+@helper ColumnRole(ResponsibleRowViewModel row, bool isTemplate)
+{
+    @Confluence.InputDropDown(
+        value: row.RoleId.ToString(),
+        name: "responsibleUnitsRole",
+        elements: ViewBag.ResponsibleUnitsRoleList,
+        disabled: isTemplate,
+        required: true,
+        width: "100%");
+}
+
+@helper ColumnOrganizationalUnit(ResponsibleRowViewModel row, bool isTemplate)
+{
+    @Confluence.InputDropDownAsync(
+        value: row.OrganizationalUnitId.ToString(),
+        name: "responsibleUnitsOrganizationalUnit",
+        searchUrl: Url.Action("GetOrganizationalUnits", "ProductProfile", new { area = "CPD" }),
+        textSelected: (ControlTemplates.DropDownGetSelectedString(
+                        value: row.OrganizationalUnitId.ToString(),
+                        optionList: ViewBag.ResponsibleUnitsOrganizationalUnitList)),
+        evalGuaranteed: true,
+        disabled: isTemplate,
+        required: true,
+        width: "100%")
+}
+
+@helper ColumnEffortInDays(ResponsibleRowViewModel row, bool isTemplate)
+{
+    @Confluence.InputNumber(
+        value: isTemplate ? null : row.EffortInDays,
+        name: "responsibleUnitsEffortInDays",
+        minValue: "1",
+        maxValue: "360",
+        required: false,
+        disabled: isTemplate,
+        width: "100%")
+}
+@helper ColumnActions(ResponsibleRowViewModel row)
+{
+
+    @Confluence.ButtonTrash(null, "removeUnit")
+}

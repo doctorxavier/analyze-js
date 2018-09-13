@@ -1,0 +1,533 @@
+﻿@using IDB.Architecture.Language
+
+@model IDB.Presentation.MVC4.Models.Documents.SearchDocumentModalViewModel
+
+<input id="selectedRowIdDM" value="" type="hidden" />
+<div class="container-fluid" data-id="@Model.SearchModalId">
+    <div class="row">
+        <div class="col-md-12">
+            <ul class="tabs" role="tablist" data-id="tabContainer">
+                <li class="active" onclick="tabs(this)" role="tab" data-toggle="tab" data-tab-action="@Model.SearchModalId" data-tab-id="add">@Localization.GetText("Document.Tabs.AddDocto")</li>
+                <li onclick="tabs(this)" role="tab" data-toggle="tab" data-tab-action="@Model.SearchModalId" data-tab-id="search">@Localization.GetText("Document.Tabs.SearchDocto")</li>
+            </ul>
+
+            <div class="modalContent" data-id="modalContent">
+                <div data-id-selector="tabContainer">
+                    @Html.Partial("Controls/IDBDocsNew/AddIDBDocForm")
+
+                </div>
+                <div data-id="modalButtonsContainer" class="vex-modalFooter row">
+                    <div class="col-md-8">
+                        @if (Model.BusinessAreaCode.Equals("BA_GENERAL_DOCUMENTS"))
+                        {
+                            <div data-id="SelectLibraryContainer" class="col-md-4 pl0 pr0 w205">
+                                @Confluence.InputDropDown(Model.SelectedLibrary, "ddLibraryList", Model.LibraryList, grouping: true, placeholder: "Select destination library", orderAsc: false)
+                            </div>
+                            <div data-id="SelectLibraryContainer" class="col-md-8 w335">
+                                @Confluence.Label(Localization.GetText("Consider uploading documents to the selected library through its active Convergence module"))
+                            </div>
+                        }
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" data-id="performButton" id="performButton" class="buttonBlue">@Localization.GetText("Document.Button.Add")</button>
+                        <button type="button" data-id="cancelButton" class="buttonBlue">@Localization.GetText("Document.Button.Cancel")</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+
+    function bindHandlersDocs() {
+        $("[data-tab-action=@Model.SearchModalId]").off('click');
+        $("[data-tab-action=@Model.SearchModalId]").click(function () {
+
+            showLoaderOptional();
+
+            var source = $(this);
+            var tabId = source.attr("data-tab-id");
+            var modalContent = source.parents("[data-id=tabContainer]").siblings("[data-id=modalContent]");
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+            var actionButtonText = '';
+            var url;
+
+            switch (tabId) {
+                case "add":
+                    $('[data-id=SelectLibraryContainer]').show();
+                    actionButtonText = '@Localization.GetText("Document.Button.Add")';
+                    url = '@Url.Action("AddIDBDocForm", "DocumentModal", new { area = ""})?New=yes';
+                    $.ajax({
+                        type: "GET",
+                        url: url,
+                        async: true,
+                        success: function (data) {
+                            tabContainer.html(data);
+                            hideLoaderOptional();
+                            bindHandlersDocs();
+                        },
+                        error: function (jqXhr, textStatus, errorThrown) {
+                            errorBar(errorThrown, 5, true);
+                        }
+                    });
+                    break;
+                case "search":
+                    $('[data-id=SelectLibraryContainer]').hide();
+                    actionButtonText = '@Localization.GetText("Document.Button.Search")';
+                    url = '@Url.Action("SearchIDBDocSearchForm", "DocumentModal", new { area = "" })?New=yes&operationNumber=@Model.OperationNumber';
+                    $.ajax({
+                        type: "GET",
+                        url: url,
+                        async: true,
+                        success: function (data) {
+                            tabContainer.html(data);
+                            hideLoaderOptional();
+                            bindHandlersDocs();
+                        },
+                        error: function (jqXhr, textStatus, errorThrown) {
+                            errorBar(errorThrown, 5, true);
+                        }
+                    });
+                    break;
+            }
+
+            button.html(actionButtonText);
+        });
+
+        $("[data-id=@Model.SearchModalId] [name=chkInputCorrespondence]").off('click');
+        $("[data-id=@Model.SearchModalId] [name=chkInputCorrespondence]").click(function () {
+            var content = $(this).closest('[data-id-selector="search-form"]').find('[data-id-selector="inputCorrespondenceContainer"]');
+            if ($(this).prop('checked')) {
+                content.removeClass('hide');
+                bindHandlers();
+            } else {
+                content.addClass('hide');
+            }
+        });
+
+        $("[data-id=@Model.SearchModalId] [name=chkOutputCorrespondence]").off('click');
+        $("[data-id=@Model.SearchModalId] [name=chkOutputCorrespondence]").click(function () {
+            var content = $(this).closest('[data-id-selector="search-form"]').find('[data-id-selector="outputCorrespondenceContainer"]');
+            if ($(this).prop('checked')) {
+                content.removeClass('hide');
+                bindHandlers();
+            } else {
+                content.addClass('hide');
+            }
+        });
+
+        $("[data-id=@Model.SearchModalId] [data-id=performButton]").off('click');
+        $("[data-id=@Model.SearchModalId] [data-id=performButton]").click(function (event) {
+
+            showLoaderOptional();
+
+            var button = $(this);
+            var modalContent = button.parents("[data-id=modalContent]");
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+            var selectedRowId = $("#selectedRowIdDM");
+            var isSearchForm = tabContainer.find("[data-id-selector=search-form]").length !== 0;
+            var isSearchFormResults = tabContainer.find("[data-id-selector=search-form-results]").length !== 0;
+            var isAddDocForm = tabContainer.find("[data-id-selector=add-form]").length !== 0;
+            var vexModal;
+
+            if (isSearchForm) {
+                executeSearch(tabContainer, button, '@Localization.GetText("Document.Button.Add")');
+            }
+
+            if (isSearchFormResults) {
+
+                hideLoaderOptional();
+                executeSendSelected(tabContainer, button);
+                vexModal = $(".vex");
+
+                if (vexModal != null && vexModal.data() != null && vexModal.data().vex != null && vexModal.data().vex.id != null) {
+                    vex.closeByID(vexModal.data().vex.id);
+                }
+
+            }
+
+            if (isAddDocForm) {
+
+                var form = tabContainer.find('form');
+                var inputFile = form.find("input[type=file]")[0];
+
+                button.attr('disabled', 'disabled');
+
+                var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+
+                vexModal = modalContainer.parents(".vex");
+
+                var errorRegion;
+
+                if (inputFile.files.length === 0) {
+                    errorRegion = $(inputFile).siblings("[data-name=file-empty]");
+                    errorRegion.removeClass("hide");
+
+                    var errorFormat = $(inputFile).closest('div').siblings("[data-name=file-error]");
+                    errorFormat.addClass("hide");
+
+                    setTimeout(function () {
+                        button.removeAttr('disabled');
+                        errorRegion.addClass("hide");
+                    }, 600);
+                    hideLoaderOptional();
+                    confirmAction(errorSelectedDocument());
+                    $(".vex-theme-warning input.btn-link").css("display", "none");
+                    return false;
+                }
+
+                var validExtensions = true;
+                var extensions = ['.pdf', '.xls', '.xlsx', '.pst', '.ppt', '.pptx', '.mpp', '.pub', '.vsd', '.vss', '.vst', '.vdx', '.vsx', '.vtx', '.doc', '.docx', '.wpd', '.msg'];
+
+                var dataForm = new FormData();
+                var fileNames = [];
+                jQuery.each(inputFile.files, function (i, file) {
+                    var index = file.name.lastIndexOf(".");
+                    if (index >= 0) {
+                        var fileName = file.name;
+                        fileNames.push(fileName);
+                        var extension = file.name.substr(index).toLowerCase();
+                        if ($.inArray(extension, extensions) < 0) {
+                            validExtensions = false;
+                        }
+
+                        dataForm.append('files', file);
+                    }
+                });
+
+                if (validExtensions) {
+                    var businessAreaCode = '@Model.BusinessAreaCode';
+                    if (businessAreaCode === "BA_GENERAL_DOCUMENTS") {
+                        var selectedLib = $('#id-ddLibraryList').GetValue();
+                        if (selectedLib !== "") {
+                            businessAreaCode = selectedLib;
+                        }
+                    }
+
+                    var url =
+                        '@Url.Action("IDBDocUploadDocument", "DocumentModal", new { area = "" })?businessAreaCode=' +
+                            businessAreaCode +
+                            '&operationNumber=' +
+                            '@Model.OperationNumber' +
+                            '&selectedRowId=' +
+                            selectedRowId.val();
+
+                    $.ajax({
+                        type: 'POST',
+                        url: url,
+                        async: true,
+                        data: dataForm,
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        success: function (data) {
+                            if (data.IsValid === false) {
+                                hideLoaderOptional();
+                                if (vexModal != undefined) {
+                                    if (vexModal.data() != undefined) {
+                                        if (vexModal.data().vex != undefined) {
+                                            vex.closeByID(vexModal.data().vex.id);
+                                        }
+                                    }
+                                }
+                                errorBar(data.ErrorMessage, 60, true);
+                            }
+                            if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== "" && data.ErrorMessage.substring(0, 12) !== '@Localization.GetText("GLOBAL.SERVICE.IDBDOC.MAXREQUESTLENGTH")'.substring(0, 12)) {
+                                hideLoaderOptional();
+                                if (vexModal != undefined) {
+                                    if (vexModal.data() != undefined) {
+                                        if (vexModal.data().vex != undefined) {
+                                            vex.closeByID(vexModal.data().vex.id);
+                                        }
+                                    }
+                                }
+                                errorBar(data.ErrorMessage, 60, true);
+                            }
+                            else if (!data.IsValid && data.ErrorMessage.substring(0, 12) === '@Localization.GetText("GLOBAL.SERVICE.IDBDOC.MAXREQUESTLENGTH")'.substring(0, 12)) {
+                                button.removeAttr('disabled');
+                                $('input[name="file"]').val("");
+                                hideLoaderOptional();
+                                if (vexModal != undefined) {
+                                    if (vexModal.data() != undefined) {
+                                        if (vexModal.data().vex != undefined) {
+                                            vex.closeByID(vexModal.data().vex.id);
+                                        }
+                                    }
+                                }
+                                errorBar(data.ErrorMessage, 60, true);
+                            } else if (data.IsValid) {
+                                if (selectedRowId.val() !== "") {
+                                    window.location.reload();
+                                } else {
+                                    @if (!string.IsNullOrEmpty(Model.TargetFunction))
+                                    {
+                                        @:window["@Model.TargetFunction"](data.DocumentNumbers, 'added', fileNames);
+                                                                    }
+                                    hideLoaderOptional();
+                                    if (vexModal != undefined) {
+                                        if (vexModal.data() != undefined) {
+                                            if (vexModal.data().vex != undefined) {
+                                                vex.closeByID(vexModal.data().vex.id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        error: function () {
+                            hideLoaderOptional();
+                            if (vexModal != undefined) {
+                                if (vexModal.data() != undefined) {
+                                    if (vexModal.data().vex != undefined) {
+                                        vex.closeByID(vexModal.data().vex.id);
+                                    }
+                                }
+                            }
+                            errorBar(errorSelectedDocument(), 60, true);
+                        }
+                    });
+                } else {
+                    errorRegion = $(inputFile).closest('div').siblings("[data-name=file-error]");
+                    errorRegion.removeClass("hide");
+                    button.removeAttr('disabled');
+                    hideLoaderOptional();
+                    $('.inputFileInput').val("");
+                    $('input[name="file"]').val("");
+                }
+
+                $('input[name="file"]').val("");
+            }
+            event.stopPropagation();
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            bindHandlersDocs();
+
+        });
+
+        $("[data-id=@Model.SearchModalId] [data-id=cancelButton]").off('click');
+        $("[data-id=@Model.SearchModalId] [data-id=cancelButton]").click(function () {
+            var button = $(this);
+            var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+            var vexModal = modalContainer.parents(".vex");
+            if (vexModal != undefined) {
+                if (vexModal.data() != undefined) {
+                    if (vexModal.data().vex != undefined) {
+                        vex.closeByID(vexModal.data().vex.id);
+                    }
+                }
+            }
+        });
+
+        $("[data-id=@Model.SearchModalId] [data-id=clearFilters]").off('click');
+        $("[data-id=@Model.SearchModalId] [data-id=clearFilters]").click(function () {
+            var source = $(this);
+            var modalContent = source.parents("[data-id=modalContent]");
+            var button = modalContent.find("[data-id=modalButtonsContainer] [data-id=performButton]");
+            var buttonSearchFormText = '@Localization.GetText("Document.Button.Search")';
+            button.html(buttonSearchFormText);
+
+            var tabContainer = modalContent.find('[data-id-selector=tabContainer]');
+
+            showLoader();
+            var url = '@Url.Action("SearchIDBDocSearchForm", "DocumentModal", new { area = "" })?New=yes&operationNumber=@Model.OperationNumber';
+            $.ajax({
+                type: "GET",
+                url: url,
+                async: true,
+                success: function (data) {
+                    tabContainer.html(data);
+                    hideLoader();
+                    bindHandlersDocs();
+                },
+                error: function (jqXhr, textStatus, errorThrown) {
+                    errorBar(errorThrown, 5, true);
+                }
+            });
+        });
+    }
+
+    function executeSearch(tabContainer, button, actionButtonText) {
+        var url = '@Url.Action("SearchIDBDocuments", "DocumentModal", new {area = ""})?New=yes';
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: serializeContainer(tabContainer),
+            async: true,
+            success: function (data) {
+                tabContainer.html(data);
+                button.html(actionButtonText);
+                bindHandlersDocs();
+                hideLoaderOptional();
+            },
+            error: function (jqXhr, textStatus, errorThrown) {
+                errorBar(errorThrown, 5, true);
+            }
+
+        });
+    }
+
+    function executeSendSelected(tabContainer, button) {
+        var selectedRowId = $("#selectedRowIdDM");
+        if (selectedRowId.val() !== "") {
+            executeSendSelectedKeyDoc(tabContainer, button, selectedRowId);
+        } else {
+            executeSendSelectedDM(tabContainer, button);
+        }
+    }
+
+    function executeSendSelectedDM(tabContainer, button) {
+
+        var documentList = $('tr.selected');
+        var documentsObject = [];
+
+        documentList.each(function (index, element) {
+            documentsObject.push($.parseJSON($(element).attr('data-json')));
+        });
+
+        if ('@Model.BusinessAreaCode' === "BA_GENERAL_DOCUMENTS") {
+            var documentSelected = $.parseJSON($('tr.selected').attr('data-json'));
+            if (documentSelected == null) {
+                hideLoaderOptional();
+                confirmAction(errorSelectedDocument());
+                $(".vex-theme-warning input.btn-link").css("display", "none");
+                return;
+            }
+
+            var documentNumber = documentSelected.DocumentNumber;
+            var documentName = documentSelected.DocumentName;
+            var documentDescription = documentSelected.Abstract;
+            var created = documentSelected.CreationDate;
+            var author = documentSelected.FullName;
+            var url = '@Url.Action("AddSearchDocument", "DocumentModal", new { area = "" })?documentNumber=' +
+                documentNumber +
+                '&businessAreaCode=@Model.BusinessAreaCode&documentName=' +
+                documentName +
+                '&author=' +
+                author +
+                '&abstract=' +
+                documentDescription +
+                '&creationDate=' +
+                created +
+                '&operationNumber=@Model.OperationNumber';
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                async: false,
+                success: function () {
+                    window.location.reload();
+                    hideLoaderOptional();
+                },
+                error: function (jqXhr, textStatus, errorThrown) {
+                    hideLoaderOptional();
+                    var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+                    var vexModal = modalContainer.parents(".vex");
+                    if (vexModal != undefined) {
+                        if (vexModal.data() != undefined) {
+                            if (vexModal.data().vex != undefined) {
+                                vex.closeByID(vexModal.data().vex.id);
+                            }
+                        }
+                    }
+                    errorBar(errorThrown, 60, true);
+                }
+
+            });
+        } else if (documentsObject.length > 0) {
+            @if (!string.IsNullOrEmpty(Model.TargetFunction)) {
+                @:window["@Model.TargetFunction"](documentsObject, 'selected');
+                        }
+        } else {
+            hideLoaderOptional();
+            confirmAction(errorSelectedDocument());
+            $(".vex-theme-warning input.btn-link").css("display", "none");
+            return;
+        }
+    }
+
+    function executeSendSelectedKeyDoc(tabContainer, button, selectedRowId) {
+
+        var jsondocumentSelected = $('tr.selected').attr('data-json');
+
+        if (jsondocumentSelected == null) {
+            hideLoaderOptional();
+            confirmAction(errorSelectedDocument());
+            $(".vex-theme-warning input.btn-link").css("display", "none");
+            return;
+        }
+
+        var documentSelected = $.parseJSON($('tr.selected').attr('data-json'));
+        var url;
+
+        if (typeof selectedRowId != "undefined") {
+            url = '@Url.Action("UpdateKeyDocument", "Document", new { area = "" })?documentNumber=' + documentSelected.DocumentNumber + '&businessAreaCode=@Model.BusinessAreaCode&documentName=' + documentSelected.DocumentName + '&author=' + documentSelected.FullName + '&abstract=' + documentSelected.Abstract + '&creationDate=' + documentSelected.CreationDate + '&selectedRowId=' + selectedRowId.val() + '&operationNumber=@Model.OperationNumber';
+            $.ajax({
+                url: url,
+                type: 'POST',
+                async: true,
+                success: function (data) {
+                    if(data.IsValid){
+                        window["@Model.TargetFunction"]('', 'selected','');
+                    }
+                },
+                error: function (jqXhr, textStatus, errorThrown) {
+                    errorBar(errorThrown, 5, true);
+                }
+
+            });
+        }
+
+        if ('@Model.BusinessAreaCode' === "BA_GENERAL_DOCUMENTS") {
+            url = '@Url.Action("AddSearchDocument", "DocumentManagement", new { area = "" })?documentNumber=' + documentNumber + '&businessAreaCode=@Model.BusinessAreaCode&documentName=' + documentName + '&author=' + author + '&abstract=' + window.documentDescription + '&creationDate=' + created + + '&operationNumber=@Model.OperationNumber';
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                async: true,
+                success: function () {
+                    window.location.reload();
+                    hideLoaderOptional();
+                },
+                error: function (jqXhr, textStatus, errorThrown) {
+                    errorBar(errorThrown, 5, true);
+                }
+
+            });
+        }
+        var modalContainer = button.parents("[data-id=@Model.SearchModalId]");
+        var vexModal = modalContainer.parents(".vex");
+        if (vexModal != undefined) {
+            if (vexModal.data() != undefined) {
+                if (vexModal.data().vex != undefined) {
+                    vex.closeByID(vexModal.data().vex.id);
+                }
+            }
+        }
+    }
+
+    function errorSelectedDocument() {
+        return "@Localization.GetText("DM.Error.Selected.Document")";
+    }
+
+    function clearDraftResult() {
+        $("li[data-tab-id=draft]").click();
+    }
+
+    window.addEventListener('load', function () {
+
+        bindHandlersDocs();
+
+        $('[data-id-selector="tabContainer"]').keyup(function (event) {
+            if ($('[data-id="tabContainer"] li.active').data('tab-id').toLowerCase() !== "add") {
+                if (event.which === 13) {
+                    event.preventDefault();
+                    $('[data-id=performButton]').click();
+                }
+            }
+        });
+    });
+</script>

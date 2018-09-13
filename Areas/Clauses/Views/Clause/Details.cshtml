@@ -1,0 +1,1089 @@
+﻿@using IDB.MW.Domain.Models.Architecture.MasterDefinitions
+@using IDB.MW.Domain.Values;
+@using System.Globalization;
+
+@model IDB.MW.Domain.Models.Clauses.OperationRelatedModel
+@{
+    ViewBag.Title = "Details";
+    List<ConvergenceMasterDataModel> ListValidationStage = ViewBag.ListValidationStage;
+    bool isOA420 = !(Model.IsOA421Check ?? false);
+    bool isPBPOrPBLAndOA420Operation = Model.IsSpecialOperationPBLPBP && isOA420;
+}
+
+@Styles.Render("~/Content/Confluence")
+@Scripts.Render("~/bundles/ModalConfluenceScripts")
+
+@section CSS{
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Risks/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Clauses/clauseDetails.css")" />
+}
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Clauses/Clause/ChangedStatusToFulfilmentClauseLastD.js")"></script>
+
+    <script type="text/javascript">
+    $(document).ready(function () {
+        $(document).foundation();
+
+        $(".datepicker").kendoDatePicker({
+            format: "dd MMM yyyy"
+        });
+        var grid1 = new GridComponent(".grid1", 20, false, true);
+        var grid2 = new GridComponent(".grid2", 20, false, true);
+
+        $(".saveandrequest").click(function (event) {
+            var dateSubmissionDate = $(".saveandrequest").data('submissiondate');
+            if (dateSubmissionDate === null || dateSubmissionDate === '') {
+                event.preventDefault();
+                $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+                $("body").append('<div class="dinamicModal"></div>');
+                $("#advFulfillment").appendTo(".dinamicModal").removeClass("hide");
+                var title = $("#advFulfillment").data("title");
+                var modal = $(".dinamicModal").kendoWindow({
+                    width: "800px",
+                    title: title,
+                    draggable: false,
+                    resizable: false,
+                    pinned: true,
+                    actions: [
+                        "Close"
+                    ],
+                    modal: true,
+                    visible: false,
+                    activate: function () {
+                        $("#advFulfillment").click(functionCancel);
+                    },
+                    close: function () {
+                        $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                        $("#advFulfillment").appendTo("#ui_sp_001").addClass("hide");
+                        $("body").find(".ui-widget-overlay").remove();
+                        $(".ui-widget-overlay").remove();
+                    }
+                }).data("kendoWindow");
+                $(".k-window-titlebar").addClass("warning");
+                $(".k-window-title").addClass("ico_warning");
+                modal.center();
+                modal.open();
+            }
+            else {
+                var isPBPOrPBLAndOA420Operation = @(isPBPOrPBLAndOA420Operation.ToString().ToLower());
+                if (isPBPOrPBLAndOA420Operation) {
+                    validationHasTrenchClause($(this).data("route"))
+                } else {
+                    idbg.lockUi(null, true);
+                    redirectPage($(this).data("route"));
+                }
+
+            }
+        });
+
+        $("#buttonredirectparent").click(function () {
+            var url = idbg.config.baseSharePointAddress + '/operation/@Model.OperationNumber/Pages/Default?clauseID=@Model.Contracts[0].Clauses[0].ClauseId&operationNumber=@Model.OperationNumber';
+            $(window.parent.document).attr('location', url);
+        });
+
+        $("[name='returnToBack']").click(function () {
+            redirectPage($(this).data("route"));
+        });
+
+        $(document).on('click', 'a.tipo1, a[name="extension"]', function (){
+            idbg.lockUi(null, true);
+        });
+    });
+
+    var functionCancel = function (event) {
+        event.preventDefault();
+        var modal = $(".dinamicModal").data("kendoWindow");
+        modal.close();
+        $(".ui-widget-overlay").remove();
+    };
+
+    var functionCancelPBPPBL = function (event) {
+        event.preventDefault();
+        var modal = $(".dinamicModal").data("kendoWindow");
+        modal.close();
+        $(".ui-widget-overlay").remove();
+        var route = $(".saveandrequest").data("route");
+
+        idbg.lockUi(null, true);
+        redirectPage(route);
+    };
+
+    $(document).on("click", "a", function () {
+        idbg.lockUi(null, true);
+    });
+
+    function WarningHasMilestonTrenchForOperation() {
+        event.preventDefault();
+        $(window.parent.document).find('body').append('<div class="ui-widget-overlay ui-front"></div>');
+        $("body").append('<div class="ui-widget-overlay ui-front"></div>');
+        $("body").append('<div class="dinamicModal"></div>');
+        $("#advMilestonTrenchOperation").appendTo(".dinamicModal").removeClass("hide");
+        var title = $("#advMilestonTrenchOperation").data("title");
+        var modal = $(".dinamicModal").kendoWindow({
+            width: "800px",
+            title: title,
+            draggable: false,
+            resizable: false,
+            pinned: true,
+            actions: [
+                "Close"
+            ],
+            modal: true,
+            visible: false,
+            activate: function () {
+                $("#ConfirmadvMilestonTrenchOperation").click(functionCancelPBPPBL);
+                $("#CancelMilestonTrenchOperation").click(functionCancel);
+            },
+            close: function () {
+                $(window.parent.document).find('body').find(".ui-widget-overlay").remove();
+                $("#advMilestonTrenchOperation").appendTo("#ui_sp_001").addClass("hide");
+                $("body").find(".ui-widget-overlay").remove();
+                $(".ui-widget-overlay").remove();
+            }
+        }).data("kendoWindow");
+        $(".k-window-titlebar").addClass("warning");
+        $(".k-window-title").addClass("ico_warning");
+        modal.center();
+        modal.open();
+
+    }
+
+    function validationHasTrenchClause(route) {
+        var hasMilestonTypeTrenchClause = JSON.parse("@Model.HasMilestonTypeTrenchOperation".toLowerCase());
+        if (hasMilestonTypeTrenchClause) {
+            WarningHasMilestonTrenchForOperation();
+
+        } else {
+            idbg.lockUi(null, true);
+            redirectPage(route);
+        }
+
+        idbg.lockUi(null, false);
+    }
+    </script>
+}
+
+@{
+    bool check = false;
+    if (Model.mainOperationNumber == "NA")
+    {
+        check = true;
+        string ope = Request["operationNumber"];
+        Model.mainOperationNumber = ope;
+    }
+}
+@Html.Hidden(
+    "contract-approval-date",
+    string.Format("{0:dd MMM yyy}", Model.Contracts[0].ApprovalDate),
+    new { id = "contract-approval-date" })
+@Html.Hidden("ChangedClauseStatusLDtoFulfillmentUrl", Url.Action("ConfirmChangedClauseStatusToFulfilment", "Clause",
+new
+{
+    area = "Clauses",
+    operationId = @Model.OperationId,
+    contractId = @Model.Contracts[0].ContractId,
+    clauseId = @Model.Contracts[0].Clauses[0].ClauseId,
+    clauseIndividualId = @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+    mainOperationNumber = @Model.mainOperationNumber
+}))
+
+@Html.Hidden("EditClauseToFulfilment", Url.Action("EditClauseToFulfilment", "Clause",
+    new
+    {
+        area = "Clauses",
+        operationId = @Model.OperationId,
+        contractId = @Model.Contracts[0].ContractId,
+        clauseId = @Model.Contracts[0].Clauses[0].ClauseId,
+        clauseIndividualId = @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+        mainOperationNumber = @Model.mainOperationNumber
+    }))
+
+<section class="central fontSizeInitial">
+    <h2 class="hide">Seccion central de Contenido</h2>
+
+    <div class="mod_contenido_central contracts_and_clauses mb10">
+        @if (check)
+        {
+            if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+            {
+                <h3 class="headingh2" style="width: 37%;">
+                    <label id="buttonredirectparent" title="@Localization.GetText("CL.ClausesAndConditions")"
+                           class="tipo1">@Localization.GetText("CL.ClausesAndConditions")</label>
+                    </h3>
+            }
+            else
+            {
+                <h3 class="headingh2" style="width: 37%;">
+                    <label id="buttonredirectparent" title="@Localization.GetText("CL.ContractsClauses")"
+                           class="tipo1">@Localization.GetText("CL.ContractsClauses")</label>
+                    </h3>
+            }
+        }
+        else
+        {
+            if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+            {
+                <a href="@(Url.Action("Index", "Contracts",
+                    new { area = "Clauses", operationNumber = Model.mainOperationNumber }))"
+                   title="@Localization.GetText("CL.ClausesAndConditions")"
+                   class="tipo1">@Localization.GetText("CL.ClausesAndConditions")</a>
+            }
+            else
+            {
+                <a href="@(Url.Action("Index", "Contracts",
+                    new { area = "Clauses", operationNumber = Model.mainOperationNumber }))"
+                   title="@Localization.GetText("CL.ContractsClauses")"
+                   class="tipo1">@Localization.GetText("CL.ContractsClauses")</a>
+            }
+        }
+
+
+        @if (Model.IsVisibleButtonClauseIndividualReturned &&
+            !Model.IsSignatureOrRatificationOrLegalReport &&
+               Model.HasPermissionClauseIndividualReturned)
+        {
+            <div>
+                <label for="returnToBack" class="LabelReturnToBack">
+                    <input type="button"
+                           class="buttonOrange returnToBack"
+                           name="returnToBack"
+                           value="@Localization.GetText("CL.ClauseIndividualReturnToBack")"
+                           data-route="@Url.Action("SaveClauseIndividualReturned", "Clause",
+                           new {
+                               area = "Clauses",
+                               operationId = Model.OperationId,
+                               contractId = Model.Contracts[0].ContractId,
+                               clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                               clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                               mainOperationNumber = Model.mainOperationNumber })"
+                           data-submissiondate="@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].SubmissionDate">
+                </label>
+            </div>
+        }
+        else if (Model.IsSignatureOrRatificationOrLegalReport)
+        { <br />
+            <label for="returnToBack" class="labelNoReturnToBack">
+                @Localization.GetText("CL.ClauseNotCompletedByTeamLeader")
+            </label><br /><br /><br />
+        }
+
+        @foreach (var masterData in ViewBag.ListClauseStatus)
+        {
+            if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId)
+            {
+                if ((masterData.Code == "CL_DRAFT") || (masterData.Code == "CL_TR") || (masterData.Code == "CL_TR_W"))
+                {
+                    <div class="editingButtonsEdit topMargin16px">
+                        <label for="edit">
+                            @foreach (var masterData2 in ViewBag.ListClauseCategory)
+                            {
+                                if (masterData2.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                                {
+                                    if (@masterData2.Code != "LASTD" && (Html.HasPermission("Clauses Write")
+                                        || Html.HasPermission("Last Disbursement Clause Write")))
+                                    {
+                                        <a href="@(Url.Action("Edit", "Clause",
+                                            new
+                                            {
+                                                area = "Clauses",
+                                                operationId = Model.OperationId,
+                                                contractId = Model.Contracts[0].ContractId,
+                                                clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                                clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                                mainOperationNumber = Model.mainOperationNumber
+                                            }))">
+                                            @Confluence.ButtonWhite(Localization.GetText(masterData.Code == "CL_TR" ? "CC.AddInformation" : "Edit"))
+                                        </a>
+                                    }
+                                }
+                            }
+                        </label>
+                        @if (masterData.Code == "CL_TR")
+                        {
+                            foreach (var masterData2 in ViewBag.ListClauseCategory)
+                            {
+                                if (masterData2.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                                {
+                                    if (@masterData2.Code != "LASTD" && @masterData2.Code != "SIGN" && @masterData2.Code != "RAT")
+                                    {
+                                        foreach (var status in (List<ConvergenceMasterDataModel>)ViewBag.FinalStatusList)
+                                        {
+                                            <label for="saveandrequest">
+                                                @if (Html.HasPermission("Clauses Write"))
+                                                {
+                                                    <input type="button"
+                                                           class="buttonOrange saveandrequest"
+                                                           name="Request"
+                                                           value="@Localization.GetText(status.Code)"
+                                                           data-route="@Url.Action("SaveFinalStatusAndRequest", "Clause",
+                                                           new {
+                                                               area = "Clauses",
+                                                               operationId = Model.OperationId,
+                                                               contractId = Model.Contracts[0].ContractId,
+                                                               clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                                               clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                                               mainOperationNumber = Model.mainOperationNumber,
+                                                               finalStatus = status.ConvergenceMasterDataId })"
+                                                           data-submissiondate="@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].SubmissionDate">
+                                                }
+                                            </label>
+                                        }
+                                    }
+                                    else if (@masterData2.Code == "LASTD")
+                                    {
+                                        foreach (var status in (List<ConvergenceMasterDataModel>)ViewBag.FinalStatusList)
+                                        {
+                                            if (@status.Code == "CL_FULFIL")
+                                            {
+                                                <label for="saveandrequest">
+                                                    @if (Html.HasPermission("Last Disbursement Clause Write"))
+                                                    {
+                                                        <input type="button" class="buttonOrange FulfilmentLD"
+                                                               name="Request" value="@Localization.GetText(status.Code)">
+                                                    }
+                                                </label>
+                                            }
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    </div>
+                }
+                break;
+            }
+        }
+
+    </div>
+
+    <table class="tableInfo">
+
+        <thead>
+            <tr>
+                <th class="main-header" colspan="4">
+                    @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                    {
+                        @Localization.GetText("CL.ConditionDetails")
+                    }
+                    else
+                    {
+                        @Localization.GetText("Clause Details")
+                    }
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="headers">
+                <th>
+                    @foreach (var masterData in ViewBag.ListClauseCategory)
+                    {
+                        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                        {
+                            if (masterData.Code == "SIGN")
+                            {
+                                @Localization.GetText("CL.SignatureFulfillmentClause")
+                            }
+                            else
+                            {
+                                if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                                {
+                                    @Localization.GetText("CL.Condition")
+                                }
+                                else
+                                {
+                                    @Localization.GetText("Clause")
+                                }
+                            }
+
+                            break;
+                        }
+                    }
+                </th>
+                <th>@Localization.GetText("Description")</th>
+                @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                {
+                    <th>@Localization.GetText("CL.ConditionStatus")</th>
+                }
+                else
+                {
+                    <th>@Localization.GetText("CL.Status")</th>
+                }
+                <th>@Model.Contracts[0].ContractNumber</th>
+            </tr>
+            <tr>
+                <td>
+                    @foreach (var masterData in ViewBag.ListClauseCategory)
+                    {
+                        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                        {
+                            @Model.Contracts[0].Clauses[0].ClauseNumber
+                            break;
+
+                        }
+                    }
+                </td>
+                <td>
+                    @Model.Contracts[0].Clauses[0].Description
+                </td>
+                <td>
+                    @foreach (var itemClauseStatus in ViewBag.ListClauseStatus)
+                    {
+                        if (itemClauseStatus.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId)
+                        {
+                            foreach (var itemValidationStage in ListValidationStage)
+                            {
+                                if (itemValidationStage.ConvergenceMasterDataId ==
+                                    Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ValidationStageId)
+                                {
+                                    if (itemValidationStage.Code == "CL_REV" ||
+                                        itemValidationStage.Code == "CL_REV_LMS" ||
+                                        itemValidationStage.Code == "CL_REV_EXT")
+                                    {
+                                        <p>@Localization.GetText(itemValidationStage.NameEn)</p>
+                                    }
+                                    else
+                                    {
+                                        <p>@Localization.GetText(itemClauseStatus.NameEn)</p>
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                </td>
+                <td>
+                    @foreach (var itemContractStatus in ViewBag.ListContractStatus)
+                    {
+                        if (itemContractStatus.ConvergenceMasterDataId == Model.Contracts[0].ContractClauseStatId)
+                        {
+                            @Localization.GetText(itemContractStatus.NameEn);
+                            break;
+                        }
+                    }
+                </td>
+            </tr>
+
+            <tr class="headers">
+                <th>@Localization.GetText("Type")</th>
+                <th>@Localization.GetText("Category")</th>
+                @if ((bool)ViewBag.isTCOperation && ViewBag.TypeBank)
+                {
+                    <th>@Localization.GetText("CL.SpecialConditionClass")</th>
+                }
+                else
+                {
+                    <th>@Localization.GetText("CL.SpecialClauseClass")</th>
+                }
+
+                <th>@Localization.GetText("Location")</th>
+            </tr>
+            <tr>
+                <td>
+                    @foreach (var masterData in ViewBag.ListClauseType)
+                    {
+                        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseTypeId)
+                        {
+                            <p>@Localization.GetText(masterData.NameEn)</p>
+                            break;
+                        }
+                    }
+                </td>
+                <td>
+                    @foreach (var masterData in ViewBag.ListClauseCategory)
+                    {
+                        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                        {
+                            <p>@Localization.GetText(masterData.NameEn)</p>
+                            break;
+                        }
+                    }
+                </td>
+                <td>
+                    @if (Model.Contracts[0].Clauses[0].IsSpecial)
+                    {
+                        @Localization.GetText("Yes")
+                    }
+                    else
+                    {
+                        @Localization.GetText("No")
+                    }
+                </td>
+                <td>
+                    @foreach (var masterData in ViewBag.ListClauseLocation)
+                    {
+                        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].LocationId)
+                        {
+                            <p>@Localization.GetText(masterData.NameEn)</p>
+                            break;
+                        }
+                    }
+                </td>
+            </tr>
+
+            <tr class="headers">
+                <th>@Localization.GetText("CL.OriginalExpirationDate")</th>
+                <th>@Localization.GetText("CL.CurrentExpirationDate")</th>
+                <th>
+                    @{ string headerText = @Localization.GetText("CL.SubmissionDate"); }
+
+                    @foreach (var masterData in ViewBag.ListClauseStatus)
+                    {
+                        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId &&
+                            masterData.Code == "CL_DRAFT")
+                        {
+                            if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId &&
+                                (masterData.NameEn == "TRACK" || masterData.NameEn == "TRACKWITHDRAW"))
+                            {
+                                foreach (var masterData2 in ViewBag.ListClauseCategory)
+                                {
+                                    if (masterData2.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                                    {
+                                        if (@masterData2.Code == "LASTD")
+                                        {
+                                            { headerText = @Localization.GetText("CL.FulfillmentDate"); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    @headerText
+                </th>
+                <th>@Localization.GetText("CL.ApprovalDate")</th>
+            </tr>
+            <tr>
+                <td>@String.Format("{0:dd MMM yyy}", Model.Contracts[0].Clauses[0].ClauseIndividuals[0].OriginalExpirationDate)</td>
+                <td>@String.Format("{0:dd MMM yyy}", Model.Contracts[0].Clauses[0].ClauseIndividuals[0].CurrentExpirationDate)</td>
+                <td>@String.Format("{0:dd MMM yyy}", Model.Contracts[0].Clauses[0].ClauseIndividuals[0].SubmissionDate)</td>
+                <td>
+                    @foreach (var masterData in ViewBag.ListClauseStatus)
+                    {
+                        if (masterData.ConvergenceMasterDataId ==
+                            @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId &&
+                            masterData.Code == "CL_DRAFT")
+                        {
+                            if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId &&
+                                (masterData.NameEn == "TRACK" || masterData.NameEn == "TRACKWITHDRAW"))
+                            {
+                                foreach (var masterData2 in ViewBag.ListClauseCategory)
+                                {
+                                    if (masterData2.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                                    {
+                                        if (@masterData2.Code != "LASTD")
+                                        {
+                                            @String.Format("{0:dd MMM yyy}", Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ValidateDate)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                </td>
+            </tr>
+
+            <tr class="headers">
+                <th>@Localization.GetText("CL.LastDisbursementDependency")</th>
+                @if ((Model.IsSpecialOperationPBLPBP && Model.NameTrench != "" && Model.NameTrench != null) ||
+            (Model.IsSpecialOperationPBLPBP && Model.NameTrench == null))
+                {
+                    <th>@Localization.GetText("CL.Trench")</th>
+
+                }
+
+            </tr>
+            <tr>
+                <td>
+                    @if (ViewBag.Dependency)
+                    {
+                        <p>@Localization.GetText("Yes")</p>
+                    }
+                    else
+                    {
+                        <p>@Localization.GetText("No")</p>
+                    }
+                </td>
+                @if ((Model.IsSpecialOperationPBLPBP && Model.NameTrench != "" && Model.NameTrench != null) ||
+            (Model.IsSpecialOperationPBLPBP && Model.NameTrench == null))
+                {
+                    <td>
+                        @Model.NameTrench
+                    </td>
+                }
+            </tr>
+        </tbody>
+
+    </table>
+    @if (Model.HasClauseIndividualReturnedHistory)
+    {
+
+        <table class="clauseIndividualReturned" id="clauseIndividualReturned-detail">
+            <thead>
+                <tr>
+                    <th class="titleHeaderClauseIndividualReturned" colspan="5">
+                        <span class="collapse-button collapsed" onclick="$('#clauseIndividualReturned-detail').find('.collapse-button,tbody').toggleClass('collapsed expanded');"></span>
+                        @Localization.GetText("CL.ClauseIndividualReturnedInformation")
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="collapsed">
+                    @foreach (var clauseIndividualReturned in Model.GetAllClauseIndividualReturned)
+                    {
+                        <tr>
+                            <td>
+                                <span class="title">Returned by &nbsp;</span>
+                                <span class="bold">@clauseIndividualReturned.ReturnedBy</span>
+                            </td>
+                            <td>
+                                <span class="title">Returned on &nbsp;</span>
+                                <span class="bold">@clauseIndividualReturned.ReturnedDate.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture) </span>
+                            </td>
+                            <td>
+                                <span class="title">Workflow  &nbsp;</span>
+                                <span class="bold">
+                                    @clauseIndividualReturned.Folio &nbsp;&nbsp;
+                                    @clauseIndividualReturned.StartDate.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture)
+                                </span>
+                            </td>
+                        </tr>
+                    }
+            </tbody>
+        </table>
+    }
+
+    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId ||
+        ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+    { 
+        <table class="tableInfo">
+
+            <thead>
+                <tr>
+                    <th class="main-header" colspan="5">
+                        @Localization.GetText("Extensions.Profile")
+
+                        @Display.IconInformation()
+                        <span class="information">
+                            @(Model.NumberExtensionLeft < 0 || Model.NumberExtensionLeft == null ?
+                                Localization.GetText("Extensions.Profile.InformationMessage420") :
+                                Localization.GetText("Extensions.Profile.InformationMessage421"))
+                        </span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="headers">
+
+                    @if (ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <th>@Localization.GetText("Number.Approved.Extensions")</th>
+                    }
+
+                    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <th>@Localization.GetText("Total.Approved.Months")</th>
+                    }
+
+                    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId ||
+                        ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <th>@Localization.GetText("Last.Extensions.Validator")</th>
+                    }
+
+                    @if (ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <th>@Localization.GetText("Number.Extensions.Left")</th>
+                    }
+
+                    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <th>Number of Months Left</th>
+                    }
+                </tr>
+                <tr>
+                    @if (ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <td>@Model.NumberApprovedExtension</td>
+                    }
+
+                    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <td>@Model.TotalApprovedMonths</td>
+                    }
+
+                    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId || 
+                        ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <td>@Model.LastValidador</td>
+                    }
+
+                    @if (ViewBag.ClauseCategory421Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <td>
+                            @(Model.NumberExtensionLeft < 0 || Model.NumberExtensionLeft == null ?
+                                    "--" :
+                                    Model.NumberExtensionLeft.ToString())
+                        </td>
+                    }
+
+                    @if (ViewBag.ClauseCategory420Id == @Model.Contracts[0].Clauses[0].CategoryId)
+                    {
+                        <td>
+                            @(Model.MonthsLeft < 0 || Model.MonthsLeft == null ?
+                                    "--" :
+                                    Model.MonthsLeft.ToString())
+                        </td>
+                    }
+                </tr>
+            </tbody>
+
+        </table>
+    }
+
+    @foreach (var masterData in ViewBag.ListClauseStatus)
+    {
+        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId && masterData.Code != "CL_DRAFT")
+        {
+            <!-- Extensions -->
+            <h4 class="headingh3 min_bootom_headingh3 ">@Localization.GetText("Extensions") </h4>
+                <div class="mod_tabla marginbottom_cero" style="width: 94%">
+                    <table class="grid1">
+                        <thead>
+                            <tr>
+                                <th class="btn_azul_oscuro_flecha" data-field="RequestDateGrid">@Localization.GetText("CL.RequestedDate")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="RequestMonthsGrid">@Localization.GetText("CL.RequestMonths")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="ExecutorRequestMonthsGrid">@Localization.GetText("CL.ExecutorRequestedMonths")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="ExtensionStatusGrid">@Localization.GetText("CL.ExtensionsStatus")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="SubmissionDateGrid">@Localization.GetText("CL.SubmissionDate")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="ApprovalDateGrid">@Localization.GetText("CL.ApprovalDate")</th>
+                                <th class="btn_azul_oscuro_flecha" data-field="CommunicationNumberGrid">@Localization.GetText("CL.CommunicationNumber")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+
+                                var CurrentExpirationDate = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].CurrentExpirationDate;
+                                var ListExtensions = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseExtension;
+
+                                foreach (var extension in ListExtensions)
+                                {
+                                    var currentStageCode = string.Empty;
+
+                                    if (extension.ValidationStageId != null)
+                                    {
+                                        currentStageCode = ListValidationStage
+                                            .First(x => x.ConvergenceMasterDataId == extension.ValidationStageId)
+                                            .Code;
+                                    }
+
+                                    <tr>
+                                        <td>
+                                            @{
+                                                if (currentStageCode == ClauseConstants.APPROVED_CLAUSE_STATUS)
+                                                {
+                                                    <a name="extension" href="@(Url.Action("DetailsExtension", "Clause", new
+                        {
+                            area = "Clauses",
+                            operationId = Model.OperationId,
+                            contractId = Model.Contracts[0].ContractId,
+                            clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                            clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                            clauseExtensionId = extension.ClauseExtensionId,
+                            mainOperationNumber = Model.mainOperationNumber,
+                            RequestDate = extension.RequestExtensionDate.Value.ToString("dd MMM yyyy")
+                        }))">
+                                                    @(extension.RequestExtensionDate.Value.ToString("dd MMM yyyy"))
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                if (extension.RequestExtensionDate == null)
+                                                {
+                                                    <a name="extension" href="@(Url.Action("DetailsExtension", "Clause", new
+                                                                    {
+                                                                        area = "Clauses",
+                                                                        operationId = Model.OperationId,
+                                                                        contractId = Model.Contracts[0].ContractId,
+                                                                        clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                                                        clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                                                        clauseExtensionId = extension.ClauseExtensionId,
+                                                                        mainOperationNumber = Model.mainOperationNumber,
+                                                                        RequestDate = Convert.ToDateTime(CurrentExpirationDate).AddMonths((int)extension.IdbRequest).ToString("dd MMM yyyy")
+                                                                    }))">
+                                                        @(Convert.ToDateTime(CurrentExpirationDate).AddMonths((int)extension.IdbRequest).ToString("dd MMM yyyy"))
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <a name="extension" href="@(Url.Action("DetailsExtension", "Clause", new
+                                                                    {
+                                                                        area = "Clauses",
+                                                                        operationId = Model.OperationId,
+                                                                        contractId = Model.Contracts[0].ContractId,
+                                                                        clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                                                        clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                                                        clauseExtensionId = extension.ClauseExtensionId,
+                                                                        mainOperationNumber = Model.mainOperationNumber,
+                                                                        RequestDate = extension.RequestExtensionDate.Value.ToString("dd MMM yyyy")
+                                                                    }))">
+                                                        @(extension.RequestExtensionDate.Value.ToString("dd MMM yyyy"))
+                                                    </a>
+                                                }
+                                            }
+                                        }
+                                    </td>
+                                    <td>@(extension.IdbRequest != null ? extension.IdbRequest.ToString() : string.Empty)</td>
+                                    <td>@(extension.ExecutorRequest != null ? extension.ExecutorRequest.ToString() + " " + Localization.GetText("month(s)") : string.Empty)</td>
+                                    <td>
+                                        @foreach (var masterData2 in ViewBag.ListValidationStage)
+                                        {
+                                            if (masterData2.ConvergenceMasterDataId == extension.ValidationStageId)
+                                            {
+                                                @Localization.GetText(masterData2.NameEn)
+                                                break;
+                                            }
+                                        }
+                                    </td>
+                                    <td>@String.Format("{0:dd MMM yyy}", extension.ValidateDate)</td>
+                                    <td>@String.Format("{0:dd MMM yyy}", extension.ValidateDate)</td>
+                                    <td>@extension.CommunicationNumber</td>
+                                </tr>
+                                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <!-- Comments grid -->
+                                            <h4 class="headingh3 min_bootom_headingh3">@Localization.GetText("Comments")</h4>
+                                            <table id="commentTableUIRI001" class="w95 grid" style="position: relative; left: 2.6%">
+
+                                                @for (int i = 0; i < @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments.Count(); i++)
+                    {
+                                                    <tr>
+                                                        <td>
+                                                            <div class="padding10 leftAlign">
+                                                                <div class="verticalMargin10 w100">
+                                                                    <div class="verticalMargin10 inline-block">@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].Modified.Value.ToString("dd MMM yy")</div>
+                                                                    <div class="verticalMargin10 inline-block bold marginLeft3">@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].CreatedBy</div>
+                                                                </div>
+                                                                <div class="verticalMargin10 w100">
+                                                                    @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].UserCommentId)
+                                                                    @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].ModifiedBy)
+                                                                    @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].Modified)
+                                                                    @Html.HiddenFor(x => x.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].Text)
+                                                                    <p class="padding10">@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].UserComments[i].Text</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </table>
+            <!-- End comments grid -->
+                                                <h4 class="headingh3 min_margin_left  min_bootom_headingh3  min_bootom_headingh3">@Localization.GetText("Documents")</h4>
+                                                <div class="mod_tabla icon_entypo" style="width: 94%">
+                                                    <table class="grid2">
+                                                        <thead>
+                                                            <tr>
+                                                                <th class="btn_azul_oscuro_flecha" data-field="User">@Localization.GetText("User")</th>
+                                                                <th class="btn_azul_oscuro_flecha" data-field="Date">@Localization.GetText("Date")</th>
+                                                                <th class="btn_azul_oscuro_flecha" data-field="IDBDocNum">@Localization.GetText("IDB Doc number")</th>
+                                                                <th class="btn_azul_oscuro_flecha" data-field="Content">@Localization.GetText("Content")</th>
+                                                                <th class="btn_azul_oscuro_flecha" data-field="Vacio">@Localization.GetText("Download")</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var document in Model.Contracts[0].Clauses[0].ClauseIndividuals[0].Documents)
+                                                            {
+                                                                <tr>
+                                                                    <td>@document.CreatedBy</td>
+                                                                    <td>@String.Format("{0:dd MMM yyy}", document.Created)</td>
+                                                                    <td>@document.DocumentReference</td>
+                                                                    <td>@document.Description</td>
+                                                                    <td>
+
+                                                                        @{
+                                                                            var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocumentReference);
+                                                                        }
+                                                                        <a class="btn_entypo" title=" @Localization.GetText("Download") " href=@secureUrl target="_blank" style=" position relative; left 25%; min-height 0.9em; min-width 1.5em;">&#58544;</a>
+                                                                    </td>
+                                                                </tr>
+                                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                                                    break;
+                                                                                }
+                                                                            }
+    @if (Model.IsVisibleButtonClauseIndividualReturned &&
+        !Model.IsSignatureOrRatificationOrLegalReport &&
+        Html.HasPermission("CLAUSE_TRACK_RETURN"))
+    {
+        <div>
+            <label for="returnToBack" class="LabelReturnToBack">
+                <input type="button"
+                       class="buttonOrange returnToBack"
+                       name="returnToBack"
+                       value="@Localization.GetText("CL.ClauseIndividualReturnToBack")"
+                       data-route="@Url.Action("SaveClauseIndividualReturned", "Clause",
+                           new {
+                               area = "Clauses",
+                               operationId = Model.OperationId,
+                               contractId = Model.Contracts[0].ContractId,
+                               clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                               clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                               mainOperationNumber = Model.mainOperationNumber})"
+                       data-submissiondate="@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].SubmissionDate">
+            </label><br /><br /><br />
+        </div>
+    }
+    else if(Model.IsSignatureOrRatificationOrLegalReport)
+    {
+        <br />
+        <label for="returnToBack" class="labelNoReturnToBack">
+           @Localization.GetText("CL.ClauseNotCompletedByTeamLeader")
+        </label><br /><br /><br />
+    }
+
+    @foreach (var masterData in ViewBag.ListClauseStatus)
+    {
+        if (masterData.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].ClauseIndividuals[0].StatusId)
+        {
+            if ((masterData.Code == "CL_DRAFT") || (masterData.Code == "CL_TR") || (masterData.Code == "CL_TR_W"))
+            {
+                <div class="editingButtonsEdit">
+                    <label for="edit">
+                        @foreach (var masterData2 in ViewBag.ListClauseCategory)
+                        {
+                            if (masterData2.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                            {
+                                if (@masterData2.Code != "LASTD" && (Html.HasPermission("Clauses Write")
+                                    || Html.HasPermission("Last Disbursement Clause Write")))
+                                {
+                                    <a href="@(Url.Action("Edit", "Clause",
+                                new
+                                {
+                                    area = "Clauses",
+                                    operationId = Model.OperationId,
+                                    contractId = Model.Contracts[0].ContractId,
+                                    clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                    clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                    mainOperationNumber = Model.mainOperationNumber
+                                }))">
+                                        @Confluence.ButtonWhite(
+                                            Localization.GetText(
+                                                masterData.Code == "CL_TR" ?
+                                                    "CC.AddInformation" :
+                                                    "Edit"
+                                                )
+                                            )
+                                    </a>
+                                }
+                            }
+                        }
+                    </label>
+
+                    @if (masterData.Code == "CL_TR")
+                    {
+                        foreach (var masterData2 in ViewBag.ListClauseCategory)
+                        {
+                            if (masterData2.ConvergenceMasterDataId == @Model.Contracts[0].Clauses[0].CategoryId)
+                            {
+                                if (@masterData2.Code != "LASTD" && @masterData2.Code != "SIGN" && @masterData2.Code != "RAT")
+                                {
+                                    foreach (var status in (List<ConvergenceMasterDataModel>)ViewBag.FinalStatusList)
+                                    {
+                                        <label for="saveandrequest">
+                                            @if (Html.HasPermission("Clauses Write"))
+                                            {
+                                                <input type="button" class="buttonOrange saveandrequest"
+                                                       name="Request" value="@Localization.GetText(status.Code)"
+                                                       data-route="@Url.Action("SaveFinalStatusAndRequest", "Clause",
+                                                    new {
+                                                        area = "Clauses",
+                                                        operationId = Model.OperationId,
+                                                        contractId = Model.Contracts[0].ContractId,
+                                                        clauseId = Model.Contracts[0].Clauses[0].ClauseId,
+                                                        clauseIndividualId = Model.Contracts[0].Clauses[0].ClauseIndividuals[0].ClauseIndividualId,
+                                                        mainOperationNumber = Model.mainOperationNumber,
+                                                        finalStatus =  status.ConvergenceMasterDataId})"
+                                                       data-submissiondate="@Model.Contracts[0].Clauses[0].ClauseIndividuals[0].SubmissionDate">
+                                            }
+                                        </label>
+                                    }
+                                }
+                                else if (@masterData2.Code == "LASTD")
+                                {
+                                    foreach (var status in (List<ConvergenceMasterDataModel>)ViewBag.FinalStatusList)
+                                    {
+                                        if (@status.Code == "CL_FULFIL")
+                                        {
+                                            <label for="saveandrequest">
+                                                @if (Html.HasPermission("Last Disbursement Clause Write"))
+                                                {
+                                                    <input type="button" class="buttonOrange FulfilmentLD" name="Request"
+                                                           value="@Localization.GetText(status.Code)">
+                                                }
+                                            </label>
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                </div>
+            }
+            break;
+        }
+    }
+
+    <div class="hide" id="advFulfillment" data-title="@Localization.GetText("Warning") ">
+        <div class="padding20 popupbody">
+            <div class="marginBottom2">
+                <div>
+                    @Localization.GetText("MandatorySubmissionDate")
+                    <br />
+                </div>
+                <div class="rightAlign absolute right1 verticalPadding10" style="width:95%">
+                    <input type="button" class="button blueButton" id="ConfirmAdvFulfillment" value="@Localization.GetText("OK")" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hide" id="advMilestonTrenchOperation" data-title="@Localization.GetText("Warning")">
+        <div class=" padding20 popUpBody">
+            <div class="marginBottom2">
+                <div>
+                    @{
+                        var isOkButtonEnable = Model.IsSpecialOperationPBLPBP &&
+                            !string.IsNullOrEmpty(Model.NameTrench) && Model.HasDocument;
+                    }
+                    @if (isOkButtonEnable)
+                    {
+                        @Localization.GetText("CL.Warning.PBP.PBL.Fulfilled.HasDocument")
+                    }
+                    else
+                    {
+                        @Localization.GetText("CL.Warning.PBP.PBL.Fulfilled")
+                    }
+                    <br />
+                    <br />
+                </div>
+                <div class="rightAlign absolute right1 verticalPadding10 w95" style="width:95%">
+                    <input type="button"
+                           class="button blueButton"
+                           id="CancelMilestonTrenchOperation"
+                           value="@Localization.GetText("Cancel")" />
+                    <input type="button"
+                           class="button blueButton"
+                           id="ConfirmadvMilestonTrenchOperation"
+                           value="@Localization.GetText("OK")"
+                           @(isOkButtonEnable ? string.Empty : "disabled") />
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

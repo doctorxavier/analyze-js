@@ -1,0 +1,369 @@
+﻿@using IDB.MW.Application.TCAbstractModule.ViewModels.NotifyFunding
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MVCControls.General.Helpers
+
+@model TCNotifyFCViewModel
+
+<div class="header">
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            @Html.Partial("Partials/Controls/TCNotifyFCButtons")
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="row row-header font-header">
+                <div class="col-md-4">
+                    @Localization.GetText("TC.Header.Instructions").HtmlEncode()
+                </div>
+                <div class="col-md-8">
+                    @Localization.GetText("TC.TCAbstract.BasicData.OperationNumber").HtmlEncode()
+                </div>
+            </div>
+            <div class="row row-body-50 font-body">
+                <div class="col-md-4">
+                    @Localization.GetText("TC.Header.SelectFundCoordinatorAndCountry").HtmlEncode()
+                </div>
+                <div class="col-md-8">
+                    @IDBContext.Current.Operation
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="page">
+    <div id="TCData"
+         class="tcCollapsibleMargin"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-loadurl="@Url.Action("NotifyFCEdit", "View", new { area = "TC" })"
+         data-url="@Url.Action("NotifyFC", "Save", new { area = "TC" })">
+        @Html.Partial("Partials/NotifyFC/NotifyFCPartial", Model)
+    </div>
+    <div class="row row-body-50">
+        <div class="col-md-12">
+            @Html.Partial("Partials/Controls/TCNotifyFCButtons")
+        </div>
+    </div>
+</div>
+<div data-id="ModalRegion" class="hide">
+    <div id="changeStatusModal" class="hide">
+    </div>
+</div>
+<div data-id="HiddenButtonRegion" class="hide">
+    @Display.AddModalButton(
+        new ModalViewModel(
+            name: "buttonChangeStatusModal",
+            allowClose: true,
+            contentSelector: "#changeStatusModal",
+            type: CssClass.ModalInformation,
+            title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+            validateForm: false))
+</div>
+
+@section scripts {
+    @ModuleScripts.ValidationMessageForTC()
+    @ModuleScripts.AddNoRepeatValueValidator()
+    @ModuleScripts.AddAfterDate()
+    @ModuleScripts.MinNumOfElementsFilled()
+    @ModuleScripts.K2UIIntegration()
+
+    <script type="text/javascript">
+
+        function InitializeSelectedValues() {
+            var countryDepartment = $('[name=countryDepartment]');
+            if (countryDepartment.length != 0) {
+                var countryDepartmentInput = $('[name=countryDepartment]').val();
+                var regionalEdit = $(".regionalTeamLeader input[name=regionalTeamLeader]");
+                var regionalIdEdit = $(".regionalTeamLeader input[name=regionalTeamLeaderId]");
+                var regionalRead = $('.regionalTeamLeader [data-pagemode="read"]');
+                var selectedItem = countryDepartment.data("kendoDropDownList").dataItem();
+                var selectedCode = "";
+
+                if (selectedItem != undefined && selectedItem != null) {
+                    selectedCode = selectedItem.Text;
+                    if (selectedCode.length > 2) {
+                        selectedCode = selectedItem.Text.substring(0, 3);
+                    }
+                    if (!/^[a-z]+$/i.test(selectedCode)) {
+                        var selectedCode = "";
+                    }
+                }
+
+                regionalEdit.val("");
+                regionalIdEdit.val("");
+                regionalRead.html("");
+
+                var promise = postUrl(
+                    '@Url.Action("GetRegionalTeamLeader", "View", new { area = "TC" })',
+                    { countryDepartment: selectedCode });
+
+                promise.done(function (response) {
+                    if (response.IsValid) {
+                        regionalEdit.val(response.Model.FullName);
+                        regionalIdEdit.val(selectedItem.RegionalTeamLeaderId);
+                        regionalRead.html(response.Model.FullName);
+                    }
+                });
+            }
+        }
+
+        function configDatepicker() {
+            var today = new Date();
+            var datePickerMeeting = $("[name=dateMeeting]").data("datepicker");
+            if (datePickerMeeting != null) {
+                datePickerMeeting.settings = $.extend(datePickerMeeting.settings, { minDate: today });
+            }
+        }
+
+        registerCallback(function () {
+            configDatepicker();
+            InitializeSelectedValues();
+
+            $(document).on('paste', '[name=dateMeeting]', function (e) {
+                e.preventDefault();
+            });
+
+            $(document).on('change', '[name=countryDepartment-rgOperation]', function () {
+                var form = $('[data-parsley-validate]');
+                var $this = $(this);
+                var rtlInput = $this.parents('.notify-rtl-row').find("input[name=regionalTeamLeader-rgOperation]");
+                var selectedItem = $this.data("kendoDropDownList").dataItem();
+                var selectedCode = "";
+
+                if (selectedItem != undefined && selectedItem != null) {
+                    selectedCode = selectedItem.Text;
+                    if (selectedCode.length > 2) {
+                        selectedCode = selectedItem.Text.substring(0, 3);
+                    }
+                    if (!/^[a-z]+$/i.test(selectedCode)) {
+                        var selectedCode = "";
+                    }
+                }
+
+                rtlInput.val("");
+
+                var promise = postUrl(
+                    '@Url.Action("GetRegionalTeamLeader", "View", new { area = "TC" })',
+                    { countryDepartment: selectedCode });
+
+                promise.done(function (response) {
+                    if (response.IsValid) {
+                        rtlInput.val(response.Model.FullName);
+                        if (form.data('is-fired-validation') == true) {
+                            rtlInput.parsley().validate();
+                        }
+                    }
+                });
+            });
+
+            $(document).on('change', '[name=fund-coord-applicableFund]', function () {
+                var form = $('[data-parsley-validate]');
+                var $this = $(this);
+                var fundCoordinatorInput =
+                    $this.parents('.notify-fund-row').find("input[name=fund-coord-fundCoordinator]");
+                var selectedItem = $this.data("kendoDropDownList").dataItem();
+
+                fundCoordinatorInput.val("");
+
+                var promise = postUrl(
+                    '@Url.Action("GetFundFullName", "View", new { area = "TC" })',
+                    { fundCode: selectedItem.Code });
+
+                promise.done(function (response) {
+                    if (response.IsValid) {
+                        fundCoordinatorInput.val(response.Model.FullName);
+                        if (form.data('is-fired-validation') == true) {
+                            fundCoordinatorInput.parsley().validate();
+                        }
+                    }
+                });
+            });
+
+            $(document).on('change', '[name=countryDepartment]', function () {
+                var $this = $(this);
+                var countryDepartmentInput = $('[name=countryDepartment]').val();
+                var regionalEdit = $(".regionalTeamLeader input[name=regionalTeamLeader]");
+                var regionalIdEdit = $(".regionalTeamLeader input[name=regionalTeamLeaderId]");
+                var regionalRead = $('.regionalTeamLeader [data-pagemode="read"]');
+                var selectedItem = $this.data("kendoDropDownList").dataItem();
+                var selectedCode = "";
+
+                if (selectedItem != undefined && selectedItem != null) {
+                    selectedCode = selectedItem.Text;
+                    if (selectedCode.length > 2) {
+                        selectedCode = selectedItem.Text.substring(0, 3);
+                    }
+                    if (!/^[a-z]+$/i.test(selectedCode)) {
+                        var selectedCode = "";
+                    }
+                }
+
+                regionalEdit.val("");
+                regionalIdEdit.val("");
+                regionalRead.html("");
+
+                var promise = postUrl(
+                    '@Url.Action("GetRegionalTeamLeader", "View", new { area = "TC" })',
+                    { countryDepartment: selectedCode });
+
+                promise.done(function (response) {
+                    if (response.IsValid) {
+                        regionalEdit.val(response.Model.FullName);
+                        regionalIdEdit.val(selectedItem.RegionalTeamLeaderId);
+                        regionalRead.html(response.Model.FullName);
+                    }
+                });
+            });
+
+            $(document).on('change', '[name="singleWindowMeetingVisibilityCheckbox"]', function () {
+                setDisplayStatus(null);
+            });
+        });
+
+        function setDisplayStatus(isSave) {
+            if (isSave == null) {
+                isSave = true;
+            }
+            var isDisplaySWM = $('[name="singleWindowMeetingVisibilityCheckbox"]').is(":checked");
+
+            var fundCoordinatorValidator = $('[name="validatorMinElementsFilled"]');
+            if (isDisplaySWM && isSave) {
+                fundCoordinatorValidator.attr('disabled', 'disabled');
+                fundCoordinatorValidator.removeAttr('data-parsley-minElementsFilled');
+            } else {
+                fundCoordinatorValidator.removeAttr('disabled');
+                fundCoordinatorValidator.attr('data-parsley-minElementsFilled', '1;[name=fund-coord-applicableFund]:not([disabled])');
+            }
+        }
+
+        function setSaveValidation() {
+            $('#TCData').parsley().destroy();
+            var isDisplaySWM = $('[name="singleWindowMeetingVisibilityCheckbox"]').is(":checked");
+
+            var fundCoordinatorValidator = $('[name="validatorMinElementsFilled"]');
+            if (isDisplaySWM) {
+
+                fundCoordinatorValidator.removeAttr('data-parsley-minElementsFilled');
+            } else {
+
+                fundCoordinatorValidator.attr('data-parsley-minElementsFilled', '1;[name=fund-coord-applicableFund]:not([disabled])');
+            }
+            destroyParsley($('#TCData'));
+            initParsley($('#TCData'));
+        }
+
+        function setSendValidation() {
+            $('#TCData').parsley().destroy();
+
+            var fundCoordinatorValidator = $('[name="validatorMinElementsFilled"]');
+
+            fundCoordinatorValidator.attr('data-parsley-minElementsFilled', '1;[name=fund-coord-applicableFund]:not([disabled])');
+            destroyParsley($('#TCData'));
+            initParsley($('#TCData'));
+        }
+
+        function edit(source) {
+            var success = enterEditMode(true, $('#TCData'), true);
+
+            if (success) {
+                destroyParsley($('#TCData'));
+                initParsley($('#TCData'));
+                InitializeSelectedValues();
+                enterEditMode(false, $('.notifyFCButtons'), false);
+                configDatepicker();
+                var countryDepartment = $('[name="countryDepartment"]');
+                if (countryDepartment.length > 0)
+                    countryDepartment.parsley().destroy();
+            }
+        }
+
+        function cancel(source) {
+            exitEditMode(true, $('#TCData'), true, true);
+            exitEditMode(false, $('.notifyFCButtons'), false, false);
+            InitializeSelectedValues();
+            configDatepicker();
+        }
+
+        function save(source) {
+            setSaveValidation()
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.Save');
+
+            var resp = $.Deferred();
+
+            var response = saveContainer(
+                $('#TCData'),
+                '#hidViewModel',
+                true,
+                $('.notifyFCButtons'),
+                $(source.target));
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    resp.resolve();
+                }).always(function () {
+                    InitializeSelectedValues();
+                    configDatepicker();
+                });
+            }
+            return resp;
+        }
+
+        function sendAndSave(source) {
+            setSendValidation();
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val('@SaveControllerTypeEnum.SaveAndSend');
+            setDisplayStatus(false);
+            var resp = $.Deferred();
+
+            var response = saveContainer(
+                $('#TCData'),
+                '#hidViewModel',
+                true,
+                $('.notifyFCButtons'),
+                $(source.target));
+
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                        showMessage(data.ErrorMessage);
+                    }
+                    else if (data.IsValid) {
+                        if (data.UrlRedirect != null) {
+                            setModalRedirectUrl(data.UrlRedirect);
+                        }
+
+                        if (data.ContentHTML != null) {
+                            addContentToModal(data.ContentHTML);
+                            openModalInformation();
+                        }
+                    }
+
+                    resp.resolve();
+                }).always(function () {
+                    InitializeSelectedValues();
+                });
+            }
+            return resp;
+        }
+
+        function addContentToModal(content) {
+            $("#changeStatusModal").html(content);
+        }
+
+        function setModalRedirectUrl(url) {
+            $("#changeStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+        }
+
+        function openModalInformation() {
+            $("[name=buttonChangeStatusModal]").first().click();
+        }
+
+    </script>
+}

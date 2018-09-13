@@ -1,0 +1,125 @@
+﻿@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.TCAbstractModule.ViewModels.FilterFunds
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+
+@model List<FilterFundsViewModel>
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode == true;  
+}
+
+@if (devMode)
+ {
+    <div class="header">
+        <div class="row row-header">
+            <div class="col-md-9 mb50">
+                <button class="btn btn-primary" data-action="setReadAccess">Convergence Read Permission</button>
+                <button class="btn btn-primary" data-action="setRoleFC">Fund Coordinator Role</button>
+                <button class="btn btn-primary" data-action="removePermission">Remove/Refresh Permissions</button>
+            </div>
+        </div>
+    </div>
+ }
+
+<div class="header">
+    <div class="row mb50">
+        <div class="col-md-12">
+            @Confluence.LabelTitleGroup(Localization.GetText("TC.FilterFunds.Title"))
+        </div>
+    </div>
+</div>
+
+<div class="page">
+    @if(ViewBag.ReadRole)
+    { 
+        <div id="TCData" class="row-body-40" data-parsley-validate="data-parsley-validate" data-parsley-excluded="[disabled]">
+
+            @Html.Partial("Partials/FilterFunds", Model)
+
+        </div>
+    }
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+        registerCallback(function () {
+            //$('[data-id=TableDiv]').hide();
+
+            $(document).on('click', '[data-name]', function () {
+                showLoader();
+            });
+
+
+            $(document).on('click', '[name=filterButton]', function () {
+                var table = $('#FilterFundTable');
+                table.data("fn-search")();
+                //$('[data-id=TableDiv]').show();
+            });
+
+            $(document).on('click', '[name=clearButton]', function () {
+                resetFields("[data-filter=FilterFund]");
+                var table = $('#FilterFundTable');
+                table.data("fn-clear")();
+            });
+
+            $(document).on('click', 'a[data-id]', function () {
+                var id = $(this).attr('data-id');
+                var url = '@Url.Action("FundInformation", "View", new { area = "TC" })' + '?fundId=' + id;
+                window.location.assign(url);
+            })
+
+            $(document).on('draw.dt', '#FilterFundTable', function () {
+                var source = $('#FilterFundTable');
+                var trs = source.find('tbody tr');
+                trs.removeClass('custom-odd');
+                trs.removeClass('custom-even');
+                trs.removeClass('odd');
+                trs.removeClass('even');
+                source.find('tbody tr:even').addClass('even');
+                source.find('tbody tr:even').addClass('custom-even');
+                source.find('tbody tr:odd').addClass('odd');
+                source.find('tbody tr:odd').addClass('custom-odd');
+            })
+        });
+
+
+        function getFiltersFunds() {
+            var filterFundName =  $("[name=filter-Name]").val();
+            var filterFundCode =  $("[name=filter-Code]").val();
+            var filterFundGroup = $("[name=filter-FundGroup]").val();
+
+            return {
+                FundName: filterFundName,
+                FundCode: filterFundCode,
+                FundGroup: filterFundGroup
+            };
+        }
+
+        function resetFields(form) {
+            $(':input', form).each(function () {
+                var type = this.type;
+                if (type == 'text') this.value = "";          
+            });
+        }
+
+        function setReadAccess(source) {
+            var response = postUrlWithOptions("@Url.Action( "ChangeGlobalActionOrRole" , "View" , new { area = "TC" , role = (int) ActionEnum.ConvergenceReadPermission } )", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+
+        function removePermission(source) {
+            var response = postUrlWithOptions("@Url.Action("RemovePermission", "View", new { area = "TC" })", { dataType: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+        function setRoleFC(source) {
+            var response = postUrlWithOptions("@Url.Action( "ChangeGlobalActionOrRole" , "View" , new { area = "TC" , role = (int) RoleEnum.FundCoordinator } )", { datatype: 'json' });
+            showMessage(response.responseJSON.ErrorMessage, true);
+        }
+
+    </script>
+}

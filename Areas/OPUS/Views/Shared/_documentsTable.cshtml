@@ -1,0 +1,210 @@
+﻿@using IDB.Presentation.MVC4.Areas.OPUS.Models
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.Language
+
+@model DocumentTableViewModel
+@{
+    var tableName = string.IsNullOrWhiteSpace(Model.DocumentTableName) ? "documentTable" : Model.DocumentTableName;
+    var addFunctionName = string.IsNullOrWhiteSpace(Model.AddFunctionName) ? "addDocument" : Model.AddFunctionName;
+    var operationNumber = Request.QueryString["operationNumber"];
+}
+
+<div class="row row-header">
+    <div class="col-md-12">
+        <h4 class="">@Localization.GetText("Documents")</h4>
+    </div>
+</div>
+
+<div class="row row-header">
+    <div class="col-md-3">
+        <p>@Localization.GetText("Document Date")</p>
+    </div>
+    <div class="col-md-3">
+        <p>@Localization.GetText("Document Number")</p>
+    </div>
+</div>
+
+<div class="row row-body-40" >
+    <div class="col-md-3">
+        <p data-pagemode="edit">@ControlTemplates.InputText(value: "01 Jun 09", name: "documentDate")</p>
+    </div>
+    <div class="col-md-3">
+        <p data-pagemode="edit">@ControlTemplates.InputText(value: "PR - 3276", name: "documentNumber")</p>
+    </div>
+</div>
+
+
+@if (Model.ShowAddButton)
+{
+    <div class="row row-header">
+        <div data-pagemode="edit">
+            <div class="col-md-6">
+
+                @Model.TextMessage.HtmlEncode()
+
+            </div>
+
+
+            <div class="col-md-6 text-right">
+
+                @if (Model.AdditionalButtons != null)
+                {
+                    foreach (var customButton in Model.AdditionalButtons)
+                    {
+
+                        <button data-id="@tableName-@customButton.Id" class="@customButton.HtmlClass"
+                                @if (!string.IsNullOrWhiteSpace(customButton.ScriptToExecute)) { @: data-custom-action="@customButton.ScriptToExecute"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                @(!string.IsNullOrWhiteSpace(customButton.ScriptToExecuteAfter) ? new MvcHtmlString(string.Format("data-custom-action-after=\"{0}\"", customButton.ScriptToExecuteAfter)) : null)              @(!string.IsNullOrWhiteSpace(customButton.ScriptToExecuteBefore) ? new MvcHtmlString(string.Format("data-custom-action-before=\"{0}\"", customButton.ScriptToExecuteBefore)) : null)              }>
+                            @customButton.Text.HtmlEncode()
+                        </button>
+                    }
+                }
+                @if (Model.ShowAddButton)
+                {
+                    <div id="@tableName-modal-add" class="hide">
+                        @Html.Partial("Controls/IDBDocsNew/AddIDBDoc", new SearchDocumentModalViewModel { SearchModalId = tableName, MultipleSelection = true, TargetFunction = addFunctionName, OperationNumber = operationNumber })
+                    </div>
+
+
+                    <button data-id="@tableName-add" class="button01"
+                            data-modal-allowclose="true"
+                            data-custom-modal="@tableName-modal-add"
+                            data-custom-modal-style=""
+                            data-custom-modal-title="@Localization.GetText("Search")"
+                            data-custom-modal-validate="false">
+                        @Localization.GetText("Add").HtmlEncode()
+                    </button>
+
+                }
+            </div>
+        </div>
+
+    </div>
+
+}
+
+
+
+
+<div class="row row-body-50">
+    <div class="col-md-12">
+        @{
+            var dateFormat = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+
+            var config = Html.RenderDataTable(Model.Documents);
+            config.Name(tableName)
+                .PrimaryKey(m => m.DocumentId.ToString())
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Template(
+                        @<div data-pagemode="edit">
+                            <input type="hidden" name="@tableName-docNumber" value="@item.DocNumber" />
+                        </div>
+).Hidden(true).Persistent();
+
+                    columns.Bound(c => c.User).Header(@Localization.GetText("User")).HeaderAttribute("style","width:15%")
+                        .Persistent();
+
+                    columns.Bound(c => FormatHelper.Format(c.Date, dateFormat)).Header(@Localization.GetText("Date")).HeaderAttribute("style", "width:15%")
+                        .Persistent();
+
+                    columns.Bound(c => c.DocNumber).Header(@Localization.GetText("IDB Doc Number")).HeaderAttribute("style", "width:15%")
+                        .Persistent();
+
+                    columns.Bound(c => c.Description).Header(@Localization.GetText("Description")).HeaderAttribute("style", "width:45%")
+                        .Persistent();
+
+                    if (Model.CanDelete)
+                    {
+                        columns.Template(
+                            @<div>
+                                 @{
+                                     var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                                 }
+                                 <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+                            </div>)
+                                .EditableTemplate(
+                                @<div>
+
+                                     @{
+                                         var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                                     }
+                                     <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+                                    @Display.Button07_4(attributes: new Dictionary<string, string> { { "data-action", "DeleteDocumentGeneric" },
+                                               {"data-before-delete" , (string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : string.Format("\"{0}\"", Model.BeforeDeleteFuncionName))}})
+                                </div>)
+                                .Header(@Localization.GetText(""));
+                    }
+                    else
+                    {
+                        columns.Template(
+                            @<div>
+                                 @{
+                                     var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                                 }
+                                 <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+                            </div>)
+                                  .Header(@Localization.GetText("Actions")).Persistent();
+                    }
+                });
+            config.RowTemplates(x =>
+            {
+                if (Model.CanDelete)
+                {
+                    x.Create(RowTemplateType.FirstRow,
+                        @<tr data-id="newDocument" role="row" class="hide">
+                            <td class="hide">
+                                <div data-pagemode="edit" class="">
+                                    <input type="hidden" name="@tableName-docNumber" value="">
+                                </div>
+                            </td>
+                            <td><span></span></td>
+                            <td><span></span></td>
+                            <td data-name="idb-doc-number"><span></span></td>
+                            <td><span></span></td>
+                             <td>
+                                 @{
+                                     var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                                 }
+                                 <a href=@secureUrl target="_blank">@Display.Button07_2(text: "")</a>
+
+                                 @Display.Button07_4(attributes: new Dictionary<string, string> { { "data-action", "DeleteDocumentGeneric" },
+                            {"data-before-delete" , (string.IsNullOrWhiteSpace(Model.BeforeDeleteFuncionName) ? null : string.Format("\"{0}\"", Model.BeforeDeleteFuncionName))}})
+                             </td>
+                        </tr>
+);
+                }
+                else
+                {
+                    x.Create(RowTemplateType.FirstRow,
+                        @<tr data-id="newDocument" role="row" class="hide">
+                            <td class="hide">
+                                <div data-pagemode="edit" class="">
+                                    <input type="hidden" name="@tableName-docNumber" value="">
+                                </div>
+                            </td>
+                            <td><span></span></td>
+                            <td><span></span></td>
+                            <td data-name="idb-doc-number"><span></span></td>
+                            <td><span></span></td>
+                            <td>
+                                @{
+                                    var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(item.DocNumber);
+                                }
+                                <a href=@secureUrl target="_blank">@Display.Button07_2()</a>
+                            </td>
+                        </tr>
+);
+                }
+            });
+        }
+
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>

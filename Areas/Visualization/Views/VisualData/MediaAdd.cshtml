@@ -1,0 +1,158 @@
+﻿@using IDB.Presentation.MVC4.Helpers;
+@using IDB.Presentation.MVC4.MVCCommon;
+@{
+	Layout = "~/Views/Shared/_ClearLayout.cshtml";
+}
+@section javascript {
+
+	<script type="text/javascript" src="~/scripts/jqplugins/kendo.web.js"></script>
+	<script type="text/javascript" src="~/scripts/modules/visualization/common.js"></script>
+}
+@section scripts{
+	<script type="text/javascript">
+        var madiaUrl = "";
+		$(document).ready(function () {
+			$('#files').kendoUpload({
+				async: {
+					autoupload: true,
+					saveUrl:'MediaAddSave'
+				},
+				multiple: true,
+				select: onSelect,
+				progress: onProgress,
+				complete: onComplete,
+				success: onSuccess,
+                error: onError
+			});
+			var currentIcon;
+			function onError(e){
+			    alert(e.Error);
+			}
+			function onSuccess(e) {
+
+			    if (e.response.status=="Error"){
+			        $("#uploadError")
+                        .html(e.response.message);                      
+                   
+			        $(".k-file.k-file-success").removeClass("k-file-success").addClass("k-file-error");
+			        e.preventDefault();
+			    }
+			    else{
+			        madiaUrl = e.response.urlMadia;
+			        $('#addMedia').removeClass('disabled');
+			        $("#uploadError")
+                       .html("");
+			    }
+				
+			}
+			function onComplete(e) {
+				currentIcon.removeClass('fa-spin');
+			}
+			function onProgress(e) {
+				currentIcon = $('.k-loading');
+				currentIcon.addClass('fa-spin');
+			}
+			$('#files')
+					.parent().children('span').remove();
+			$('#files')
+				.parent()
+				.append('<input type="button" class="button white" value="Select file..."/>');
+
+		});
+		var extensions = ['png', 'jpg', 'jpeg', 'gif', 'bpm',
+				'avi', 'wmf', 'mp4', 'flv'];
+		var videoExtensions = ['avi', 'wmf', 'mp4', 'flv'];
+		function onSelect(e) {
+			var valid = true;
+			$.map(e.files, function (file) {
+				var extension = file.name.toLowerCase();
+				extension = extension.substring(extension.lastIndexOf('.') + 1);
+				var index = jQuery.inArray(extension, extensions);
+				if (index == -1) {
+					valid = false;
+				}
+			});
+			if (!valid) {
+				e.preventDefault();
+				idbShowError(idbg._('The file type is invalid, please upload a png,jpg,jpeg,gif,bpm,avi,wmf,mp4 or flv file'), true);
+			} else {
+				idbShowError(null, true);
+			}
+		}
+		
+		function getEncodedUrlImage(url) {
+		    url = url.replace(/Assets\//, 'Assets/_t/')
+		    url = url.replace(/\.(\w+)$/, '_$1.jpg');
+		    url = encodeURI(url);
+		    return url;
+		}
+
+		function relateMedias() {
+			var medias = new Array();
+			var index =0;
+			$('.k-upload-files .k-file-success').each(function(index,element){
+				element = $(element);
+
+				medias[index] = {};
+				var extension = element.children('.k-filename').text().toLowerCase();
+				medias[index].name = extension;
+				medias[index].url = madiaUrl;
+				medias[index].turl = getEncodedUrlImage(medias[index].url);
+				extension = extension.substring(extension.lastIndexOf('.') + 1);
+				if (jQuery.inArray(extension, videoExtensions) != -1) {
+					medias[index].type = 'VIDEO';
+					medias[index].mediaTypeId = @(MasterDefinitions.GetMaster("MEDIA_TYPE", "VIDEO").MasterId);
+				} else {
+					medias[index].type = 'IMAGE';
+					medias[index].mediaTypeId = @(MasterDefinitions.GetMaster("MEDIA_TYPE", "IMAGE").MasterId);
+					
+				}
+			});
+
+		    if (medias.length > 0)
+		    {
+		        window.parent.addMediaRow(medias);
+		        window.parent.resizeIframeCloud();
+		    }
+		}
+	</script>
+}
+<div style="margin-top:-15px">
+	<div class="tabs horizontal">
+		<ul class="links">
+			<li class="k-state-active"><a href="javascript:void(0)">@Localization.GetText("Add")</a></li>
+			<li><a href="@Url.Action("MediaSearch")">@Localization.GetText("Search")</a></li>
+		</ul>
+	</div>
+</div>
+<div class="content-block">
+	<div class="contextual-help">
+		@Localization.GetText("The  image extensions types that are allowed are png, jpg, jpeg, gif and .bpm.")
+		@Localization.GetText("The  video extensions types that are allowed are avi, wmf, mp4 and flv.")
+	</div>
+</div>
+<div class="content-block">
+	<form method="post" enctype='multipart/form-data' id="filesForm">
+		<input name="file" id="files" type="file" />
+
+	</form>
+</div>
+
+<div id="uploadError">
+</div>
+<div id="validation-errors" >
+</div>
+<div class="content-block">
+	<div class="right">
+		<input type="button" 
+			class="button white click-action" 
+			value="@Localization.GetText("Cancel")" 
+			data-route="javascript:idbCloseKendoWindow(true)" />
+		<input type="button" 
+			class="button disabled click-action" 
+			value="@Localization.GetText("Add")"
+			data-route="javascript:relateMedias(true)"
+			id="addMedia" />
+	</div>
+</div>
+

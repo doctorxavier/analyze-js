@@ -1,0 +1,184 @@
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.BEOProcurementModule.Enums
+
+@model HeaderTabViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+}
+
+<input type="text" name="hiddenEstimateAmount" class="hide" value="@Model.OriginalEstimate" />
+<input type="text" name="hiddenIsConfidential" class="hide" value="@Model.IsConfidential.ToString().ToLower()" />
+<input type="text" name="hiddenToday" class="hide" value="@DateTime.Now.ToString(formatDate)" />
+
+<div class="hide" data-section="modals">
+    @Display.AddModalButton(new ModalViewModel(
+        contentSelector: "[data-name=\"cancel-procurement-modal\"]",
+        title: Localization.GetText("TCP.FirmProcurement.Button.CancelProcurement"),
+        type: CssClass.ModalInformationNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel-proc",
+        closeOnOverlay: false,
+        allowClose: true,
+        validateForm: true,
+        validateFormSelector: "[data-cancellation-validate-form='data-cancellation-validate-form']",
+        actionOnClose: "")
+    .AddButton(name: "btn-cancel-proc-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+    .AddButton(name: "btn-cancel-proc-ok",
+                    text: Localization.GetText("Common.Save"),
+                    type: CssClass.Button01,
+                    callback: "okCancelProc",
+                    closeAtEnd: true))
+    <div id="cancel-procurement-form" data-name="cancel-procurement-modal" class="hide modalBody"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-ignore-nullable-values="true"
+         data-url="@Url.Action("SaveCancelReason", "FirmProcurement", new { area = "Procurement", procurementId = Model.ProcurementId })">
+        <div data-fake-pagemode="edit">
+            <input type="hidden" value="@(PageSerializationHelper.SerializeObject(Model.CancelReason))" id="hiddenCancelReasonModel" name="hiddenCancelReasonModel" />
+            @Html.Partial("EditPartial/_cancelReason", Model.CancelReason != null ? Model.CancelReason : new CancelProcurementViewModel())
+        </div>
+
+    </div>
+
+    @Display.AddModalButton(new ModalViewModel(
+        contentSelector: "[data-name=\"summary-data-modal\"]",
+        title: Localization.GetText("TCP.FirmProcurement.Button.SummaryData"),
+        type: CssClass.ModalInformationNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-summary-data",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+        .AddButton(name: "btn-summary-data-close",
+                    text: Localization.GetText("Common.Close"),
+                    type: CssClass.Button01,
+                    callback: ""))
+
+    @Html.Partial("EditPartial/_summaryData", Model.SummaryData)
+
+    @Display.AddModalButton(new ModalViewModel(
+        contentSelector: "[data-name=\"cancelProcurementWithAssociatedTasks-info\"]",
+        title: "",
+        type: CssClass.ModalInformation,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel-procWithAssociatedTask",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+        .AddButton(name: "btn-cancelProcurementWithAssociatedTasks-info-cancel",
+            text: Localization.GetText("Common.Close"),
+            type: CssClass.ButtonLink,
+            callback: ""))
+    <div data-name="cancelProcurementWithAssociatedTasks-info" class="hide modalBody">
+        @Localization.GetText("TCP.FirmProcurement.PopUpInfo.CancelProcurementWithAssociatedTasks")
+    </div>
+
+    @Display.AddModalButton(new ModalViewModel(
+        contentSelector: "[data-name=\"closeProcurementWithAssociatedTasks-info\"]",
+        title: "",
+        type: CssClass.ModalInformation,
+        moveOriginalContent: true,
+        name: "btn-open-popup-close-procWithAssociatedTask",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+        .AddButton(name: "btn-cancelProcurementWithAssociatedTasks-info-cancel",
+            text: Localization.GetText("Common.Close"),
+            type: CssClass.ButtonLink,
+            callback: ""))
+    <div data-name="closeProcurementWithAssociatedTasks-info" class="hide modalBody">
+        @Localization.GetText("TCP.FirmProcurement.PopUpInfo.CloseProcurementWithAssociatedTasks")
+    </div>
+</div>
+
+<div class="row mb30">
+    <div class="col-xs-12">
+        @Confluence.LabelMainTitle(Localization.GetText("TCP.FirmProcurement.MainTitle"))
+    </div>
+</div>
+
+<div class="row mb30">
+    <div class="col-xs-12">
+
+        <div class="float-right">
+            <div data-type="contentButtons" data-id="#linktabIdentification">
+                @if (Model.StatusEnum == ProcurementStatusEnum.Active)
+                {
+                    @Confluence.ButtonBlue(Localization.GetText(
+                    value: "TCP.FirmProcurement.PopupTitle.CancelProcurement"),
+                    name: "cancelProcurement",
+                    htmlClass: "own-hide",
+                    dataAttributes: new Dictionary<string, string>
+                    {
+                        { "HasAssociatedTasks", Model.HasAssociatedTasks.ToString().ToLower() },
+                        { "idb-fieldname", "beo-procurement-cancelation-edit-control" },
+                        { "IsCancelButton", "true" },
+                    })
+                }
+                @Confluence.ButtonBlue(Localization.GetText("TCP.FirmProcurement.Button.SummaryData"), name: "summaryDataButton")
+            </div>
+        </div>
+
+        @Confluence.LabelMainTitle(string.Format("{0} {1}", Model.ProcurementoCode, Model.ProcurementName))
+    </div>
+</div>
+
+<table class="model-table-row">
+    <tr class="model-table-file-exe">
+        <td>
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.Header.Title.ProcurementStatus"))
+        </td>
+
+        <td>
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.Header.Title.ProcurementStage"))
+        </td>
+        <td>
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.Header.Title.ProcurementProcessModality"))
+        </td>
+        <td>
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.Header.Title.Confidential"))
+        </td>
+        <td>
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.Header.Title.ProcessStartDate"))
+        </td>
+        <td>
+            @Confluence.Label(Localization.GetText("TCP.FirmProcurement.Header.Title.ProcessEndDate"))
+        </td>
+    </tr>
+    <tr class="model-table-file-exe">
+        <td>
+            @Confluence.LabelBold(Model.Status)
+        </td>
+        <td>
+            @Confluence.LabelBold(Model.Stage)
+        </td>
+        <td>
+            @Confluence.LabelBold(Model.Modality)
+            @Confluence.InputText(Model.ModalityId.ToString(), name: "HeaderHiddenModalityId", htmlClass: "hide")
+        </td>
+
+        <td>
+            @Confluence.LabelBold(Model.IsConfidential ? Localization.GetText("Common.Yes") : Localization.GetText("Common.No"))
+        </td>
+        <td>
+            @Confluence.LabelBold(FormatHelper.Format(Model.StartDate, formatDate))
+            <div class="hide">
+                @Confluence.InputDatePicker(Model.StartDate, "processStartDateProcurement", format: "formatDate");
+            </div>
+        </td>
+        <td>
+            @Confluence.LabelBold(FormatHelper.Format(Model.EndDate, formatDate))
+        </td>
+    </tr>
+</table>
+

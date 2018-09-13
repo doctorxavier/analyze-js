@@ -1,0 +1,208 @@
+﻿@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+
+@model CommitFundsViewModel
+
+@{
+
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.Rows)
+        .Name(Model.TableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => (x.Id < 0 ? "new" : "") + x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => approvalNumberText(c))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(!Model.IsTotal ? Localization.GetText("TCP.FirmProcurement.TableHeader.OperationNumber") : string.Empty)
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ColumnTotalFundsAvailable(c, false))
+                .Orderable(false)
+                .CssClass("textalign-right totalFunds colAmount ideAdminFundColAmount")
+                .CssHeaderClass("colAmount ideAdminFundColAmount")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TotalFundsCurrentlyAvailable"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ColumnOriginalProcurementEstimate(c, false))
+                .Orderable(false)
+                .CssClass("textalign-right colAmount ideAdminFundColAmount")
+                .CssHeaderClass("colAmount ideAdminFundColAmount")
+                .Header(Localization.GetText(Model.IsTotal ? "TCP.FirmProcurement.Header.Title.TotalOriginalProcurementEstimate" : "TCP.FirmProcurement.TableHeader.OriginalProcurementEstimate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => ActionsCommitFunds(c))
+                .Orderable(false)
+                .CssClass("colAction90")
+                .CssHeaderClass("colAction90")
+                .Header(Model.IsTotal ? string.Empty : Localization.GetText("COMMON.Action"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(new CommitFundRowViewModel()));
+            x.Create(RowTemplateType.LastRow, y => subtotalLine(Model.Rows, Model.IsTotal));
+        })
+    ;
+    config.TableClass = "tableNormal" + (Model.IsTotal ? " totalRow" : string.Empty);
+}
+
+@if (!Model.IsTotal)
+{
+    <div class="col-xs-12 pl0 font-14">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommitFundsSecond"))
+    </div>
+}
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@if (!Model.IsTotal)
+{
+    <div class="row">
+        <div class="col-xs-12 font12 mb40">
+            @Html.Partial("EditPartial/DatatableCommitFundsSimpleLegend")
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12 text-center">
+            @Confluence.ButtonAddNewRows(
+         text: Localization.GetText("TCP.FirmProcurement.Button.AddFundingSource"),
+            tableid: "",
+            name: "addNewRow",
+            dataAttributes: new Dictionary<string, string> { { "linked-table", Model.TableName } })
+        </div>
+    </div>
+}
+
+@helper approvalNumberText(CommitFundRowViewModel row)
+{
+    if (row.ApprovalNumber != "Subtotal" && row.ApprovalNumber != "Total")
+    {
+        @Confluence.InputDropDownAsync(
+            value: row.ApprovalNumber,
+            textSelected: row.ApprovalNumber,
+            name: Model.TableName + "-ApprovalNumber",
+            searchUrl: Url.Action("FindOperationsAmount", "FirmProcurement", new { area = "Procurement" }),
+            disabled: false,
+            width: "100%",
+            dataAttributes: new Dictionary<string, string>() { { "parsley-noRepeatValue", "[name=" + Model.TableName + "-ApprovalNumber" + "]" } })
+    }
+    else
+    {
+        <div>
+            @Confluence.Label(row.ApprovalNumber, htmlClass: "bold")
+        </div>
+    }
+}
+
+@helper ColumnTotalFundsAvailable(CommitFundRowViewModel row, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    <span data-section="totalFunds">
+        $ @FormatHelper.Format(row.TotalFundsCurrentlyAvailable, formatDecimal)
+    </span>
+    @Confluence.InputText(row.TotalFundsCurrentlyAvailable.ToString(), Model.TableName + "-hiddenTotalFunds", disabled: isTemplate, htmlClass: "hide")
+}
+
+@helper ColumnOriginalProcurementEstimate(CommitFundRowViewModel row, bool isTemplate)
+{
+    var tableName = "IdeCommitFundsSecond";
+    var id = row.Id < 0 ? "new" + row.Id : row.Id.ToString();
+    var selector = string.Format("tr[data-id=\"{0}\"] [name=\"{1}-hiddenTotalFunds\"]", id, tableName);
+    if (isTemplate)
+    {
+        selector = "tr[data-id=\"{0}\"] [name=\"IdeCommitFundsSecond-hiddenTotalFunds\"]";
+    }
+
+    @Confluence.InputDecimal(row.OriginalProcurementEstimate,
+    Model.TableName + "-originalFunds",
+    disabled: isTemplate,
+    htmlClass: "textalign-right",
+    dataAttributes: new Dictionary<string, string> { { "parsley-lessOrEqualsAmount", selector } })
+}
+
+@helper ActionsCommitFunds(CommitFundRowViewModel row)
+{
+    if (row.ApprovalNumber != "Subtotal" && row.ApprovalNumber != "Total")
+    {
+        <div class="textalign-center">
+            @Confluence.ButtonTrash("", "RemoveRow")
+        </div>
+    }
+}
+
+
+@helper DrawRowTemplate(CommitFundRowViewModel c)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatIntegerDolar;
+    var formatDate = appSettings.FormatDate;
+    <tr data-id="new-" class="template hide">
+        <td class="">
+            @Confluence.InputDropDownAsync(
+            value: null,
+            name: Model.TableName + "-ApprovalNumber",
+            searchUrl: Url.Action("FindOperationsAmount", "FirmProcurement", new { area = "Procurement" }),
+            disabled: true,
+            width: "100%",
+            dataAttributes: new Dictionary<string, string>() { { "parsley-noRepeatValue", "[name=" + Model.TableName + "-ApprovalNumber" + "]" } })
+        </td>
+        <td class="textalign-right totalFunds colAmount ideAdminFundColAmount">
+            @ColumnTotalFundsAvailable(c, true)
+        </td>
+        <td class="textalign-right colAmount ideAdminFundColAmount">
+            @ColumnOriginalProcurementEstimate(c, true)
+        </td>
+        <td class="colAction90">
+            @ActionsCommitFunds(c)
+        </td>
+    </tr>
+}
+
+@helper subtotalLine(List<CommitFundRowViewModel> list, bool isTotal)
+{
+    if (!isTotal)
+    {
+        var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+        var formatDecimal = appSettings.FormatDecimal;
+        var availableSubtotal = list.Sum(x => x.TotalFundsCurrentlyAvailable);
+        var originalSubtotal = list.Sum(x => x.OriginalProcurementEstimate);
+
+        <tr class="sumAmountsColor">
+            <td>
+                @Confluence.Label(
+                text: "Subtotal",
+                htmlClass: "bold")
+            </td>
+            <td class="textalign-right">
+                <div class="bold textalign-right">$ @Confluence.Label(FormatHelper.Format(availableSubtotal, formatDecimal), htmlClass: "bold TotalFunds-" + Model.TableName)</div>
+            </td>
+            <td class="textalign-right">
+                <div class="bold textalign-right">$ @Confluence.Label(FormatHelper.Format(originalSubtotal, formatDecimal), htmlClass: "bold OriginalFunds-" + Model.TableName)</div>
+            </td>
+            <td class=""></td>
+        </tr>
+    }
+}

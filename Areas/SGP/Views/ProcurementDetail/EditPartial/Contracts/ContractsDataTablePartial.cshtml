@@ -1,0 +1,125 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Infrastructure.SecurityService.Enums
+
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model ContractsTabViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.Contracts)
+        .Name("ContractsTable")
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .AddPrimaryKeyToName(false)
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => Contract(c, false))
+            .CssClass("colContractId")
+            .CssHeaderClass("colContractId")
+            .Header(Localization.GetText("SGP.Label.ContractId"));
+
+            columns.Template(c => AwaderBidderTemplate(c, false))
+            .CssClass("textalign-center")
+            .HeaderAttribute("style", "width: 380.4px")
+            .Header(Localization.GetText("SGP.Label.AwaderBidder"));
+
+            columns.Template(c => Status(c))
+            .Header(Localization.GetText("COMMON.Status"));
+
+            columns.Template(c => Actions(c, false))
+            .CssClass("colActions textalign-center")
+            .CssHeaderClass("colActions")
+            .Header(Localization.GetText("COMMON.Action"));
+        })
+        
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(new ContractRowViewModel()));
+        });
+        
+        config.TableClass = "tableNormal";
+}    
+
+@Html.Partial("Controls/DataTable", config)
+
+<div class="text-center mt30">
+     @Confluence.ButtonAddNewRows(Localization.GetText("Add Contract"), string.Empty, name: "addNewRow-Contracts")
+</div>
+
+@helper Contract(ContractRowViewModel row, bool isTemplate)
+{
+    var contractNumber = Model.ViewContainer.GetValue<string>("contractNumber");
+
+    if (isTemplate)
+    {
+        @Confluence.Label(contractNumber, dataAttributes: new Dictionary<string, string> { { "name", "contractNumber" } })
+    }
+    else
+    {
+        @Confluence.ButtonLink(row.ContractNumber, "link-Contracts", dataAttributes: new Dictionary<string, string> { { "contractId", row.Id.ToString() } })
+    }
+    
+    @Confluence.InputText(row.ContractNumber, "contractNumber-Contracts", required: false, htmlClass: "hide")
+}
+
+@helper AwaderBidderTemplate(ContractRowViewModel row, bool isTemplate)
+{
+    var statusTypePendingId = Model.ViewContainer.GetValue<int>("statusPendingId-Contracts");
+    var bidderContracts = Model.ViewContainer.GetValue<List<ListItemViewModel>>("bidders-Contracts").ConvertToSelectListItems();
+
+    if (isTemplate || row.StatusId == statusTypePendingId)
+    {
+        @Confluence.InputDropDown(row.BidderId, "bidder-Contracts", bidderContracts, width: "360px", orderAsc: false,required: false, disabled: isTemplate)
+    }
+    else
+    {
+        @Confluence.Label(row.BidderText)
+        @Confluence.InputText(row.BidderId, "bidder-Contracts", htmlClass: "hide", required: false)
+    } 
+}
+
+@helper Status(ContractRowViewModel row)
+{
+    @Confluence.Label(row.StatusName)
+    @Confluence.InputText(row.StatusId.ToString(), "status-Contracts", htmlClass: "hide")
+}
+
+@helper Actions(ContractRowViewModel row, bool isTemplate)
+{
+    var statusTypePendingId = Model.ViewContainer.GetValue<int>("statusPendingId-Contracts");
+
+    if (isTemplate || row.StatusId == statusTypePendingId)
+    {
+        @Confluence.ButtonTrash("", "removeRow-Contracts")
+    }
+}
+
+@helper DrawRowTemplate(ContractRowViewModel row)
+{
+    var statusTypePendingText = Model.ViewContainer.GetValue<string>("statusPending-Contracts");
+    var statusTypePendingId = Model.ViewContainer.GetValue<int>("statusPendingId-Contracts");
+    
+    <tr class="template hide">
+        <td class="colContractId">@Contract(row, true)</td>
+        <td>@AwaderBidderTemplate(row, true)</td>
+        <td> @Status(new ContractRowViewModel() { StatusId = statusTypePendingId, StatusName = statusTypePendingText })</td>
+        <td class="colActions textalign-center">@Actions(row, true)</td>
+    </tr>
+}

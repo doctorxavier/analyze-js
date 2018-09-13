@@ -1,0 +1,188 @@
+﻿@if (ViewBag.Permission != false || ViewBag.InstitutionPermission != false)
+{
+    <div class="col-md-12 mb40">
+        @Confluence.LabelMainTitle(Localization.GetText("OP.IN.Title"))
+    </div>
+
+    <div id="PageContent"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]"
+         data-loadurl=""
+         data-url="">
+        @Html.Partial("Partial/InstitutionPartial")
+    </div>
+}
+
+
+@section Scripts{
+    <script type="text/javascript">
+
+        function edit(source) {
+            var success = enterEditMode(false, $("#institutionPartial"), false);
+            if (success) {
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+            }
+        }
+
+
+        function deleteInstitution(source) {
+            var msg = "@Localization.GetText("OP.IN.Message.DeleteInstitution")";
+            //faltante literal
+            $('[name="btnDeleteInst"]').attr("dd-delete", "");
+            $(source).attr("dd-delete", "yes");
+            var idinstitution = $(source).closest("tr").find("[name='InstitutionIdValue']").val();
+
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions("@Url.Action("DeleteInstitution", "InstitutionDelete")", { async: true }, { 'id': idinstitution })
+                        .done(function(data) {
+                            var row = $('[name="btnDeleteInst"][dd-delete="yes"]').closest('tr');
+                            if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                row.remove();
+                            }
+                        });
+                }
+
+            });
+
+        }
+
+        function inactiveInstitution(source) {
+
+            var msg = "@Localization.GetText("OP.IN.Message.InactivateInstitution")";
+            $('[name="delete"]').attr("dd-borrar", "");
+            $(source).closest('td').find('[name="delete"]').attr("dd-borrar", "yes");
+            var idinstitution = $(source).closest("tr").find("[name='InstitutionIdValue']").val();
+
+            confirmAction(msg).done(function(pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions("@Url.Action("InactiveInstitution", "InstitutionDelete")", { async: true }, { 'id': idinstitution })
+                        .done(function(data) {
+                            var row = $('[name="delete"][dd-borrar="yes"]').closest('tr');
+                            if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                                showMessage(data.ErrorMessage);
+                            } else {
+                                row.find('#InstitutionState').text("INACTIVE");
+                                row.find('[name="btnInactive"]').remove();
+                            }
+                        });
+                }
+
+            });
+        }
+
+        $("[name='SearchInstitutionAcronymTextField']").autocomplete({
+            code: $('[name="SearchInstitutionAcronymList"]').val(),
+            source: function(request, response) {
+                var customer = new Array();
+                $.ajax({
+                    async: true,
+                    global: false,
+                    cache: false,
+                    type: "POST",
+                    url: "@Url.Action("AcronymInstitutionFilter", "InstitutionView")",
+                    data: {
+                        'term': request.term,
+                        'searchInstitutionAcronymName': $('[name="SearchInstitutionAcronymList"]').val()
+                    },
+                    success: function(data) {
+
+                        if (data.IsValid) {
+                            if (data.ListResponse !== null) {
+                                for (var i = 0; i < data.ListResponse.length; i++) {
+                                    customer[i] = { label: data.ListResponse[i].Text, Id: data.ListResponse[i].Value };
+                                }
+                            }
+                            response(customer);
+                        } else {
+                            showMessage(data.ErrorMessage, false);
+                        }
+                        $('[role="status"]').remove();
+                    }
+                });
+
+            },
+            messages: {
+                noResults: '',
+                results: function () { }
+            },
+            minLength: 1
+        });
+
+        function searchInstitutionFilter(source) {
+
+            var content = $(source).closest('[name="searchInstitutionContent"]');
+            var searchInstitutionNameId = parseInt(content.find("[name='SearchInstitutionName']").val()) ? parseInt(content.find("[name='SearchInstitutionName']").val()) : -1;
+            var searchInstitutionAcronymName = ($('[name="SearchInstitutionAcronymList"]').val() + "-" + $('[name="SearchInstitutionAcronymTextField"]').val()) != "-" ? $('[name="SearchInstitutionAcronymList"]').val() + "-" + $('[name="SearchInstitutionAcronymTextField"]').val() : "";
+            var searchInstitutionCountryId = parseInt(content.find("[name='SearchInstitutionCountry']").val()) ? parseInt(content.find("[name='SearchInstitutionCountry']").val()) : -1;
+            var searchInstitutionStatusId = parseInt(content.find("[name='SearchInstitutionStatusList']").val()) ? parseInt(content.find("[name='SearchInstitutionStatusList']").val()) : -1;
+            var searchInstitutionTypeId = parseInt(content.find("[name='SearchInstitutionTypeList']").val()) ? parseInt(content.find("[name='SearchInstitutionTypeList']").val()) : -1;
+            var searchInstitutionOperationAssigned = content.find("[name='SearchInstitutionOperationAssigned']").is(':checked');
+
+            if ((searchInstitutionNameId == -1) && (searchInstitutionAcronymName == "") && (searchInstitutionCountryId == -1) && (searchInstitutionStatusId == -1) && (searchInstitutionTypeId == -1) && (searchInstitutionOperationAssigned == false)) {
+                showMessage("@Localization.GetText("OP.IN.Message.FillEmpty")");
+                $('#InstitutionTable').remove();
+                $('div.Pagination[dd-table=InstitutionTable]').remove();
+            } else {
+                $('#InstitutionTable').remove();
+                $('div.Pagination[dd-table=InstitutionTable]').remove();
+
+                postUrlWithOptions("@Url.Action("SearchInstitutionFilter", "InstitutionView")", { async: false }, { 'searchInstitutionNameId': searchInstitutionNameId, 'searchInstitutionAcronymName': searchInstitutionAcronymName, 'searchInstitutionCountryId': searchInstitutionCountryId, 'searchInstitutionStatusId': searchInstitutionStatusId, 'searchInstitutionTypeId': searchInstitutionTypeId, 'searchInstitutionOperationAssigned': searchInstitutionOperationAssigned })
+                    .done(function(data) {
+                        var resultSearchPanel = $('#tableInstitutionContent');
+                        resultSearchPanel.html(data);
+                        bindHandlers(resultSearchPanel);
+                        $("#InstitutionTable").paginationConfluense(10);
+                    });
+            }
+
+
+            return false;
+        }
+
+        function cleanInstitutionButton() {
+            cleanfilter();
+            $("#InstitutionTableContent").remove();//$("#InstitutionTable_wrapper").remove();
+            $("#tableInstitutionContent").find('label').remove();
+            bindHandlers();
+        }
+
+        function cleanfilter() {
+            $("[name='SearchInstitutionAcronymTextField']").val("");
+            $("#id-SearchInstitutionAcronymList").FirstorDefault();
+            $("#id-SearchInstitutionCountry").FirstorDefault();
+            $("#id-SearchInstitutionStatusList").FirstorDefault();
+            $("#id-SearchInstitutionTypeList").FirstorDefault();
+            $("[name='SearchInstitutionOperationAssigned']").prop('checked', false);
+            $("[name='SearchInstitutionName_text']").val("");
+            $("[name='SearchInstitutionName']").val("");
+            $('#InstitutionTable').remove();
+            $('div.Pagination[dd-table=InstitutionTable]').remove();
+        }
+
+        function newInstitutions() {
+            window.location.href = '@Url.Action(controllerName: "InstitutionView", actionName: "InstitutionEdit", routeValues: new {id = "0"})';
+        }
+
+        function showTableInstitution(button) {
+            var row = $(button).closest('tr');
+            var rowId = row.data('id');
+            var table = row.closest('table')
+            var subTable = table.find("tr[data-parent-id='" + rowId + "']");
+            subTable.toggle();
+            subTable.find('tbody tr').removeClass('hide');
+        }
+
+        $(document).on('click', 'div[dd-num]', function () {
+            $('.workflowSubTable').each(function (index, element) {
+                if ($(element).is(":visible")) {
+                    var buttonShowRow = $(element).prev().find('.buttonShowRow')
+                    buttonShowRow.click();
+                }
+            });
+        });
+
+    </script>
+}

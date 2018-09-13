@@ -1,0 +1,801 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Enumerations
+@using IDB.Presentation.MVC4.Areas.ResultsMatrix.Business;
+@model IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.ResultsMatrixModel
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/jquery.validate.unobtrusive.min.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/handlebars-v1.3.0.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Common/main.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/ResultsMatrix/Outputs/EditFinancialProgress.js")"></script>
+    <script type="text/javascript" src="~/Scripts/jquery.resize/jquery.resize.js"></script>
+    <script type="text/javascript" src="~/Scripts/Mainframe/fixIframe.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $('body').resize(function () {
+                resizeIframeCloud();
+            });
+
+            $('.minimizeTable2').resize(function () {
+                resizeIframeCloud();
+            });
+        });        
+    </script>
+}
+
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/ResultsMatrix/Outputs/ResultMatrix_Outputs.css")" />
+}
+
+<style type="text/css">
+    .btn-primary_2_temp {
+        margin: 0 0.1em;
+        padding-left: 1.5em;
+        padding-right: 1.5em;
+        min-width: 7.5em;
+        float: left;
+        min-height: 2.5em;
+        color: #ffffff;
+        font-family: "OpenSans-Semibold";
+        font-size: 0.875em;
+        text-align: center;
+        text-shadow: 0 2px 0 #bc7700;
+        background: url(../Images/Modulos/buttons/btn-primary2.png) repeat-x scroll 0em 0em #e19c23;
+        border-radius: 10px;
+        cursor: pointer;
+    }
+
+    a.btn-primary_2_temp {
+        padding-top: 0.5em;
+    }
+
+        a.btn-primary_2_temp:hover {
+            color: #ffffff;
+        }
+</style>
+
+@{
+    var listComboOutputYears = new List<SelectListItem>();
+    for (var i = Model.OnPipelineDate.Year - 10; i < Model.OnPipelineDate.Year + 30; i++)
+    {
+        listComboOutputYears.Add(new SelectListItem() { Text = i.ToString(), Value = i.ToString(), Selected = false });
+    }
+
+    decimal? allCostFull = ViewBag.allCostFull;
+    string CRFTemplateName = IDB.MW.Infrastructure.Configuration.ConfigurationServiceFactory
+        .Current.GetApplicationSettings().CRFTemplateName;
+}
+
+
+@Html.Hidden("urlRoute", Url.Action("IndexFinancialProgress", "Outputs", new { area = "ResultsMatrix", OperationNumber = Model.Operation.OperationNumber }))
+@Html.Hidden("IndexDeleteOtherCostWarning", "", new { data_title = "Delete Other cost", data_route = Url.Action("IndexDeleteOtherCost", "Outputs", new { area = "ResultsMatrix" }) })
+@Html.Hidden("CurrentServerYear", DateTime.Now.Year)
+@Html.HiddenFor(x => x.OnPipelineDate.Year, new { data_val = "false" })
+
+@************ Hidden fields for interval *************@
+@Html.Hidden("hdnIntervalId", Model.interval.IntervalId, new { data_val = "false" })
+@Html.Hidden("hdnCycleId", Model.interval.CycleId, new { data_val = "false" })
+@Html.Hidden("WarningMessageURL", Url.Action("IndexChangeMatrixWarningMessage", "Outputs", new { area = "ResultsMatrix", formName = "outputsFinancialTarget" }))
+
+@Html.Hidden("Outputs", "", new
+{
+    id = "TypeModule",
+    data_operation = IDBContext.Current.Operation,
+    data_urlsave = IDB.MW.Domain.Values.RMIndicatorValues.URL_RM_PHYSICAL_PROGRESS,
+    data_urlreturn = Url.Action("IndexFinancialProgress", "Outputs", new
+    {
+        area = "ResultsMatrix",
+        OperationNumber = IDBContext.Current.Operation
+    })
+})
+
+<div class="mod_contenido_central impacts">
+    @Html.Partial("IndexSharedHeader", Model, new ViewDataDictionary { { "isFinancialProgress", true }, { "isEdit", true } })
+
+    <div class="operationData">
+        <div class="data4">
+            <p class="dataTitle">@Localization.GetText("Original Estimate")</p>
+            <p>@Model.OriginalEstimate.ToString("N")</p>
+        </div>
+        <div class="data4">
+            <p class="dataTitle">@Localization.GetText("Current")</p>
+            <p>@Model.CurrentCost.ToString("N")</p>
+        </div>
+
+        @if (ViewBag.ShowImportPEPBtn)
+        {
+            <div class="editingButtonsEdit" style="margin-left: 78%">
+                <a href="javascript:void(0);"
+                   name="lnk-import-financial-pep-data"
+                   class="btn-primary_2_temp import-financial-pep-data"
+                   data-route="@(Url.Action("EditFinancialProgress", "Outputs", new { area = "ResultsMatrix", operationNumber = ViewBag.OperationNumber }))"
+                   title="@Localization.GetText("Retrieve data from PEP")">@Localization.GetText("Retrieve data from PEP")</a>
+            </div>
+        }
+    </div>
+    <!-- END TABLE 02.1-->
+    <!-- TABLE 02.1-->
+    @using (Html.BeginForm("UpdateFinancialProgress", "Outputs", FormMethod.Post,
+                               new { area = "ResultsMatrix", id = "outputsFinancialTarget", @class = "isUpdateFinancial" }))
+    {
+        @Html.HiddenFor(x => x.Operation.OperationNumber, new { data_val = "false" })
+        @Html.HiddenFor(x => x.ResultsMatrixId, new { data_val = "false" })
+        @Html.HiddenFor(x => x.OperationNumber)
+        @Html.HiddenFor(x => x.OperationId)
+
+        if (Model.Components != null)
+        {
+            Model.Components.Sort((x1, x2) => x1.OrderNumber.CompareTo(x2.OrderNumber));
+            for (var componentIndex = 0; componentIndex < Model.Components.Count; componentIndex++)
+            {
+                <div class="mod_tabla_impacts editable table_outputs milestone">
+                    @Html.HiddenFor(x => x.Components[componentIndex].ComponentId, new { data_val = "false" })
+                    <div class="minimizeTable">
+                        <div class="minimizeBar">
+                            <div class="trackOrder">@Model.Components[componentIndex].OrderNumber</div>
+                            <div class="tableOperator">Minimize/Maximize</div>
+                        </div>
+                        <div class="operatorBar"></div>
+                        <h4 class="headingh3 plegableTitle">@Model.Components[componentIndex].Statement</h4>
+                        @if (Model.Components[componentIndex].Outputs != null)
+                        {
+                            Model.Components[componentIndex].Outputs.Sort((x1, x2) => x1.OrderNumber.CompareTo(x2.OrderNumber));
+                            var totalOutputYearsPlan = Model.Components[componentIndex].getTotalOutputsYearPlan();
+                            <div class="tableGrid">
+
+                                <table class="grid">
+                                    <thead>
+                                        <tr>
+                                            <th class="btn_azul_oscuro dato00">@Localization.GetText("Outputs")</th>
+                                            <th class="btn_azul_oscuro dato04"></th>
+                                            @foreach (var ouputYearPlan in totalOutputYearsPlan)
+                                            {
+                                                <th class="btn_azul_oscuro dato06">@ouputYearPlan</th>
+                                            }
+
+                                            <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (var outputIndex = 0; outputIndex < Model.Components[componentIndex].Outputs.Count; outputIndex++)
+                                        {
+                                            <tr class="trackOrderRow">
+                                                <td>@(Model.Components[componentIndex].OrderNumber + "." + Model.Components[componentIndex].Outputs[outputIndex].OrderNumber)</td>
+                                            </tr>
+                                            <tr class="nivel01 @(Model.Components[componentIndex].Outputs[outputIndex].IsDeactivated ? " inactiveOutput " : "") @(outputIndex % 2 != 0 ? " impar " : "")">
+                                                <td class="dato01">
+                                                    @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].OutputId, new { data_val = "false" })
+                                                    <div>
+                                                        @if (Model.Components[componentIndex].Outputs[outputIndex].PredefinedIndicator != null)
+                                                        {
+                                                            <span class="@Model.Components[componentIndex].Outputs[outputIndex].PredefinedIndicator.flagColorIndicator(CRFTemplateName)"></span>
+                                                        }
+                                                        @if (Model.Components[componentIndex].Outputs[outputIndex].IsProgender)
+                                                        {
+                                                            <a href="javascript:void(0);" title="badge_flag" class="ico_badge_flag purple"></a>
+                                                        }
+                                                        @if (Model.Components[componentIndex].Outputs[outputIndex].UsedForStrategicAlignment)
+                                                        {
+                                                            <span class="ico_badge_flag lime"></span>
+                                                        }
+                                                        @if (Model.Components[componentIndex].Outputs[outputIndex].IsProethnicity)
+                                                        {
+                                                            <a href="javascript:void(0);" title="badge_flag" class="ico_badge_flag grey"></a>
+                                                        }
+                                                        <a href="javascript:void(0)" class="outputDetail" data-route="@(Url.Action("IndexOutputDetail", "Outputs", new { area = "ResultsMatrix", outputID = Model.Components[componentIndex].Outputs[outputIndex].OutputId }))">@Model.Components[componentIndex].Outputs[outputIndex].Definition</a>
+                                                    </div>
+                                                </td>
+                                                <td class="dato07">
+                                                    <table>
+                                                        <tbody>
+                                                            <tr class="rm_p_row">
+                                                                <td class="rm_edit_rh">P</td>
+                                                            </tr>
+                                                            <tr class="rm_pa_row">
+                                                                <td class="rm_edit_rh">P(a)</td>
+                                                            </tr>
+                                                            <tr class="rm_ac_row">
+                                                                <td class="rm_edit_rh">A</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                                @for (var ouputYearPlanIndex = 0; ouputYearPlanIndex < totalOutputYearsPlan.Count; ouputYearPlanIndex++)
+                                                {
+                                                    <td class="dato07 yearPlanData">
+                                                        @{
+                                                            var currentOutputYearPlan = Model.Components[componentIndex].Outputs[outputIndex].OutputYearPlans.
+                                                               Where(x => x.Year == totalOutputYearsPlan[ouputYearPlanIndex]).FirstOrDefault();
+                                                            if (currentOutputYearPlan == null)
+                                                            {
+                                                                currentOutputYearPlan = new IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OutputYearPlanModel()
+                                                                {
+                                                                    OriginalPlan = 0.0m,
+                                                                    AnnualPlan = 0.0m,
+                                                                    ActualValue = 0.0m
+                                                                };
+                                                            }
+                                                            ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper1 =
+                                                               new ResultsMatrixBusinessRulesPhysicalProgress(
+                                                                   Model.Components[componentIndex].Outputs[outputIndex].OutputYearPlans);
+
+                                                            int referenceLastYearOutputProduct1 =
+                                                               rmBusinessRuleHelper1.GetReferenceLastYearOutputProduct();
+                                                            int pmrYear1 = rmBusinessRuleHelper1.GetPmrYear();
+                                                            int referenceYear1 =
+                                                                rmBusinessRuleHelper1.GetReferenceYear(referenceLastYearOutputProduct1, pmrYear1);
+                                                        }
+                                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndex + "].OutputYearPlanId",
+                                             currentOutputYearPlan.OutputYearPlanId)
+                                                        @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanIndex + "].Year",
+                                             currentOutputYearPlan.Year, new { @class = "hiddenYear" })
+                                                        <table>
+                                                            <tbody>
+                                                                <tr class="rm_p_row">
+                                                                    <td>
+                                                                        <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndex)].OriginalPlan'>
+                                                                            <input class='input min_input numberInput @(Model.AccessedByAdministrator ? "ExistingOriginal" : "") ' id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(ouputYearPlanIndex)__OriginalPlan'
+                                                                                   name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndex)].OriginalPlan' data-originalvalue="@currentOutputYearPlan.OriginalPlan"
+                                                                                   data-referenceyear=@referenceYear1
+                                                                                   data-pmryear=@pmrYear1
+                                                                                   type='text' value='@currentOutputYearPlan.OriginalPlan' @( !currentOutputYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                        </label>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr class="rm_pa_row">
+                                                                    <td>
+                                                                        <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndex)].AnnualPlan'>
+                                                                            <input class='input min_input numberInput annualChangeValueInput' type='text' value='@currentOutputYearPlan.AnnualPlan'
+                                                                                   id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(ouputYearPlanIndex)__AnnualPlan'
+                                                                                   name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndex)].AnnualPlan'
+                                                                                   data-referenceyear=@referenceYear1
+                                                                                   data-pmryear=@pmrYear1
+                                                                                   @( !currentOutputYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                        </label>
+
+                                                                    </td>
+                                                                </tr>
+                                                                <tr class="rm_ac_row">
+                                                                    <td>
+                                                                        <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndex)].ActualValue'>
+                                                                            <input class='input min_input numberInput' type='text' value='@currentOutputYearPlan.ActualValue'
+                                                                                   id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(ouputYearPlanIndex)__ActualValue'
+                                                                                   name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanIndex)].ActualValue'
+                                                                                   data-referenceyear=@referenceYear1
+                                                                                   data-pmryear=@pmrYear1
+                                                                                   @( !currentOutputYearPlan.isActualValueEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                        </label>
+                                                                    </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                            }
+                                                <td class="dato07 totalOutputYearPlan">
+                                                    @{
+                                                        ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                          new ResultsMatrixBusinessRulesPhysicalProgress(
+                                                              Model.Components[componentIndex].Outputs[outputIndex].OutputYearPlans);
+
+                                                        int referenceLastYearOutputProduct =
+                                                          rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                        int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                        int referenceYear =
+                                                            rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+                                                        decimal? originalPlanSum =
+                                                                rmBusinessRuleHelper.GetOriginalPlanSum();
+                                                        decimal? annualPlanSum =
+                                                          rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear);
+                                                        decimal? actualValueSum =
+                                                          rmBusinessRuleHelper.GetActualValueSum();
+
+                                                        var ouputYearPlanMaxIndex = totalOutputYearsPlan.Count;
+                                                        var currentCostOutputYearPlan = Model.Components[componentIndex].Outputs[outputIndex].OutputYearPlans.
+                                                           Where(x => x.Year == ResultsMatrixCodes.EndOfProjectYear).FirstOrDefault();
+                                                        if (currentCostOutputYearPlan == null)
+                                                        {
+                                                            currentCostOutputYearPlan = new IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OutputYearPlanModel()
+                                                            {
+                                                                OriginalPlan = null,
+                                                                AnnualPlan = null,
+                                                                ActualValue = null,
+                                                                Year = ResultsMatrixCodes.EndOfProjectYear
+                                                            };
+                                                        }
+
+                                                    }
+                                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanMaxIndex + "].OutputYearPlanId",
+                                             currentCostOutputYearPlan.OutputYearPlanId)
+                                                    @Html.Hidden("Components[" + componentIndex + "].Outputs[" + outputIndex + "].OutputYearPlans[" + ouputYearPlanMaxIndex + "].Year",
+                                             currentCostOutputYearPlan.Year, new { @class = "hiddenYear" })
+                                                    <table>
+                                                        <tbody>
+                                                            <tr class="rm_p_row">
+                                                                <td>
+                                                                    <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanMaxIndex)].OriginalPlan'>
+                                                                        <input class='input min_input numberInput' id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(ouputYearPlanMaxIndex)__OriginalPlan'
+                                                                               name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanMaxIndex)].OriginalPlan' type='text'
+                                                                               value='@originalPlanSum' readonly="readonly">
+                                                                    </label>
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="rm_pa_row">
+                                                                <td>
+                                                                    <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanMaxIndex)].AnnualPlan'>
+                                                                        <input class='input min_input numberInput @(Model.Components[componentIndex].Outputs[outputIndex].isOldAnnualPlanExists ? "ExistingAnnual" : "")'
+                                                                               type='text' value='@annualPlanSum' data-originalValue="@annualPlanSum" data-oldValue="@Model.Components[componentIndex].Outputs[outputIndex].OldAnnualPlan"
+                                                                               id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(ouputYearPlanMaxIndex)__AnnualPlan'
+                                                                               name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanMaxIndex)].AnnualPlan'
+                                                                               readonly="readonly">
+                                                                    </label>
+
+                                                                </td>
+                                                            </tr>
+                                                            <tr class="rm_ac_row">
+                                                                <td>
+                                                                    <label class='editLabel' for='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanMaxIndex)].ActualValue'>
+                                                                        <input class='input min_input numberInput' type='text' value='@actualValueSum'
+                                                                               id='Components_@(componentIndex)__Outputs_@(outputIndex)__OutputYearPlans_@(ouputYearPlanMaxIndex)__ActualValue'
+                                                                               name='Components[@(componentIndex)].Outputs[@(outputIndex)].OutputYearPlans[@(ouputYearPlanMaxIndex)].ActualValue'
+                                                                               readonly="readonly">
+                                                                    </label>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
+
+                                            @*-----------------------------------------------------------Milestones---------------------------------------------------------------------------------*@
+                                                        @*-----------------------------------------------------------Milestones---------------------------------------------------------------------------------*@
+                                        if (Model.showMilestones && Model.Components[componentIndex].Outputs[outputIndex].Milestones != null && Model.Components[componentIndex].Outputs[outputIndex].Milestones.Count > 0 &&
+                                           Model.Components[componentIndex].Outputs[outputIndex].MileStoneBasedPmi)
+                                        {
+                                            <tr class="nivel02">
+                                                <td colspan="@(totalOutputYearsPlan.Count + 3)">
+
+                                                    <div class="minimizeTable">
+                                                        <div class="minimizeBar">
+                                                            <div class="tableOperator">Minimize/Maximize</div>
+                                                        </div>
+                                                        <div class="operatorBar"></div>
+                                                        <div class="tableGrid">
+                                                            @if (Model.Components[componentIndex].Outputs[outputIndex].Milestones != null && Model.showMilestones)
+                                                            {
+                                                                <table class="grid">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th class="btn_azul_oscuro dato00">@Localization.GetText("Milestones")</th>
+                                                                            <th class="btn_azul_oscuro dato06"></th>
+                                                                            <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        @for (var milestoneIndex = 0; milestoneIndex < Model.Components[componentIndex].Outputs[outputIndex].Milestones.Count; milestoneIndex++)
+                                                                        {
+                                                                            <tr class="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].OrderNumber % 2 == 0 ? " impar " : "")">
+                                                                                <td class="dato01">
+                                                                                    <a href="javascript:void(0)" class="outputDetail"
+                                                                                       data-route="@(Url.Action("IndexMilestoneDetails", "Outputs", new { area = "ResultsMatrix", milestoneId = Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].MilestoneId }))">
+                                                                                        @Html.HiddenFor(x => x.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].MilestoneId, new { data_val = "false" })
+                                                                                        @Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].Definition
+                                                                                    </a>
+                                                                                </td>
+                                                                                <td class="dato07">
+                                                                                    <table>
+                                                                                        <tbody>
+                                                                                            <tr class="rm_p_row">
+                                                                                                <td class="rm_edit_rh">P</td>
+                                                                                            </tr>
+                                                                                            <tr class="rm_pa_row">
+                                                                                                <td class="rm_edit_rh">P(a)</td>
+                                                                                            </tr>
+                                                                                            <tr class="rm_ac_row">
+                                                                                                <td class="rm_edit_rh">A</td>
+                                                                                            </tr>
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </td>
+                                                                                <td class="dato07">
+                                                                                    <table>
+                                                                                        <tbody>
+                                                                                            <tr class="rm_p_row">
+                                                                                                <td class="rm_edit_rh">
+                                                                                                    <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)_OriginalEopCost">
+                                                                                                        <input class="input min_input numberInput ExistingOriginal" data-originalvalue="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].OriginalEopCost)"
+                                                                                                               id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__OriginalEopCost"
+                                                                                                               name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].OriginalEopCost" type="text"
+                                                                                                               value="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].OriginalEopCost)"
+                                                                                                               @( !Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].isOriginalEopCostEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                                                    </label>
+                                                                                            </tr>
+                                                                                            <tr class="rm_pa_row">
+                                                                                                <td class="rm_edit_rh">
+                                                                                                    <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)_AnnualEopCost">
+                                                                                                        <input class="input min_input numberInput @(Model.Components[componentIndex].Outputs[outputIndex].Milestones[(milestoneIndex)].isOldAnnualEopCostExists ? "ExistingAnnualMilestones" : "")"
+                                                                                                               id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__AnnualEopCost"
+                                                                                                               name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].AnnualEopCost" type="text"
+                                                                                                               value="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].AnnualEopCost)"
+                                                                                                               data-originalValue="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].AnnualEopCost)"
+                                                                                                               data-oldValue="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].OldAnnualEopCost)"
+                                                                                                               @( !Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].isAnnualEopCostEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                                                    </label>
+
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                            <tr class="rm_ac_row">
+                                                                                                <td class="rm_edit_rh">
+                                                                                                    <label class="editLabel" for="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)_ActualEopCost">
+                                                                                                        <input class="input min_input numberInput"
+                                                                                                               id="Components_@(componentIndex)__Outputs_@(outputIndex)__Milestones_@(milestoneIndex)__ActualEopCost"
+                                                                                                               name="Components[@(componentIndex)].Outputs[@(outputIndex)].Milestones[@(milestoneIndex)].ActualEopCost" type="text"
+                                                                                                               value="@(Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].ActualEopCost)"
+                                                                                                               @( !Model.Components[componentIndex].Outputs[outputIndex].Milestones[milestoneIndex].isActualEopCostEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                                                    </label>
+
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </td>
+                                                                            </tr>
+                                                                        }
+                                                                    </tbody>
+                                                                </table>
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                </td>
+                                            </tr>
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+
+                            </div>
+                                                        }
+
+                    </div>
+                </div>
+                <div class="operationData" style="width: 100%; padding-top: 1.5em;"></div>
+                                                            }
+                                                        }
+
+                                                        @*------------------------------------------OtherCost--------------------------------------------------------------*@
+                                                        @*------------------------------------------OtherCost--------------------------------------------------------------*@
+                                                        <div class="mod_tabla_impacts editable financial">
+                                                            <div class="minimizeTable2">
+                                                                @if (Model.OtherCosts != null)
+                                                                {
+                                                                    Model.OtherCosts.Sort((x, y) => x.OrderNumber.CompareTo(y.OrderNumber));
+                                                                    var totalOtherCostYearPlan = Model.getTotalYears();
+                                                                    <div class="tableGrid">
+                                                                        <table class="grid" id="otherCostTable">
+                                                                            <thead>
+                                                                                <tr>
+                                                                                    <th class="btn_azul_oscuro dato00">@Localization.GetText("Other Costs")</th>
+                                                                                    <th class="btn_azul_oscuro dato04"></th>
+
+                                                                                    @for (var otherCostYearIndex = 0; otherCostYearIndex < totalOtherCostYearPlan.Count; otherCostYearIndex++)
+                                                                                    {
+                                                                                        <th class="btn_azul_oscuro dato06" data-othercostyearplanindex="@(otherCostYearIndex)">
+                                                                                            @totalOtherCostYearPlan[otherCostYearIndex].Item1
+                                                                                        </th>
+                                                                                    }
+                                                                                    <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                @for (var otherCostIndex = 0; otherCostIndex < Model.OtherCosts.Count; otherCostIndex++)
+                                                                                {
+                                                                                    <tr class="@(Model.OtherCosts[otherCostIndex].OrderNumber % 2 == 0 ? "impar nivel01" : "nivel01") hoverOtherCost">
+                                                                                        <td class="dato01" style="position: static;">
+                                                                                            @Html.HiddenFor(x => x.OtherCosts[otherCostIndex].OtherCostId, new { data_val = "false", @class = "OtherCosId" })
+                                                                                            @Html.Hidden("OtherCosts.Index", otherCostIndex)
+                                                                                            @Html.TextAreaFor(x => x.OtherCosts[otherCostIndex].Definition, new { @class = "dato01", rows = "2", cols = "55" })
+                                                                                            <div class="actionbar">
+                                                                                                <a class="btn_entypo first" title="@Localization.GetText("Move Up")" onclick="moveUpOtherCost(this);" href="javascript:void(0);">&#59231;</a>
+                                                                                                <a class="btn_entypo first" title="@Localization.GetText("Move Down")" onclick="moveDownOtherCost(this);" href="javascript:void(0);">&#59228;</a>
+                                                                                                <a class="btn_entypo first " title="@Localization.GetText("Delete")" href="javascript:void(0);" onclick="deleteOtherCost(this);"></a>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        <td class="dato07">
+                                                                                            <table>
+                                                                                                <tbody>
+                                                                                                    <tr class="rm_p_row">
+                                                                                                        <td class="rm_edit_rh">P</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_pa_row">
+                                                                                                        <td class="rm_edit_rh">P(a)</td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_ac_row">
+                                                                                                        <td class="rm_edit_rh">A</td>
+                                                                                                    </tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </td>
+                                                                                        @for (var otherCostYearIndex = 0; otherCostYearIndex < totalOtherCostYearPlan.Count; otherCostYearIndex++)
+                                                                                        {
+                                                                                            var currentOtherCostYearPlan = Model.OtherCosts[otherCostIndex].OtherCostYearPlans.Where(
+                                                                                                x => x.Year == totalOtherCostYearPlan[otherCostYearIndex].Item1).FirstOrDefault();
+                                                                                            if (currentOtherCostYearPlan == null)
+                                                                                            {
+                                                                                                currentOtherCostYearPlan = new IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OtherCostYearPlanModel()
+                                                                                                {
+                                                                                                    OriginalPlan = null,
+                                                                                                    AnnualPlan = null,
+                                                                                                    ActualValue = null,
+                                                                                                    Year = totalOtherCostYearPlan[otherCostYearIndex].Item1
+                                                                                                };
+                                                                                            }
+
+                                                                                            ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper1 =
+                                                                                                new ResultsMatrixBusinessRulesPhysicalProgress(
+                                                                                                    Model.OtherCosts[otherCostIndex].OtherCostYearPlans);
+
+                                                                                            int referenceLastYearOutputProduct1 =
+                                                                                                rmBusinessRuleHelper1.GetReferenceLastYearOutputProduct();
+                                                                                            int pmrYear1 = rmBusinessRuleHelper1.GetPmrYear();
+                                                                                            int referenceYear1 =
+                                                                                                rmBusinessRuleHelper1.GetReferenceYear(referenceLastYearOutputProduct1, pmrYear1);
+
+                                                                                            <td data-rowcolumnrelated="@(otherCostYearIndex)" class="yearPlanData dato07">
+                                                                                                @Html.Hidden("OtherCosts[" + otherCostIndex + "].OtherCostYearPlans[" + otherCostYearIndex + "].OtherCostYearPlanId", currentOtherCostYearPlan.OtherCostYearPlanId)
+                                                                                                @Html.Hidden("OtherCosts[" + otherCostIndex + "].OtherCostYearPlans[" + otherCostYearIndex + "].Year", currentOtherCostYearPlan.Year, new { @class = "hiddenYear" })
+                                                                                                <table>
+                                                                                                    <tbody>
+                                                                                                        <tr class="rm_p_row">
+                                                                                                            <td>
+                                                                                                                <label class="editLabel" for="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(otherCostYearIndex)__OriginalPlan">
+                                                                                                                    <input class="input min_input numberInput"
+                                                                                                                           id="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(otherCostYearIndex)__OriginalPlan"
+                                                                                                                           name="OtherCosts[@(otherCostIndex)].OtherCostYearPlans[@(otherCostYearIndex)].OriginalPlan" type="text"
+                                                                                                                           data-referenceyear=@referenceYear1
+                                                                                                                           data-pmryear=@pmrYear1
+                                                                                                                           value="@(currentOtherCostYearPlan.OriginalPlan)" @(!currentOtherCostYearPlan.isOriginalPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                                                                </label>
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr class="rm_pa_row">
+                                                                                                            <td>
+                                                                                                                <label class="editLabel" for="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(otherCostYearIndex)__AnnualPlan">
+                                                                                                                    <input class="input min_input numberInput"
+                                                                                                                           id="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(otherCostYearIndex)__AnnualPlan"
+                                                                                                                           name="OtherCosts[@(otherCostIndex)].OtherCostYearPlans[@(otherCostYearIndex)].AnnualPlan" type="text"
+                                                                                                                           data-referenceyear=@referenceYear1
+                                                                                                                           data-pmryear=@pmrYear1
+                                                                                                                           value="@(currentOtherCostYearPlan.AnnualPlan)" @(!currentOtherCostYearPlan.isAnnualPlanEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                                                                </label>
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr class="rm_ac_row">
+                                                                                                            <td>
+                                                                                                                <label class="editLabel" for="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(otherCostYearIndex)__ActualValue">
+                                                                                                                    <input class="input min_input numberInput"
+                                                                                                                           id="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(otherCostYearIndex)__ActualValue"
+                                                                                                                           name="OtherCosts[@(otherCostIndex)].OtherCostYearPlans[@(otherCostYearIndex)].ActualValue" type="text"
+                                                                                                                           data-referenceyear=@referenceYear1
+                                                                                                                           data-pmryear=@pmrYear1
+                                                                                                                           value="@(currentOtherCostYearPlan.ActualValue)" @(!currentOtherCostYearPlan.isActualValueEditable && !Model.AccessedByAdministrator ? "readonly='readonly'" : "")>
+                                                                                                                </label>
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    </tbody>
+                                                                                                </table>
+                                                                                            </td>
+                                                                                        }
+                                                                                        @{
+                                                                                            var currentTotalOtherCostYearPlan = Model.OtherCosts[otherCostIndex].
+                                                                                                OtherCostYearPlans.Where(x => x.Year == ResultsMatrixCodes.EndOfProjectYear).
+                                                                                                FirstOrDefault();
+                                                                                            var totalOtherCostYearIndex = totalOtherCostYearPlan.Count;
+                                                                                            if (currentTotalOtherCostYearPlan == null)
+                                                                                            {
+                                                                                                currentTotalOtherCostYearPlan = new IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs.OtherCostYearPlanModel()
+                                                                                                {
+                                                                                                    OriginalPlan = null,
+                                                                                                    AnnualPlan = null,
+                                                                                                    ActualValue = null,
+                                                                                                    Year = ResultsMatrixCodes.EndOfProjectYear
+                                                                                                };
+                                                                                            }
+                                                                                            ResultsMatrixBusinessRulesPhysicalProgress rmBusinessRuleHelper =
+                                                                                                new ResultsMatrixBusinessRulesPhysicalProgress(
+                                                                                                    Model.OtherCosts[otherCostIndex].OtherCostYearPlans);
+
+                                                                                            int referenceLastYearOutputProduct =
+                                                                                                rmBusinessRuleHelper.GetReferenceLastYearOutputProduct();
+                                                                                            int pmrYear = rmBusinessRuleHelper.GetPmrYear();
+                                                                                            int referenceYear =
+                                                                                                rmBusinessRuleHelper.GetReferenceYear(referenceLastYearOutputProduct, pmrYear);
+                                                                                            decimal? originalPlanSum =
+                                                                                                            rmBusinessRuleHelper.GetOriginalPlanSum();
+                                                                                            decimal? annualPlanSum =
+                                                                                                rmBusinessRuleHelper.GetAnnualPlanSum(referenceYear);
+                                                                                            decimal? actualValueSum =
+                                                                                                rmBusinessRuleHelper.GetActualValueSum();
+                                                                                        }
+                                                                                        <td class="dato07 totalOtherCostYearPlan">
+                                                                                            @Html.Hidden("OtherCosts[" + otherCostIndex + "].OtherCostYearPlans[" + totalOtherCostYearIndex + "].OtherCostYearPlanId", currentTotalOtherCostYearPlan.OtherCostYearPlanId)
+                                                                                            @Html.Hidden("OtherCosts[" + otherCostIndex + "].OtherCostYearPlans[" + totalOtherCostYearIndex + "].Year", currentTotalOtherCostYearPlan.Year)
+                                                                                            <table>
+                                                                                                <tbody>
+                                                                                                    <tr class="rm_p_row">
+                                                                                                        <td>
+                                                                                                            <label class="editLabel" for="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(totalOtherCostYearIndex)__OriginalPlan">
+                                                                                                                <input class="input min_input numberInput"
+                                                                                                                       id="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(totalOtherCostYearIndex)__OriginalPlan"
+                                                                                                                       name="OtherCosts[@(otherCostIndex)].OtherCostYearPlans[@(totalOtherCostYearIndex)].OriginalPlan" type="text"
+                                                                                                                       value="@(originalPlanSum)" readonly="readonly">
+                                                                                                            </label>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_pa_row">
+                                                                                                        <td>
+                                                                                                            <label class="editLabel" for="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(totalOtherCostYearIndex)__AnnualPlan">
+                                                                                                                <input class="input min_input numberInput"
+                                                                                                                       id="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(totalOtherCostYearIndex)__AnnualPlan"
+                                                                                                                       name="OtherCosts[@(otherCostIndex)].OtherCostYearPlans[@(totalOtherCostYearIndex)].AnnualPlan" type="text"
+                                                                                                                       value="@(annualPlanSum)" readonly="readonly">
+                                                                                                            </label>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                    <tr class="rm_ac_row">
+                                                                                                        <td>
+                                                                                                            <label class="editLabel" for="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(totalOtherCostYearIndex)__ActualValue">
+                                                                                                                <input class="input min_input numberInput"
+                                                                                                                       id="OtherCosts_@(otherCostIndex)__OtherCostYearPlans_@(totalOtherCostYearIndex)__ActualValue"
+                                                                                                                       name="OtherCosts[@(otherCostIndex)].OtherCostYearPlans[@(totalOtherCostYearIndex)].ActualValue" type="text"
+                                                                                                                       value="@(actualValueSum)" readonly="readonly">
+                                                                                                            </label>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                            }
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                                            }
+
+                                                                <div class="k-toolbar" style="display: block;">
+                                                                    <a href="javascript:void(0);" title="Add other cost" class="k-button newIndicator" onclick="AddOtherCost(this);">
+                                                                        <div class="k-button-">@Localization.GetText("Add other cost")</div>
+                                                                    </a>
+                                                                </div>
+
+                                                                <div class="operationData" style="width: 100%; padding-top: 2em;"></div>
+
+                                                                @*-----------------------------------------Total Cost--------------------------------------------------------------*@
+                                                                @*-----------------------------------------Total Cost--------------------------------------------------------------*@
+
+                                                                @{
+                                                                    var totalYearsOtherCostAndOutputs = Model.getTotalYearsOtherCostAndOutputs();
+                                                                }
+                                                                <div class="tableGrid">
+                                                                    <table class="grid">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th class="btn_azul_oscuro dato00">@Localization.GetText("Total")</th>
+                                                                                <th class="btn_azul_oscuro dato04"></th>
+                                                                                @foreach (var year in totalYearsOtherCostAndOutputs)
+                                                                                {
+                                                                                    <th class="btn_azul_oscuro dato06">@year</th>
+                                                                                }
+                                                                                <th class="btn_azul_oscuro dato05">@Localization.GetText("Cost")</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr class="nivel01">
+                                                                                <td class="dato01">@Localization.GetText("Total cost")</td>
+                                                                                <td class="dato07">
+                                                                                    <table>
+                                                                                        <tbody>
+                                                                                            <tr class="rm_p_row">
+                                                                                                <td>P</td>
+                                                                                            </tr>
+                                                                                            <tr class="rm_pa_row">
+                                                                                                <td>P(a)</td>
+                                                                                            </tr>
+                                                                                            <tr class="rm_ac_row">
+                                                                                                <td>A</td>
+                                                                                            </tr>
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </td>
+
+                                                                                @foreach (var year in totalYearsOtherCostAndOutputs)
+                                                                                {
+
+                                                                                    var totalPlanned =
+                                                                                         Model.Components.SelectMany(x => x.Outputs).Where(x => x.IsDeactivated == false).SelectMany(x => x.OutputYearPlans).Where(x => x.Year == year).Select(x => x.OriginalPlan).DefaultIfEmpty(0.0m).Sum(x => x) +
+                                                                                         Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).Where(x => x.Year == year).Select(x => x.OriginalPlan).DefaultIfEmpty(0.0m).Sum(x => x);
+
+
+                                                                                    var totalRevised =
+                                                                                   Model.Components.SelectMany(x => x.Outputs).Where(x => x.IsDeactivated == false).SelectMany(x => x.OutputYearPlans).Where(x => x.Year == year).Select(x => x.AnnualPlan).DefaultIfEmpty(0.0m).Sum(x => x) +
+                                                                                   Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).Where(x => x.Year == year).Select(x => x.AnnualPlan).DefaultIfEmpty(0.0m).Sum(x => x);
+
+
+                                                                                    var totalActual =
+                                                                                       Model.Components.SelectMany(x => x.Outputs).Where(x => x.IsDeactivated == false).SelectMany(x => x.OutputYearPlans).Where(x => x.Year == year).Select(x => x.ActualValue).DefaultIfEmpty(0.0m).Sum(x => x) +
+                                                                                       Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans).Where(x => x.Year == year).Select(x => x.ActualValue).DefaultIfEmpty(0.0m).Sum(x => x);
+
+                                                                                    <td class="dato07">
+                                                                                        <table>
+                                                                                            <tbody>
+                                                                                                <tr class="rm_p_row">
+                                                                                                    <td>@Html.CustomFormatDecimalNumber(totalPlanned)</td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_pa_row">
+                                                                                                    <td>@Html.CustomFormatDecimalNumber(totalRevised)</td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_ac_row">
+                                                                                                    <td>@Html.CustomFormatDecimalNumber(totalActual)</td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    </td>
+                                                                                }
+                                                                                <td class="dato07">
+                                                                                    @{
+                                                                                        ResultsMatrixBusinessRulesFinancialProgress rmBusinessRuleHelperFinancialprogress =
+                                                                                            new ResultsMatrixBusinessRulesFinancialProgress(Model.Components.SelectMany(
+                                                                                            x => x.Outputs).Where(x => x.IsDeactivated == false).SelectMany(x => x.OutputYearPlans),
+                                                                                            Model.OtherCosts.SelectMany(x => x.OtherCostYearPlans));
+
+                                                                                        var totalCostOriginalSum = rmBusinessRuleHelperFinancialprogress.GetCostOriginalSum();
+                                                                                        int referenceLastYearFinancialOutputProduct =
+                                                                                            rmBusinessRuleHelperFinancialprogress.GetReferenceLastYearOutputProduct();
+                                                                                        int pmrYearFinancial = rmBusinessRuleHelperFinancialprogress.GetPmrYear();
+                                                                                        int referenceYearFinancial =
+                                                                                            rmBusinessRuleHelperFinancialprogress.GetReferenceYear(referenceLastYearFinancialOutputProduct, pmrYearFinancial);
+                                                                                        var totalCostAnnualSum =
+                                                                                            rmBusinessRuleHelperFinancialprogress.GetCostAnnualSum(referenceYearFinancial);
+                                                                                        var totalCostActualSum = rmBusinessRuleHelperFinancialprogress.GetTotalCostActualSum();
+
+                                                                                        <table>
+                                                                                            <tbody>
+                                                                                                <tr class="rm_p_row">
+                                                                                                    <td>
+                                                                                                        @Html.CustomFormatDecimalNumber(totalCostOriginalSum)
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_pa_row">
+                                                                                                    <td>@Html.CustomFormatDecimalNumber(allCostFull)</td>
+                                                                                                </tr>
+                                                                                                <tr class="rm_ac_row">
+                                                                                                    <td>@Html.CustomFormatDecimalNumber(totalCostActualSum)</td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    }
+                                                                                </td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                                <div class="plegableSeparator">@Localization.GetText("Borde de separacion")</div>
+
+                                                            </div>
+                                                        </div>
+      <!-- END TABLE 02.1-->
+                                                                                        }
+
+    <div class="operationData" style="float: right;">
+        @Html.Partial("../Partials/_BadgeFlagPartial")
+    </div>
+
+    <div class="editingButtonsEdit bottom">
+        <a href="javascript:void(0);" class="verify" title="verify">@Localization.GetText("Verify content")</a>
+        <a href="javascript:void(0);" class="btn-primary_2" title="@Localization.GetText("Save")">@Localization.GetText("Save")</a>
+    </div>
+</div>
+<!--end div mod contenido central-->
+
+@Html.Partial("EditFinancialProgressTemplates")

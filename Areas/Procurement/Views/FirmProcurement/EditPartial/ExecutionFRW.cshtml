@@ -1,0 +1,138 @@
+@using System.Globalization;
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.MW.Application.BEOProcurementModule.Enums
+
+@model ExecutionFRWViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatInteger = appSettings.FormatInteger;
+    var listWinner = ViewBag.FirmListWinners;
+    var enDate = new DateTime();
+    var startDate = new DateTime();
+    
+    var dataAttributeOptionalRequired = new Dictionary<string, string>() { { "optional-required", "true" } };
+
+    if (ViewBag.FirmListWinner == null)
+    {
+        ViewBag.FirmListWinner = new List<SelectListItem>();
+    }
+    var id = 0;
+  
+}
+
+    <div class="row">
+        <div class="col-xs-12 mb40">
+            @Html.Partial("ReadPartial/DatatableAssociatedTasks", Model)
+        </div>
+    </div>
+
+@foreach (var item in Model.ContractsModifications)
+{
+    <div class="row">
+        <div class="col-xs-12 mb40">
+            @Html.Partial("EditPartial/ContractModification", new ContractModificationViewModel { Modality = Model.Modality, ContractModificationsViewModels = item })
+        </div>
+    </div>
+
+}
+
+<div class="row">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("ReadPartial/DatatableSanctionsNonPerformance", Model)
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("ReadPartial/DatatableFirmPerformanceEvaluation", Model)
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xs-12 mb40">
+        @Html.Partial("EditPartial/DataTableDocsSimple",
+        new SimpleDocViewModel
+        {
+            HasLink = true,
+            LinkURL = AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+            Prefix = string.Empty,
+            SimpleTable = Model.ExecutionDocsTable,
+            SubTitle = Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommunicationsRelatedDocs"),
+            TableName = "ExecutionDocs",
+            Title = Localization.GetText("TCP.FirmProcurement.TableTitle.CommunicationsOtherRelatedDocuments")
+        })
+    </div>
+</div>
+
+@Html.ScriptBlock(
+
+    @<script type="text/javascript">
+        registerCallback(function () {
+
+            modificationsAvailability();
+            
+            $(document).on('change', '[data-target-section]', function () {
+                
+                var source = $(this);
+                var value = source.val();
+                var selector = String.format('[data-section="{0}"]', source.attr('data-target-section'));
+                var region = $(selector);
+
+                var inputYes = $('input[name="radioContractModifications"][value="True"]');
+                var inputIsCertifyModifications = region.find('input[name="IsCertifyModifications"]');
+
+                if (value == 'True'){
+                    inputIsCertifyModifications.attr('required', 'required');
+
+                } else {
+                    inputIsCertifyModifications.removeAttr('required');
+                }
+
+                changeVisibilityByInput(source, region);
+            });
+
+            $(document).ready(function(){
+                $('[data-target-section]:checked').change();
+            });
+
+        });
+
+        function modificationsAvailability() {
+            var tables = $('table.contractModificationTable');
+            var rows = tables.find('tr[data-id]');
+            var amountId = @(ViewBag.ModificationCausesEnumValues[ProcurementModificationCauseEnum.Amount].MasterId);
+            var dateId = @(ViewBag.ModificationCausesEnumValues[ProcurementModificationCauseEnum.Dates].MasterId);
+
+            for (var i = 0; i < rows.length; i++) {
+                var amountInput = $(rows[i]).find('input[name="ModificationDocs-newContractTotalAmount"]');
+                var dateInput = $(rows[i]).find('input[name="ModificationDocs-newEndDate"]');
+
+                var select = $(rows[i]).find('select[name="ModificationDocs-modifications"]');
+                var selectValues = select.val();
+
+                if (selectValues != null && selectValues.indexOf(amountId.toString()) > 0){
+                    amountInput.removeAttr('disabled');
+                }else {
+                    amountInput.attr('disabled');
+                }
+
+                if (selectValues != null && selectValues.indexOf(dateId.toString()) > 0){
+                    dateInput.removeAttr('disabled');
+                }else {
+                    dateInput.attr('disabled');
+                }
+            }
+        };
+    </script>
+)

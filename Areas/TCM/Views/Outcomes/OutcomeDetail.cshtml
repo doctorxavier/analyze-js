@@ -1,0 +1,138 @@
+﻿@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Common
+@using IDB.MW.Application.TCM.ViewModels.ResultsMatrix.Outcomes
+@using IDB.MW.Domain.Values
+
+@{
+    Layout = "../../Shared/_Layout.cshtml";
+    ViewBag.Title = Localization.GetText("TCM.Outcome.Detail");
+}
+@model OutcomeIndicatorDetailViewModel
+
+<input hidden data-idb-pagename="UI-OC-002Partial-OutcomeDetails" />
+<div class="page">
+    <div id="PageContent" class="content-expandable"
+         data-parsley-validate="data-parsley-validate"
+         data-loadurl="@Url.Action("OutcomeDetailReload", "Outcomes", new { area = "TCM", paramsDetail = Html.Raw(Json.Encode(new ParamsDetailViewModel { Id = Model.OutComeIndicatorId, Interval = Model.Interval })) })"
+         data-url="@Url.Action("SaveOutcomeDetail", "Outcomes", new {area = "TCM"})">
+        @if (Model != null)
+        {
+            @Html.Partial("Partials/OutcomeDetailPartial", Model)
+        }
+    </div>
+</div>
+
+<div class="footer">
+    <div class="row">
+        <div class="col-md-12">
+            @if (ViewBag.TCMWritePermission ?? false)
+            {
+                @Html.Partial("Partials/DetailButtons", Model.FieldAccessList)
+            }
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $('.page').closest('section').addClass('containerOutcomeDetail');
+        });
+
+
+    $(document).on("change", "input[name='MeansOfVerification']", function () {
+        if ($("[name='hdSaveInRM']").val() == "True") {
+            var originalMeansOfVerification = $(this).parent("span").find("[name='original-MeansOfVerification']");
+            setClassToStoreInMatrixChanges(originalMeansOfVerification, this);
+        }
+    });
+
+    function setClassToStoreInMatrixChanges(originalInput, updatedInput) {
+        $(updatedInput).val() != $(originalInput).val()
+        ? $(originalInput).addClass("store-to-matrix-changes")
+        : $(originalInput).removeClass("store-to-matrix-changes");
+    }
+
+    function edit(source) {
+        postUrlWithOptions('@Url.Action("LockRegister", "Outcomes", new { area = "TCM" })', { async: false }, { url: '@TCMGlobalValues.TCM_OUTCOMES_EDIT' })
+        .done(function (data) {
+            if (data.IsValid === true) {
+                var success = enterEditMode(false, $('#PageContent'), false);
+
+                if (success) {
+                    enterEditMode(false, $('[data-id=headerButtons]'), false);
+                }
+
+            } else {
+                showMessage(data.ErrorMessage);
+            }
+        });
+    }
+
+    function redirect(elem) {
+        var msg = '@Localization.GetText("TCM.Outcome.CancelMessage")';
+        confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Ok")').done(function (pressOk) {
+
+            if (pressOk) {
+                postUrlWithOptions('@Url.Action("UnlockRegister", "Outcomes", new {area = "TCM"})', { async: true }, { url: '@TCMGlobalValues.TCM_OUTCOMES_EDIT' });
+                    var path = $(elem).data("url");
+                    setTimeout(showLoader(), 2000);
+                    window.location.href = path;
+                }
+            });
+        }
+
+        function cancel(source) {
+            var msg = '@Localization.GetText("TCM.Outcome.CancelMessage")';
+            confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Ok")').done(function (pressOk) {
+                if (pressOk) {
+                    postUrlWithOptions('@Url.Action("UnlockRegister", "Outcomes", new { area = "TCM" })', { async: true }, { url: '@TCMGlobalValues.TCM_OUTCOMES_EDIT' });
+                    exitEditMode(true, $('#PageContent'), true, false);
+                    exitEditMode(false, $('[data-id=headerButtons]'), false, false);
+                    setTimeout(showLoader(), 2000);
+                }
+            });        
+    }
+
+        function save(source) {
+            var changesWithChangesMatrixActive = $("input.store-to-matrix-changes");
+            if ($("[name='hdSaveInRM']").val() == 'True' && changesWithChangesMatrixActive.length > 0) {
+                var msg = '@Localization.GetText("TCM.RCMW.RegisterChanges.TextMessage")';
+                confirmActionCustom(msg, '@Localization.GetText("TCM.Cancel")', '@Localization.GetText("TCM.Save")').done(function(pressOk) {
+
+                    if (pressOk) {
+                        var response = saveContainer($('#PageContent'), '#hidViewModel', true, $('#headerButtons'));
+                        if (response !== false) {
+
+                            response.done(function(data) {
+                                if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                                    errorBar(data.ErrorMessage, 3, true);
+                                    return false;
+                                } else {
+                                    successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+                                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);                                    
+                                }
+                            });
+                        }
+
+                    }
+                });
+            } else {
+                var response = saveContainer($('#PageContent'), '#hidViewModel', true, $('#headerButtons'));
+                if (response !== false) {
+
+                    response.done(function(data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage !== '') {
+                            errorBar(data.ErrorMessage,3, true);
+                            return false;
+                        } else {
+                            successBar('@Localization.GetText("TCM.Outcome.IndicatorDetail.Save")', 3, true);
+                            exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                        }
+                    });
+                }
+            }
+        }
+
+    </script>
+}

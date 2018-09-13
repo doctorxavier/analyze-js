@@ -1,0 +1,175 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Business.WorkSpaceModule.ViewModels
+
+@model List<ChartRowViewModel>
+    @{
+        Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+    }
+               
+    <div class="header">
+        <div class="row">
+            <div class="col-md-12">
+                <h3 class="titlePrincipal">@Localization.GetText("Workspace.RolesChart.Tittle")</h3>
+            </div>
+        </div>
+    </div>
+    <br />
+
+    <div class="row filterNormal mb20" name="searchContent">
+        <div class="row">
+            <div class="col-md-6">
+                @Confluence.LabelsGroup(Localization.GetText("Workspace.Filter.Roles"),
+                @Confluence.InputDropDown(null, "Roles", (List<SelectListItem>)ViewBag.ListRoles, required: true, width: "100%"), false)
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                @Confluence.LabelsGroup(Localization.GetText("Workspace.Filter.ChartName"),
+                         Confluence.InputText(string.Empty, "GraphName", required: false, width: "100%", maxLength: 50), false)
+            </div>
+
+            <div class="col-md-6">
+                @Confluence.LabelsGroup(Localization.GetText("Workspace.Filter.ChartType"),
+                @Confluence.InputDropDown(null, "GraphType", (List<SelectListItem>)ViewBag.ListChartType, required: false, placeholder: "", width: "100%"), false)
+            </div>
+        </div>
+        <br/>
+@if (SecurityHelper.GetPermission(ViewBag.Secirity, "btnWsRolesAdministration"))
+{
+    <div class="row" data-idb-fieldname="btnWsRolesAdministration">
+        <div class="col-md-12">
+            <div class="floatRight">
+                @Confluence.ButtonBlue(Localization.GetText("Workspace.Buttons.Search"), action: "searchChartList")
+                @Confluence.ButtonBlue(Localization.GetText("Workspace.Buttons.ClearAll"), action: "clean")
+            </div>
+        </div>
+    </div>
+}
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="floatRight">
+                @Html.Partial("Partials/EditChartButtons")
+            </div>
+        </div>
+    </div>
+<br/>
+    <div class="page">
+        <div name="PageContent" id="PageContent" data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-url="@Url.Action("RolesSave", "AdministrationWs", new {area = "Workspace"})"
+             data-loadurl="@Url.Action("ChartEditReload", "AdministrationWs", new {area = "Workspace", id = ViewBag.ChartId})">
+
+            <div id="tableChartList">
+            </div>
+        </div>
+    </div>
+
+    @section scripts{
+        <script type="text/javascript">
+            function searchChartList(source) {
+                var content = $(source).closest('[name="searchContent"]');
+                var graphName = content.find('[name="GraphName"]').val();
+                var graphTypeId = content.find('[name="GraphType"]').val();
+                var rolesId = content.find('[name="Roles"]').val();
+
+                if (rolesId === "") {
+                    showMessage("@Localization.GetText("Workspace.RolesChart.SelectRole")");
+                    return false;
+                }
+
+                $('#ChartTableRoles').remove();
+                $('div.Pagination[dd-table=ChartTableRoles]').remove();
+
+                postUrlWithOptions("@Url.Action("SearchChartListByRol", "AdministrationWs")", { async: false }, { 'graphName': graphName, 'graphTypeId': graphTypeId, 'role': rolesId })
+                    .done(function (data) {
+                        $('[data-id=headerButtons]').css('display', 'block');
+                        var resultSearch = $('#tableChartList');
+                        resultSearch.html(data);
+                        bindHandlers(resultSearch);
+                        $("#ChartTableRoles").paginationConfluense(5);
+                        exitEditMode(false, $('#PageContent'), true, true);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+
+                        if (document.domain !== 'localhost') {
+                            var $frame = $(window.parent.document).find('iframe[name=someFrame]');
+                            $frame.css("height", "996px");
+                        }
+                    });
+                return false;
+            }
+
+            function edit() {
+                enterEditMode(false, $('#PageContent'), false);
+                enterEditMode(false, $('[data-id=headerButtons]'), false);
+            }
+
+
+            function save() {
+                var msg = "@Localization.GetText("Workspace.sisMsg.ConfirmSaveRole")";
+                confirmAction(msg)
+                    .done(function(pressOk) {
+                        if (pressOk) {
+                            saveInDb();
+                        }
+                    });
+            }
+
+            function cancel() {
+                var msg = "@Localization.GetText("Workspace.RolesChart.CancelMsg")";
+                confirmAction(msg).done(function(pressOk) {
+                    if (pressOk) {
+                        exitEditMode(false, $('#PageContent'), true, true);
+                        exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+
+                    }
+                });
+            }
+
+            function clean() {
+                $("[name='GraphType']").FirstorDefault();
+                $("[name='Roles']").FirstorDefault();
+                $("[name='GraphName']").val("");
+                $('#tableChartList').html('');
+            }
+
+
+            function saveInDb() {
+                var modelSerialized = '#SerializedViewModel';
+                var graphName = $("[name='GraphName']").val();
+                var graphType = parseInt($("[name='GraphType']").val()) ? parseInt($("[name='GraphType']").val()) : -1;
+                var role = parseInt($("[name='Roles']").val());
+                var url = $('#PageContent').attr('data-url');
+
+                if (url.indexOf('RoleId=') > -1) {
+                    url = url.split('RoleId=')[0] + 'RoleId=' + role.toString();
+                } else {
+                    url = url + '?RoleId=' + role.toString();
+                }
+                $('#PageContent').attr('data-url', url);
+
+                var response = saveContainer($('#PageContent'), modelSerialized, true, $('#headerButtons'), null, false);
+                if (response !== false) {
+                    response.done(function(data) {
+                        if (data.ErrorMessage == null || data.ErrorMessage === "") {
+                            showMessage("@Localization.GetText("Workspace.RolesChart.MessageSuccess")");
+                            postUrlWithOptions("@Url.Action("SearchChartListByRol", "AdministrationWs")", { async: false }, { 'graphName': graphName, 'graphTypeId': graphType, 'role': role })
+                                .done(function(data) {
+                                    var resultSearch = $('#tableChartList');
+                                    resultSearch.html(data);
+                                    bindHandlers(resultSearch);
+                                    exitEditMode(false, $('#PageContent'), true, true);
+                                    exitEditMode(false, $('[data-id=headerButtons]'), false, true);
+                                    $('[data-action="searchChartList"]').click()
+                                });
+                        } else {
+                            showMessage(data.ErrorMessage);
+                        }
+
+
+                    });
+                }
+            }
+
+</script>
+    }

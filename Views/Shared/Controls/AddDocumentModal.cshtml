@@ -1,0 +1,145 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+
+@model IDB.Presentation.MVC4.Models.Documents.DocumentModalViewModel
+
+<div class="roundedBox container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="modalTitle">
+                <h3>@Localization.GetText("DM.Add.Document")</h3>
+            </div>
+            <div class="modalContent">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="active"><a id="lnkAddTab" href="#addContainer" role="tab" data-toggle="tab" data-action="switchTab">@Localization.GetText("Add")</a></li>
+                    <li><a id="lnkSearchTab" href="#searchContainer" role="tab" data-toggle="tab" data-action="switchTab">@Localization.GetText("Search")</a></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane active" id="addContainer">
+                        <form id="documentForm" method="POST" enctype="multipart/form-data" action="@Url.Action("UploadDocument", Model.ControllerName, new
+                                                                                                    {
+                                                                                                        area = Model.AreaName,
+                                                                                                        operationNumber = Model.OperationNumber,
+                                                                                                        pcrId = Model.PCRId,
+                                                                                                        businessAreaCode = Model.BusinessAreaCode
+                                                                                                    })">
+                            <p>Select files from your computer or drop files anywhere on this screen</p>
+                            <p>The  file extensions types that are allowed are pdf, xls, xlsx, pst, ppt, pptx, mpp, pub, vsd, vss, vst, vdx, vsx, vtx, doc, docx, wpd, msg</p>
+                            <div class="uploadContainer">
+                                <input type="file" multiple="multiple" id="upload" name="file">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="tab-pane" id="searchContainer">
+                        @Html.Partial("Controls/DocumentSearchForm")
+                    </div>
+                </div>
+                <div class="modalFooter">
+                    <div class="resultsContainer">
+                        <p></p>
+                    </div>
+                    <div class="modalButtons">
+                        <button class="btn btn-link" data-action="cancelUpload">@Localization.GetText("PCR.Cancel")</button>
+                        <button id="btnDocumentModalAction" class="btn btn-primary" data-action="performAction">@Localization.GetText("Document.Tabs.Add")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        function toggleInputCorrespondence()
+        {
+            $('#inputCorrespondenceContainer').toggleClass('hide');
+        }
+
+        function toggleOutputCorrespondence()
+        {
+            $('#outputCorrespondenceContainer').toggleClass('hide');
+        }
+
+        function performAction(source)
+        {
+            if (source.text() == $('#lnkAddTab').text() && source.attr('data-addSelected') != 'true')
+            {
+                uploadDocuments();
+            }
+            else if (source.text() == $('#lnkSearchTab').text())
+            {
+                searchDocuments();
+            }
+            else if (source.text() == $('#lnkAddTab').text() && source.attr('data-addSelected') == 'true')
+            {
+                addSelectedDocuments();
+            }
+        }
+
+        function cancelUpload()
+        {
+            vex.closeAll();
+        }
+
+        function uploadDocuments()
+        {
+            $('#documentForm').submit();
+        }
+
+        function searchDocuments()
+        {
+            postUrl('@Url.Action("SearchDocuments", "DocumentModal", new
+                      {
+                          area = ""
+                      })', serializeContainer($('#searchContainer'))).done(function (data)
+            {
+                $('#searchContainer').html(data);
+            });
+        }
+
+        function clearFilters(source)
+        {
+            $('#searchContainer').load('@Url.Action("Search", "DocumentModal", new
+                                         {
+                                             area = ""
+                                         })');
+
+            $('.resultsContainer p').text('');
+        }
+
+        function addSelectedDocuments()
+        {
+            var selectedDocuments = new Array();
+
+            $('#searchContainer div.documentLabel.selected').each(function ()
+            {
+                var target = $(this).parent();
+                try
+                {
+                    var documentData = $.parseJSON(target.attr('data-json'));
+                    selectedDocuments.push(documentData.DocumentNumber);
+                }
+                catch (e)
+                {
+                }
+            });
+
+            if (selectedDocuments.length > 0)
+            {
+                postUrl('@Url.Action("AddExistingDocuments", Model.ControllerName, new
+                      {
+                          area = Model.AreaName,
+                          operationNumber = Model.OperationNumber,
+                          pcrId = Model.PCRId
+                      })', { selectedDocuments: JSON.stringify(selectedDocuments) }).done(function (data)
+                {
+                    clearFilters();
+                });
+            }
+        }
+
+        function switchTab(source)
+        {
+            $('#btnDocumentModalAction').text(source.text());
+        }
+    </script>)

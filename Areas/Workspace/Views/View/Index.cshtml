@@ -1,0 +1,161 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Business.WorkSpaceModule.ViewModels
+@model List<RowBoxesModel>
+@{
+    Layout = "~/Areas/Workspace/Views/Shared/_Layout.cshtml";
+}
+
+<div class="col-md-12 mb20">
+    @Confluence.ButtonBlue(Localization.GetText("OP.CR.MyOperation.NewOperation"), dataNavigation: @Url.Action("CreateCreationForm", "View", new { Area = "OPUS" }), htmlClass: "floatRight")
+
+    @Confluence.LabelMainTitle(Localization.GetText("Workspace.Chart.Tittle"))
+    @if (SecurityHelper.GetPermission(ViewBag.Secirity, "bntEditWsView"))
+    {
+        @Confluence.LabelLink(Localization.GetText("Workspace.View.Edit"), htmlClass: "ml5", dataNavigation: Url.Action("Personalize", "AdministrationWs", new { templateId = ViewBag.Id, type = 2 }), dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "bntEditWsView" } })
+    }
+</div>
+
+<div class="col-md-12">
+    @Confluence.InformationSection(Localization.GetText("Workspace.View.Disclaimer"))
+</div>
+
+@Html.Partial("~/Areas/Workspace/Views/Shared/Partials/tableBoxes.cshtml", Model)
+
+<form method="POST" action="@Url.Action("GetDownload", "View", new {area = "Workspace"})" name="exportExcel">
+    @Confluence.InputHidden(null, "name")
+    @Confluence.InputHidden(null, "head")
+    @Confluence.InputHidden(null, "data")
+</form>
+<div class="blkScreen hide"></div>
+@section scripts{
+    <script type="text/javascript">
+        var workspaceContent;
+        var localUrlWS = "https://" + "@IDBContext.Current.ContextRequestContext.HttpContext.Request.Url.Host" + ":" + "@IDBContext.Current.ContextRequestContext.HttpContext.Request.Url.Port";
+
+        $(document).ready(function () {
+            $('.box').each(function () {
+                var $this = $(this);
+                var url = "@Url.Action("Index", "Box", new {area = "Workspace"})" + "/" + $this.attr('box-partial');
+
+                postUrlWithOptions(url, { async: true }, { name: $this.attr('box-name'), id: $this.attr('box-id') })
+                    .done(function (data) {
+                        try {
+                            $this.html(data);
+                            $this.removeClass('boxLoad').removeClass('boxLoadBack');
+                            if (!$this.is('[box-excel]')) {
+                                $this.find('.buttonExcel').remove();
+                            }
+
+                            if ($this.find('iframe').length > 0) {
+                                $this.find('.boxMenuNew').attr('href', $this.find('iframe').attr('src'));
+                            } else {
+                                $this.find('.boxMenuNew').attr('href', $this.find('.boxMenuNew').attr('href') + "?id=" + $this.attr('box-num'));
+                            }
+                            max_min();
+                        } catch (err) {
+                            $this.find('.buttonExcel').remove();
+                            $this.removeClass('boxLoad').addClass('icoAlert');
+                        }
+                    })
+                    .error(function () {
+                        $this.removeClass('boxLoad').addClass('icoAlert');
+                    });
+            });
+
+            var msgError = "@ViewBag.Error";
+            if (msgError.length > 0) {
+                showMessage(msgError);
+            }
+
+            postUrlWithOptions("@Url.Action("Loader", "View", new {area = "Workspace"})", { async: true })
+                .done(function (data) {
+                    $('body').prepend(data);
+
+                });
+        });
+
+
+        function max_min(source) {
+            $('.boxMenuMax').off('click');
+            $('.boxMenuMax').click(function () {
+                var modal = $(this).closest('td');
+                modal.addClass("boxMaximized");
+
+                var myHeight = $(window.parent.document).find('body').height();
+
+                var $frameScreen = window.parent.screen.height || screen.height || 0;
+                var scrollHeader;
+                var $frame = $(window.parent.document.getElementById('iframe_id'));
+                var internalScrollTop;
+                var frameScrollTop;
+                var internalPositionTop;
+                if (($frame != null) && ($frame.length > 0)) {
+                    myHeight = $($frame).height();
+                    scrollHeader = $frame.offset().top;
+                    frameScrollTop = window.parent.document.body.scrollTop || window.parent.document.documentElement.scrollTop || window.parent.pageYOffset || 0;
+                    internalScrollTop = frameScrollTop - scrollHeader;
+
+
+                    internalPositionTop = internalScrollTop;
+
+                    if (internalPositionTop < 10) {
+                        modal.css("top", 20 + "px");
+                        modal.css("height", ($frameScreen - 300) + "px");
+                    } else {
+                        modal.css("top", (internalPositionTop + 10) + "px");
+                        modal.css("height", ($frameScreen - 140) + "px");
+                    }
+                    $('.blkScreen').removeClass('hide').css('height', myHeight + "px");
+                } else {
+                    modal.css("top", 10 + "px");
+                    $('.blkScreen').removeClass('hide').css('height', myHeight + "px");
+                }
+
+                modal.find('.boxMenuMin').removeClass('hide');
+                modal.find('.boxMenuMax').addClass('hide');
+
+                if (modal.find('div.action').length > 0) {
+                    eval(modal.find('div.action').text().trim());
+                }
+
+            });
+
+            $('.boxMenuMin').off('click');
+            $('.boxMenuMin').click(function () {
+                var modal = $(this).closest('td');
+                modal.removeClass("boxMaximized");
+                modal.removeAttr("style");
+
+                modal.find('.boxMenuMax').removeClass('hide');
+                modal.find('.boxMenuMin').addClass('hide');
+
+                if (modal.find('div.action').length > 0) {
+                    eval(modal.find('div.action').text().trim());
+                }
+                $('.blkScreen').addClass('hide');
+            });
+
+            $('.buttonExcel').off('click');
+            $('.buttonExcel').click(function () {
+                showLoader();
+                var $this = $(this).closest('.box');
+                var sql = $this.attr('box-excel');
+
+                var data = processedQueryExport(sql);
+
+                if (data.data === '' && data.head === '') {
+                    showMessage("@Localization.GetText("Workspace.View.NoData")");
+                    hideLoader();
+                    return;
+                }
+                var form = $('[name="exportExcel"]');
+                form.find('[name="name"]').val($this.attr('box-name'));
+                form.find('[name="head"]').val(data.head);
+                form.find('[name="data"]').val(data.data);
+                form.submit();
+                hideLoader();
+            });
+        }
+
+    </script>
+}

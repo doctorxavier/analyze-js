@@ -1,0 +1,250 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using System.Globalization
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.GeneralInformation
+
+@model GeneralInformationViewModel
+
+@{
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+}
+
+@if(Model.SustainabilityComponents != null)
+{
+    <div class="row mb20 font-body">
+        <div class="col-md-12">
+            @{
+
+    var config2 = Html.RenderDataTable(Model.SustainabilityComponents);
+    config2.Name("SustainabilityComponents")
+    .PrimaryKey(m => m.SustainabilityComponentsId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .Columns(columns =>
+    {
+
+        columns.Bound(c => Input.DropDownGetSelectedString(
+            ViewBag.EnumMapping[c.FinancingTypeId],
+            ViewBag.FinancingTypeList))
+        .EditableTemplate(row => Confluence.InputDropDown(
+            ViewBag.EnumMapping[row.FinancingTypeId].ToString(),
+            "FinancingTypeId",
+            @ViewBag.FinancingTypeList,
+            showEmptyOption : false,
+            required : true,
+            width : "100%")).CssClass("width170px")
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.FinancingType"));
+
+
+        columns.Bound(c => Input.DropDownGetSelectedString(
+           c.FundId,
+           ViewBag.DisctionaryFunds[ViewBag.EnumMapping[c.FinancingTypeId]]))
+        .EditableTemplate(row => Confluence.InputDropDown(
+            row.FundId.ToString(),
+            "FundId",
+            ViewBag.DisctionaryFunds[ViewBag.EnumMapping[row.FinancingTypeId]],
+            required : true,
+            width : "170px")).CssClass("width170px")
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.Fund"));
+
+
+        columns.Template(FundAmount)
+        .Persistent()
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.FundAmount")).CssHeaderClass("width170px");
+
+
+        columns.Bound(c => Input.DropDownGetSelectedString(
+            ViewBag.EnumMapping[c.SustainabilityTypeId].ToString(),
+            ViewBag.SustainabilityTypeList))
+        .EditableTemplate(row => Confluence.InputDropDown(
+            ViewBag.EnumMapping[row.SustainabilityTypeId].ToString(),
+            "SustainabilityTypeId",
+            ViewBag.SustainabilityTypeList,
+            required : true,
+            width : "100%")).CssClass("width170px")
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.SustainabilityType"));
+
+        columns.Bound(c => Input.DropDownGetSelectedString(
+         c.ComponentId.ToString(),
+         ViewBag.ComponentList))
+            .EditableTemplate(row => Confluence.InputDropDown(
+            row.ComponentId.ToString(),
+         "SustainabilityComponentsId",
+         ViewBag.ComponentList,
+         required : true,
+         width : "100%")).CssClass("width170px")
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.Component"));
+
+        columns.Template(ComponentAmount)
+        .Persistent()
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.ComponentAmount")).CssHeaderClass("width170px");
+
+        columns.Bound(c => String.Empty)
+        .Attribute("data-pagemode", y => "edit")
+        .HeaderAttribute("data-pagemode", "edit")
+        .EditableTemplate(row => Confluence.ButtonTrash(
+            text : string.Empty,
+            name : "removeSustainability",
+            action : "removeSustainability")).CssClass("width170px")
+        .Header(Localization.GetText("MrBlue.ESG.SustComponents.Action"))
+        .Center();
+    });
+
+    config2.TableClass = "tableNormal";
+
+    @helper FundAmount(SustainabilityComponentsViewModel view)
+{
+
+    <div data-pagemode="read">
+        <span data-name="FundAmountbyFundSpan">
+            @FormatHelper.Format(
+                view.FundAmount,
+                ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal
+                )
+        </span>
+    </div>
+
+    <div data-pagemode="edit" data-name="FundAmountbyFundInput">
+        <span data-name="FundAmountbyFundSpan">
+            @FormatHelper.Format(
+                view.FundAmount,
+                ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal
+                )
+        </span>
+        @ControlTemplates.InputDecimal(
+                  view.FundAmount,
+                  "FundAmount",
+                  required : false,
+                  minValue : "0.00",
+                  maxValue : "999999999999.99",
+                  numberSeparator : ",",
+                  decimalSeparator : ".",
+                  htmlClass : "hide")
+    </div>
+}
+
+                @helper ComponentAmount(SustainabilityComponentsViewModel view)
+{
+                <div data-pagemode="read">
+                    @FormatHelper.Format(
+            view.ComponentAmount,
+            ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal
+            ).HtmlEncode()
+                </div>
+                <div data-pagemode="edit">
+                    @Confluence.InputDecimal(
+                  view.ComponentAmount,
+                  "ComponentAmount",
+                  required : true,
+                  minValue : "0.00",
+                  maxValue : "999999999999.99",
+                  numberSeparator : ",",
+                  decimalSeparator : ".",
+                  width : "100%")
+                </div>
+}
+
+    config2.RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow,
+            @<tr class="hide" style="vertical-align:top;" data-name="templateSustainabilityComponents ">
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;">
+                    @Confluence.InputDropDown(
+                        value : string.Empty,
+                        name : "FinancingTypeId",
+                        elements : ViewBag.FinancingTypeList,
+                        disabled : true,
+                        required : true,
+                        width : "100%")
+                </td>
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;">
+                    @Confluence.InputDropDown(
+                        value : string.Empty,
+                        name : "FundId",
+                        elements : new List<SelectListItem>()
+                        , disabled : true
+                        , required : true
+                        , width : "170px")
+                </td>
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;">
+                    <span data-name="FundAmountbyFundSpan">
+                        @FormatHelper.Format(0,
+                         ConfigurationServiceFactory.Current
+                         .GetApplicationSettings().FormatDecimal)
+                    </span>
+                    @ControlTemplates.InputDecimal(
+                          value : null,
+                          name : "FundAmount",
+                          required : false,
+                          minValue : "0.00",
+                          maxValue : "999999999999.99",
+                          numberSeparator : ",",
+                          decimalSeparator : ".",
+                          htmlClass : "hide width170px",
+                          disabled : true)
+                </td>
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;">
+                    @Confluence.InputDropDown(
+                         value : string.Empty,
+                         name : "SustainabilityTypeId",
+                         elements : ViewBag.SustainabilityTypeList,
+                         disabled : true
+                         , required : true,
+                         width : "100%")
+                </td>
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;">
+                    @Confluence.InputDropDown(
+                         string.Empty,
+                         "SustainabilityComponentsId",
+                         ViewBag.ComponentList,
+                         disabled : true,
+                         required : true
+                         , width : "100%")
+                </td>
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;">
+                    @Confluence.InputDecimal(
+                          value : null,
+                          name : "ComponentAmount",
+                          required : true,
+                          minValue : "0.00",
+                          maxValue : "999999999999.99",
+                          numberSeparator : ",",
+                          decimalSeparator : ".",
+                          disabled : true,
+                          width : "100%")
+                </td>
+                <td data-pagemode="edit" style="padding-bottom:5px;padding-top:5px;text-align:center">
+                    @Confluence.ButtonTrash(
+                        text : string.Empty,
+                        name : "removeSustainability",
+                        action : "removeSustainability")
+                </td>
+            </tr>);
+    });
+
+    @Html.Partial("Controls/DataTable", config2)
+            }
+            <div class="col-md-12 text-center" data-pagemode="edit">
+                @Confluence.InputText(value : "x",
+                name : "validatorNumElementsLeaderSpecialist",
+                required : false,
+                htmlClass : "hide",
+                dataAttributes : new Dictionary<string, string> {
+                {"parsley-totalAmountValidator",
+                "#SustainabilityComponents;input[name=FinancingTypeId];input[name=FundId];input[name=ComponentAmount];input[name=FundAmount]"}})
+            </div>
+            <div class="col-md-12 text-center" data-pagemode="edit" style="margin-top:40px;">
+                @Confluence.ButtonAddNewRows(
+                    Localization.GetText("MrBlue.ESG.SustComponents.NewSustComponents"),
+                    "newComponentSustainabilityComponents",
+                    action : "newComponentSustainabilityComponents"
+                )
+            </div>
+        </div>
+    </div>
+}

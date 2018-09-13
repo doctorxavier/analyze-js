@@ -1,0 +1,303 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.GlobalModule.ViewModels.WorkflowViewModel
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+}
+
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl=""
+     data-url="@Url.Action("Workflows", "Save", new { area = "Global" })">
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+
+    <span data-pagemode="edit">
+        <input type="hidden" name="changeStatus" value="none" />
+        <input type="hidden" name="workflowVersion" value="@Model.WorkflowVersion" />
+        <input type="hidden" name="contractNumber" value="@Model.ContractNumber" />
+    </span> 
+
+     @Html.Partial("Partials/WorkFlowHeader", Model)
+
+    <div class="row row-body-40" id="workflowValidators">
+        @Html.Partial("Partials/DataListViews/WorkflowValidators", Model.Validators)
+    </div>
+
+    @if (Model.InstructionsIncluded)
+    {
+          <div class="row row-body-40">
+            <div class="col-md-12">
+                @Confluence.LabelSubTitleGroup(text: Localization.GetText("OP.MS.MissionsWorkflow.Instructions"), htmlClass: "bold")
+                <p class="mt20 mb10">@Html.Raw(Model.Description)</p>
+                @Confluence.InputHidden(value: ViewBag.firstTaskName, name: "firstTaskName", required: false)
+            </div>
+        </div>
+    }
+
+    <div class="row row-body-40" id="workflowComments">
+        <div class="col-md-12">
+            @Html.Partial("Partials/DataListViews/WorkflowComments", Model.UserComments)
+        </div>
+    </div>
+    @*<div class="row row-body-40" id="workflowDocuments">
+        <div class="col-md-12">
+            @Html.Partial("Partials/DataListViews/WorkflowDocuments", Model.Documents)
+        </div>
+    </div>*@
+    <div class="row" id="footer-section">
+        <div class="col-md-12">
+            <span class="text-right">@Html.Partial("Partials/Controls/WorkflowButtons")</span>
+        </div>
+    </div>
+</div>
+
+@section CSS
+{
+    @Styles.Render("~/Content/Confluence")
+}
+
+@section JavaScript
+{
+  @Scripts.Render("~/bundles/scripts")
+      @if (k2Mode)
+    {
+
+        @ModuleScripts.K2UIIntegration()
+
+    }
+    <script type="text/javascript">
+
+    $(document).ready(function () {
+        exitEditMode(false, $('#workflowComments'), true, true);
+        exitEditMode(false, $('#headerButtons'), true, true);
+        exitEditMode(false, $('#footer-section'), true, true);
+    });
+
+    function editRequest() {
+        enterEditMode(false, $('#workflowValidators'), true);
+        enterEditMode(false, $('#workflowComments'), true);
+        enterEditMode(false, $('#headerButtons'), true);
+        enterEditMode(false, $('#footer-section'), true);
+    }
+
+    function cancelRequest() {
+        exitEditMode(false, $('#workflowValidators'), true, true);
+        exitEditMode(false, $('#workflowComments'), true, true);
+        exitEditMode(false, $('#headerButtons'), true, true);
+        exitEditMode(false, $('#footer-section'), true, true);
+    }
+
+    function unEntity(str) {
+        return str.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    }
+
+    function cancelCreateworkflow() {
+        if ('@Model.ReturnURLCancel' == '')
+        {
+            window.location.href = '@Url.Action("MissionCompleteView", "View", new { area = "OpusMissions", missionId = Model.EntityId })';
+        }
+        else {
+            window.location.href = unEntity('@Model.ReturnURLCancel');
+        }
+    }
+
+    function confirmModal(source) {
+        confirmAction(source.attr("data-modal-message")).done(function (selectionOk) {
+            if (selectionOk)
+                if (source.attr("data-action-ok") != null) eval(source.attr("data-action-ok") + "()");
+                else
+                    if (source.attr("data-action-Nok") != null) eval(source.attr("data-action-Nok") + "()");
+        });
+    }
+
+    function saveAndStartWorkflow() {
+        $("[name=changeStatus]").val("StartWorkflow");
+        var urlSave = '@Url.Action("Save", "Workflows", new { area = "Global" })';
+        $("#pageContent").attr("data-url", urlSave);
+        processWorkFlow(unEntity('@Model.ReturnURL'));
+    }
+
+
+    function processWorkFlow(url) {
+        showLoader();
+        window.setTimeout(function () {
+            var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+            if (response !== false) {
+                response.done(function (data) {
+                    if (!data.IsValid) {
+                        if (data.ErrorMessage != null && data.ErrorMessage != '')
+                            showMessage(data.ErrorMessage);
+                        else
+                            showMessage('@Localization.GetText("FP.Error.Message.Workflow")');
+                    }
+                    else
+                        window.location.href = url;
+                });
+            } else {
+                hideLoader();
+
+            }
+        }, 10);
+    }
+
+    function addValidator(source) {
+        //var newRoleId = $("[aria-labelledby=id-newRole] li a[dd-selected]").attr("dd-value");
+
+        var newRoleId = $("[aria-labelledby=id-newRole]").GetValue();
+        var firstLi = $("[aria-labelledby=id-newRole] li a").first();
+
+        if (newRoleId) {
+            var next, lastAdd;
+
+            if ($("#tableWorkflowValidators tr td:contains('Additional')").length > 0) {
+                lastAdd = $("#tableWorkflowValidators tr td:contains('Additional')").last().parent();
+                next = parseInt(lastAdd.find("td").first().text()) + 1;
+            } else {
+                next = 1;
+            }
+           
+
+            var newRole = $("[aria-labelledby=id-newRole] li a[dd-selected]").text();
+            var FirstTaskname = $("[name=firstTaskName]").val();
+            var newRow = '<tr data-id><td>' + next + '</td>';
+            newRow = newRow + "<td >" + FirstTaskname + "</td>";
+            newRow = newRow + "<td >" + newRole + '<div><span data-pagemode="edit"><input type="hidden" value="' + newRole + '" required=required name="newUserProfile"></span></div>' + "</td>";
+            newRow = newRow + "<td>Pending</td>" + "<td>Additional Validator</td>";
+            newRow = newRow + "<td>" + '@Confluence.ButtonTrash(text: "", action: "deleteValidator", dataAttributes: new Dictionary<string, string> { { "pagemode", "edit" }, { "order", "" }, { "idb-fieldname", "btndeleteValidator01" } }).ToString().Replace("\r\n", "").Replace("\n", "")';
+            newRow + "</td></tr>";
+
+            if (next > 1)
+                $(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177')).insertAfter(lastAdd);
+            else {
+                $("#tableWorkflowValidators").prepend(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+                lastAdd = $("#tableWorkflowValidators tbody tr").first();
+            }
+            enumValidators(lastAdd, 1);
+
+            enterEditMode(false, lastAdd, false);
+            bindHandlers(lastAdd);
+
+            $("[aria-labelledby=id-newRole] li a[dd-selected]").parent().remove();
+
+            firstLi.attr("dd-selected");
+            $("[aria-labelledby=id-newRole]").SetValue(firstLi.val(), firstLi.text().trim());
+
+        }
+        else {
+            showMessage('@Localization.GetText("OP.MS.MissionWorkflowValidators.SelectRole")');
+        }
+
+    }
+
+    function deleteValidator(source) {
+        if (source.attr("data-order")) {
+            $("[name=deleteValidators]").val($("[name=deleteValidators]").val() + source.attr("data-order") + "|");
+        }
+
+        $("[aria-labelledby=id-newRole] li:eq(0)").after("<li><a dd-value=2>" + source.parents("tr").find("td").eq(2).text() + "</a></li>");
+
+        enumValidators(source.parents("tr"), 0);
+
+        source.parents("tr").remove();
+    }
+
+    function enumValidators(trChange, plus) {
+        var next = parseInt(trChange.find("td").first().text()) + plus;
+
+        trChange.nextAll("tr").each(function () {
+            $(this).find("td").first().text(next);
+            next++;
+        });
+    }
+
+    function newComment(source) {
+        var newBlock = '<div data-pagemode="edit"  class="pb20">' +
+            '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+                    section2: Confluence.Label(Model.UserName), section3: null, value: "", name: "newComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+            '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+
+        $("#divWorkflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+
+        enterEditMode(false, $("#divWorkflowComments"), false);
+        bindHandlers($("#divWorkflowComments"));
+    }
+
+    function deleteComment(source) {
+        if (source.attr("data-commentId")) {
+            $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+        }
+
+        source.siblings("div.inputComment").parent().remove();
+    }
+
+    function downloadDocument(source) {
+        var docNumber = source.attr('data-DocNumber');
+        var url = '@Url.RouteUrl("Document_default", new {action = "DownloadDocument"})' + '?documentNumber=' + docNumber;
+        window.open(url, '_blank');
+
+    }
+
+    function renderizeRowWF(documentList, sourceType, fileNames) {
+        var docNumber;
+        var fileName;
+        if (documentList.length <= 0)
+            return;
+        if (sourceType === "selected") {
+            if (documentList.length > 0) {
+                docNumber = documentList[0].DocumentNumber;
+                fileName = documentList[0].DocumentName;
+            }
+
+        }
+        else {
+            if (documentList.length > 0) {
+                docNumber = documentList[0];
+            }
+            if (fileNames.length > 0) {
+                fileName = fileNames[0];
+            }
+        }
+
+        var urlf = '@Url.Action("AddNewDocument", "View")';
+
+        var result = postUrl(urlf, { documentNumber: docNumber });
+        var newRow = '<tr role="row" data-id="">' +
+                    '<td>' + result.responseJSON.data.User + '</td>' +
+                    '<td>' + result.responseJSON.data.Date + '</td>' +
+                    '<td>' + result.responseJSON.data.DocumentNumber + '</span> </td>' +
+                    '<td> <span data-pagemode="edit">' +
+                    '@Confluence.InputText(value: "documentDefaultDescription", name: "documentDescription", maxLength: 250, width: "100%", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtDocumentDescriptionWF" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                    '@Confluence.InputHidden(value: "docNumberValue", name: "documentNumber").ToString().Replace("\r\n", "").Replace("\n", "")' +
+                   '</span></td><td>' +
+                   '@Confluence.ButtonDownload(text: "", action: "downloadDocument", name: "downloadDocument", dataAttributes: new Dictionary<string, string> { { "docnumber", "docNumberValue" }, { "idb-fieldname", "btnDownloadDocumentWF" } }).ToString().Replace("\r\n", "").Replace("\n", "")' +
+                   '</td></tr>';
+
+
+        $('#tblWFDocuments').append(newRow.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177').replace(/docNumberValue/g, result.responseJSON.data.DocumentNumber).replace(/documentDefaultDescription/g, fileName));
+        $('#tblWFDocuments tbody tr td').last().find("[data-docnumber=docNumberValue]").attr("data-docnumber", result.responseJSON.data.DocumentNumber);
+
+    }
+    </script>
+
+    @if (!string.IsNullOrWhiteSpace(ViewBag.ErrorMessage))
+    {
+        <script type="text/javascript">
+            ShowMessageFunctions.CurrentFunction = ShowMessageFunctions.GenericFunction;
+            registerCallback(function() {
+                showMessage("@ViewBag.ErrorMessage", false);
+            });
+        </script>
+    }
+    else
+    {
+        <script type="text/javascript">
+            ShowMessageFunctions.CurrentFunction = ShowMessageFunctions.GenericFunction;
+        </script>
+    }
+}
+

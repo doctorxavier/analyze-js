@@ -1,0 +1,180 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using System.Web.Script.Serialization
+@using Newtonsoft.Json
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.Enums
+
+@model IDB.MW.Application.MrBlueModule.ViewModels.SafeguardToolkit.SafeguardToolkitDashboardViewModel
+
+@{
+    var devMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsDevelopmentMode;
+    var IsSimulateCountrytMode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsSimulateCountrytMode;
+
+}
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @Confluence.LabelTitleGroup(Localization.GetText("MrBlue.SafeguardToolkit.SafeguardToolkitTitle"))
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.EnviromentalCategoryText) || !string.IsNullOrEmpty(Model.DisasterRiskCategoryText))
+{
+    <div class="row mb20">
+        <div class="col-md-3">
+            @if (!string.IsNullOrEmpty(Model.EnviromentalCategoryOverridenText))
+            {
+                @Confluence.LabelsGroup(Localization.GetText("MrBlue.SafeguardToolkit.EnviromentalPerfomance"),
+                contentAlways: Model.EnviromentalCategoryOverridenText)
+                <div name="alertEnvironmentalOverriden" class="fontSize12">
+                    @Localization.GetText("MrBlue.SafeguardToolkit.Step5.EnvironmentalOverridenAlertLabel")<b> @Model.EnviromentalCategoryText.</b>
+                </div>
+            }
+            else
+            {
+                @Confluence.LabelsGroup(Localization.GetText("MrBlue.SafeguardToolkit.EnviromentalPerfomance"),
+                 contentAlways: Model.EnviromentalCategoryText)
+            }
+        </div>
+        <div class="col-md-3">
+            @Confluence.LabelsGroup(Localization.GetText("MrBlue.SafeguardToolkit.DisasterRiskCategory"),
+                 contentAlways: string.IsNullOrEmpty(Model.DisasterRiskCategoryText) ? string.Empty : Model.DisasterRiskCategoryText)
+        </div>
+        @if (IsSimulateCountrytMode)
+        {
+            <div class="col-md-3" style="text-align:-webkit-right;float:right;">
+                @Confluence.InputDropDown(string.Empty, "CountrySimulated", ViewBag.CountryList)
+            </div>
+        }
+    </div>
+}
+
+<div class="page">
+    <div id="Data"
+         data-parsley-validate="data-parsley-validate"
+         data-parsley-excluded="[disabled]">
+        @MrBlue.AlertDeleteQuestionnarieModal()
+
+        @if (Model != null)
+        {
+            @Html.Partial("Partials/SafeguardToolkitDashboardPartial", Model);
+        }
+    </div>
+    <div class="hide">
+        <label name="alertModal"> @Localization.GetText("MRBlue.Modal.DeleteRow.MessageAlertSafeguardToolkit")</label>
+        <label name="normalModal"> @Localization.GetText("MRBlue.Modal.DeleteRow.Message")</label>
+    </div>
+</div>
+
+
+@section scripts{
+
+    @ModuleScripts.TableFunctions()
+    @MrBlue.HistoryTablesCommon()
+
+    <script type="text/javascript">
+
+        registerCallback(function () {
+
+            $(document).on('click', '#draftTable tbody tr td:not(.dataTables_empty)', editReport);
+            $(document).on('click', '#draftTable tbody td button', function (e) {
+                e.stopPropagation();
+            });
+
+            var isDisabled = isDisabledMostRecentButton('historyTable');
+            if (isDisabled) {
+                $('button[name="buttonNewFromSelected"]').attr('disabled', 'disabled');
+            }
+
+            $(document).on('click', 'table.selectedRowTable tbody tr', function selectedFromActiveDirectory() {
+
+                var source = $(this);
+                var table = source.closest('table.selectedRowTable');
+                var trs = table.find('tbody tr');
+                var buttonNewFromSelected = $('button[name="buttonNewFromSelected"]');
+
+                var isSelected = source.hasClass('selectedRow');
+                var isHistoryTable = table.attr('id') == 'historyTable';
+
+                trs.removeClass('selectedRow');
+
+                if (!isSelected) {
+                    source.addClass('selectedRow');
+                }
+
+                if (isHistoryTable) {
+
+                    var cont = 0;
+                    $(trs).each(function () {
+                        var sourceAux = $(this);
+                        if (sourceAux.hasClass('selectedRow')) {
+                            cont++;
+                        }
+                    });
+
+                    if (cont > 0) {
+                        if (buttonNewFromSelected.attr('disabled') != null) {
+                            buttonNewFromSelected.removeAttr('disabled');
+                        }
+                    } else {
+                        if (buttonNewFromSelected.attr('disabled') == null) {
+                            buttonNewFromSelected.attr('disabled', 'disabled');
+                        }
+                    }
+
+                }
+            });
+
+            //Replace delete modal text.
+            $(document).on('click', '#historyTable [name="removeStarDraftRow"]', function (source) {
+                var sourceTr = $(this).closest('tr');
+                setTextDeleteQuestionnarieSafeguardToolkit(sourceTr, "textDeleteAlertSafeguardToolkit");
+            });
+
+        });
+
+        function downloadReport(source) {
+            var enumTypeDocument = parseInt(source.attr('data-document-type'));
+            var versionId = source.closest('tr').attr('data-id')
+            var fecha = $(source).closest('tr').find('span')[2].outerHTML.replace("</span>", "").replace("<span>", "");
+            var url = '@Url.Action("SafeguardToolkitDocumentRedirect", "SafeguardToolkit", new { area = "MrBlue" })?' + 'versionId=' + versionId + "&documentType=" + enumTypeDocument + "&fecha=" + fecha;
+            window.location.assign(url);
+        }
+
+        function openReport(source) {
+            var versionId = $(source.currentTarget).closest('tr').attr('data-id');
+            var url = "@Url.Action("SafeguardToolkit2", "SafeguardToolkit", new { area = "MrBlue" })?versionId=" + versionId;
+            window.location.assign(url);
+        }
+
+        function editReport(source) {
+            var versionId = $(source.currentTarget).closest('tr').attr('data-id');
+            var url = '@Url.Action("SafeguardToolkit2", "SafeguardToolkit", new { area = "MrBlue", creationMode = SafeguardToolkitCreationModeEnum.Draft })&versionId=' + versionId;
+            window.location.assign(url);
+        }
+
+        function newReportFromSelected() {
+            var inputCountry = $('input[name="CountrySimulated"]').val();
+            var simulateCountry = inputCountry != "" ? inputCountry : null;
+
+            var versionId = getSelectedRowId('historyTable');
+            if (versionId != 0) {
+                var url = '@Html.Raw(Url.Action("SafeguardToolkit2", "SafeguardToolkit", new { area = "MrBlue", isNew = true, creationMode = SafeguardToolkitCreationModeEnum.NewFromSelected }))&versionId=' + versionId + '&simulateCountry=' + simulateCountry;
+                window.location.assign(url);
+            }
+        }
+
+
+        function newReport() {
+            var inputCountry = $('input[name="CountrySimulated"]').val();
+            var simulateCountry = inputCountry != "" ? inputCountry : null;
+
+            var url = '@Html.Raw(Url.Action("SafeguardToolkit2", "SafeguardToolkit", new { area = "MrBlue", isNew = true, creationMode = SafeguardToolkitCreationModeEnum.New}))&simulateCountry=' + simulateCountry;
+            window.location.assign(url);
+        }
+
+    </script>
+}

@@ -1,0 +1,223 @@
+﻿@using System.Globalization
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.CountryStrategyModule.ViewModels.ProductProfile
+@using IDB.MVCControls.DataTable.Models
+
+
+@model  List<ResponsibleRowViewModel>
+
+<div class="row row-header">
+    <div class="col-md-12 subtitleGroup">
+        <p>@Localization.GetText("CS.ProductData.ResponsibilityUnit")</p>
+    </div>
+</div>
+
+<div class="row mb20">
+    <div class="col-md-12">
+        @{
+
+            var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+            var formatPercent = appSettings.FormatPercent;
+            var formatDecimal = appSettings.FormatDecimalThree;
+
+            var config = Html.RenderDataTable(Model);
+            config.TableClass = "tableNormal endSpacing";
+            config.Name("responsibleUnitsTable")
+                .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .UsePageMode(false)
+                .Columns(columns =>
+                {
+                    columns.Template(c => ColumnRole(c, isTemplate: false))
+                    .Header(Localization.GetText("CS.ProductData.Role"));
+
+                    columns.Template(c => ColumnOrganizationalUnit(c, isTemplate: false))
+                    .Header(Localization.GetText("CS.ProductData.OrganizationlUnit"));
+
+                    columns.Template(c => ColumnEffortInDays(c, isTemplate: false))
+                    .CssClass("text-right")
+                    .Header(Localization.GetText("CS.ProductData.EffortDays"));
+
+                    columns.Bound(c => FormatHelper.Format(c.FTEcontribution, formatDecimal)).Persistent()
+                    .CssClass("text-right")
+                    .Header(Localization.GetText("CS.ProductData.FTEContribution"));
+
+                    columns.Bound(c => c.ContributionPerCent.HasValue ? FormatHelper.Format((c.ContributionPerCent / 100), formatPercent) : null).Persistent()
+                    .CssClass("text-right")
+                    .Header(Localization.GetText("CS.ProductData.Contribution"));
+
+                    columns.Template(ColumnActions).Attribute("style", c => "width:50px;").Center();
+                });
+            config.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow, Template);
+            });
+
+        }
+
+        @Html.Partial("Controls/DataTable", config)
+        <div class="col-md-12 mb5">
+            @Confluence.InputText("hide", "inputhide", htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-OnlyOneRole", ViewBag.ReponseRoleId.Id.ToString() } })
+        </div>
+
+        <div class="col-md-12 text-center">
+            @Confluence.ButtonAddNewRows(Localization.GetText("CS.ProductData.NewUnit"), "responsibleUnitsTable", name: "addNewUnit")
+        </div>
+
+    </div>
+</div>
+
+
+
+
+
+@helper Template(ResponsibleRowViewModel row)
+{
+    row = new ResponsibleRowViewModel()
+    {
+        RowId = 0,
+        Role = null,
+        RoleName = "",
+        OrganizationalUnit = "",
+        OrganizationalUnitId = null,
+        EffortInDays = 0,
+        FTEcontribution = 0,
+        ContributionPerCent = 0
+    };
+    <tr data-id="new-" class="hide" data-name="templateTeam">
+        <td class="">
+            @ColumnRole(row, isTemplate: true)
+        </td>
+        <td data-name="organizationalUnit" class="">
+            @ColumnOrganizationalUnit(row, isTemplate: true)
+        </td>
+
+        <td class="text-right">
+            @ColumnEffortInDays(row, isTemplate: true)
+        </td>
+
+        <td class="">
+            @Confluence.Label(string.Empty)
+        </td>
+
+        <td class="">
+            @Confluence.Label(string.Empty)
+        </td>
+
+        <td class="text-center">
+            @ColumnActions(row)
+        </td>
+    </tr>
+}
+
+@helper ColumnRole(ResponsibleRowViewModel row, bool isTemplate)
+{
+    if (isTemplate)
+    {
+        @Confluence.InputDropDown("",
+                                 "responsibleUnitsRole",
+                                 ViewBag.ResponsibleUnitsRoleList,
+                                 disabled: true,
+                                 width:"100%"
+                                 );
+
+    }
+    else
+    {
+        @Confluence.InputDropDown(row.Role.ToString(),
+                                 "responsibleUnitsRole",
+                                 ViewBag.ResponsibleUnitsRoleList,
+                                 width:"100%"
+                                 );
+    }
+}
+
+
+@helper ColumnOrganizationalUnit(ResponsibleRowViewModel row, bool isTemplate)
+{
+    if (isTemplate)
+    {
+        @Confluence.InputDropDownAsync("",
+                                        "responsibleUnitsOrganizationalUnit",
+                                        Url.Action("GetOrganizationalUnits", "View", new { area = "Opus" }),
+                                        textSelected: (ControlTemplates.DropDownGetSelectedString(
+                                        row.OrganizationalUnitId.ToString(),
+                                        ViewBag.ResponsibleUnitsOrganizationalUnitList)),
+                                    evalGuaranteed: true,
+                                    disabled: true,
+                                    width:"100%")
+    }
+    else
+    {
+        @Confluence.InputDropDownAsync(
+                                    row.OrganizationalUnitId.ToString(),
+                                    "responsibleUnitsOrganizationalUnit",
+                                    Url.Action("GetOrganizationalUnits", "View", new { area = "Opus" }),
+                                    textSelected: (ControlTemplates.DropDownGetSelectedString(
+                                        row.OrganizationalUnitId.ToString(),
+                                        ViewBag.ResponsibleUnitsOrganizationalUnitList)),
+                                    evalGuaranteed: true,
+                                    width:"100%")
+    }
+}
+
+
+
+@helper ColumnEffortInDays(ResponsibleRowViewModel row, bool isTemplate)
+{
+    if (isTemplate)
+    {
+        @Confluence.InputNumber(null,
+                                 "responsibleUnitsEffortInDays",
+                                 minValue: "1",
+                                 maxValue: "360",
+                                 required: false,
+                                 disabled: true,
+                                 width: "100%"
+        )
+    }
+    else
+    {
+        @Confluence.InputNumber(row.EffortInDays,
+                                    "responsibleUnitsEffortInDays",
+                                    minValue: "1",
+                                    maxValue: "360",
+                                    required: false,
+                                    width:"100%"
+        )
+    }
+}
+
+@helper ColumnActions(ResponsibleRowViewModel row)
+{
+
+    @Confluence.ButtonTrash(null, "removeUnit")
+}
+
+<div class="hide">
+    @Display.AddModalButton(new ModalViewModel(contentSelector: "#responsibleUnitsTable-warning-remove",
+        title: Localization.GetText("COMMON.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+                name: "responsibleUnitsTable-open-warning-btn",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+          .AddButton(name: "cancel-delete",
+          text: Localization.GetText("COMMON.Cancel"),
+          type: CssClass.ButtonLink,
+          callback: "")
+              .AddButton(name: "confirm-delete",
+              text: Localization.GetText("COMMON.Ok"),
+              type: CssClass.Button05,
+              callback: "ConfirmRemove",
+              closeAtEnd: true))
+    <div id="responsibleUnitsTable-warning-remove" class="modalBody">
+        @Localization.GetText("CS.PorductData.Modal.TextDelete")
+    </div>
+</div>

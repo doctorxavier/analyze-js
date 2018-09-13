@@ -1,0 +1,244 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core.EditIndicators
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.StandardizedOutput
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model EditIndicatorPageViewModel<StandardizedBasicDataViewModel>
+
+@{
+    bool hasExpired = ( Model.Indicator.Common.ExpirationDate.HasValue && ( Model.Indicator.Common.ExpirationDate.Value < DateTime.Today ) );
+}
+
+@Html.Partial("PermissionButtons", new Dictionary<string, ActionEnum[]>()
+{
+    {
+        "Set GCM Indicator Admin Write",
+        new ActionEnum[]
+        {
+            ActionEnum.GCMIndicatorWritePermission
+        }
+    }
+    ,{
+        "Set GCM Indicator Template Admin Write",
+        new ActionEnum[]
+        {
+            ActionEnum.GCMIndicatorTemplateWritePermission
+        }
+    }
+    ,{
+        "Set Both",
+        new ActionEnum[]
+        {
+            ActionEnum.GCMIndicatorWritePermission,
+            ActionEnum.GCMIndicatorTemplateWritePermission
+        }
+    }
+    ,{
+        "Set Empty",
+        new ActionEnum[]{}
+    }
+})
+
+@if (MvcHelpers.CheckSomeRoles(ViewBag.Permissions, ActionEnum.GCMIndicatorWritePermission, ActionEnum.GCMIndicatorTemplateWritePermission))
+{
+    <div class="row mb20">
+        <div class="col-md-12">
+
+            @if (Model.Indicator.Common.IndicatorId == 0)
+            {
+                @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("IM.EditReadIndicator.Title.CreateOutput")), Url.Action("RedirectToIndicatorsPage", Model.ControllerName, new { area = "Indicators" }))
+            }
+            else
+            {
+                @Confluence.Navigation(Confluence.LabelMainTitle(Localization.GetText("IM.EditReadIndicator.Title.EditOutput")), Url.Action("RedirectToIndicatorsPage", Model.ControllerName, new { area = "Indicators" }))
+            }
+
+
+            @Html.Partial("EditIndicators/Buttons")
+        </div>
+    </div>
+
+    <div class="row mb20">
+        <div class="col-md-12">
+            @Confluence.Label(Localization.GetText("IM.EditReadIndicator.BasicData.AcitiveInstructionsChanges"))
+        </div>
+    </div>
+
+
+    <div class="page" data-parsley-validate="true" name="submitForm" data-ignore-nullable-values="true">
+        <input type="hidden" value="@ViewBag.SerializedViewModel" id="serializeModel" name="serializeModel" />
+        <div data-fake-pagemode="edit">
+
+            @Html.Partial("EditIndBasicData", Model)
+
+
+            @* Start Technical Field *@
+            <div class="row mb20">
+                <div class="col-md-12">
+                    @Confluence.LabelTitleGroup(Localization.GetText("IM.EditReadIndicator.TechnicalFields.Title"))
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12" data-section="technicalFields">
+                    @Html.Partial("EditIndicators/EditIndTechnicalFields", Model.Indicator.Common.TechnicalFields)
+                </div>
+            </div>
+            @* End Technical Field *@
+
+            @* Start Disaggregations *@
+            @Html.Partial("Display/EditSubindicator",
+                          new MVCSubindicatorViewModel(Model.Indicator.Specific.Disaggretations)
+                              .SetName("StandardizedDisaggregation")
+                              .SetTitleKey("IM.EditReadIndicator.Disaggregation.Title")
+                              .SetNewButtonKey("IM.EditReadIndicator.IndicatorTemplate.Disaggregation.New")
+                              .SetLanguageEnRequired(true)
+                              .SetLanguageEsRequired(true))
+            @* End Disaggregations *@
+
+            <div class="row row-body-40">
+                <div class="col-md-12">
+                    @Html.Partial("EditIndicators/Buttons")
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="row">
+        <div class="col-md-12">
+
+
+            <div id="warning-duplicate" class="hide modalBody">
+                @Localization.GetText("IM.TemplatesList.WarningRemove")
+            </div>
+            @Display.AddModalButton(new ModalViewModel(contentSelector: "#warning-duplicate",
+                            title: Localization.GetText("COMMON.Warning"),
+                            type: CssClass.ModalWarning,
+                            moveOriginalContent: true,
+                            name: "open-warning-btn",
+                            closeOnOverlay: false,
+                            allowClose: true,
+                            validateForm: true,
+                            actionOnClose: "")
+            .AddButton(name: "cancel-delete",
+                            text: Localization.GetText("COMMON.Cancel"),
+                            type: CssClass.ButtonLink,
+                            callback: "")
+            .AddButton(name: "confirm-delete",
+                            text: Localization.GetText("COMMON.Confirm"),
+                            type: CssClass.Button01,
+                            callback: "confirmSave",
+                            closeAtEnd: true))
+
+        </div>
+    </div>
+
+    @section scripts{
+        @IndicatorCommon.SetEditModeAndChangeFakePageMode()
+
+        @IndicatorCommon.IndicatorNavigationActionsEdit(Url, Model.ControllerName, Model.Indicator.Common.IndicatorId)
+
+        @IndicatorCommon.IndicatorActionsEdit(Url, Model.ControllerName)
+
+        @IndicatorCommon.AddDatesPasteEvent()
+
+        @ModuleScripts.AddCompareDatesValidator()
+
+        @ModuleScripts.AddAfterDate()
+
+        @IndicatorCommon.AddExpirationDateValidation(hasExpired, Localization.GetText("IM.EditReadIndicator.IndicatorProfile.ExpirationDate.ExpiredCreation"))
+
+        <script type="text/javascript">
+            registerCallback(function () {
+
+                function registerSelectedElements(item) {
+                    var value = item.val();
+                    item.data('old-selected', value);
+                };
+
+                registerSelectedElements($('[name="theme"]'));
+
+                $(document).on('change', '[name="theme"]', function (e) {
+                    var source = $(this);
+                    var oldValues = source.data('old-selected');
+                    if (oldValues == null) {
+                        oldValues = [];
+                    }
+                    var currentValue = source.val();
+                    if (currentValue == null) {
+                        currentValue = [];
+                    }
+
+                    var toRemove = oldValues.filter(function (item) {
+                        return currentValue.indexOf(item) == -1;
+                        return true;
+                    });
+                    var toAdd = currentValue.filter(function (item) {
+                        return oldValues.indexOf(item) == -1;
+                    });
+
+                    registerSelectedElements(source);
+
+                    toAdd.forEach(function (item) {
+                        var element = $(String.format('[data-fund-container-by-theme="{0}"]', item));
+                        element.removeClass('hide');
+                    });
+
+                    toRemove.forEach(function (item) {
+                        var element = $(String.format('[data-fund-container-by-theme="{0}"]', item));
+                        element.addClass('hide');
+                    });
+
+                });
+
+                var contribution = $('input[name=isContribution]');
+                var active = $('input[name=isActive]');
+
+                $(document).on('click', '[name="isActive"]', function (e) {
+                    var source = $(this);
+                    if (source.is(':checked')) {
+                        contribution.prop('checked', true);
+                        contribution.removeAttr('disabled');
+                    } else {
+                        contribution.attr('disabled', 'disabled');
+                    }
+
+                    InitializeExpirationDateParsley();
+                });
+
+
+
+                $(document).on('change', '[name="outputGroupId"]', function (e) {
+                    var source = $(this);
+                    var number = '';
+                    if ((source.val() != null) && (source.val() != "")) {
+                        var dropdown = source.nextAll('.dropdown-menu');
+                        var selectedOption = dropdown.find(String.format('a[dd-value="{0}"]', source.val()));
+                        var selectedString = selectedOption.html();
+                        var stringSplited = selectedString.split('.');
+                        if (stringSplited.length >= 2) {
+                            var number = stringSplited[0].trim();
+                        }
+                    }
+                    $('[data-section="indicatorNumber-prefix"]').html(number + '.');
+                    $('[name=indicatorNumberPrefix]').val(number);
+                });
+
+                if (active.is(':checked')) {
+                    contribution.prop('checked', true);
+                }
+            });
+
+            registerCallback(function () {
+                $('[name="outputGroupId"]').trigger('change');
+            });
+        </script>
+    }
+
+}

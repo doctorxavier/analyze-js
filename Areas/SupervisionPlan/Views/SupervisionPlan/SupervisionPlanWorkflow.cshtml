@@ -1,0 +1,183 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+
+@model IDB.MW.Application.SupervisionPlanModule.ViewModels.SupervisionPlanWorkflowViewModel
+@{
+    var k2Mode = ConfigurationServiceFactory.Current.GetApplicationSettings().IsK2Mode;
+    Layout = "~/Areas/OPUS/Views/Shared/_LayoutPreRelease.cshtml";
+}
+<input hidden data-idb-pagename="SupervisionPlan-TaskDetail-Mode" />
+
+<div class="page pageWorkFlow" id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="true"
+     data-loadurl=""
+     data-url="@Url.Action("SaveSupervisionPlanVersionComments", "Tasks", new { area = "Global" })">
+
+    <input type="hidden" id="hiddenModel" value="@ViewBag.SerializedViewModel" />
+    <span data-pagemode="edit">
+        <input type="hidden" name="changeStatus" value="none" />
+    </span>
+
+    <span class="text-right">@Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/Controls/SupervisionPlanWorkflowButtons.cshtml", Model)</span>
+        
+    <div class="row row-body-40" id="workflowValidators">
+        @{Html.RenderAction(
+            "SupervisionPlanAdditionalValidators",
+            "Tasks", new
+            {
+                area = "Global",
+                Code = "WF-SP-001",
+                Editable = false,
+                TaskId = ViewBag.ActualTask,
+                isRequest = false
+            });
+        }
+    </div>
+
+    <div class="row row-body-40">
+        <div class="col-md-12">
+            @Confluence.LabelSubTitleGroup(text: Localization.GetText("Instructions"), htmlClass: "bold")
+            <p class="mt20 mb10">@Html.Raw(String.Format(Localization.GetText("Initiate validation workflow for approving the supervision plan.")))</p>
+        </div>
+    </div>
+
+    <div class="row row-body-40" id="workflowComments">
+        <div class="col-md-12">
+            @Html.Partial("~/Areas/SupervisionPlan/Views/SupervisionPlan/Partial/DataListViews/SupervisionPlanWorkflowComments.cshtml", Model)
+        </div>
+    </div>
+</div>
+
+@section scripts
+{
+    @if (k2Mode)
+    {
+
+        @ModuleScripts.K2UIIntegration()
+
+    }
+    <script type="text/javascript">
+
+    $(document).ready(function () {
+        @if (k2Mode)
+        {
+            @:$(".mod_contenido_central .headingh2").css("margin-left", "0")
+            @:$(".operationData").css("padding-left", "0.5%")
+            @:$("#headerButtons").css("margin-right", "-10%")
+            @:$(".operationData.dataDetails").find("p").css("font-size", "12px")
+            @:$(".operationData").eq(0).append($(".tMissionCode"))
+            @:if ($(".tMissionCode").eq(1).length) $(".tMissionCode").eq(1).remove()
+
+        }
+
+        editRequestMissions();
+    });
+
+    function editRequestMissions() {
+        enterEditMode(false, $('#workflowComments'), true);
+        enterEditMode(false, $('#headerButtons'), true);
+        enterEditMode(false, $('#footer-section'), true);
+    }
+
+    function cancelRequestMissions() {
+        exitEditMode(false, $('#workflowComments'), true, true);
+        exitEditMode(false, $('#headerButtons'), true, true);
+        exitEditMode(false, $('#footer-section'), true, true);
+    }
+
+    function cancelMissionsTask() {
+        exitEditMode(false, $('#workflowComments'), true, true);
+        exitEditMode(false, $('#headerButtons'), true, true);
+        exitEditMode(false, $('#footer-section'), true, true);
+    }
+
+    function cancelSupervisionPlanTask() {
+        window.location.href = '@Url.Action("Index", "Tasks", new { area = "Global", operationNumber = ViewBag.OperationNumber })';
+    }
+
+    function confirmModal(source) {
+        confirmAction(source.attr("data-modal-message")).done(function (selectionOk) {
+            if (selectionOk)
+                if (source.attr("data-action-ok") != null) eval(source.attr("data-action-ok") + "()");
+                else
+                    if (source.attr("data-action-Nok") != null) eval(source.attr("data-action-Nok") + "()");
+        });
+    }
+
+    function newComment(source) {
+        var newBlock = '<div data-pagemode="edit"  class="pb20">' +
+            '@Confluence.InputCommentBox(section1: Confluence.LabelGetDate(DateTime.Now),
+                    section2: Confluence.Label(Model.UserName), section3: null, value: "", name: "textNewComment", dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "txtNewComment" } }).ToString().Replace("\r\n", "").Replace("\n", "")'+
+            '@Confluence.ButtonTrash(text: "", action: "deleteComment").ToString().Replace("\r\n", "").Replace("\n", "")' + '</div>';
+
+        $("#divWorkflowComments").append(newBlock.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;#59177/g, '&#59177'));
+
+        enterEditMode(false, $("#divWorkflowComments"), false);
+        bindHandlers($("#divWorkflowComments"));
+    }
+
+    function deleteComment(source) {
+        if (source.attr("data-commentId")) {
+            $("[name=deleteComments]").val($("[name=deleteComments]").val() + source.attr("data-commentId") + "|");
+        }
+
+        source.siblings("div.inputComment").parent().remove();
+    }
+
+    function save(source) {
+        showLoader();
+        var dataForm = new FormData();
+        var userComments = JSON.stringify(@Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.UserComments)));
+        var newComments = "";
+        $('[name="textNewComment"]').each(function () {
+            newComments += ($(this).val() + "|")
+        });
+
+        dataForm.append('ModelUserComment', userComments);
+        dataForm.append('CurrentSP', '@Model.TaskDataModel.EntityId');
+        dataForm.append('Task', '@Model.TaskDataModel.TaskId');
+        dataForm.append('ActionType', $(source).attr('name'));
+        dataForm.append('taskStatus', '@Model.TaskDataModel.TaskStatus');
+        dataForm.append('itemDeletedList', $("[name=deleteComments]").val());
+        dataForm.append('additionalValidators', $('#validator_list_additional_list').val());
+        dataForm.append('newComments', newComments);
+
+        $.ajax({
+            url: '@Url.Action("SaveSupervisionPlanVersionComments", "Tasks", new { area = "Global" })?operationNumber=' + '@Model.TaskDataModel.OperationNumber',
+            data: dataForm,
+            cache: false,
+            contentType: false,
+            processData: false,
+            async: false,
+            type: 'POST'
+        }).done(function () {
+            window.location.href = '@Url.Action(controllerName: "Tasks", actionName: "Index")?operationNumber=' + '@Model.TaskDataModel.OperationNumber';
+        });
+    }
+
+    function saveAndReject(source) {
+        if (validateComment()) {
+            save(source);
+        } else {
+            showMessage('@Localization.GetText("R6.Proposal.MessageAddComment")');
+            $(source.toElement).removeAttr('disabled');
+        }
+    }
+
+    function validateComment() {
+        var existComment = true;
+        if ($("[name=textNewComment]").length > 0) {
+            if (!validateContainer($('#pageContent')))
+                existComment = false;
+        } else if ($("[name=textNewComment]").length === 0) {
+            existComment = false;
+        }
+        return existComment;
+    }
+
+    </script>
+}

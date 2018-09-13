@@ -1,0 +1,221 @@
+@using System.Globalization;
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Architecture.ApplicationParameter
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+
+@model NegotiationViewModel
+
+@{
+
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "ContractDates";
+
+    var config = Html.RenderDataTable(Model.ContractDates)
+        .Name("ContractDates")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.ContractId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(true)
+        .UsePageMode(false)
+        .RowCssClass(x => x.IsWinner ? string.Empty : "hide")
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.ContractId)
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText(""))
+                .HeaderAttribute("style", "")
+                .Hidden(true);
+            columns.Template(c => Confluence.LabelGetDropDown(c.FirmId, ViewBag.FirmList, false))
+                .Orderable(false)
+                .CssClass("w115")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmWinner"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Bound(c => FormatHelper.Format(c.ContractSignDate, formatDate))
+               .Orderable(false)
+               .CssClass("")
+               .CssHeaderClass("")
+               .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.SignDate"))
+                .HeaderAttribute("style", "")
+               .Hidden(false);
+            columns.Bound(c => FormatHelper.Format(c.StartDate, formatDate))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.StartDate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Bound(c => FormatHelper.Format(c.EndDate, formatDate))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.EndDate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.LabelGetDropDown(c.CurrencyId.ToString(), ViewBag.CurrencyList, false))
+               .Orderable(false)
+               .CssClass("maxw100 minw100")
+               .CssHeaderClass("maxw100 min100")
+               .Header(Localization.GetText("COMMON.Currency"))
+               .HeaderAttribute("style", "min-width:100px;max-width:100px")
+               .Hidden(Model.Modality == Modality.Framework);
+            columns.Template(c => AmountFormat(c.Amount))
+                .Orderable(false)
+                .CssClass("textalign-right w115")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.Amount"))
+                .HeaderAttribute("style", "min-width:115px")
+                .Hidden(Model.Modality == Modality.Framework);
+            columns.Template(c => Actions(c, tableName))
+                .Orderable(false)
+                .CssClass("textalign-center w125")
+                .CssHeaderClass("w125")
+                .Header(Localization.GetText("COMMON.Action"))
+                .HeaderAttribute("style", "min-width:125px")
+                .Hidden(false);
+
+        })
+        .RowTemplates(r =>
+        {
+            r.Create(RowTemplateType.AllRows, c => Detail(c, tableName));
+        })
+;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent mb10">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb10 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.ContractAward"))
+                </div>
+
+
+                <div class="font-14">
+                    @Confluence.LabelSubTitleGroup(Localization.GetText("TCP.FirmProcurement.TableTitle.ContractAward.ContractDocuments"))
+                </div>
+                @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.ContractAwardDocuments"))
+            </td>
+
+            <td class="table-transparent-buttons">
+                @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.ViewTemplates"),
+                        name: "viewTemplatesLink",
+                        url: AppParameter.GetText("Template.Site.Url.BEO.Templates"),
+                        htmlClass: "bold")
+            </td>
+            <td class="table-transparent-buttons">
+                @(Html.CollapseAll("collapseAllContractDates")
+                            .CollapseSingleSelector("tr:not(.template,.hide) [data-name=\"collapseContractDatesDetail\"]"))
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xs-12">
+        @Confluence.InputCheckbox(
+                isChecked: Model.IsCertifyContract,
+                name: "ContractIsCertify",
+                label: Localization.GetText("TCP.FirmProcurement.CheckboxText.ParticipatingFirm"),
+                disabled: true)
+        @Confluence.LabelLinkBlank(text: Localization.GetText("TCP.FirmProcurement.Link.AccessSanctionsList"),
+            name: "accessSanctionsListLink",
+            url: AppParameter.GetText("Template.Site.Url.BEO.Templates.Sanction.List"),
+            htmlClass: "ml20 fontSize13")
+    </div>
+</div>
+
+@helper AmountFormat(decimal? amount)
+{
+    if (amount != null)
+    {
+        var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+        var formatDecimal = appSettings.FormatDecimal;
+
+        <div>$ @FormatHelper.Format(amount, formatDecimal)</div>
+    }
+}
+
+@helper Actions(ContractDateRowViewModel row, string tableName)
+{
+    var detailExpandable = tableName + "-Detail-" + row.FirmId;
+
+    <div class="textalign-center">
+        @(Html.CollapseSingle("collapseContractDatesDetail")
+                  .AsociatedCollapseAllSelector("[data-name=\"collapseAllContractDates\"]")
+                  .HtmlClass("arrow")
+                  .TargetRegionSelector(string.Format("tr[data-Detail=\"{0}\"]", detailExpandable)))
+
+    </div>
+}
+
+@helper Detail(ContractDateRowViewModel row, string tableName)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+    var detailExpandable = tableName + "-Detail-" + row.FirmId;
+    var visibility = row.IsWinner ? string.Empty : "hide";
+
+
+    <tr class="template extend-custom @(visibility)" data-detail="@(detailExpandable)">
+        <td colspan="8">
+
+            <div class="row mb20">
+                <div class="col-xs-2 text-center">
+                    @Confluence.LabelBold(Localization.GetText("TCP.FirmProcurement.TableHeader.VendorID"))
+                </div>
+                <div class="col-xs-2 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Id"))
+                </div>
+                <div class="col-xs-3 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Name"))
+                </div>
+                <div class="col-xs-2 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.User"))
+                </div>
+                <div class="col-xs-2 text-center">
+                    @Confluence.LabelBold(Localization.GetText("DM.Document.Table.Date"))
+                </div>
+            </div>
+
+            <div class="row mb10">
+                <div class="col-xs-2 text-center">
+                    @Confluence.Label(row.VendorID)
+                </div>
+                <div class="col-xs-2 text-center">
+                    <a href="@IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(row.DocumentNumber)" target="_blank">@row.DocumentNumber</a>
+                </div>
+                <div class="col-xs-3 text-center">
+                    @row.Description
+                </div>
+                <div class="col-xs-2 text-center">
+                    @row.User
+                </div>
+                <div class="col-xs-2 text-center">
+                    @(string.IsNullOrEmpty(row.DocumentNumber) ? string.Empty : FormatHelper.Format(row.Date, formatDate))
+                </div>
+            </div>
+        </td>
+    </tr>
+
+}
+

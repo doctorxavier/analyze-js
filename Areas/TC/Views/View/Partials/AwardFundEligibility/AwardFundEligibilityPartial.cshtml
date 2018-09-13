@@ -1,0 +1,157 @@
+﻿@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Architecture.Language
+
+@model IDB.MW.Application.TCAbstractModule.ViewModels.AwardFundEligibility.AwardFundEligibilityViewModel
+
+@{
+    var expRegDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().ValidationDecimalExpReg;
+    var formatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+}
+
+@if (ViewBag.ReadRole != null && (bool)ViewBag.ReadRole)
+{
+    <input type="hidden" name="isCommitedEnabled" value="@(Model.IsCommitEnabled ? true : false)" />
+    <div data-pagemode="edit">
+        <input type="hidden"
+               name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"
+               value="@SaveControllerTypeEnum.Save" />
+    </div>
+    <input type="hidden" id="hidViewModel" value="@ViewBag.SerializedViewModel" />
+    <div class="row row-body-50 font-body">
+        <input type="hidden" name="CompleteOthers" value="@Model.IsCompletedAllOthers.ToString()" />
+        @if (!Model.IsCompletedAllOthers)
+        {
+            <input type="hidden" name="notCompleteOthers" value="true" />
+            <div class="col-md-10">
+                @Localization.GetText("TC.AwardFundEligibility.NotComplete")
+            </div>
+        }
+        @if (Model.IsRejectedForOthers)
+        {
+            <input type="hidden" name="anyOtherRejected" value="true" />
+            <div class="col-md-10">
+                @Localization.GetText("TC.AwardFundEligibility.OtherRejected")
+            </div>
+        }
+        @if (Model.IsCompletedAllOthers && !Model.IsRejectedForOthers)
+        {
+            <div class="col-md-10"></div>
+        }
+    </div>
+    <div class="row row-header">
+        <div class="col-md-12">
+            <h3 class="leftmarginh3">
+                @Localization.GetText("TC.AwardFundEligibility.Table.Label").HtmlEncode()
+                @Display.IconInformation()
+                <span class="information">
+                    @Localization.GetText("TC.AwardFundEligibility.Table.Information").HtmlEncode()
+                </span>
+            </h3>
+        </div>
+    </div>
+    @Html.Partial("Partials/DataTables/AwardFundEligibilityTable", Model.AwardFundEligibilityRows)
+    <div class="row row-body-40">
+        <div class="col-lg-12">
+            @ControlTemplates.InputText(
+                value: "validateAmountRequested",
+                name: "validateAmountRequested",
+                htmlClass: "hide",
+                dataAttributes: new Dictionary<string, string>
+                {
+                    { "parsley-validateAmountAndRequested",
+                        "[name=input-total-requested];[data-validateAmountRequested]" }
+                })
+        </div>
+    </div>
+    <div class="row row-body-40">
+        <div class="col-md-3 font-header">
+            @string.Format("{0} {1}",
+                @Localization.GetText("TC.AwardFundEligibility.PercentageFinancedBy"),
+                Model.Fund)
+        </div>
+        <div class="col-md-3 font-body">
+            <span data-pagemode="read">
+                @ControlTemplates.InputPercent(value: Model.PercentageFinancedBy,
+                    name: "readPercentageFinancedByDis",
+                    id: "readPercentageFinancedByDis",
+                    required: false,
+                    disabled: true)
+            </span>
+            <span data-pagemode="edit">
+                @ControlTemplates.InputPercent(value: Model.PercentageFinancedBy,
+                    name: "readPercentageFinancedBy",
+                    id: "readPercentageFinancedBy",
+                    required: false)
+            </span>
+        </div>
+    </div>
+    <input type="hidden" name="targetQuantity" value="0" />
+    <div class="row row-body-40">
+        <div class="col-md-3 font-header">
+            @Model.OrdinaryCapitalFundCode.HtmlEncode()
+        </div>
+        <div class="col-md-3 font-body">
+            <span data-pagemode="read">
+                @FormatHelper.Format(Model.AmountOrdinaryCapitalFund, formatDecimal)
+            </span>
+            <span data-pagemode="edit">
+                @ControlTemplates.InputDecimal(
+                    Model.AmountOrdinaryCapitalFund,
+                    "amountOrdinaryCapitalFund",
+                    true,
+                    minValue: "0.00",
+                    maxValue: int.MaxValue.ToString(),
+                    numberSeparator: ",",
+                    decimalSeparator: ".",
+                    expReg: expRegDecimal,
+                    dataAttributes: new Dictionary<string, string>()
+                    {
+                        { "parsley-arithmeticSum", "=;[name=targetQuantity];[data-sum]" },
+                        { "sum" , "true" },
+                        { "parsley-arithmeticSum-message",
+                            Localization.GetText("TC.AwardFundEligibility.AmountFrom.Message")},
+                        { "validateAmountRequested" ,"true" },
+                    })
+            </span>
+        </div>
+    </div>
+
+    if (Model.ShowAmountMultidonorFund)
+    {
+        foreach (var multidonor in Model.AwardFundEligibilityMultidonors)
+        {
+            <div class="row row-body-40">
+                <div class="col-md-3 font-header">
+                    @multidonor.MultidonorFundCode.HtmlEncode()
+                </div>
+                <div class="col-md-3">
+                    <span data-pagemode="read">
+                        @FormatHelper.Format(multidonor.AmountMultidonorFund, formatDecimal)
+                    </span>
+                    <span data-pagemode="edit">
+                        @ControlTemplates.InputDecimal(
+                            multidonor.AmountMultidonorFund,
+                            "amountMultidonorFund",
+                            false,
+                            minValue: "0.00",
+                            maxValue: int.MaxValue.ToString(),
+                            numberSeparator: ",",
+                            decimalSeparator: ".",
+                            expReg: expRegDecimal,
+                            dataAttributes: new Dictionary<string, string>()
+                            {
+                                { "parsley-arithmeticSum", "=;[name=targetQuantity];[data-sum]" },
+                                { "sum", "true" },
+                                { "validateAmountRequested", "true" },
+                                { "id", @multidonor.MultidonorFundId.ToString() },
+                            })
+                    </span>
+                </div>
+            </div>
+        }
+    }
+}

@@ -1,0 +1,60 @@
+﻿@using IDB.MW.Business.SupervisionPlan.ViewModels.SupervisionPlan
+@model SummaryModel
+
+@{
+    var columnTotals = (Model.BudgetModel.LocalizedBudgetMatrixCols).ToDictionary(t => t.Key, t => 0M);
+}
+<table class="tableNormal pb10 budgetTable mb10">
+    <thead>
+    <tr>
+        <th id="budgettwoCell">
+            <span id="sourceBudget">@Localization.GetText("SP.Summary.BudgetTable.Source")</span>
+            <span id="CategoryBudget">@Localization.GetText("SP.Summary.BudgetTable.Category")</span>
+            <div id="lineBudget"></div>
+        </th>
+        @foreach (var t in Model.BudgetModel.LocalizedBudgetMatrixCols)
+        {
+            <th class="w300">@t.Value</th>
+        }
+        <th class="w300"> @Localization.GetText("SP.Summary.BudgetTable.Total")</th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var r in Model.BudgetModel.LocalizedBudgetMatrixRows)
+    {
+        var total = 0M;
+        <tr data-id>
+            <td class="bold">@r.Value</td>
+
+            @foreach (var t in Model.BudgetModel.LocalizedBudgetMatrixCols)
+            {
+               var value = Model.BudgetModel.CostsModels
+                           .Where(m => m.BudgetCategoryId == r.Key &&
+                                       m.FundingSourceId == t.Key).Select(m => m.Budget).Sum();
+               var costId = Model.BudgetModel.CostsModels
+                    .Where(m => m.BudgetCategoryId == r.Key &&
+                                m.FundingSourceId == t.Key).Select(m => m.CostId).FirstOrDefault();
+                total += value;
+                columnTotals[t.Key] += @value;
+                <td class="text-right">@Confluence.LabelDecimal(value, dataAttributes: 
+                                                        new Dictionary<string, string>
+                                                        {
+                                                            { "category-id", r.Key.ToString() },
+                                                            { "fundingsource-id", t.Key.ToString() },
+                                                            { "cost-id", costId.ToString() }
+                                                            
+                                                        }, htmlClass:"text-right")</td>
+            }
+            <td class="text-right finalRow" data-totalrow ="@r.Key">@Confluence.LabelDecimal(total, htmlClass:"bold")</td>
+        </tr>
+    }
+        <tr class="totalCol">
+            <td class="bold">@Localization.GetText("SP.Summary.BudgetTable.TotalFunding")</td>
+            @foreach (var t in Model.BudgetModel.LocalizedBudgetMatrixCols)
+            {
+                <td class="text-right bold columnTotal">@columnTotals[t.Key].ToString("N")</td>
+            }
+            <td class="text-right">@Confluence.LabelDecimal(@columnTotals.Sum(t => t.Value), true, htmlClass:"finalTotal bold")</td>
+        </tr>
+    </tbody>
+</table>

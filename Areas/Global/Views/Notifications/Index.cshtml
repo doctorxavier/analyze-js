@@ -1,0 +1,702 @@
+﻿@model dynamic
+@using IDB.Presentation.MVC4.Helpers
+@section CSS
+{
+    <link href="@Url.Content("~/Content/esmartGeneral.css")" rel="stylesheet" />
+    <link href="@Url.Content("~/Content/Modules/Globals/notifications.css")" rel="stylesheet" />
+
+    <style type="text/css">
+        .k-grid-header .k-header {
+            overflow: hidden;
+            border-style: solid;
+            border-width: 0 0 1px 1px;
+            padding: .5em .6em .4em .6em;
+            font-weight: normal;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            background-color: #264a7f;
+        }
+
+        .k-grid-header {
+            padding-right: 0px !important;
+        }
+
+            .k-grid-header .k-header .k-link {
+                display: block;
+                min-height: 18px;
+                line-height: 18px;
+                margin: -0.5em -0.6em -0.4em -0.6em;
+                padding: .5em .6em .4em .6em;
+            }
+    </style>
+}
+
+<script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Global/global.js")"></script>
+@section JavaScript
+{
+    <script type="text/javascript">
+
+        var constnew = 0;
+        var constread = 0;
+        var constall = 0;
+
+        function FormatLoans(loanList)
+        {
+            var loansHTML = "<div>";
+            $.each(loanList, function(index, value)
+            {
+                loansHTML = loansHTML + "<div>" + value + "</div>";
+            });
+            return loansHTML + "</div>";
+        }
+
+        function FormatWorkflowName(wfName, wfId)
+        {
+            var url = '';
+            if (wfId != null)
+            {
+                var index = wfId.lastIndexOf(".");
+                url = wfName;
+                if (index != null)
+                {
+                    url = "<a href='@ViewBag.K2ViewDetailURL" + wfId.substring(index + 1) + "' target='_blank'>" + wfName + "</a>";
+                }
+            }
+            return url;
+        }
+
+        function getNotificationsReader(NotificationId, Read)
+        {
+            var url = "";
+
+            if (Read)
+            {
+                url += '<input type="checkbox" name="ids" class="fancy-checkbox notification-mark-as-read checkNotificationReal" checked="checked" data-notificationId=' + NotificationId + '  id="' + NotificationId + '" />';
+                url += '\n<label for=' + NotificationId + ' style="background-position: 0 -20px; margin-left:17px;" class="fancy-label blue bold checkNotification checked" onclick="changeCheckboxSelected(this)"></label>';
+            }
+            else
+            {
+                url += '<input type="checkbox" name="ids" class="fancy-checkbox notification-mark-as-read checkNotificationReal"  data-notificationId=' + NotificationId + '  id="' + NotificationId + '" />';
+                url += '\n<label for=' + NotificationId + ' style="margin-left:17px;" class="fancy-label blue bold checkNotification" onclick="changeCheckboxSelected(this)"></label>';
+            }
+
+            return url;
+        }
+
+
+        (function(idbNotificationList, $, undefined)
+        {
+            var self = idbNotificationList;
+
+            self.dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: {
+                        url: '@this.Url.Action("GetData", "Notifications", new
+                              {
+                                  area = "Global"
+                              })',
+                        dataType: "json",
+                        data: { OperationNumber: "@ViewBag.opNumber" },
+                        type: "POST",
+                        success: function(resp)
+                        {
+                            console.log(resp.Total)
+                        }
+                    }
+                },
+                schema: {
+                    data: "Data",
+                    total: "Total",
+                    model: {
+                        id: "OperationId",
+                        fields: {
+                            'WorkflowId': {
+                                type: "number"
+                            },
+                            'NotificationDate': {
+                                type: "date"
+                            },
+                            'Body': {
+                                type: "string"
+                            },
+                            'WorkflowName': {
+                                type: "string"
+                            },
+                            'OperationNumber': {
+                                type: "string"
+                            },
+                            'OperationName': {
+                                type: "string"
+                            },
+                            'Loans': {
+                                type: "string"
+                            },
+                            'Body': {
+                                type: "string"
+                            }
+                        }
+
+                    }
+                },
+                pageSize: 10,
+            });
+
+            self.gridViewModel = kendo.observable({
+                filter: {
+                    priority: 0,
+                    status: "all",
+                    nameNumberOrLoan: ""
+                },
+
+                executeFilters: function(e)
+                {
+                    var filter = self.gridViewModel.get("filter");
+
+                    var kendoFilter = { logic: "and", filters: [] };
+
+                    if (filter.priority)
+                    {
+                        kendoFilter.filters.push({ field: "Priority", operator: "eq", value: filter.priority });
+                    }
+
+
+                    if (filter.nameNumberOrLoan)
+                    {
+                        kendoFilter.filters.push(
+                        {
+                            logic: "or",
+                            filters: [
+                                {
+                                    field: "OpertationNumber",
+                                    operator: "contains",
+                                    value: filter.nameNumberOrLoan
+                                }, {
+                                    field: "Loans",
+                                    operator: "contains",
+                                    value: filter.nameNumberOrLoan
+                                }, {
+                                    field: "OperationName",
+                                    operator: "contains",
+                                    value: filter.nameNumberOrLoan
+                                }
+                            ]
+                        });
+                    }
+                    self.gridDataSource.filter(kendoFilter);
+                },
+                changePageSize: function(e)
+                {
+                    var newSize = parseInt($(e.target).val());
+                    self.gridDataSource.pageSize(newSize);
+                },
+                markAsRead: function(e)
+                {
+                    var idsToMark = [];
+                    $("input:checked.notification-mark-as-read").each(function(index)
+                    {
+                        idsToMark.push($(this).data('notificationid'));
+                    });
+
+
+                    $.ajax({
+                        url: '@(this.Url.Action("MarkAsRead", "Notifications", new
+                                {
+                                    area = "Global"
+                                }))',
+                        contentType: 'application/json',
+                        type: 'POST',
+
+                        data: JSON.stringify({ ids: idsToMark }),
+                        success: function(serverResponse)
+                        {
+                            var type;
+                            if (serverResponse.Ok)
+                                type = 500;
+                            else
+                                type = 400;
+
+                            showNotification({ "message": serverResponse.Message, "type": type, "autoClose": "true", "duration": "2000" });
+                            //setTimeout('Redirect("@IDB.Architecture.Globals.GetSetting("BasePath")/Pages/MyNotifications.aspx")', 400);
+                            setTimeout('location.reload();', 400);
+                            
+                            idbg.lockUi(null, true);
+                        }
+                    });
+                },
+                newNotifications: function(e)
+                {
+                    $filter = new Array();
+                    $filter.push({ field: "UserRead", operator: "equals", value: false });
+
+                    var grid = $("#main-notification-grid").data("kendoGrid");
+                    grid.dataSource.filter({ logic: "or", filters: $filter });
+
+
+                    $("#main-notification-grid tbody tr").each(function(index, element)
+                    {
+                        var role = $(element).attr("role");
+                        if (role != null)
+                        {
+                        }
+                    });
+                },
+                readNotifications: function(e)
+                {
+                    $filter = new Array();
+                    $filter.push({ field: "UserRead", operator: "equals", value: true });
+
+                    var grid = $("#main-notification-grid").data("kendoGrid");
+                    grid.dataSource.filter({ logic: "or", filters: $filter });
+
+                    $("#main-notification-grid tbody tr").each(function(index, element)
+                    {
+                        var role = $(element).attr("role");
+                        if (role != null)
+                        {
+                        }
+                    });
+                },
+                allNotifications: function(e)
+                {
+                    $filter = new Array();
+                    $filter.push({ field: "UserRead", operator: "equals", value: true });
+                    $filter.push({ field: "UserRead", operator: "equals", value: false });
+
+                    var grid = $("#main-notification-grid").data("kendoGrid");
+                    grid.dataSource.filter({ logic: "or", filters: $filter });
+
+
+                    $("#main-notification-grid tbody tr").each(function(index, element)
+                    {
+                        var role = $(element).attr("role");
+                        if (role != null)
+                        {
+                        }
+                    });
+                }
+            });
+
+            if ('@ViewBag.opNumber' == '')
+            {
+                idbNotificationList.init = function()
+                {
+                    kendo.bind($('#noti_grid_holder'), self.gridViewModel);
+                    $('#main-notification-grid').kendoGrid({
+                        dataBound: updateTotalNotifications,
+                        columns: [
+                            {
+                                field: 'NotificationId',
+                                width: 60,
+                                headerTemplate: '<label for="ALL" class="fancy-label white bold checkNotification" onclick="changeAllCheckbox(this)" style="margin-left: 9px;"></label>',
+                                template: '#= getNotificationsReader(NotificationId,UserRead) #',
+                                sortable: false
+                            },
+                            {
+                                field: "NotificationDate",
+                                title: "@Localization.GetText("Date")",
+                                width: 100,
+                                format: "{dd MMM yy}",
+                                template: '#= kendo.toString(NotificationDate,"dd MMM yy") #'
+                            },
+                            {
+                                field: "Subject",
+                                width: 200,
+                                title: "@Localization.GetText("Notification")"
+                            },
+                            {
+                                field: "WorkflowName",
+                                title: "@Localization.GetText("Workflow")",
+                                width: 150,
+                                template: '#= FormatWorkflowName(WorkflowName,FolioId) #'
+                            },
+                            {
+                                field: "OperationName",
+                                title: "@Localization.GetText("Operation")",
+                                width: 90,
+                                template: kendo.template($("#grid_opNum").html())
+                            },
+                            {
+                                field: "Loans",
+                                width: 90,
+                                title: "@Localization.GetText("Loan(s)")",
+                                template: '#= Loans #'
+                            },
+                            {
+                                field: "Body",
+                                width: 20,
+                                title: "",
+                                headerTemplate: '',
+                                template: kendo.template($("#grid_ExpandDescription").html()),
+                                sortable: false
+                            }
+                        ],
+                        pageable: {
+                            pageSize: 10,
+                            info: false,
+                            previousNext: false,
+                            messages: {
+                                display: "",
+                                first: "",
+                                previous: "",
+                                next: "",
+                                last: "",
+                                refresh: ""
+                            }
+                        },
+                        sortable: true,
+                        model: {
+                            id: "NotificationId",
+                            fields: {
+                                'NotificationDate': {
+                                    type: "date"
+                                },
+                                'Body': {
+                                    type: "string"
+                                },
+                                'WorkflowName': {
+                                    type: "string"
+                                },
+                                'OperationNumber': {
+                                    type: "string"
+                                },
+                                'OperationName': {
+                                    type: "string"
+                                },
+                                'Loans': {
+                                    type: "string"
+                                },
+                                'UserRead': {
+                                    type: "boolean"
+                                }
+                            }
+                        },
+                        dataSource: self.dataSource
+                    });
+                };
+            }
+            else
+            {
+                idbNotificationList.init = function()
+                {
+                    kendo.bind($('#noti_grid_holder'), self.gridViewModel);
+                    $('#main-notification-grid').kendoGrid({
+                        dataBound: updateTotalNotifications,
+                        columns: [
+                            {
+                                field: 'NotificationId',
+                                width: 60,
+                                headerTemplate: '<label for="ALL" class="fancy-label white bold checkNotification" onclick="changeAllCheckbox(this)" style="margin-left: 9px;"></label>',
+                                template: '#= getNotificationsReader(NotificationId,UserRead) #',
+                                sortable: false
+                            },
+                            {
+                                field: "NotificationDate",
+                                title: "@Localization.GetText("Date")",
+                                width: 100,
+                                format: "{dd MMM yy}",
+
+                                template: '#= kendo.toString(NotificationDate,"dd MMM yy") #'
+                            },
+                            {
+                                field: "Subject",
+                                width: 200,
+                                title: "@Localization.GetText("Notification")"
+                            },
+                            {
+                                field: "WorkflowName",
+                                title: "@Localization.GetText("Workflow")",
+                                width: 150,
+                                template: '#= FormatWorkflowName(WorkflowName,FolioId) #'
+                            },
+                            {
+                                field: "Body",
+                                width: 20,
+                                title: "",
+                                headerTemplate: '',
+                                sortable: false,
+                                template: kendo.template($("#grid_ExpandDescription").html())
+                            }
+                        ],
+                        pageable: {
+                            pageSize: 10,
+                            info: false,
+                            previousNext: false,
+                            messages: {
+                                display: "",
+                                first: "",
+                                previous: "",
+                                next: "",
+                                last: "",
+                                refresh: ""
+                            }
+                        },
+                        sortable: true,
+                        model: {
+                            id: "NotificationId",
+                            fields: {
+                                'NotificationDate': {
+                                    type: "date"
+                                },
+                                'Body': {
+                                    type: "string"
+                                },
+                                'WorkflowName': {
+                                    type: "string"
+                                },
+                                'OperationNumber': {
+                                    type: "string"
+                                },
+                                'OperationName': {
+                                    type: "string"
+                                },
+                                'Loans': {
+                                    type: "string"
+                                },
+                                'UserRead': {
+                                    type: "boolean"
+                                }
+                            }
+                        },
+                        dataSource: self.dataSource
+                    });
+                };
+            }
+
+            idbNotificationList.countMain = function()
+            {
+                $.ajax({
+                    url: "@Url.Action("GetCountNotifications", "Notifications", new
+                          {
+                              area = "Global"
+                          })",
+                    data: { OperationNumber: "@ViewBag.opNumber" },
+                    type: 'Post',
+                    success: function(resp)
+                    {
+                        constnew = resp.New;
+                        constread = resp.Read;
+                        constall = resp.New + resp.Read;
+
+                        //constall = resp.Total;
+
+                        $("#CounterNew").text(resp.New);
+                        $("#CounterRead").text(resp.Read);
+                        //Descomentariar y borrar liena en caso de reversar cambio de CON-304
+                        //$("#CounterAll").text(resp.Total);
+
+                        $("#CounterAll").text(constall);
+
+
+                        $("#notificationQty").html(constall);
+                        $(".loading-container").remove();
+                        
+                    },
+                    error: function(e, err, erro)
+                    {
+                        alert('Error: ' + e + ' - ' + err + ' - ' + erro);
+                        $(".loading-container").remove();
+                    }
+                });
+            };
+        }(window.idbNotificationList = window.idbNotificationList || {}, jQuery));
+
+        $(document).ready(function()
+        {
+            idbg.lockUi(null, true);
+            $(".k-loading-mask").remove();
+            $("#comboTotalDisplayed").kendoDropDownList({
+                change: changeNotificationsDisplay
+            });
+
+            showMyOperationsFilter("#main-notification-grid");
+
+            $("#btnShowFilters").click(function()
+            {
+                $("#filterValue").focus();
+            });
+
+            $("#btnFilterGrid").click(function()
+            {
+                make_filter("#main-notification-grid");
+            });
+
+            $("#clearBtn").click(function e()
+            {
+                $('#frmFilterMyOperations')[0].reset();
+                make_filter("#main-notification-grid");
+            });
+
+            idbNotificationList.init();
+            idbNotificationList.countMain();
+        });
+
+
+        function resetBasicContadores()
+        {
+            $("#CounterNew").text(constnew);
+            $("#CounterRead").text(constread);
+            $("#CounterAll").text(constall);
+        }
+
+        function showDescription(Element)
+        {
+            var indexSelected = $(Element).parent().parent().parent().index();
+
+            if ($("#main-notification-grid tbody tr:eq(" + (indexSelected + 1) + ") td").hasClass("hideItem"))
+            {
+                $("#main-notification-grid tbody tr:eq(" + (indexSelected + 1) + ") td").removeClass("hideItem");
+                $("#main-notification-grid tbody tr:eq(" + (indexSelected + 1) + ") td").addClass("showItem");
+            }
+            else
+            {
+                $("#main-notification-grid tbody tr:eq(" + (indexSelected + 1) + ") td").removeClass("showItem");
+                $("#main-notification-grid tbody tr:eq(" + (indexSelected + 1) + ") td").addClass("hideItem");
+            }
+        }
+
+        function changeCheckboxSelected(element)
+        {
+            var state = $(element).hasClass("checked");
+            if (state)
+            {
+                $(element).css("background-position", "0 0px");
+                $(element).removeClass("checked");
+            }
+            else
+            {
+                $(element).css("background-position", "0 -20px");
+                $(element).addClass("checked");
+            }
+            displayCheckRead();
+        }
+
+        function changeAllCheckbox(element)
+        {
+            var state = $(element).hasClass("checked");
+            if (state)
+            {
+                $(".checkNotification").css("background-position", "0 0px");
+                $(".checkNotification").removeClass("checked");
+                $(".checkNotificationReal").prop("checked", false);
+            }
+            else
+            {
+                $(".checkNotification").css("background-position", "0 -20px");
+                $(".checkNotification").addClass("checked");
+                $(".checkNotificationReal").prop("checked", true);
+            }
+            displayCheckRead();
+        }
+
+        function displayCheckRead()
+        {
+            var items = 0;
+            $(".checkNotification").each(function(index, element)
+            {
+                if ($(element).hasClass("checked"))
+                {
+                    items++;
+                }
+            });
+
+            if (items > 0)
+            {
+                $("#MarkAsRead").removeClass("disabledbutton");
+                $("#MarkAsRead").removeAttr("disabled");
+            }
+            else
+            {
+                $("#MarkAsRead").attr("disabled", "disabled");
+                $("#MarkAsRead").addClass("disabledbutton");
+            }
+        }
+
+    </script>
+
+    <script type="text/x-kendo-template" id="notificationDetail">
+        <h4><span style="font-weight:bold;">Additional information</style><h4>
+                    <p>#=Body#</p>
+    </script>
+
+    <script type="text/x-kendo-template" id="grid_opNum">
+        <a href="#=OperationUrl#" target="_parent">
+            #=OperationNumber#
+        </a>
+        <div>#=OperationName#</div>
+    </script>
+
+    <script type="text/x-kendo-template" id="grid_ExpandDescription">
+        <div>
+            <input type="button" style="text-align:center;" class="noBorder operationButton arrow cursorPointer" onclick="showDescription(this)"/>
+        </div>
+        </td>
+        </tr>
+        <tr>
+            <td colspan="7" class="hideItem"><div class="DescriptionBox"><p style="font-weight:bold;">Aditional Information</p><p> #= Body #</p></div>
+    </script>
+}
+
+
+<div id="noti_grid_holder" class="padding20">
+    <div class="mod_contenido_central generic_tasks">
+        <div class="mod_style mod_style_plegable" style="width: 95%">
+            <!-- Filter container -->
+            <div class="relative">
+                <div class="inline-block verticalAlignMiddle" id="notificationQty">0</div>
+                @if (ViewBag.opNumber == "" || ViewBag.opNumber == null)
+                {
+                    <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("MY NOTIFICATIONS")</h3>
+                }
+                else
+                {
+                    <h3 class="font2em inline-block verticalAlignMiddle leftMargin10">@Localization.GetText("NOTIFICATIONS")</h3>
+                }
+            </div>
+
+            <div class="mod_style mod_style_plegable" style="width: 95%">
+                <a href="javascript:void(0)" class="btn-primary filter-clauses buttonCustom" title="@Localization.GetText("Filter")" id="btnShowFilters">@Localization.GetText("Filter")</a>
+                @Html.Partial("~/Areas/Global/Views/Shared/DefaultFilter.cshtml")
+            </div>
+
+            <div class="w100 verticalMargin10">
+                <select id="comboTotalDisplayed" class="kendoDropDown">
+                    <option value="5">@Localization.GetText("5 Displayed")</option>
+                    <option value="10" selected>@Localization.GetText("10 Displayed")</option>
+                    <option value="15">@Localization.GetText("15 Displayed")</option>
+                    <option value="20">@Localization.GetText("20 Displayed")</option>
+                </select>
+
+                <input id="MarkAsRead" type="button" disabled="disabled" value="@Localization.GetText("Mark as read")" class="button blueButton inline-block verticalAlignMiddle marginLeft5 buttonCustom disabledbutton" data-bind="click: markAsRead" style="margin-left: 12px";/>
+
+                <div class="rightAlign inline-block containerButtons">
+                    <div class="boxradio">
+                        <input type="radio" value="@Localization.GetText("New")" name="RadioFilter" id="RadioNew" class="fancy-radio button blueButton inline-block verticalAlignMiddle marginLeft5 buttonCustom filter-clauses" data-bind="click: newNotifications" onclick="resetBasicContadores()" />
+                        <label for="RadioNew" class="fancy-label-radio-circle verticalAlignMiddle">@Localization.GetText("New") <span class="PaddingRadio" id="CounterNew"></span></label>
+                    </div>
+
+                    <div class="boxradio">
+                        <input type="radio" value="@Localization.GetText("Read")" name="RadioFilter" id="RadioRead" class="fancy-radio button blueButton inline-block verticalAlignMiddle marginLeft5 buttonCustom filter-clauses" data-bind="click: readNotifications" onclick="resetBasicContadores()"/>
+                        <label for="RadioRead" class="fancy-label-radio-circle verticalAlignMiddle">@Localization.GetText("Read")<span class="PaddingRadio" id="CounterRead"></span></label>
+                    </div>
+                    <div class="boxradio">
+                        <input type="radio" value="@Localization.GetText("All")" name="RadioFilter" id="RadioAll" class="fancy-radio button blueButton inline-block verticalAlignMiddle marginLeft5 buttonCustom filter-clauses" data-bind="click: allNotifications" checked onclick="resetBasicContadores()"/>
+                        <label for="RadioAll" class="fancy-label-radio-circle verticalAlignMiddle">@Localization.GetText("All")<span class="PaddingRadio" id="CounterAll"></span></label>
+                    </div>
+                </div>
+            </div>
+
+            <table class="mod_style_plegable sortable grid2" id="main-notification-grid">
+                <colgroup>
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                </colgroup>
+            </table>
+        </div>
+    </div>
+</div>
+

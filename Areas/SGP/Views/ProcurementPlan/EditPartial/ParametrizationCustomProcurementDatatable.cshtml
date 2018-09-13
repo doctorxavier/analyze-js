@@ -1,0 +1,158 @@
+@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.Architecture.Language
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+
+@using IDB.Architecture.DataTables.Common
+
+@model ParameterizationViewModel
+
+@{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.CustomProcurementMethod)
+        .Name("tableCustomMethods")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.IdMethod.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => TypeMultiDropdown(c))
+            .Orderable(false)
+            .CssClass("")
+            .CssHeaderClass("")
+            .Header(Localization.GetText("SGP.Label.ProcurementType"))
+            .Hidden(false);
+
+            columns.Template(c => CustomProcurementMethodText(c))
+            .Orderable(false)
+            .CssClass("")
+            .CssHeaderClass("")
+            .Header(Localization.GetText("SGP.Label.CustomProcurementMethods"))
+            .Hidden(false);
+
+            columns.Template(c => DefaultSupervisionRadioButton(c))
+            .Orderable(false)
+            .CssClass("")
+            .CssHeaderClass("colDefaultSupervisionMethods")
+            .Header(Localization.GetText("SGP.Label.DefaultSupervisionMethod"))
+            .Hidden(false);
+
+            columns.Template(c => ActionsRemoveCustom(c))
+            .Orderable(false)
+            .CssClass("colCustomProcurementMethodsAction")
+            .CssHeaderClass("")
+            .Header(Localization.GetText("COMMON.Action"))
+            .Hidden(false);
+        })
+        .RowTemplates(x => x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(new CustomProcurementMethodViewModel())));
+    config.TableClass = "tableNormal";
+}
+
+<div class="aligment mb10">
+    @(Html.CollapseSingle("collapseComponent")
+            .HtmlClass("component-collapse alignSubtitle")
+            .AsociatedCollapseAllSelector("[data-name=\"collapseAllParameterization\"]")
+            .TargetRegionSelector("#customProcurementMethodsSection")
+    )
+    @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.CustomProcurementMethods"), htmlClass: "component-collapse-h3")
+</div>
+
+<div id="customProcurementMethodsSection" class="mb30">
+    @Html.Partial("Controls/DataTable", config)
+    <div class="row">
+        <div class="col-md-12 text-center mt30">
+            @Confluence.ButtonAddNewRows(Localization.GetText("SGP.Button.AddCustomProcurementMethod"), "CustomProcurementMethodTable", name: "addNewCustomProcurementMethod")
+        </div>
+    </div>
+</div>
+
+@helper TypeMultiDropdown(CustomProcurementMethodViewModel item)
+{
+    var procurementType = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementTypeParametrization").ConvertToSelectListItems().ConvertToMultiDropDownItem();
+    
+    @(Html.MultiDropDown("parametrization-custom-ProcurementType")
+      .Items(procurementType)
+      .CanSelectGroup()
+      .Required()
+      .SelectedItems(item.ProcurementTypeId)
+      .HtmlClass("multiDropdownSGP"))
+}
+
+@helper ActionsRemoveCustom(CustomProcurementMethodViewModel row)
+{
+    @Confluence.ButtonTrash("", "RemoveCustomProcurementMethod", htmlClass: "")
+}
+
+
+@helper DefaultSupervisionRadioButton(CustomProcurementMethodViewModel row)
+{
+    var exAnte = Model.ViewContainer.GetValue<string>("textExAnte");
+    var exPost = Model.ViewContainer.GetValue<string>("textExPost");
+    var check = "";
+
+    <div class=" colDefaultSupervisionMethods text-center">
+        @Confluence.InputRadioButton("True", "parametrization-custom-superVisionMethodRB-"+ row.IdMethod.ToString(), isChecked: row.IsMethodExAnte, label: exAnte, htmlClass: "radiobutton-CustomMethods", disabled: false, required: true)
+        @Confluence.InputRadioButton("False", "parametrization-custom-superVisionMethodRB-" + row.IdMethod.ToString(), isChecked: !row.IsMethodExAnte, label: exPost, htmlClass: "radiobutton-default", disabled: false, required: true)
+    </div>
+}
+
+@helper CustomProcurementMethodText(CustomProcurementMethodViewModel row)
+{
+    <div class="">
+        @Confluence.InputText(row.CustomProcurementMethodText, "parametrization-custom-ProcurementMethod",
+        width: "100%", htmlClass: "", maxLength:300,
+                 dataAttributes: new Dictionary<string, string> { { "parsley-noRepeatValueCustom", "[name=\"parametrization-custom-ProcurementMethod\"]" } })
+    </div>
+}
+
+
+@helper ProcurementTypeText(CustomProcurementMethodViewModel row)
+{
+    var procurementType = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementTypeParametrization").ConvertToSelectListItems();
+    @Confluence.InputDropDown(string.Empty, "parametrization-custom-ProcurementType", elements: procurementType, width: "100%", dataAttributes: new Dictionary<string, string> { { "id", row.ProcurementTypeId.ToString() } })
+}
+
+
+@helper DrawRowTemplate(CustomProcurementMethodViewModel row)
+{
+    var procurementType = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("ProcurementTypeParametrization").ConvertToSelectListItems().ConvertToMultiDropDownItem();
+    var exAnte = Model.ViewContainer.GetValue<string>("textExAnte");
+    var exPost = Model.ViewContainer.GetValue<string>("textExPost");
+
+    <tr class="template hide">
+        <td class="ProcurementTypeText">
+           @(Html.MultiDropDown("parametrization-custom-ProcurementType")
+              .Items(procurementType)
+              .CanSelectGroup()
+              .SelectedItems(row.ProcurementTypeId)
+              .Initialize(false)
+              .Required()
+              .Disable(true)
+              .HtmlClass("multiDropdownSGP"))    
+        </td>
+        <td class="" name="CustomProcurementMethod">
+            @Confluence.InputText(row.CustomProcurementMethodText, "parametrization-custom-ProcurementMethod", required: true, width: "100%", disabled: true, maxLength: 300, dataAttributes: new Dictionary<string, string> { { "parsley-noRepeatValueCustom", "[name=\"parametrization-custom-ProcurementMethod\"]" } })
+        </td>
+        <td class="text-center" name="DefaultSupervisiontMethod">
+            @Confluence.InputRadioButton("True", "parametrization-custom-superVisionMethodRB", isChecked: false, label: exAnte, htmlClass: "", disabled: true, required: true)
+            @Confluence.InputRadioButton("False", "parametrization-custom-superVisionMethodRB", isChecked: false, label: exPost, htmlClass: "", disabled: true,required:true)
+        </td>
+        <td name="" class="colCustomProcurementMethodsAction">
+            @ActionsRemoveCustom(row)
+        </td>
+    </tr>
+}
+
+
+

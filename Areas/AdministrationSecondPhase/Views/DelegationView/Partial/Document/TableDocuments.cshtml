@@ -1,0 +1,79 @@
+﻿@using IDB.MVCControls.DataTable.Helpers
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Application.AdministrationModule.ViewModels.Delegation
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Helpers
+@model List<TableDocumentViewModel>
+@{
+    var operationNumber = Request.QueryString["operationNumber"];
+    var displayOption = ViewData["DisplayOptions"] as List<ListItemViewModel>;
+}
+<div class="row">
+    <div class="col-md-12">
+        @Confluence.LabelMainSubTitle(Localization.GetText("OP.DE.SE.RE.Documents.Title"), htmlClass: "ml0 subtitleModified")
+    </div>
+</div>
+
+<div class="pull-right mb10">
+    <div data-pagemode="edit">
+        <div id="DelegationDocuments-modal-add" class="hide">
+            @Html.Partial("Controls/IDBDocsNew/AddIDBDoc", new SearchDocumentModalViewModel { SearchModalId = "DocumentsTable", MultipleSelection = false, TargetFunction = "renderizeRow", BusinessAreaCode = "BA_DELEGATIONS", OperationNumber = operationNumber })
+        </div>
+    </div>
+</div>
+
+<div class="col-md-12 mt20 mb30">
+    <div class="pull-left">
+        @Confluence.InputDropDown("5", "ddlDocumentsPagination", displayOption != null ? Html.BuildSelectItemList(displayOption, m => m.Text, m => m.Value) : new List<SelectListItem>(), placeholder: null, showEmptyOption: false, orderAsc: false, required: false, dataAttributes: new Dictionary<string, string> { { "idb-fieldname", "ddlPagination" } })
+    </div>
+</div>
+
+<div class="dataTable">
+    @{
+        var config = Html.RenderDataTable(Model);
+        config.Name("DocumentsTable")
+            .AddPrimaryKeyToName(false)
+            .Columns(columns =>
+            {
+                columns.Bound(c => c.User).Header(Localization.GetText("OP.DE.SE.RE.TableDocuments.User")).CssHeaderClass("sort sortTing").Persistent();
+                columns.Template(c => Confluence.LabelGetDate(c.Date)).Header(Localization.GetText("OP.DE.SE.RE.TableDocuments.Date")).CssHeaderClass("sort sortTing").Persistent();
+                columns.Bound(c => c.DocNumber).Header(Localization.GetText("OP.DE.SE.RE.TableDocuments.IDBDocNumber")).CssHeaderClass("sort sortTing").Persistent();
+                columns.Bound(c => c.Description).Header(Localization.GetText("OP.DE.SE.RE.TableDocuments.Description")).CssHeaderClass("sort sortTing").Persistent();
+                columns.Bound(c => string.Empty)
+                    .EditableTemplate(row => GetDocumentExpandedButton("removeRowDocument",row.DocNumber)).CssHeaderClass("w150");
+                columns.Bound(c => string.Empty)
+                .EditableTemplate(row => Confluence.ListHelpers(new List<HelperResult>
+                {
+                    Confluence.InputHidden(row.DocumentId.ToString(), "DocumentId"),
+                    Confluence.InputHidden(row.DocNumber, "DocNumber"),
+                    Confluence.InputHidden(row.Description, "Description")
+                })).Hidden(true);
+            });
+
+        config.TableClass = "tableNormal endSpacing";
+        @Html.Partial("Controls/DataTable", config)        
+    }
+    <div data-pagemode="edit">
+        <div class="col-md-12 text-center">
+            @Confluence.ButtonAddNewRows(Localization.GetText("OP.DE.Add"), null, name: "documentsAdd", dataAttributes: new Dictionary<string, string> { { "id", "DelegationModalDocuments-add" }, { "modal-allowclose", "true" }, { "custom-modal", "DelegationDocuments-modal-add" }, { "custom-modal-validate", "false" }, { "custom-modal-title", Localization.GetText("OP.AP.Documents.Search") } })
+        </div>
+    </div>
+</div>
+
+<div data-pagemode="read">
+    <div class="col-md-12 mt20 mb30">
+        <div class="pull-right">
+            @Confluence.ButtonExcel("xls", "downloadDocumentsExport", false, new Dictionary<string, string> { { "idb-fieldname", "btnXls" } }, "floatRight")
+        </div>
+        <div class="pull-right">
+            @Confluence.ButtonPdf("pdf", "downloadDocumentsExport", false, new Dictionary<string, string> { { "idb-fieldname", "btnPdf" } }, "floatRight")
+        </div>
+    </div>
+</div>
+
+@helper GetDocumentExpandedButton(string dataAction, string docNumber)
+{
+    var secureUrl = IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(docNumber);
+    <a href=@secureUrl target="_blank">@Confluence.ButtonDownload(text: "")</a>
+    @Confluence.ButtonTrash(null, null, dataAction,required:false)
+}

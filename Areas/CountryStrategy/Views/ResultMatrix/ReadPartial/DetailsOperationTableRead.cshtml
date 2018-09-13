@@ -1,0 +1,73 @@
+﻿@using System.Globalization
+@using System.Web.WebPages
+@using System.Configuration
+
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Application.CountryStrategyModule.ViewModels.ResultMatrix
+
+@model List<OperationDetailViewModel>
+       
+@if (Model.Any()){
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var isIIC = Model.Select(x => x.IsIIC).LastOrDefault();
+
+    var config = Html.RenderDataTable(Model);
+    var headerColumnAmount = Model.First().HeaderColumnAmount;
+    config.TableClass = "tableNormal";
+    config.Name("operationDetailsTable")
+    .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .UseDataTableNet(false)
+    .UsePageMode(false)
+    .Columns(columns =>
+    {
+        columns.Template(c => LinkProductNumber(c.OperationNumber, c.IsLink))
+        .Header(Localization.GetText("CS.OperationDetails.OperationDetailsTable.OperationNumber"))
+        .CssClass("min-width-120")
+        .Persistent();
+
+        columns.Bound(c => c.OperationName)
+        .Header(Localization.GetText("CS.OperationDetails.OperationDetailsTable.OperationName"))
+        .Persistent();
+
+        columns.Bound(c => c.OperationYear)
+        .Header(Localization.GetText("CS.OperationDetails.OperationDetailsTable.OperationYear"))
+        .CssClass("text-right")
+        .Persistent();
+
+        columns.Bound(c => c.StatusOverallStage)
+        .Header(Localization.GetText(isIIC ? "CS.OperationDetails.OperationDetailsTable.StatusOverallStage" 
+                                           : "CS.Monitoring.StatusOverallStage"))
+        .Persistent();
+
+        columns.Bound(c => FormatHelper.Format(c.Amount ?? 0, formatDecimal))
+        .CssClass("text-right")
+        .Header(Localization.GetText(headerColumnAmount))
+        .Persistent();
+    });
+
+        @Html.Partial("Controls/DataTable", config)
+}
+    
+@helper LinkProductNumber(string operationNumber, bool isLink)
+{
+    if (isLink)
+    {
+        var url = "/Operation/" + operationNumber;
+
+            @Confluence.LabelLink((operationNumber ?? ""),
+            name: "operationNumberLink",
+            dataAttributes: new Dictionary<string, string> { { "url", url } },
+            htmlClass: "linkStyle")
+    }
+    else
+    {
+        @Confluence.Label(operationNumber ?? "");
+    }
+}
+

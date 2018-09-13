@@ -1,0 +1,128 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+
+@model IDB.MW.Domain.Models.Disbursement.OperationLevelProjectionsViewModel
+@{
+    Model.EditMode = (Request["ed"] != null && Html.HasPermission("Disbursement Projections Write"));
+    string FormatDecimal = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDecimal;
+    var currentYear = Model.ProjectedYearsList != null && Model.ProjectedYearsList.Any() ? Model.ProjectedYearsList.First() :  DateTime.Now.Year;
+}
+
+@section CSS {
+    @Styles.Render("~/Content/Confluence")
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/esmartGeneral.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modules/disbursement/disbursement.css")" />
+}
+
+@section JavaScript{
+    <div id="scriptsection">
+        <script type="text/javascript">
+            var disbursmentLiterals = {
+                msgRemainingBalanceWarning: "@Html.Raw(Localization.GetText("Disbursement.Msg.Remaining.Balance"))",
+                msgFinancialPlan: "@Html.Raw(@Localization.GetText("Disbursement.Msg.Financial.Plan"))",
+                msgConfirmExpirationDateAfter: "@Html.Raw(Localization.GetText("Disbursement.LoanLevelProj.Msg.ConfirmExpirationDateAfter"))",
+                msgErrorExchangeRate: "@Html.Raw(Localization.GetText("Disbursment.EditRegister.RegisterApproval.ErrorExchangeRate"))",
+                msgNegativeNumbers:"@Html.Raw(Localization.GetText("Disbursement.LoanLevelProj.Msg.NegativeNumbers"))",
+                Actual:  "@Html.Raw(IDB.MW.Domain.Values.DisbursementValues.LITERAL_ACTUAL)",
+                AgreedAccum: "@Html.Raw(IDB.MW.Domain.Values.DisbursementValues.LITERAL_AGREED_ACCUM)",
+                ActualAgree: "@Html.Raw(IDB.MW.Domain.Values.DisbursementValues.LITERAL_ACTUAL_AGREED)",
+                ActualAgreeAccum: "@Html.Raw(@IDB.MW.Domain.Values.DisbursementValues.LITERAL_ACTUAL_AGREED_ACCUM)",
+                titleGraph1: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife"))",
+                titleGraph2: "@Html.Raw(Localization.GetText("Disbursement.Graph.Yearly")) "+ @currentYear.ToString(),
+                titleGraph3: "@Html.Raw(Localization.GetText("Disbursement.Graph.Monthly")) "+ @currentYear.ToString(),
+                GraphProjectLifeCurrentDate: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.CurrentDate"))",
+                GraphProjectLifeCurrentExpirationDate: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.CurrentExpirationDate"))",
+                GraphProjectLifeDisbursed: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.Disbursed"))",
+                GraphProjectLifeProjectedDisbursements: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.ProjectedDisbursements"))",
+                GraphProjectLifeCountryProfile: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.CountryProfile"))",
+                GraphProjectLifeCountryUpperLimit: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.CountryUpperLimit"))",
+                GraphProjectLifeCountryLowerLimit: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.CountryLowerLimit"))",
+                GraphEarlyAccumulatedAgreedAccumProj: "@Html.Raw(Localization.GetText("Disbursement.Graph.EarlyAccumulated.AgreedAccumProj"))",
+                GraphEarlyAccumulatedCurrentAccumProj: "@Html.Raw(Localization.GetText("Disbursement.Graph.EarlyAccumulated.CurrentAccumProj"))",
+                GraphEarlyAccumulatedActualAccumDisbToDate: "@Html.Raw(Localization.GetText("Disbursement.Graph.EarlyAccumulated.ActualAccumDisbToDate"))",
+                GraphMonthlyAccumulatedAgreedProjs: "@Html.Raw(Localization.GetText("Disbursement.Graph.MonthlyAccumulated.AgreedProjs"))",
+                GraphMonthlyAccumulatedCurrentProjs: "@Html.Raw(Localization.GetText("Disbursement.Graph.MonthlyAccumulated.CurrentProjs"))",
+                GraphMonthlyAccumulatedActualProjs: "@Html.Raw(Localization.GetText("Disbursement.Graph.MonthlyAccumulated.ActualProjs"))",
+                GraphProjectLifeAxisY: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.AxisY.Tittle"))",
+                GraphProjectLifeAxisX: "@Html.Raw(Localization.GetText("Disbursement.Graph.ProjectLife.AxisX.Tittle"))",
+                GraphEarlyAccumulatedAxisY: "@Html.Raw(Localization.GetText("Disbursement.Graph.EarlyAccumulated.AxisY.Tittle"))",
+                GraphEarlyAccumulatedAxisX: "@Html.Raw(Localization.GetText("Disbursement.Graph.EarlyAccumulated.AxisX.Tittle"))",
+                GraphMonthlyAccumulatedAxisY: "@Html.Raw(Localization.GetText("Disbursement.Graph.MonthlyAccumulated.AxisY.Tittle"))",          
+                GraphMonthlyAccumulatedAxisX: "@Html.Raw(Localization.GetText("Disbursement.Graph.MonthlyAccumulated.AxisX.Tittle"))"
+            };
+
+            $(document).ready(function () {
+                $('.tabItem').not('.active').click(function () {
+                        showLoader();
+                    });
+
+                $('.btn.graphButton, .btn.valuesButton').click(function () {
+                        resizeIframeCloud()
+                });
+                });
+        </script>
+
+        @Scripts.Render("~/bundles/NewConfluence")
+        @Scripts.Render("~/bundles/jquery")
+        @Scripts.Render("~/bundles/jqueryui")
+        @Scripts.Render("~/bundles/scripts")
+        <script type="text/javascript" src="@Url.Content("~/Scripts/JQchartfx/jquery.jqChart.min.js")"></script>
+        <script type="text/javascript" src='@Url.Content("~/Scripts/jqplugins/jQueryNumeric.js")'></script>
+        <script type="text/javascript" src="@Url.Content("~/Scripts/Mainframe/fixIframe.js")"></script>
+        <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/disbursement/disbursement.js")"></script>
+    </div>
+}
+
+@if (Model.EditMode)
+{
+    <script type="text/javascript">     
+        $(document).ready(function () {
+            initializeDPEvents();
+        });
+
+        function initializeDPEvents(){
+            $('.number-only').numeric();
+            $('.disbursement-grid-value').blur(disbursement_validate);
+            disbursement_validate();
+
+            $('.disbursement-grid-value').off('keyup').change(function () {
+                var value = 0;
+                $(this).closest('tr').find('[data-type="value"]').each(function () {
+
+                    if ($(this).find('input').length > 0) {
+                        value += $(this).find('input:not([ignore-value])').val().replaceAll(',', '') * 1;
+                    } else {
+                        value += $(this).text().trim().replaceAll(',', '') * 1;
+                    }
+                });
+
+                var balance = @Model.Total;
+                var totalYear = value;
+                var percent = 0;
+                $.get("@Url.Action("CalculatePercent", "OperationLevelProjections")",
+                {
+                    balance: balance,
+                    totalYear: totalYear
+                },
+                function (data) {
+                    percent = data;
+                });
+
+                $(this).closest('tr').find('[data-type="total"] label').text(value.toFixed(2).replace(/./g, function (c, i, a) {
+                    return i && c !== "." && ((a.length - i) % 3 === 0) ? ',' + c : c;
+                }));
+
+                $(this).closest('tr').find('[data-type="percent"] label').text(percent.toFixed(2).replace(/./g, function (c, i, a) {
+                    return i && c !== "." && ((a.length - i) % 3 === 0) ? ',' + c : c;
+                }) + '%');
+
+            });
+        }
+        var disbursement_edit_path = '@Url.Action("edit","operationlevelprojections")';
+
+    </script>
+}
+
+<div id="ui_dp_001">
+    @Html.Partial("~/Areas/Disbursement/Views/OperationLevelProjections/Partials/OperationLevelContent.cshtml", Model)      
+</div>

@@ -1,0 +1,110 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using System.Globalization
+@using IDB.MVCControls.General.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.MrBlueModule.ViewModels.Indicators
+
+@model List<IndicatorsHistoryRowViewModel>
+
+@if(Model != null)
+{
+    int? lastIndId = null;
+    if (Model.Any())
+    {
+        lastIndId = Model.OrderByDescending(x => x.CompletedOn).FirstOrDefault().RowId;
+    }
+    <div class="row">
+        <div class="col-md-12">
+            <div class="float-left">
+                @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.Indicators.History.HistoryTitle"))
+            </div>
+            <div class="float-right">
+                @if(ViewBag.WriteRole)
+                {
+                    if(Model.Count > 0)
+                    {
+                        @Confluence.ButtonBlue(Localization.GetText("MrBlue.Indicators.History.NewFromMostRecentButton"),
+                        name : "buttonNewFromMostRecent",
+                        action : "newReportFromMostRecent")
+                    }
+                    else
+                    {
+                        @Confluence.ButtonBlue(Localization.GetText("MrBlue.Indicators.History.NewFromMostRecentButton"),
+                        name : "buttonNewFromMostRecent",
+                        action : "newReportFromMostRecent",
+                        disabled : true)
+                    }
+
+                    @Confluence.ButtonBlue(Localization.GetText("MrBlue.Indicators.History.New"),
+                    name : "buttonNew",
+                    action : "newReport")
+                }
+                else
+                {
+                    @Confluence.ButtonBlue(Localization.GetText("MrBlue.Indicators.History.NewFromMostRecentButton"),
+                    name : "buttonNewFromMostRecent",
+                    action : "newReportFromMostRecent",
+                    disabled : true)
+
+                    @Confluence.ButtonBlue(Localization.GetText("MrBlue.Indicators.History.New"),
+                    name : "buttonNew",
+                    action : "newReport",
+                    disabled : true)
+                }
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12 contextualHelp">
+            <p>@MrBlue.LabelHelper(Localization.GetText("MrBlue.Indicators.History.ClickMessage"))</p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            @{
+
+                var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+                var config = Html.RenderDataTable(Model);
+                config.Name("historyTable")
+                .PrimaryKey(m => m.RowId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .RowAttributes("data-lastIndId", lastIndId.ToString())
+                .Columns(columns =>
+                {
+
+                    columns.Bound(c => c.CreatedOn)
+                    .Header(Localization.GetText("MrBlue.Indicators.History.CreatedOnColumn"))
+                    .Persistent();
+
+                    columns.Bound(c => c.CreatedBy)
+                        .Header(Localization.GetText("MrBlue.Indicators.History.CreatedByColumn"))
+                        .Persistent();
+
+                    columns.Template(CreateActions)
+                      .Header(Localization.GetText("MrBlue.Indicators.History.ActionColumn"))
+                      .Persistent()
+                      .Center();
+
+                });
+
+                config.TableClass = "tableNormal selectedRowTable";
+
+            }
+            @Html.Partial("Controls/DataTable", config)
+        </div>
+    </div>
+
+}
+
+@helper CreateActions(IndicatorsHistoryRowViewModel viewModel)
+{
+    if(ViewBag.WriteRole)
+    {
+        @MrBlue.TableButonTrash(Url.Action("IndicatorsDeleteReport", "Indicators", new { area = "MrBlue", versionId = viewModel.RowId }))
+    }
+}
+
+

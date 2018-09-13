@@ -1,0 +1,279 @@
+﻿@using IDB.MW.Infrastructure.Configuration;
+@using System.Globalization;
+@using IDB.Architecture.Language;
+
+
+@model IDB.MW.Application.SiscorModule.ViewModels.SiscorResponseViewModel
+
+<input hidden data-idb-pagename="Siscor-Response" />
+
+<div id="pageContent" data-parsley-validate="data-parsley-validate"
+     data-parsley-excluded="[disabled]"
+     data-ignore-nullable-values="false"
+     data-url="@Url.Action("OutputSave", "Response", new { area = "Siscor" })">
+
+    <input type="hidden" id="hiddenModel" value="" />
+    
+    <div class="col-md-12" data-id="infoButtons">
+        @Html.Partial("Partials/SiscorResponseHeader", Model.Information)
+    </div>
+
+    @*@if (!Model.GridCorrespondences == null && Model.GridCorrespondences.Correspondences.Count > 0)
+    {
+        <div class="col-md-12 mt20" id="Grid">
+            @Html.Partial("../CorrespondenceView/Partials/DataTables/Grid", Model.GridCorrespondences)
+        </div>
+    }*@
+    <div class="col-md-12 mt20" id="Information">
+        @Html.Partial("Partials/SiscorResponseInformation", Model.Information)
+    </div>
+ <div class="col-md-12 mt20" data-id="infoButtons">
+            @Html.Partial("Partials/Controls/SiscorResponseHeaderButtons", Model.Information)
+        </div>
+
+
+
+</div>
+@section scripts{
+<script type="text/javascript">
+
+
+    $(document).ready(function () {
+        $("#tabla01").paginationConfluense(2).sortableConfluense();
+
+        enterEditMode(false, $("#pageContent"), false);
+
+        applyDocumentLinkColor();
+        showLoader();
+    });
+
+    function SCCancel(source) {
+        exitEditMode(false, $('#pageContent'), false, false);
+    }
+
+    function DownloadDoc(source) {
+        var url = $('[name = "DocumentURL"]').val();
+        var documentReference = $(source).prev('label').text();
+
+        if (documentReference !== "")
+        {
+            window.open(url + '/_layouts/15/DocIdRedir.aspx?ID=' + documentReference, '_blank');
+        }else {
+            return false;
+        }
+    }
+
+    function SCResponseCreateOutput() {
+        var response = saveContainer($('#pageContent'), '#hiddenModel', true, null, null, false, true, null, true);
+        if (response !== false) {
+            response.done(function (result) {
+                if (!result.Data.IsValid) {
+                    if (result.Data.ErrorMessage != null || result.Data.ErrorMessage != '')
+                    {
+                        showMessage(result.Data.ErrorMessage);
+                    }
+                    else
+                    {
+                        showMessage("Error when saving the Output!");
+                    }
+                }
+                else {
+                    closeModal();
+                    $("#Grid").html(result.Data.partial);
+                    $("#Information").html(result.Data.partial1);
+                    $("[data-id=infoButtons]").html(result.Data.partial2);
+                    $("[data-id=infoButtons]:last").find('div.badge01a').remove();
+                }
+            });
+        }
+    }
+
+    function validateBeforeShowingModal() {
+        if (!validateContainer($('#pageContent'))) {
+            return false;
+        }
+    }
+
+    function closeModal() {
+        var vexModal = $('.ResponseModal').parents('.vex');
+        if (vexModal.length > 0) {
+            vex.closeByID(vexModal.data().vex.id);
+        }
+    }
+
+    function downloadDocument(source) {
+        var docNumber = source.attr('data-DocNumber');
+        var BACode = $('[name = "BusinessAreaCode"]').val();
+        var currentOperationNumber = source.parents('tr').find('input#hiddenOperationNumber').val();
+        var isDocumentAvailableResponse = checkIfDocumentIsAvailable(docNumber, BACode, currentOperationNumber);
+
+        if (isDocumentAvailableResponse.responseJSON.IsValid)
+        {
+            var url = '@Url.Action("DownloadDocument", "Response", new { area = "Siscor" })' + '?documentId=' + docNumber + '&opDownNumber=' + currentOperationNumber + '&businessAreaCode=' + BACode;
+            window.open(url, '_blank');
+        } else
+        {
+            showMessage("Error: " + isDocumentAvailableResponse.responseJSON.ErrorMessage);
+        }
+    }
+
+    function checkIfDocumentIsAvailable(docNumber, BACode, currentOperationNumber) {
+        var url = '@Url.Action("CheckIfDocumentIsAvailable", "Response", new { area = "Siscor" })' + '?documentId=' + docNumber + '&businessAreaCode=' + BACode + '&opDownNumber=' + currentOperationNumber;
+        var result = postUrl(url, { documentId: docNumber });
+        return result;
+    }
+
+    $(document).on("click", '[aria-labelledby=id-Country] li a', function (source) {
+        var countryCode = source.target.attributes["dd-value"].value;
+        postUrlWithOptions('@Url.Action("GetTemplateRelatedCountry",
+                "Response",
+                new {area = "Siscor"})',
+        { async: true },
+        { countryCode: countryCode }).done(function (data) {
+            var listdata = $.map(data, function (item) {
+                return "<li><a dd-value=" + item.Value + " dd-selected=''>" + item.Text + "</a></li>";
+            });
+            var options = listdata.join(" ");
+            $('[aria-labelledby=id-Template]').html(options);
+        });
+    });
+
+    $(document).on("click", '[aria-labelledby=id-OperationNumber] li a', function (source) {
+        var operationNumber = source.target.text;
+
+        postUrlWithOptions('@Url.Action("GetContractsRelatedOperation",
+                "Response",
+                new {area = "Siscor"})',
+        { async: true },
+        { OperationNumber: operationNumber })
+            .done(function (data) {
+                var listdata = $.map(data, function (item) {
+                    return "<li><a dd-value=" + item.Value + " dd-selected=''>" + item.Text + "</a></li>";
+                });
+                var options = listdata.join(" ");
+                $('[aria-labelledby=id-Contract]').html(options);
+            });
+
+        postUrlWithOptions('@Url.Action("GetCountryRelatedOperation",
+              "Response",
+              new {area = "Siscor"})',
+        { async: true },
+        { OperationNumber: operationNumber })
+            .done(function (data) {
+                var selectedValue;
+                var seletedText;
+                var listdata = $.map(data, function (item) {
+                    if (item.Selected == true)
+                    {
+                        selectedValue = item.Value;
+                        seletedText = item.Text;
+                    }
+                    return "<li><a dd-value=" + item.Value + " dd-selected=''>" + item.Text + "</a></li>";
+                });
+                var options = listdata.join(" ");
+                $('[aria-labelledby=id-Country]').html(options);
+                $('input[name="Country"]').SetValue(selectedValue, seletedText)
+            });
+
+    });
+
+    function SCSendWithFlowRequired() {
+        SCSend("I");
+    }
+
+    function SCSendFinalDocument() {
+        SCSend("N");
+    }
+
+    function SCSend(ResponseType) {
+        var dataForm = new FormData();
+
+        var BusinessAreaCode = $('input[name="BusinessArea"]').GetValue();
+        var DocumentNumber = $('input[name="DocumentNumber"]').val();
+        var Operation = '@Model.Information.Operation';
+        var SignBy = $('input[name="SignBy"]').GetValue();
+        var SignByName = $('input[name="SignBy"]').GetText();
+        var signByNameSend = "";
+        if (SignByName != null) {
+            signByNameSend = "&signByName=" + SignByName;
+        }
+        var SiscorNumber = $('input[name="SiscorNumber"]').val();
+
+        dataForm.append('BusinessAreaCode', BusinessAreaCode);
+        dataForm.append('DocumentNumber', DocumentNumber);
+        dataForm.append('operationNumber', Operation);
+        dataForm.append('ResponseType', ResponseType);
+        dataForm.append('SignBy', SignBy);
+        dataForm.append('SiscorNumber', SiscorNumber);
+
+        closeModal();
+        showLoader();
+
+        window.setTimeout(function () {
+            $.ajax({
+                url: '@Url.Action("ClassifiedDocument", "Response", new { area = "Siscor" })?operationNumber=' + '@Model.Information.Operation' + signByNameSend,
+                data: dataForm,
+                cache: false,
+                contentType: false,
+                processData: false,
+                async: false,
+                type: 'POST'
+            }).done(function (result) {
+                //$("#Information").html(result.Data.partial);
+                if (!result.IsValid) {
+                    errorBar(result.ErrorMessage);
+                } else {
+                    if (isInEditMode($("#pageContent"))) {
+                        enterEditMode(false, $("#Information"), false);
+                    } else {
+                        exitEditMode(false, $('#Information'), false, false);
+                    }
+
+                    var urlCorrespondenceIndex = '@Url.Action("Index", "CorrespondenceView", new { area = "Siscor" })?operationNumber=' + '@Model.Information.Operation';
+                    window.location.href = urlCorrespondenceIndex;
+                }
+            });
+        }, 10);
+    }
+
+    function hideOperationNumberLabel() {
+        url = window.location.href.toString().indexOf(@Model.Information.Operation)
+
+        if (!url) {
+            $(".showOperationNumber").addClass("hide")
+        }
+        else {
+            $(".showOperationNumber").removeClass("hide")
+        }
+    }
+
+    function SCcancelOutput() {
+        var operationNumber = $('input[name="OperationNumber"]').GetValue();
+        var SiscorNumber = $.trim($('.SiscorNumber').html());
+        var dataForm = new FormData();
+        dataForm.append('SiscorNumber', SiscorNumber);
+        dataForm.append('OperationNumber', '@Model.Information.Operation');
+
+        $.ajax({
+            url: '@Url.Action("CancelOuput", "CorrespondenceView", new { area = "Siscor" })?',
+            data: dataForm,
+            cache: false,
+            contentType: false,
+            processData: false,
+            async: false,
+            type: 'POST'
+        }).done(function (result) {
+            if (result.Data.IsValid) {
+                window.location.href = '@Url.Action(controllerName: "CorrespondenceView", actionName: "Index")';
+            }
+            else {
+                showMessage(result.Data.ErrorMessage);
+            }
+        });
+    }
+
+    function applyDocumentLinkColor() {
+        $(".documentLink").attr('style', "color: #3b73c3 !important");
+    }
+</script>
+}

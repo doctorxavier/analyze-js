@@ -1,0 +1,608 @@
+﻿@using System.Web.Mvc
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.Architecture.ApplicationParameter
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Models.Documents
+@using IDB.MW.Business.DocumentManagement.Enums
+
+@model ProcurementDetailViewModel
+
+@if (Model != null && (Model.ViewContainer != null) && Model.ViewContainer.GetValue<bool>("IsValid"))
+{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatIntegerDolar = appSettings.FormatIntegerDolar;
+    var individualConsultingId = Model.ViewContainer.GetValue<int>("IndividualConsultingId");
+    var forceAccount = Model.ViewContainer.GetValue<int>("ForceAccountId");
+    var nationalSystem = Model.ViewContainer.GetValue<int>("NationalSystem");
+
+    var text = Localization.GetText("SGP.Label.Procurement");
+    var subTitle = text + " " + Model.Header.ProcessId + ": " + Model.Header.Name;
+
+    <div data-section="modals" class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"documentTable\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-popup-add-doc",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "documentTable",
+            CanMultiSelect = true,
+            TargetFunction = "AddIDBDocProc",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"contractDocumentTable\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-popup-add-contact-doc",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-id=\"amendmentDocumentTable\"]",
+            title: Localization.GetText("COMMON.AddDocumment"),
+            type: CssClass.ModalSearchAddDocument,
+            moveOriginalContent: true,
+            name: "btn-open-popup-add-amendment-doc",
+            closeOnOverlay: false,
+            allowClose: true
+            ))
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "contractDocumentTable",
+            CanMultiSelect = true,
+            TargetFunction = "AddIDBDocProcContract",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+        @Html.Partial("Controls/IDBDocsProc/AddIDBDoc",
+        new PopupDocumentoViewModel
+        {
+            PopupId = "amendmentDocumentTable",
+            CanMultiSelect = false,
+            TargetFunction = "AddIDBDocProcAmendment",
+            BusinessAreaCode = BusinessAreaCodeEnum.BA_SG_PROCUREMENT.GetStringValue(),
+            OperationNumber = IDBContext.Current.Operation,
+        })
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"clear-subnational-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-clear-subnational",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+            .AddButton(name: "btn-common-remove-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+            .AddButton(name: "btn-common-remove-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okClearSubnational",
+                    closeAtEnd: true))
+        <div data-name="clear-subnational-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.ThisActionCannotBeUndone")
+        </div>
+
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"subnationalLevelSearch-modal\"]",
+            title: Localization.GetText("Common.Warning"),
+            type: CssClass.ModalWarningNoIcon,
+            moveOriginalContent: true,
+            name: "btn-open-popup-subnationalLevelSearch",
+            closeOnOverlay: false,
+            allowClose: true,
+            actionOnClose: "")
+            .AddButton(name: "btn-common-remove-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+            .AddButton(name: "btn-common-remove-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okSubnationalLevelSearch",
+                    closeAtEnd: true))
+        <div data-name="subnationalLevelSearch-modal" class="hide modalBody">
+            @Localization.GetText("SGP.Message.ThisSelecetionWillOverWriteCurrentSelection")
+        </div>
+
+    </div>
+    <div class="row mt5">
+        <div class="col-xs-12">
+            @Confluence.LabelMainTitle(Localization.GetText("SGP.Label.ProcurementDetail"))
+        </div>
+    </div>
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Confluence.LabelMainSubTitle(subTitle, htmlClass: "subTitleSG")
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("COMMON.ApprovalNumber"), contentAlways: Model.Header.ApprovalNumber, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("COMMON.SVQ.TotalCost"), contentAlways: FormatHelper.Format(Model.Header.TotalCost, formatIntegerDolar), asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.ProcurementType"), contentAlways: Model.Header.ProcurementTypeName, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.ProcurementMethod"), contentAlways: Model.Header.ProcurementMethodName, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.SupervisionMethod"), contentAlways: Model.Header.SupervisionMethodName, asterisk: false)
+        </div>
+        <div class="col-xs-2">
+            @Confluence.LabelsGroup(title: Localization.GetText("COMMON.Status"), contentAlways: Model.Header.StatusName, asterisk: false)
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            @Confluence.LabelsGroup(title: Localization.GetText("SGP.Label.Component"), contentAlways: Model.Header.ComponentName, asterisk: false)
+        </div>
+    </div>
+    <div class="page">
+        @{
+            var dictionaryTabs = new Dictionary<string, string>()
+            {
+                {ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL, Localization.GetText("SGP.Label.ProcurementDetail") },
+                {ProcurementDetailNavigation.TAB_NAME_CHECKLIST, Localization.GetText("SGP.Label.CheckList") },
+                {ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS, Localization.GetText("SGP.Label.BiddingDocuments") }
+            };
+                        
+            if (Model.Header.ProcurementMethodId != forceAccount && Model.Header.SupervisionMethodId != nationalSystem)
+            {
+                dictionaryTabs.Add(ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS, Localization.GetText("SGP.Label.ParticipantsEvaluation"));
+
+                if (Model.Header.ProcurementTypeId != individualConsultingId)
+                {
+                    dictionaryTabs.Add(ProcurementDetailNavigation.TAB_NAME_LOTS, Localization.GetText("SGP.Label.Lots"));
+                }
+
+                dictionaryTabs.Add(ProcurementDetailNavigation.TAB_NAME_CONTRACTS, Localization.GetText("SGP.Label.Contracts"));
+            }
+        }
+
+        @Confluence.Tabs(dictionaryTabs)
+
+        <div class="tab-content mt20">
+            @if (Model.DetailTab != null)
+            {
+                <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL)"
+                     name="formDetails"
+                     data-parsley-validate="data-parsley-validate"
+                     data-parsley-excluded="[disabled]"
+                     data-ignore-nullable-values="true"
+                     data-url="@Url.Action("SaveDetails", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })">
+                    <div data-fake-pagemode="edit">
+                        @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "hideDetailsModel")
+                        @Html.Partial("EditPartial/Details/DetailsPartial", Model.DetailTab)
+                    </div>
+                </div>
+            }
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_CHECKLIST)">
+                @if (Model.ChecklistTab != null)
+                {
+                    <div class="tab-pane"
+                         id="@(ProcurementDetailNavigation.TAB_NAME_CHECKLIST)"
+                         name="formChecklist"
+                         data-parsley-validate="data-parsley-validate"
+                         data-parsley-excluded="[disabled]"
+                         data-ignore-nullable-values="true"
+                         data-url="@Url.Action("SaveChecklist", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })">
+                        <div data-fake-pagemode="edit">
+                            @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "serializedModel")
+                            @Html.Partial("EditPartial/Checklist/ChecklistPartial", Model)
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS)">
+                @if (Model.BiddingDocTab != null)
+                {
+                    <div class="tab-pane"
+                         id="@(ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS)"
+                         name="formBidding"
+                         data-parsley-validate="data-parsley-validate"
+                         data-parsley-excluded="[disabled]"
+                         data-ignore-nullable-values="true"
+                         data-url="@Url.Action("SaveBiddingDocs", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })">
+                        <div data-fake-pagemode="edit">
+                            @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "serializedModel")
+                            @Html.Partial("EditPartial/BiddingDocuments/BiddingDocumentsPartial", Model.BiddingDocTab)
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="tab-pane" id="@(ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS)">
+                @if (Model.ParticipantTab != null)
+                {
+                    @Html.Partial("EditPartial/Participants/Modals/BidderViewDetailsModal", Model.ParticipantTab.ViewContainer)
+
+                    <div class="tab-pane"
+                         id="@(ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS)"
+                         name="formParticipant"
+                         data-parsley-validate="data-parsley-validate"
+                         data-parsley-excluded="[disabled]"
+                         data-ignore-nullable-values="true"
+                         data-url="@Url.Action("SaveParticipant", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })">
+                        <div data-fake-pagemode="edit">
+                            @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "serializedModel")
+                            @Html.Partial("EditPartial/Participants/ParticipantsPartial", Model)
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="tab-pane mt40" id="@(ProcurementDetailNavigation.TAB_NAME_CONTRACTS)">
+                @if (Model.ContractsTab != null)
+                {
+                    <div class="tab-pane"
+                         id="@(ProcurementDetailNavigation.TAB_NAME_CONTRACTS)"
+                         name="formContracts"
+                         data-parsley-validate="data-parsley-validate"
+                         data-parsley-excluded="[disabled]"
+                         data-ignore-nullable-values="true"
+                         data-url="@Url.Action("SaveContract", "ProcurementDetail", new { area = "SGP", procurementId = Model.ProcurementId })">
+                        <div data-fake-pagemode="edit">
+                            @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "serializedContractsModel")
+                            @Html.Partial("EditPartial/Contracts/ContractsPartial", Model)
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @section scripts{
+
+        <script type="text/javascript">
+
+            var razor = {
+                ActiveTab: '@Model.ViewContainer["ActiveTab"]',
+                Tabs: {
+                    Detail: '@ProcurementDetailNavigation.TAB_NAME_PROCUREMENT_DETAIL',
+                    Cheklist: '@ProcurementDetailNavigation.TAB_NAME_CHECKLIST',
+                    BiddingDocument: '@ProcurementDetailNavigation.TAB_NAME_BINDING_DOCUMENTS',
+                    Participants: '@ProcurementDetailNavigation.TAB_NAME_PARTICIPANTS',
+                    Contract: '@ProcurementDetailNavigation.TAB_NAME_CONTRACTS'
+                },
+                URLs: {
+                    DownloadDocument: '@Url.Action("DownloadDocument", "DocumentModal", new { area = "" })'
+                },
+                Texts: {
+                    NoResults: '@Localization.GetText("COMMON.SVQ.NoResults")'
+                }
+            };
+
+
+            registerCallback(function () {
+                var list = $('[data-fake-PageMode]');
+
+                list.each(function () {
+                    var item = $(this);
+                    var value = item.attr('data-fake-PageMode');
+                    item.removeAttr('data-fake-PageMode');
+                    item.attr('data-PageMode', value);
+                });
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            });
+
+            /*------- NAVIGATION------- */
+            registerCallback(function () {
+                $(document).ready(function () {
+                    SelectTab(razor.ActiveTab);
+                    $('[dd-tab]:not(.active)').addClass('disabled');
+                });
+            })
+
+            function SelectTab(tabName) {
+                $(String.format('[dd-tab="#{0}"]', tabName)).click();
+            }
+
+            /*  FUNCTION WHICH CALL HIDDEN BUTTON TO ADD NEW DOCUMENT TO TABLE OF DOCUMENT */
+            function AddIDBDocProc(items, type, filenames, source) {
+                var tableId = '#' + source.attr('data-linked-table');
+                var table = $(tableId);
+                var tbody = table.children('tbody');
+                var template = tbody.children(':first');
+                var tableName = source.attr('data-linked-table');
+
+                var docs = [];
+                if (type == 'added') {
+                    items.forEach(function (item, index, list) {
+                        docs.push({ DocumentNumber: item, Description: '' });
+                    });
+                } else {
+                    docs = items;
+                }
+
+                var firstTR = table.find('tbody tr:not(.template):first');
+
+                docs.forEach(function (elem, index, list) {
+                    var newId = table.GenerateNewId();
+
+                    var newTr = template.clone(false);
+
+                    newTr.removeClass('hide');
+                    newTr.removeClass('template');
+                    newTr.attr('data-id', 'new-' + newId);
+
+                    var inputs = newTr.find('input, select, textarea, div.inputSearch.lupa > button, div.dropdown > button');
+                    inputs = inputs.filter(function () {
+                        var input = $(this);
+                        return input.attr('disabled') == 'disabled';
+                    });
+                    inputs.removeAttr('disabled');
+
+                    $(newTr).find('.document-number').text(elem.DocumentNumber);
+                    $(newTr).find('input[name*="DocumentIDBDoc"]').val(elem.DocumentNumber);
+                    $(newTr).find('input[name*="Description"]').val(elem.Description);
+
+                    var choosens = newTr.find('[data-role="drop-multiple"]');
+                    choosens.attr('data-bind', 'true');
+
+                    var datepickers = newTr.find('.hasDatepicker');
+                    datepickers.removeAttr('id');
+
+                    newTr.appendTo(tbody);
+                    bindHandlers(newTr);
+                });
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            }
+
+            registerCallback(function () {
+
+                /*  BUTTON ADD NEW DOCUMENT TO TABLE OF DOCUMENT */
+                $(document).on('click', '[name="addNewRowDoc"]', function () {
+                    var source = $(this);
+
+                    var modalButton = $('[name="btn-open-popup-add-doc"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+
+                    var modalSelector = modalButton.attr('data-new-modal');
+                    var modal = $(modalSelector);
+                    var tab = modal.find('[data-tab-id="add"]');
+                    tab.click();
+                });
+
+                /*Document Number Link*/
+                $(document).on('click', '[name="documentNumberLink"]', function () {
+                    var source = $(this);
+                    var documentNumber = source.closest('tr').find('input[name*="DocumentIDBDoc"]').val();
+                    var url = razor.URLs.DownloadDocument + '?documentNumber=' + documentNumber;
+                    window.open(url, '_blank');
+                });
+
+            });
+
+            /*------- SEARCH SUBNATIONAL------- */
+            var BingMapsKey = "@AppParameter.GetValue("BING_MAP_KEY")";
+            var resultSubnational = [];
+            var newResultSubnational = [];
+            var newOperationSubnational = [];
+            var deleteSubnationalItems = [];
+            var deleteSubnationalCache = [];
+            var newOperation = "XXXX0000";
+
+            function subnationalLevelSearch() {
+                $("#listSubnational").empty();
+                var valorInput = $("[name=subnationalSearch_text]").val();
+                var url = "https://dev.virtualearth.net/REST/v1/Locations?q=";
+                url = url + valorInput + "&key=" + BingMapsKey;
+                url += '&jsonp=?';
+                $.getJSON(url, function (response) {
+                    getListSubnationalLevel(response);
+                });
+                $("#subnationalDropdown").addClass("dropdown open");
+            }
+
+            function okSubnationalLevelSearch(event, source) {
+                var promise = $.Deferred();
+                var itemSelected = source.html();
+                $("#subnationalDropdown").removeClass("dropdown open");
+
+                for (var i = 0; i < resultSubnational.length; i++) {
+                    var item = resultSubnational[i];
+
+                    if (itemSelected == item.value) {
+                        var countryRegion = item.countryRegion;
+                        var adminDistrict = item.adminDistrict;
+                        var locality = item.locality;
+
+                        $('label[data-country="data"]').html("");
+                        $('label[data-state="data"]').html("");
+                        $('label[data-district="data"]').html("");
+                        $('input[name="country"]').val("");
+                        $('input[name="state"]').val("");
+                        $('input[name="district"]').val("");
+
+                        $('label[data-country="data"]').html(countryRegion);
+                        $('label[data-state="data"]').html(adminDistrict);
+                        $('label[data-district="data"]').html(locality);
+
+                        $('input[name="country"]').val(countryRegion);
+                        $('input[name="state"]').val(adminDistrict);
+                        $('input[name="district"]').val(locality);
+                        $('button[name="clear-subnational-data"]').removeClass('hide');
+
+                        itemSelected = "";
+                        $("[name=subnationalSearch_text]").val("");
+                        resultSubnational = [];
+                    }
+                }
+                promise.resolve();
+                return promise;
+            }
+
+            function getListSubnationalLevel(res) {
+                var name = "";
+                if (res.resourceSets.length != 0 && res.resourceSets[0].resources.length > 0) {
+                    var resultados = res.resourceSets[0];
+                    for (var i = 0; i < resultados.resources.length; i++) {
+                        var item = resultados.resources[i];
+
+                        if (item.address.locality == null && item.address.adminDistrict == null) {
+                            name = item.address.countryRegion;
+
+                        } else if (item.address.locality == null) {
+                            name = item.address.adminDistrict + ", " + item.address.countryRegion;
+
+                        } else {
+                            name = item.address.locality + ", " +
+                                item.address.adminDistrict + ", " +
+                                item.address.countryRegion;
+                        }
+
+                        $("#listSubnational").append("<li>" + "<a name='itemSubnational'>" + name + "</a></li>");
+
+                        resultSubnational.push({
+                            value: name,
+                            countryRegion: item.address.countryRegion,
+                            adminDistrict: item.address.adminDistrict,
+                            locality: item.address.locality
+                        });
+                    }
+                } else {
+                    name = razor.Texts.NoResults;
+                    $("#listSubnational").append("<li>" + name + "</li>");
+                }
+            }
+
+            function okClearSubnational() {
+                var promise = $.Deferred();
+                $('label[data-country="data"]').html("");
+                $('label[data-state="data"]').html("");
+                $('label[data-district="data"]').html("");
+                $('input[name="country"]').val("");
+                $('input[name="state"]').val("");
+                $('input[name="district"]').val("");
+                $('button[name="clear-subnational-data"]').addClass('hide')
+                promise.resolve();
+                return promise;
+            }
+
+            registerCallback(function () {
+
+                $(document).on("click", "[name=subnationalSearch_text]", function () {
+                    $("[name=subnationalSearch_text]").val("");
+                    $("#listSubnational").empty();
+                    $("#subnationalDropdown").removeClass("dropdown open");
+                });
+
+                $(document).on("keypress", "[name=subnationalSearch_text]", function (e) {
+                    if (e.which === 13) {
+                        subnationalLevelSearch();
+                    }
+                });
+
+                $(document).on("click", "[name=itemSubnational]", function () {
+                    var source = $(this);
+                    var buttonClear = $('button[name="clear-subnational-data"]');
+                    var itemSelected = $(this).html();
+                    $("#subnationalDropdown").removeClass("dropdown open");
+
+                    var countryVal = $('input[name="country"]').val();
+                    var stateVal = $('input[name="state"]').val();
+                    var districtVal = $('input[name="district"]').val();
+
+                    if ((countryVal == "" || countryVal == undefined)
+                        && (stateVal == "" || stateVal == undefined)
+                        && (districtVal == "" || districtVal == undefined)) {
+
+                        for (var i = 0; i < resultSubnational.length; i++) {
+                            var item = resultSubnational[i];
+
+                            if (itemSelected == item.value) {
+                                var countryRegion = item.countryRegion;
+                                var adminDistrict = item.adminDistrict;
+                                var locality = item.locality;
+
+                                $('label[data-country="data"]').html("");
+                                $('label[data-state="data"]').html("");
+                                $('label[data-district="data"]').html("");
+                                $('input[name="country"]').val("");
+                                $('input[name="state"]').val("");
+                                $('input[name="district"]').val("");
+
+                                $('label[data-country="data"]').html(countryRegion);
+                                $('label[data-state="data"]').html(adminDistrict);
+                                $('label[data-district="data"]').html(locality);
+
+                                $('input[name="country"]').val(countryRegion);
+                                $('input[name="state"]').val(adminDistrict);
+                                $('input[name="district"]').val(locality);
+                                buttonClear.removeClass('hide');
+
+                                itemSelected = "";
+                                $("[name=subnationalSearch_text]").val("");
+                                resultSubnational = [];
+                            }
+                        }
+
+                    } else {
+                        var modalBtn = $('[name="btn-open-popup-subnationalLevelSearch"]');
+                        modalBtn.data('pressed-by', source);
+                        modalBtn.click()
+                    }
+
+                });
+
+                $(document).on("click", "[name=clear-subnational-data]", function () {
+                    var buttonTrash = $(this);
+                    var countryVal = $('input[name="country"]').val();
+                    var stateVal = $('input[name="state"]').val();
+                    var districtVal = $('input[name="district]').val();
+
+                    if ((countryVal == "" || countryVal == undefined)
+                        && (stateVal == "" || stateVal == undefined)
+                        && (districtVal == "" || districtVal == undefined)) {
+
+                        $('label[data-country="data"]').html("");
+                        $('label[data-state="data"]').html("");
+                        $('label[data-district="data"]').html("");
+                        $('input[name="country"]').val("");
+                        $('input[name="state"]').val("");
+                        $('input[name="district]').val("");
+                        buttonTrash.addClass('hide');
+                    } else {
+                        var modalBtn = $('[name="btn-open-popup-clear-subnational"]');
+                        modalBtn.click();
+                    }
+
+                });
+            })
+
+        </script>
+    }
+}

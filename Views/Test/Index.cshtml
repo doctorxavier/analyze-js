@@ -1,0 +1,176 @@
+﻿@using IDB.Presentation.MVC4.Helpers
+
+@model IDB.MW.Application.Core.ViewModels.FormRendering.FormDataViewModel
+
+@{
+    //Layout = "_TestLayout.cshtml";
+    Layout = "~/Areas/Styles/Views/Shared/_Layout.cshtml";
+}
+
+@section Header
+{
+    
+
+ }
+
+<div class="page">
+    <div id="RenderedForm" data-parsley-validate="data-parsley-validate"
+         data-loadurl="@Url.Action("ViewAction", "Test", new { operationNumber = @Request.QueryString["OperationNumber"] })" 
+         data-url="@Url.Action("Save", "Test", new { operationNumber = @Request.QueryString["OperationNumber"] })"
+    >
+          
+        @Html.Partial("Partials/DynamicFormPartial", Model)
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+
+
+        function editForm(source) {
+            enterEditMode(true, $('#RenderedForm'), true);
+            BREngine.Init();
+        }
+
+        function cancelEditForm(source) {
+            exitEditMode(true, $('#RenderedForm'), true, true);
+        }
+
+        function saveForm(source) {
+            var response = saveContainer($('#RenderedForm'), '#hidViewModel');
+            if (response !== false) {
+                response.done(function(data) {
+                    if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != '') {
+                        showMessage(data.ErrorMessage);
+                    }
+                });
+            }
+        }
+
+        function deleteAll(source) {
+            var url = '@Url.Action("DeleteAll", "Test")';
+            var parameters = {
+                operationNumber: "@ViewBag.OperationNumber"
+            };
+            var container = $("#RenderedForm");
+            var reloadOk = false;
+
+
+            postUrlWithOptions(url, { async: true }, parameters)
+                .done(function(responseText, textStatus, jqXHR) {
+
+                    if (responseText.ErrorMessage == undefined) {
+                        if (responseText.ContentHTML == undefined) {
+                            exitEditMode(true, $('#RenderedForm'), true, true);
+                        } else {
+                            container.html(responseText.ContentHTML);
+                        }
+                        reloadOk = jqXHR.status == 200;
+
+                    } else {
+
+                        showMessage(responseText.ErrorMessage);
+                        reloadOk = false;
+                        if (responseText.IsValid != null) {
+                            reloadOk = responseText.IsValid && jqXHR.status == 200;
+                        }
+                        if (responseText.ContentHTML != undefined) {
+                            container.html(responseText.ContentHTML);
+                            reloadOk = jqXHR.status == 200;
+                        }
+                    }
+                })
+                .fail(function(jqXHR) {
+                    reloadOk = jqXHR.status == 200;
+                });
+        }
+    </script>
+
+
+    <script type="text/javascript">
+
+
+        //BusinessRule
+        var BR1 = new Object();
+        BR1.Init = function() {
+
+            //Check if Attributes exits
+            var allAttributesExists = Attributes_Exists("COUNTRIES") && Attributes_Exists("OPEDESC");
+
+            if (allAttributesExists) {
+                var countriesAttribute = Attributes_GetElementByAttributeCode("COUNTRIES");
+                var descriptionAttribute = Attributes_GetElementByAttributeCode("OPEDESC");
+
+                //Events
+                $(countriesAttribute).change(function() {
+                    //$(descriptionAttribute).val($(countriesAttribute).children("option:selected").text());
+                    var country = $(countriesAttribute).val();
+
+                    if (country === "652") {
+                        $(descriptionAttribute).attr("data-parsley-required", "true");
+                    } else {
+                        $(descriptionAttribute).attr("data-parsley-required", "false");
+                    }
+
+                    $('#RenderedForm').parsley().validate();
+                });
+            }
+        };
+
+        var BRHierachicalTextboxes = new Object();
+        BRHierachicalTextboxes.Register = function(parentCode, children) {
+            if (Attributes_Exists(parentCode)) {
+                var parent = Attributes_GetElementByAttributeCode(parentCode);
+                //Events
+                $(parent).change(function() {
+                    var isChecked = $(this).is(":checked");
+                    //Check/Uncheck all children
+                    for (var i = 0; i < children.length; i++) {
+                        var child = Attributes_GetElementByAttributeCode(children[i]);
+                        if (child != null) {
+                            $(child).prop('checked', isChecked);
+                        }
+                    }
+                });
+
+                for (var i = 0; i < children.length; i++) {
+                    var child = Attributes_GetElementByAttributeCode(children[i]);
+                    if (child != null) {
+                        $(child).change(function() {
+                            var isChecked = $(this).is(":checked");
+                            if (isChecked) {
+                                $(parent).prop('checked', isChecked);
+                            }
+                        });
+                    }
+                }
+
+            }
+        };
+
+        BRHierachicalTextboxes.Init = function() {
+            BRHierachicalTextboxes.Register("LPLendingSV", []);
+            BRHierachicalTextboxes.Register("LPPovertyEquityE", ["LPGeoClassif", "LPHeadcount", "LPHeadcount", "LPRatioNetIncome"]);
+            BRHierachicalTextboxes.Register("LPInitiativesEneEnv", ["LPMitigation", "LPAdaptation", "LPSustainableEnergy", "LPEnvSustainability"]);
+            BRHierachicalTextboxes.Register("LPRegCoopInt", ["LPInfrastructure", "LPInstStrDevelop", "LPPublicGoods"]);
+        };
+
+        //BusinessRuleEngine Responsability
+        var BREngine = new Object();
+        BREngine.Init = function() {
+            //alert("Initializing BREngine...");
+            $(document).ready(function() {
+                BR1.Init();
+                BRHierachicalTextboxes.Init();
+            });
+        };
+    </script>
+
+    <style type="text/css">
+        .LendingChild {
+            padding-left: 10px;
+        }
+
+    </style>
+}

@@ -1,0 +1,297 @@
+@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.Architecture.DataTables.Common
+
+
+@model NegotiationViewModel
+
+@{
+
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.CommitFunds)
+        .Name("CommitFunds")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Bound(c => c.Id)
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText(""))
+                .HeaderAttribute("style", "")
+                .Hidden(true);
+            columns.Template(c => approvalNumberText(c))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.ApprovalNumber"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Bound(c => c.OperatinNumber)
+                .Orderable(false)
+                .CssClass("textalign-center w100")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.OperationNumber"))
+                .HeaderAttribute("style", "min-with:100px")
+                .Hidden(false);
+            columns.Bound(c => c.ApprovalCurrency)
+                .Orderable(false)
+                .CssClass("textalign-center w100")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.ApprovalCurrency"))
+                .HeaderAttribute("style", "min-with:100px")
+                .Hidden(false);
+            columns.Template(c => moneyAvailableAmount(c.TotalFundsCurrentlyAvailable, c.IsIdentification))
+                .Orderable(false)
+                .CssClass("textalign-right w200")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FundsAvailableAtStart"))
+                .HeaderAttribute("style", "min-with:200px")
+                .Hidden(false);
+            columns.Template(c => moneyOriginalAmount(c.OriginalProcurementEstimate, c.IsIdentification))
+                .Orderable(false)
+                .CssClass("textalign-right w200")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.OriginalProcurementEstimate"))
+                .HeaderAttribute("style", "min-with:200px")
+                .Hidden(false);
+            columns.Bound(c => c.LMSNumber)
+                .Orderable(false)
+                .CssClass("textalign-center minw95")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.LMSNumber"))
+                .HeaderAttribute("style", "min-with:95px")
+                .Hidden(false);
+            columns.Bound(c => c.CMOCurrency)
+                .Orderable(false)
+                .CssClass("textalign-center w100")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.CMOCurrency"))
+                .HeaderAttribute("style", "min-with:100px")
+                .Hidden(false);
+            columns.Template(c => moneyCMOAmount(c.CMOCurrentAmount))
+                .Orderable(false)
+                .CssClass("textalign-right w200")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.CMOCurrentAmount"))
+                .HeaderAttribute("style", "min-with:200px")
+                .Hidden(false);
+            columns.Template(c => moneyCMOAmount(c.CMOCurrentAmountApproval))
+                .Orderable(false)
+                .CssClass("textalign-right w200")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.CMOCurrentAmountApproval"))
+                .HeaderAttribute("style", "min-with:200px")
+                .Hidden(false);
+            columns.Template(c => ColumnActions(c))
+                .Orderable(false)
+                .CssClass("w100")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("COMMON.Action"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.LastRow, y => subtotalLine(Model.CommitFunds));
+            x.Create(RowTemplateType.AllRows, t => Detail(t));
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<table class="table-transparent">
+    <tbody>
+        <tr>
+            <td class="table-transparent-text">
+                <div class="mb5 aligment">
+                    @Confluence.LabelMainSubTitle(Localization.GetText(
+                        Model.Modality == Modality.Framework
+                            ? "TCP.FirmProcurement.TableTitle.CommitFundsFramework"
+                            : "TCP.FirmProcurement.TableTitle.CommitFunds"))
+                </div>
+                <div class="mb10">
+                    @Confluence.Label(Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommitFundsFinal"))
+                </div>
+                <div class="col-xs-12 pl0 pr0 font-14">
+                    @Confluence.LabelSubTitleGroup(Localization.GetText("TCP.FirmProcurement.TableSubTitle.CommitFunds"))
+                </div>
+            </td>
+            <td class="table-transparent-buttons">
+                @(Html.CollapseAll("collapseAllCommitFundsNeg")
+                    .HtmlClass("floatRight")
+                    .CollapseSingleSelector("[data-name=\"collapseNegTCCommitFundDetail\"]"))
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@Html.Partial("ReadPartial/DatatableCommitFundsLegend")
+
+@helper approvalNumberText(CommitFundRowViewModel row)
+{
+    <div>
+        @Confluence.Label(row.ApprovalNumber)
+    </div>
+}
+
+@helper moneyAvailableAmount(decimal amount, bool isIdentification)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    if (isIdentification)
+    {
+        <div>
+            $ @FormatHelper.Format(amount, formatDecimal)
+        </div>
+    }
+    else
+    {
+        @Confluence.Label(Localization.GetText("COMMON.NotApplicable"))
+    }
+}
+
+@helper moneyOriginalAmount(decimal? amount, bool isIdentification)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    if (isIdentification)
+    {
+        <div>
+            @FormatHelper.Format(amount, formatDecimal)
+        </div>
+    }
+    else
+    {
+        @Confluence.Label(Localization.GetText("COMMON.NotApplicable"))
+    }
+}
+
+@helper moneyCMOAmount(decimal? amount)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+
+    <div>
+        @Confluence.Label(FormatHelper.Format(amount, formatDecimal))
+    </div>
+}
+
+@helper subtotalLine(List<CommitFundRowViewModel> list)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var availableSubtotal = list.Sum(x => x.TotalFundsCurrentlyAvailable);
+    var originalSubtotal = list.Sum(x => x.OriginalProcurementEstimate);
+    var cmoAmountSubtotal = list.Sum(x => x.FinalProcurementAmount);
+    var cmoAmountApprovalCurrencySubtotal = list.Sum(x => x.CMOCurrentAmountApproval);
+    var tableName = "NegCommitFundsNormal";
+
+    <tr class="sumAmountsColor">
+        <td class=" hide"></td>
+        <td class="">
+            @Confluence.Label(text: "Subtotal", htmlClass: "bold")
+        </td>
+        <td class="textalign-center w100" name="operationNumber"> </td>
+        <td class="w100"> </td>
+        <td class="textalign-right w200" name="fundsAvailableAtStart">
+            <div class="bold textalign-right">
+                @Confluence.Label(FormatHelper.Format(availableSubtotal, formatDecimal), htmlClass: "bold TotalFunds-" + tableName)
+            </div>
+        </td>
+        <td class="textalign-right w200" name="originalProcurementStimate">
+            <div class="bold textalign-right">
+                @Confluence.Label(FormatHelper.Format(originalSubtotal, formatDecimal), htmlClass: "bold OriginalFunds-" + tableName)
+            </div>
+        </td>
+        <td class="textalign-center w200"></td>
+        <td class="textalign-center w100"></td>
+        <td class="textalign-right w200">
+            <div class="bold textalign-right">
+                @Confluence.Label(FormatHelper.Format(cmoAmountSubtotal, formatDecimal), htmlClass: "bold FinalCMO-" + tableName)
+            </div>
+        </td>
+        <td class="textalign-right w200">
+            <div class="bold textalign-right">
+                @Confluence.Label(FormatHelper.Format(cmoAmountApprovalCurrencySubtotal, formatDecimal), htmlClass: "bold FinalCMOApproval-" + tableName)
+            </div>
+        </td>
+        <td class="textalign-center w85"></td>
+    </tr>
+}
+@helper ColumnActions(CommitFundRowViewModel row)
+{
+    if ((row.ApprovalNumber != "Subtotal") && (row.ActiveOutputs.Any(x => x.Select) || row.UnactiveOutputs.Any(x => x.Select)))
+    {
+        <div class="textalign-center">
+            @(Html.CollapseSingle("collapseNegTCCommitFundDetail")
+                .AsociatedCollapseAllSelector("[data-name=\"collapseAllCommitFundsNeg\"]")
+                .TargetRegionSelector(x => x.Closest("tr").Next())
+                .HtmlClass("arrow")
+            )
+        </div>
+    }
+}
+
+@helper Detail(CommitFundRowViewModel c)
+{
+    var id = (c.Id < 0 ? "new" : "") + c.Id.ToString(CultureInfo.InvariantCulture);
+
+    if ((c.ApprovalNumber != "Subtotal") && (c.ActiveOutputs.Any(x => x.Select) || c.UnactiveOutputs.Any(x => x.Select)))
+    {
+        <tr data-id="@id" class="extend-custom">
+            <td colspan="10">
+                @if (c.ActiveOutputs.Any(x => x.Select))
+                {
+                    <div class="row">
+                        <div class="col-xs-12">
+                            @Confluence.LabelsGroupExtendAlwayList(
+                                Localization.GetText("TCP.FirmProcurement.TableHeader.ActivedAssociatedOutputs").HtmlEncode(),
+                                Html.MultiDropDown("activeOutputs")
+                                    .Items(c.ActiveOutputs)
+                                    .HtmlClass("w100p")
+                                    .DrawAsItemsSeparatedByCommas()
+                                )
+                        </div>
+                    </div>
+                }
+
+                @if (c.UnactiveOutputs.Any(x => x.Select))
+                {
+                    <div class="row">
+                        <div class="col-xs-12">
+                            @Confluence.LabelsGroupExtendAlwayList(
+                                Localization.GetText("TCP.FirmProcurement.TableHeader.NoActivedAssociatedOutputs").HtmlEncode(),
+                                Html.MultiDropDown("unactiveOutputs")
+                                    .Items(c.UnactiveOutputs)
+                                    .HtmlClass("w100p")
+                                    .DrawAsItemsSeparatedByCommas()
+                                )
+                        </div>
+                    </div>
+                }
+            </td>
+        </tr>
+    }
+}

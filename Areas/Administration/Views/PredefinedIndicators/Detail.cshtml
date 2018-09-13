@@ -1,0 +1,526 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Enumerations
+
+@model int
+@*IDB.MW.Domain.Models.ResultMatrix.CompletePredefinedIndicator*@
+@{
+    ViewBag.Title = "Detail";
+    Layout = "~/Areas/Administration/Views/Shared/_Layout.cshtml";
+}
+
+@section JavaScript
+{
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Administration/PredefinedIndicators/Details.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/knockout-kendo.min.js")"></script>
+<script type="text/javascript" src="@Url.Content("~/Scripts/knockout.validation.min.js")"></script>
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+
+            $("#myModal").kendoWindow({
+                width: "900px",
+                //height: "100px",
+                modal: true,
+                title: '@Localization.GetText("Disaggregations")'
+            }).data("kendoWindow");
+        });
+    </script>
+
+}
+
+@Html.Hidden("hdnpostUriCountries", Url.Action("GetCountries", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriSectors", Url.Action("GetSectors", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriAction", Url.Action("GetDetailIndicator", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriGetTypeIndicators", Url.Action("GetIndicatorTypes", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriActionSave", Url.Action("SavePredefinedIndicatorDetails", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriGetDisaggregations", Url.Action("GetDisaggregations", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriGetResultsFrameWorkSubType", Url.Action("GetResultsFrameWorkSubType", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnpostUriIndex", Url.Action("Index", "PredefinedIndicators", new { area = "Administration" }))
+@Html.Hidden("hdnDisaggregation", Localization.GetText("Disaggregation"))
+@Html.Hidden("hdnActions", Localization.GetText("Actions"))
+@Html.Hidden("hdnDetail", Model)
+@Html.Hidden("hdnYes", Localization.GetText("YES"))
+@Html.Hidden("hdnNo", Localization.GetText("NO"))
+@Html.Hidden("hdnSelect", Localization.GetText("Select..."))
+
+<script type="text/javascript">
+    //remap jQuery to $
+    (function ($) {
+
+        $(document).ready(function () {
+            //KendoDropDownList
+            $('.kendoDropDown').kendoDropDownList();
+            //KendoDatePicker
+            $('.kendoDatePicker').kendoDatePicker();
+
+            minMaxController();
+        });
+
+        function minMaxController() {
+            $(document).on('mousedown', '.minMaxButton', function () {
+                if ($(this).hasClass('plus')) {
+                    $(this).removeClass('plus');
+                    $(this).parent().next('table').find('tbody').slideUp(0);
+                    if ($(this).parent().siblings('div').length > 0) {
+                        $(this).parent().siblings('div').slideUp(0);
+                    }
+                } else {
+                    $(this).addClass('plus');
+                    $(this).parent().next('table').find('tbody').slideDown(0);
+                    if ($(this).parent().siblings('div').length > 0) {
+                        $(this).parent().siblings('div').slideDown(0);
+                    }
+                }
+            });
+        }
+
+    })(window.jQuery);
+</script>
+
+<div id="loader" data-request-url="@Url.ToString()"></div>
+
+<div id="ui_af_009_rf" class="padding20 everisWidth" style="width: auto">
+    <div class="verticalMargin20 h50px relative">
+        <div class="absolute">
+            <h3 class="font2em inline-block boldFont">Pre-defined indicator detail</h3>
+        </div>
+        <div class="absRight absolute">
+            <a href="@Url.Action("Index", "PredefinedIndicators")" class="horizontalPadding10">@Localization.GetText("Cancel")</a>
+            <input type="button" class="button yellowButton btnSave"  value="@Localization.GetText("Save")">
+        </div>
+    </div>
+    <!-- Filter container -->
+    <div class="padding10 grayBackground font08em">
+        <div class="inputContainer h50px">
+            <label for="typeOfIndicator" class="inline-block">Type of indicator</label>
+            <div class="inline-block w50" id="typeOfIndicator">
+                <select style="width: 100%" data-bind="dataTextField: 'NameEn', dataValueField: 'NameEn', kendoDropDown: ListIndicatorTypes, value: $root.Indicator.TypeText, dropDownOptions: {optionLabel: '@Localization.GetText("Select...")', enable: CanEditTypeIndicator()}"></select>
+            </div>
+        </div>
+    </div>
+    <div class="inputContainer" data-bind="visible : $root.VisibleRF()">
+        <!-- ko foreach: ResultsFrameWorkSubType -->
+        <input type="radio" style="background-image: url('../../../../Images/controls/checkboxWhite.png')" name="format" data-bind="checkedValue: Id, checked: $root.Indicator.ResultsFrameWorkSubType, class:'fancy-radio'" />
+        <label data-bind="text: NameEn"></label>
+        <!-- /ko -->
+    </div>
+    <!-- End RF -->
+    <!-- Country -->
+    <div class="relative verticalMargin40" data-bind="visible : $root.VisibleCountry()">
+
+        <table class="grid w95">
+            <thead>
+                <tr>
+                    <th>
+                        @Localization.GetText("Country")
+                    </th>
+                    <th>
+                        @Localization.GetText("Effective Date")
+                    </th>
+                    <th colspan="2">
+                        @Localization.GetText("Expiration Date")
+                    </th>
+                </tr>
+            </thead>
+            <tbody data-bind="foreach : Indicator.Countries">
+                <tr>
+                    <td>
+                        <select class="inline-block" style="width: 100%" data-bind="kendoDropDown: $parent.Countries, value: $data.Id, dataValueField:'Id', dataTextField: 'NameEn',dropDownOptions: {optionLabel: '@Localization.GetText("Select...")'}"></select>
+                    </td>
+                    <td>
+                        <input type="text" placeholder="DD Mm YY" data-bind="kendoDatePicker: {value : $data.EffectiveDate, format: 'dd/MM/yy', parseFormats:'MM/dd/yy', min: $root.minDate}">
+                    </td>
+                    <td>
+                        <input type="text" placeholder="DD Mm YY" data-bind="kendoDatePicker: {value : $data.ExpirationDate, format: 'dd/MM/yy', parseFormats:'MM/dd/yy', min: $root.minDate}">
+                    </td>
+                    <td>
+                        <input type="button" data-bind="click : $root.RemoveCountry" class="operationButton removeIcon">
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="centerAlign addOneWrapper centerContent verticalMargin20 w40">
+            <div class="addOneContainer w100 h100">
+                <input type="button" value="Add new" class="noBorder noPadding addOne cursorPointer w100" data-bind="click : AddCountry" />
+            </div>
+        </div>
+
+    </div>
+    <!-- End Country -->
+    <!-- Sector -->
+    <div class="inputContainer" data-bind="visible : $root.VisibleSector()">
+        <table class="grid w95">
+            <thead>
+                <tr>
+                    <th>
+                        @Localization.GetText("Sector")
+                    </th>
+                    <th>
+                        @Localization.GetText("Effective Date")
+                    </th>
+                    <th colspan="2">
+                        @Localization.GetText("Expiration Date")
+                    </th>
+                </tr>
+            </thead>
+            <tbody data-bind="foreach : Indicator.Sectors">
+                <tr>
+                    <td>
+                        <select class="inline-block" style="width: 100%" data-bind="kendoDropDown: $parent.Sectors, value: $data.Id, dataValueField:'Id', dataTextField: 'NameEn',dropDownOptions: {optionLabel: '@Localization.GetText("Select...")'}"></select>
+                    </td>
+                    <td>
+                        <input type="text" placeholder="DD Mm YY" data-bind="kendoDatePicker: {value : $data.EffectiveDate, format: 'dd/MM/yy', parseFormats:'MM/dd/yy', min: $root.minDate}">
+                    </td>
+                    <td>
+                        <input type="text" placeholder="DD Mm YY" data-bind="kendoDatePicker: {value : $data.ExpirationDate, format: 'dd/MM/yy', parseFormats:'MM/dd/yy', min :$root.minDate}">
+                    </td>
+                    <td>
+                        <input type="button" data-bind="click : $root.RemoveSector" class="operationButton removeIcon">
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="centerAlign addOneWrapper centerContent verticalMargin20 w40">
+            <div class="addOneContainer w100 h100">
+                <input type="button" value="Add new" class="noBorder noPadding addOne cursorPointer w100" data-bind="click : AddSector" />
+            </div>
+        </div>
+    </div>
+    <!-- End Sector -->
+    <!-- RF -->
+    <!-- End filter container -->
+    <!-- Indicator Detail -->
+    <div class="verticalMargin40">
+        <div class="font08em">
+            <div class="relative h50px">
+                <div class="absolute w45 left3">
+                    <div class="inputContainer">
+                        <label for="indicatorName" class="inline-block w24">Indicator Number</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="indicatorNumber" data-bind="value : Indicator.IndicatorNumber"/>
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute w45 absRight right3">
+                    <div class="inputContainer">
+                        <label for="priorityArea" class="inline-block w24">Priority area</label>
+                        <div class="inline-block w65">
+                            <select class="inline-block kendoDropDown" data-bind="kendoDropDownList: { dataTextField: 'NameEn', dataValueField: 'Id', data: Indicator.PriorityAreas, value: Indicator.PriorityAreaId, optionLabel: '@Localization.GetText("Select...")'  }"></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="font08em">
+            <div class="relative h50px">
+                <div class="absolute w45 left3">
+                    <div class="inputContainer">
+                        <label for="indicatorNameES" class="inline-block w24">Indicator name ES</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="indicatorNameES" data-bind="value : Indicator.NameEs" />
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute w45 absRight right3">
+                    <div class="inputContainer">
+                        <label for="unitOfMeasureES" class="inline-block w24">Unit of measure ES</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="unitOfMeasureES" data-bind="value : Indicator.UnitOfMeasureEs" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="font08em">
+            <div class="relative h50px">
+                <div class="absolute w45 left3">
+                    <div class="inputContainer">
+                        <label for="indicatorNameEN" class="inline-block w24">Indicator name EN</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="indicatorNameEN" data-bind="value : Indicator.NameEn" />
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute w45 absRight right3">
+                    <div class="inputContainer">
+                        <label for="unitOfMeasureEN" class="inline-block w24">Unit of measure EN</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="unitOfMeasureEN" data-bind="value : Indicator.UnitOfMeasureEn" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="font08em">
+            <div class="relative h50px">
+                <div class="absolute w45 left3">
+                    <div class="inputContainer">
+                        <label for="indicatorNamePO" class="inline-block w24">Indicator name PO</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="indicatorNamePO" data-bind="value : Indicator.NamePt" />
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute w45 absRight right3">
+                    <div class="inputContainer">
+                        <label for="unitOfMeasurePO" class="inline-block w24">Unit of measure PO</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="unitOfMeasurePO" data-bind="value : Indicator.UnitOfMeasurePt" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="font08em">
+            <div class="relative h50px">
+                <div class="absolute w45 left3">
+                    <div class="inputContainer">
+                        <label for="indicatorNameFR" class="inline-block w24">Indicator name FR</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="indicatorNameFR" data-bind="value : Indicator.NameFr" />
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute w45 absRight right3">
+                    <div class="inputContainer">
+                        <label for="unitOfMeasureFR" class="inline-block w24">Unit of measure FR</label>
+                        <div class="inline-block w65">
+                            <input class="grayBorder w98" type="text" id="unitOfMeasureFR" data-bind="value : Indicator.UnitOfMeasureFr" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="font08em">
+            <div class="relative h50px">
+                <div class="absolute w45 left3">
+                    <div class="inputContainer">
+                        <label for="effectiveDate" class="inline-block verticalAlignMiddle w24">
+                            @Localization.GetText("Effective date")
+                        </label>
+                        <div class="inline-block verticalAlignMiddle w34">
+                            <input type="text" placeholder="DD Mm YY" data-bind="kendoDatePicker: {value : Indicator.EffectiveDate, format: 'dd/MM/yy', parseFormats:'MM/dd/yy', min: minDate, start:minDate}">
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute w45 absRight ">
+                    <div class="inputContainer">
+                        <label for="expirationDate" class="inline-block verticalAlignMiddle w24">@Localization.GetText("Expiration date")</label>
+                        <div class="inline-block verticalAlignMiddle w34">
+                            <input type="text" placeholder="DD Mm YY" data-bind="kendoDatePicker: {value : Indicator.ExpirationDate, format: 'dd/MM/yy', parseFormats:'MM/dd/yy', min : minDate}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- End Indicator Detaril-->
+    <!-- Technical Fields-->
+    <div class="leftMargin10 relative paddingLeft20">
+        <div class="minMaxButtonContainer absolute">
+            <input class="minMaxButton cursorPointer plus" type="button" value="" />
+        </div>
+        <table id="tableTecnicalFields" class="grid w100">
+            <thead>
+                <tr>
+                    <th>@Localization.GetText("Technical Fields")</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <table class="w100">
+                            <tbody>
+                                <tr>
+                                    <td style="width: 33%">
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <select class="inline-block" style="width: 100%" data-bind="kendoDropDownList: { dataTextField: 'NameEn', dataValueField: 'Value', data: $root.Yesno, value: $data.TechnicalFields().MDF.Value , optionLabel: '@Localization.GetText("Select ")' + $data.TechnicalFields().MDF.NameEn()}"></select>
+                                        </div>
+                                    </td>
+                                    <td style="width: 33%">
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().DISSAG.NameEn }, value:$data.TechnicalFields().DISSAG.Value" />
+                                        </div>
+
+                                    </td>
+                                    <td style="width: 33%">
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().RELATOUTP.NameEn }, value:$data.TechnicalFields().RELATOUTP.Value" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().BASEL.NameEn }, value:$data.TechnicalFields().BASEL.Value" />
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().SOURC.NameEn }, value:$data.TechnicalFields().SOURC.Value" />
+                                        </div>
+
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().REGGOAL.NameEn }, value:$data.TechnicalFields().REGGOAL.Value" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().BASELYEAR.NameEn }, value:$data.TechnicalFields().BASELYEAR.Value" />
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().PERIOD.NameEn }, value:$data.TechnicalFields().PERIOD.Value" />
+                                        </div>
+
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <select class="inline-block" style="width: 100%" data-bind="kendoDropDownList: { dataTextField: 'NameEn', dataValueField: 'Value', data: $root.Yesno, value: $data.TechnicalFields().OTHERORG.Value, optionLabel: '@Localization.GetText("Select ")' + $data.TechnicalFields().OTHERORG.NameEn() }"></select>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().TARGET.NameEn }, value:$data.TechnicalFields().TARGET.Value" />
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().PRIORAREA.NameEn }, value:$data.TechnicalFields().PRIORAREA.Value" />
+                                        </div>
+
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().ORGAN.NameEn }, value:$data.TechnicalFields().ORGAN.Value" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().TARGERYEAR.NameEn }, value:$data.TechnicalFields().TARGERYEAR.Value" />
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().LINKAREA.NameEn }, value:$data.TechnicalFields().LINKAREA.Value" />
+                                        </div>
+
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().ASSUM.NameEn }, value:$data.TechnicalFields().ASSUM.Value" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="inline-block verticalAlignMiddle w100">
+                                            <input class="grayBorder verticalAlignMiddle w98 padding5" type="text" data-bind="attr: {placeholder: $data.TechnicalFields().RATION.NameEn }, value:$data.TechnicalFields().RATION.Value" />
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <!-- End Technical Fields-->
+    <!-- Disaggregations-->
+    <div class="leftMargin10 relative paddingLeft20 verticalMargin10">
+        <div class="minMaxButtonContainer absolute">
+            <input class="minMaxButton cursorPointer plus" type="button" value="" />
+        </div>
+        <table id="tableDisaggregation" class="grid w100">
+            <thead class="width: 100%">
+                <tr>
+                    <th>@Localization.GetText("Disaggregation")</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="paddingRight0 noBackground">
+                        <table class="subGrid w100">
+                            <thead>
+                                <tr>
+                                    <th colspan="2">@Localization.GetText("Disaggregation")</th>
+                                </tr>
+                            </thead>
+                            <tbody data-bind="foreach : Indicator.Disaggregations">
+                                <tr>
+                                    <td>
+                                        <span data-bind="text : NameEn" />
+                                    </td>
+                                    <td>
+                                        <input type="button" data-bind="click : $root.removeDisaggregation" class="operationButton removeIcon">
+                                    </td>
+
+                                </tr>
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="centerAlign addOneWrapper centerContent verticalMargin20 w40">
+            <div class="addOneContainer w100 h100">
+                <input type="button" value="Add new" class="noBorder noPadding addOne cursorPointer w100" id="btnNewDisaggregation" />
+            </div>
+        </div>
+    </div>
+    <!-- End Disaggregations-->
+    <!-- Modal Disaggregations-->
+    <div id="myModal" style="display:none">
+        <div>
+            <table class="subGrid w95">
+                <thead>
+
+                </thead>
+                <tbody data-bind="foreach : $root.itemsOnCurrentPage">
+                    <tr>
+                        <td>
+                            <input type="checkbox" data-bind="checkedValue: $data.Id, checked: $root.SelectedDisaggregations()" />
+                        </td>
+                        <td>
+                            &nbsp;&nbsp;<span data-bind="text : NameEn" />
+                        </td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="7">
+                            <button data-bind="click: previousPage" class="btn"><i class="icon-step-backward"></i></button>
+                            &nbsp;@Localization.GetText("Page")<label data-bind="text: currentPageIndex() + 1" class="badge"></label>&nbsp;
+                            <button data-bind="click: nextPage" class="btn"><i class="icon-step-forward"></i></button>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div>
+            <button type="button" class="btn btn-primary" id="btnAcceptDisaggregation">@Localization.GetText("Accept")</button>
+        </div>
+    </div>
+    <!-- End Modal Disaggregations-->
+
+    <div class="rightAlign w100 verticalMargin40">
+        <a href="@Url.Action("Index", "PredefinedIndicators")" class="horizontalPadding10">@Localization.GetText("Cancel")</a>
+        <input type="button" class="button yellowButton btnSave" value="@Localization.GetText("Save")">
+    </div>
+</div>
+
+
+
+
+

@@ -1,0 +1,128 @@
+@using System.Globalization;
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Controllers
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.MW.Application.BEOProcurementModule.Enums
+
+@model ExecutionFRWViewModel
+
+@{
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+
+    var config = Html.RenderDataTable(Model.Sanctions)
+        .Name("Sanctions")
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.Id.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => ColumnTaskNumber(c))
+                .Orderable(false)
+                .CssClass("exeSanctionNoPerformTaskNumber")
+                .CssHeaderClass("exeSanctionNoPerformTaskNumber")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TaskProcurementId"))
+                .Hidden(false);
+            columns.Bound(c => c.Firm)
+                .Orderable(false)
+                .CssClass("exeSanctionNonPerformFirm")
+                .CssHeaderClass("exeSanctionNonPerformFirm")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.Firm"))
+                .Hidden(false);
+            columns.Bound(c => c.TaskName)
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TaskName"))
+                .Hidden(false);
+            columns.Bound(c => c.StartDate != null ? FormatHelper.Format(c.StartDate, formatDate) : string.Empty)
+                .Orderable(false)
+                .CssClass("textalign-center colDate")
+                .CssHeaderClass("colDate")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.SanctionStartDate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Bound(c => c.StartDate != null ? FormatHelper.Format(c.EndDate, formatDate) : string.Empty)
+                .Orderable(false)
+                .CssClass("textalign-center colDate")
+                .CssHeaderClass("colDate")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.SanctionEndDate"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+        });
+    config.TableClass = "tableNormal";
+}
+
+<div class="row mb5">
+    <div class="col-xs-11">
+        <div class="mb5 aligment">
+            @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.SanctionsNonPerformance"))
+        </div>
+    </div>
+</div>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper ColumnTaskNumber(SanctionsRowViewModel row)
+{
+    var tabName = FirmProcurementController.TAB_NAME_IDENTIFICATION;
+
+    var masterCollection = (CustomEnumDictionary<MasterDataViewModel>)ViewBag.CMDCollection;
+    if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Identification, row.TaskStageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_IDENTIFICATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Preparation, row.TaskStageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_PREPARATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Evaluation, row.TaskStageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_EVALUATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Negotiation, row.TaskStageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_NEGOTIATION;
+    }
+    else if (CheckIdInConvergence(masterCollection, ProcurementStageEnum.Execution, row.TaskStageId))
+    {
+        tabName = FirmProcurementController.TAB_NAME_EXECUTION;
+    }
+
+    var url = Url.Action("Read", "FirmProcurement", new
+    {
+        area = "Procurement",
+        operationNumber = row.TaskOperationNumber,
+        procurementId = row.Id,
+        tabName = tabName
+    });
+
+    @Confluence.LabelLink(row.TaskNumber, dataNavigation: url)
+}
+
+
+@functions{
+    static bool CheckIdInConvergence(CustomEnumDictionary<MasterDataViewModel> convergence, Enum enumValue, int masterId)
+    {
+        if (!convergence.ContainsKey(enumValue))
+        {
+            return false;
+        }
+
+        return convergence[enumValue].MasterId == masterId;
+    }
+}

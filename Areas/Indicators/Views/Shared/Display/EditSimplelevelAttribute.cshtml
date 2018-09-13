@@ -1,0 +1,276 @@
+﻿@using System.Globalization
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+@using IDB.Presentation.MVC4.Areas.Indicators.Models
+@using IDB.MW.Application.IndicatorsModuleNew.ViewModels.Core
+
+@model SimpleLevelAttributeViewModel
+
+
+@{
+    var idPrefix = "";
+    var isNew = Model.Categories.Any(x => x.CategoryId == 0);
+    if(isNew)
+    {
+        idPrefix = "new-";
+        var i = 1;
+        foreach(var category in Model.Categories)
+        {
+            category.CategoryId = i;
+            i++;
+        }
+    }
+
+    var config = Html.RenderDataTable(Model.Categories);
+    config.Name(Model.Name)
+    .PrimaryKey(x => idPrefix + x.CategoryId.ToString(CultureInfo.InvariantCulture))
+    .AddPrimaryKeyToName(false)
+    .UsePageMode(false)
+    .UseDataTableNet(false)
+    .Columns(c =>
+    {
+        if(Model.ShowOrderColumn)
+        {
+            c.Template(OrderColumn).Header("#");
+        }
+        c.Template(x => Confluence.InputText(x.NameEn, Model.Name + "-categoryEn", maxLength : 140, required : Model.LanguageEnRequired, expReg : Model.ExpReg)).Persistent().HeaderTemplate(LabelRequered("Common.Languaje.English", Model.LanguageEnRequired));
+        c.Template(x => Confluence.InputText(x.NameEs, Model.Name + "-categoryEs", maxLength : 140, required : Model.LanguageEsRequired, expReg : Model.ExpReg)).Persistent().HeaderTemplate(LabelRequered("Common.Languaje.Spanish", Model.LanguageEsRequired));
+        c.Template(x => Confluence.InputText(x.NameFr, Model.Name + "-categoryFr", maxLength : 140, required : Model.LanguageFrRequired, expReg : Model.ExpReg)).Persistent().HeaderTemplate(LabelRequered("Common.Languaje.French", Model.LanguageFrRequired));
+        c.Template(x => Confluence.InputText(x.NamePt, Model.Name + "-categoryPt", maxLength : 140, required : Model.LanguagePtRequired, expReg : Model.ExpReg)).Persistent().HeaderTemplate(LabelRequered("Common.Languaje.Portuguese", Model.LanguagePtRequired));
+        c.Template(x => DrawActions(x, isNew)).Persistent().HeaderAttribute("style", "width:160px; min-width:160px;");
+    })
+    .RowTemplates(x =>
+    {
+        x.Create(RowTemplateType.FirstRow, DrawCategoryTemplate);
+    });
+
+    config.TableClass = "tableNormal";
+}
+
+
+@helper OrderColumn(AttributeCategoryViewModel model)
+{
+    
+    if(model == null)
+    {
+        model = new AttributeCategoryViewModel();
+    }
+
+    @Confluence.InputText(model.Code, Model.Name + "-code", required : false, htmlClass : "hide")
+    <span>@(model.Code)</span>
+
+}
+
+@helper DrawCategoryTemplate(AttributeCategoryViewModel model)
+{
+    <tr class="template">
+        @if(Model.ShowOrderColumn)
+        {
+            <td>@OrderColumn(model)</td>
+        }
+        <td>@Confluence.InputText("", Model.Name + "-categoryEn", maxLength : 140, disabled : true, required : Model.LanguageEnRequired, expReg : Model.ExpReg)</td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryEs", maxLength : 140, disabled : true, required : Model.LanguageEsRequired, expReg : Model.ExpReg)</td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryFr", maxLength : 140, disabled : true, required : Model.LanguageFrRequired, expReg : Model.ExpReg)</td>
+        <td>@Confluence.InputText("", Model.Name + "-categoryPt", maxLength : 140, disabled : true, required : Model.LanguagePtRequired, expReg : Model.ExpReg)</td>
+        <td>
+            @DrawActions(null, true)
+        </td>
+    </tr>
+}
+
+@helper DrawActions(AttributeCategoryViewModel model, bool isNew)
+{
+    var textDisabled = Localization.GetText("Common.Disabled");
+
+    if(isNew || model.IsDraft)
+    {
+        <span>
+            @Confluence.InputCheckbox(false, name : Model.Name + "-disabled", label : textDisabled)
+        </span>
+        <span class="button-trash-CategoryOneLevel">
+            @Confluence.ButtonTrash("", name : Model.Name + "-removeCategory")
+        </span>
+    }
+    else
+    {
+        <span>
+            @Confluence.InputCheckbox(!model.IsEnabled, name : Model.Name + "-disabled", label : textDisabled)
+        </span>
+    }
+}
+
+@helper LabelRequered(string label, bool languageRequired)
+{
+    @Localization.GetText(label)
+    if(languageRequired)
+    {
+        @Confluence.LabelAsterisk()
+    }
+}
+
+<div class="row mb16">
+    <div class="col-md-12">
+        @Confluence.LabelSubTitleGroup(Localization.GetText(Model.TitleKey))
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+
+        @if(Model.ShowNotificationDelete)
+        {
+            <div id="@Model.Name-warning-remove" class="hide modalBody">
+                @Localization.GetText("IM.TemplatesList.WarningRemove")
+            </div>
+            @Display.AddModalButton(new ModalViewModel(contentSelector : "#" + Model.Name + "-warning-remove",
+                            title : Localization.GetText("COMMON.Warning"),
+                            type : CssClass.ModalWarningNoIcon,
+                            moveOriginalContent : true,
+                            name : Model.Name + "-open-warning-btn",
+                            closeOnOverlay : false,
+                            allowClose : true,
+                            actionOnClose : "")
+            .AddButton(name : "cancel-delete",
+                            text : Localization.GetText("COMMON.Cancel"),
+                            type : CssClass.ButtonLink,
+                            callback : "")
+            .AddButton(name : "confirm-delete",
+                            text : Localization.GetText("COMMON.Ok"),
+                            type : CssClass.Button01,
+                            callback : Model.Name + "ConfirmRemove",
+                            closeAtEnd : true))
+        }
+
+        @Html.Partial("Controls/DataTable", config)
+
+    </div>
+</div>
+
+<div class="row row-body-40">
+    <div class="col-md-12 mt20 text-center">
+        @Confluence.ButtonAddNewRows(Localization.GetText(Model.NewButtonKey), Model.Name, name : Model.Name + "-newCategory")
+    </div>
+</div>
+
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+        registerCallback(function () {
+            var showNotificationDelete = '@Model.ShowNotificationDelete' == 'True';
+            var isNew = '@isNew' == 'True';
+            var showOrder = '@Model.ShowOrderColumn' == 'True';
+
+            var buttonSelector = '[name="@Model.Name-newCategory"]';
+            var tableSelector = '#@Model.Name';
+            if (isNew) {
+                var table = $(tableSelector);
+                var totalElements = table.children('tbody').children('[data-id]').length;
+                $(buttonSelector).GenerateNewId(totalElements - 1);
+            }
+
+            function customEnableContainer(container) {
+                var inputs = container.find('input, select, textarea');
+
+                inputs.removeAttr('disabled');
+
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+                initParsley();
+            }
+
+            function addAttributesToInputs(container, attributeName, attributeValue) {
+                var inputs = container.find('input, select, textarea');
+                inputs.attr(attributeName, attributeValue);
+            }
+
+            $(document).on('click', '[name="@(Model.Name + "-newCategory")"]', function (e) {
+                var source = $(this);
+                var newId = source.GenerateNewId();
+                var table = $('#@Model.Name');
+                var trToClone = table.find('tbody tr:first');
+                var newTr = trToClone.clone(false);
+
+                newTr.appendTo(table.find('tbody'));
+                newTr.removeClass('template');
+                newTr.removeClass('hide');
+                newTr.attr('data-id', String.format('new-{0}', newId));
+
+                if (newTr.find('input[data-persist-parent-id]').length == 0) {
+                    var parentId = newTr.parents('tr').prev().attr('data-id');
+                    addAttributesToInputs(newTr, 'data-persist-parent-id', parentId);
+                }
+                
+                if (showOrder) {
+                    @(Model.Name)ReassingOrderNumber();
+                }
+
+                customEnableContainer(newTr);
+            });
+
+            if (showNotificationDelete) {
+                $(document).on('click', '[name="@(Model.Name + "-removeCategory")"]', function (e) {
+                    var source = $(this);
+                    source.blur();
+
+                    var modalButton = $('[name="@Model.Name-open-warning-btn"]');
+
+                    modalButton.data('pressed-by', source);
+                    modalButton.click();
+                });
+            } else {
+                $(document).on('click', '[name="@(Model.Name + "-removeCategory")"]', function (e) {
+                    var source = $(this);
+                    @(Model.Name)ConfirmRemove(e, source);
+                });
+            }
+
+        });
+
+        function @(Model.Name)ReassingOrderNumber() {
+
+            var table = $('#@Model.Name');
+            var trList = table.find('> tbody > tr:not(.template)');
+
+            var totalElements = trList.length;
+            var maxDigits = totalElements.toString().length;
+
+            var ceros = "";
+            for (var i = 0; i < maxDigits; i++) {
+                ceros = ceros + "0";
+            }
+
+            for (var i = 1; i <= trList.length; i++) {
+                var tr = $(trList[i-1]);
+
+                var number = (ceros + i).slice(-maxDigits);
+
+                var orderSpan = tr.children(':first').find('span')
+                var orderInput = tr.children(':first').find('input')
+
+                orderSpan.html(number);
+                orderInput.val(number);
+            }
+        }
+
+        function @(Model.Name)ConfirmRemove(e, source) {
+            var promise = $.Deferred();
+            var showOrder = '@Model.ShowOrderColumn' == 'True';
+
+            var tr = source.closest('tr');
+            tr.remove();
+            promise.resolve();
+
+            if (showOrder) {
+                @(Model.Name)ReassingOrderNumber();
+            }
+
+            return promise;
+        }
+    </script>
+                                    )

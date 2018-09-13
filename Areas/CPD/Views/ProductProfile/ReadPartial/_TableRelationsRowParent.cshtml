@@ -1,0 +1,151 @@
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using System.Globalization
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Domain.Values
+
+@model IDB.MW.Application.OPUSModule.ViewModels.Common.RelatedOperationRowViewModel
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+    var operTypeCode = ViewData.ContainsKey("OperTypeCode") ?
+        (string)ViewData["OperTypeCode"] : string.Empty;
+}
+
+<tr data-id="@Model.RowId">
+    <td class="tree"><span></span><span class="selected"></span></td>
+    <td>@GetLinkNumberOperation(Model.Number)</td>
+    <td>@Confluence.Label(Model.Name)</td>
+    <td class="center">@Confluence.Label(Model.OperationTypeCode)</td>
+    <td hidden="hidden">@Confluence.Label(Model.RelationshipNumber)</td>
+    <td hidden="hidden">@Confluence.Label(Model.RelationshipType)</td>
+    <td>@Confluence.Label(Model.Modality)</td>
+    <td>@Confluence.Label(Model.RelationshipRole)</td>
+    <td>@Confluence.Label(Model.OverallStage)</td>
+    <td class="text-right">@Confluence.LabelDecimal(Model.TotalAmount)</td>
+    <td class="text-right">@Confluence.LabelDecimal(Model.TotalCPDAmount)</td>
+    <td class="text-center">
+        <div data-pagemode="read">
+            @Confluence.ButtonShowRow(dataAttributes: new Dictionary<string, string>() { { "idb-fieldname", "btnShowRowRltdOp" } })
+        </div>
+        <div data-pagemode="edit">
+            @GetRelatedExpandedButton(
+                "relationsTable", Model.RowId, "removeRelatedOperation", operTypeCode)
+        </div>
+    </td>
+    <td hidden="hidden">
+        <div data-pagemode="read">@Model.RowId</div>
+        <div data-pagemode="edit">
+            @Confluence.ListHelpers(new List<HelperResult>()
+            {
+                Confluence.InputText(Model.IsNew ? "0" : Model.RowId.ToString(), "relatedOperationId"),
+                Confluence.InputText(
+                    Model.OperationRelationshipId.ToString(), "relatedOperationRelationshipId"),
+                Confluence.InputText(Model.OperationRelatedId.ToString(), "OperationRelatedId"),
+                Confluence.InputText(Model.RelationshipRoleId.ToString(), "relatedRelationRoleId"),
+                Confluence.InputText(Model.RelationshipTypeId.ToString(), "relatedRelationTypeId"),
+                Confluence.InputText(
+                    Model.RelationShipRoleThisOperationId.ToString(),"RelationShipRoleThisOperationId"),
+                Confluence.InputDatePicker(
+                    Convert.ToDateTime(Model.StartDate), "relatedStartDate", formatDate),
+                Confluence.InputText(
+                    Model.EndDate == DateTime.MinValue ? string.Empty : Model.EndDate.ToString(),
+                    "relatedEndDate",
+                    required: false),
+                Confluence.InputText(Model.UserCommentId.ToString(), "relatedUserCommentId"),
+                Confluence.InputText(Model.OperationTypeCode, "operationTypeCode", required: false),
+                Confluence.InputText(Model.RelationTypeCode, "relationTypeCode", required: false)
+            })
+        </div>
+    </td>
+</tr>
+@OperationDataBasicRowComment(@Model)
+
+@helper GetLinkNumberOperation(string numberOperation)
+{
+    string url = string.Empty;
+
+    if (numberOperation.Substring(0, 2).Equals("DF"))
+    {
+        url = Globals.GetSetting("BasePath") + OPUSGlobalValues.DraftAddress + numberOperation;
+    }
+    else
+    {
+        url = Globals.GetSetting("BasePath") + "/Operation/" + numberOperation;
+    }
+
+    <a href=@url target="_parent" style="text-decoration: underline">@numberOperation</a>
+}
+
+@helper GetRelatedExpandedButton(string tableName, int rowId, string dataAction, string operType)
+{
+
+    if (operType != OperationType.CIP
+        && operType != OperationType.ESW
+        && !Model.RelationshipNumber.Contains(RelationTypeCode.PKWP))
+    {
+        @Confluence.ButtonTrash(
+            null,
+            null,
+            dataAction,
+            dataAttributes: new Dictionary<string, string>()
+            {
+                {
+                    "idb-fieldname", "btnRemoveRltdOp"
+                }
+            })
+    }
+
+    @Confluence.ButtonShowRow(
+        dataAttributes: new Dictionary<string, string>()
+        {
+            {
+                "idb-fieldname", "btnShowRowRltdOp"
+            }
+        })
+}
+
+@helper OperationDataBasicRowComment(
+    IDB.MW.Application.OPUSModule.ViewModels.Common.RelatedOperationRowViewModel row)
+{
+    <tr data-persist="true" data-row-parent-id="@row.RowId" data-second-file="true">
+        <td class="tree"><span></span></td>
+        <td colspan="9">
+            <div class="row row-header">
+                <div class="col-md-12">
+                    <p>@Localization.GetText("OP.OD.TabBasicData.RelatedOperations.Comments").HtmlEncode()</p>
+                </div>
+            </div>
+            <div class="row row-body-40">
+                <div data-pagemode="read">
+                    <div class="col-md-8">
+                        <p>
+                            <b>
+                                @row.Comments.HtmlEncode()
+                            </b>
+                        </p>
+                    </div>
+                </div>
+                <div data-pagemode="edit">
+                    <div class="col-md-8">
+                        @Confluence.InputTextArea(
+                            row.Comments,
+                            "relatedComments",
+                            required: false,
+                            width: "100%",
+                            dataAttributes: new Dictionary<string, string>() {
+                                {
+                                    "idb-fieldname", "txaRltdComments"
+                                } })
+                        <br />
+                        @Confluence.ButtonTrash(null, null, "deleteComentOperationRelated",
+                            dataAttributes: new Dictionary<string, string>() {
+                                {
+                                    "idb-fieldname", "btnRemoveRltdComm"
+                                } })
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+}

@@ -1,0 +1,217 @@
+﻿@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MVCControls.General.Helpers
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MW.Application.MrBlueModule.ViewModels.SupervisionReport
+@using IDB.Architecture.Language
+@using System.Globalization
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.MVCControls.DataTable.Models
+
+@model SupervisionReportStep2ViewModel
+
+<div class="row row-header">
+    <div class="col-md-12">
+        @Confluence.LabelSubTitleGroup(Localization.GetText("MrBlue.SupervisionReport.EnvironmentalAndSocialPerformanceItems"))
+    </div>
+</div>
+<div class="row mb20">
+    <div class="col-md-12">
+        @{
+            var config = Html.RenderDataTable(Model.SupervisionReportESPI);
+            config.Name("espiTable")
+                .PrimaryKey(c => c.RowId.ToString(CultureInfo.InvariantCulture))
+                .AddPrimaryKeyToName(false)
+                .Columns(columns =>
+                {
+                    columns.Template(EspiType)
+                    .Persistent()
+                    .Header(Localization.GetText("Type"));
+
+                    columns.Template(EspiRating)
+                    .Persistent()
+                    .Header(Localization.GetText("MrBlue.SupervisionReport.Rating"));
+
+                    columns.Bound(c => c.RatingJustification.Length > 20 ? c.RatingJustification.Substring(0, 20) + "..." : c.RatingJustification)
+                    .Persistent()
+                    .Header(Localization.GetText("MrBlue.SupervisionReport.RatingJustification")).CssHeaderClass("tamFixedCol150")
+                    .ColumnName("ratingJustification");
+
+                    columns.Bound(c => c.Comments.Length > 20 ? c.Comments.Substring(0, 20) + "..." : c.Comments)
+                    .Persistent()
+                    .Header(Localization.GetText("Comments")).CssHeaderClass("tamFixedCol150")
+                    .ColumnName("espiComments");
+
+                    columns.Template(EspiActionButtons)
+                    .Persistent()
+                    .Header(Localization.GetText("Action")).CssHeaderClass("tamFixedCol100")
+                    .ColumnName("espiActionButtons")
+                    .Center();
+
+                    columns.Template(EspiExpandable).Persistent();
+                })
+                .RowTemplates(rows => rows.Create(RowTemplateType.AllRows, item => ShowRatingJustificationCommentsRow(item)));
+
+            config.TableClass = "tableNormal";
+
+            config.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="" class="hide" style="vertical-align:top;" data-name="templateESPIPartial ">
+                        <td data-pagemode="edit">
+                            @Confluence.InputDropDown(
+                        string.Empty,
+                        "espiType",
+                        (List<System.Web.Mvc.SelectListItem>) ViewBag.ItemTypeList,
+                        disabled : true,
+                        width : "100%")
+                        </td>
+                        <td data-pagemode="edit">
+                            @Confluence.InputDropDown(
+                        string.Empty,
+                        "espiRating",
+                        (List<System.Web.Mvc.SelectListItem>) ViewBag.RatingList,
+                        disabled : true,
+                        width : "100%",
+                        orderAsc:false)
+                        </td>
+                        <td data-pagemode="edit">
+                            <label name="ratingJustificationLabel">
+                                <span style="font-weight:bold;">
+                                    @Localization.GetText("MrBlue.ESG.NewText")
+                                </span>
+                            </label>
+                        </td>
+                        <td data-pagemode="edit">
+                            <label name="espiCommentLabel">
+                                <span style="font-weight:bold;">
+                                    @Localization.GetText("MrBlue.ESG.NewText")
+                                </span>
+                            </label>
+                        </td>
+                        <td class="text-center">
+                            @Confluence.ButtonTrash(
+                        string.Empty,
+                        name : "removeESPI",
+                        action : "removeRowWithCommentRow")
+                        </td>
+                        <td>
+                            @Display.ExpandableTriangleButton(string.Format("#espiTable [data-name='detail-espi-{0}']",
+                        string.Empty),
+                        markTargetAsExpanded : false)
+                        </td>
+
+                    </tr>        );
+            });
+
+            config.RowTemplates(x =>
+            {
+                x.Create(RowTemplateType.FirstRow,
+                    @<tr data-id="" class="skip template dont-hide-at-edit own-hide" data-name="detail-espi-XXX" row-detail="true">
+                        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+                            @Confluence.Label(Localization.GetText("MrBlue.SupervisionReport.RatingJustification"))
+                            @Confluence.LabelAsterisk()
+                            @Confluence.InputTextArea(
+                        string.Empty,
+                        name : "ratingJustification",
+                        width : "100%",
+                        height : "100px",
+                        isReadOnly : false,
+                        disabled : true,
+                        dataAttributes : new Dictionary<string, string> { { "id", "-1" }, { "type", "expandable" } })
+                        </td>
+                        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+                            @Confluence.Label(Localization.GetText("Comments"))
+                            @Confluence.LabelAsterisk()
+                            @Confluence.InputTextArea(
+                        string.Empty,
+                        name : "espiComment",
+                        width : "100%",
+                        height : "100px",
+                        isReadOnly : false,
+                        disabled : true,
+                        dataAttributes : new Dictionary<string, string> { { "id", "-1" }, { "type", "expandable" } })
+                        </td>
+                    </tr>);
+            });
+        }
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 text-center">
+        <div style="margin-bottom:30px;">
+            @Confluence.InputText(value : "x",
+            name : "validatortypeEnviromentalSocialPerfomance",
+            required : false,
+            htmlClass : "hide",
+            dataAttributes : new Dictionary<string, string> {
+            {"parsley-typeEnviromentalSocialPerfomance",
+            "#espiTable;input[name=espiType]"}})
+        </div>
+        @Confluence.ButtonAddNewRows(
+        Localization.GetText("New"),
+        "newESPI",
+        action : "newRow")
+    </div>
+</div>
+
+@helper EspiType(SupervisionReportESPIRowViewModel model)
+{
+    @Confluence.InputDropDown(
+        model.Type.ToString(CultureInfo.InvariantCulture),
+        "espiType",
+        (List<System.Web.Mvc.SelectListItem>) ViewBag.ItemTypeList,
+        width : "100%")
+}
+
+@helper EspiRating(SupervisionReportESPIRowViewModel model)
+{
+    @Confluence.InputDropDown(
+    model.Rating.ToString(CultureInfo.InvariantCulture),
+    "espiRating",
+    (List<System.Web.Mvc.SelectListItem>) ViewBag.RatingList,
+    width : "100%",
+    orderAsc: false)
+}
+
+@helper EspiActionButtons(SupervisionReportESPIRowViewModel model)
+{
+    @Confluence.ButtonTrash(
+    string.Empty,
+    name : "removeESPI-" + model.RowId,
+    action : "removeRowWithCommentRow")
+}
+
+@helper EspiExpandable(SupervisionReportESPIRowViewModel model)
+{
+    @Display.ExpandableTriangleButton(string.Format("#espiTable [data-name='detail-espi-{0}']",
+    model.RowId),
+    markTargetAsExpanded : false)
+}
+
+@helper ShowRatingJustificationCommentsRow(SupervisionReportESPIRowViewModel view)
+{
+    <tr class="skip template dont-hide-at-edit own-hide" data-name="detail-espi-@view.RowId" row-detail="true" data-id="@view.RowId">
+        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+            @Confluence.Label(Localization.GetText("MrBlue.SupervisionReport.RatingJustification"))
+            @Confluence.LabelAsterisk()
+            @Confluence.InputTextArea(
+            view.RatingJustification,
+            name : "ratingJustification",
+            width : "100%",
+            height: "100px",
+            dataAttributes : new Dictionary<string, string> { { "type", "expandable" } })
+        </td>
+        <td colspan="3" style="padding:5px;" data-pagemode="edit">
+            @Confluence.Label(Localization.GetText("Comments"))
+            @Confluence.LabelAsterisk()
+            @Confluence.InputTextArea(view.Comments,
+            name : "espiComment",
+            width : "100%",
+            height: "100px",
+            dataAttributes : new Dictionary<string, string> { { "type", "expandable" } })
+        </td>
+    </tr>
+}

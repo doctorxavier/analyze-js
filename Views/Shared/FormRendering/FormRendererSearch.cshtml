@@ -1,0 +1,79 @@
+﻿@using System.Web.Mvc.Html
+@using System.Web.Script.Serialization
+@using IDB.Architecture
+@using IDB.MW.Application.AdministrationModule.Services.MasterDataService
+@using IDB.MW.Application.AttributesModule.Services
+@using IDB.MW.Application.AttributesModule.ViewModels.AttributesService.Layouts
+@using IDB.MW.Application.Core.Services.CatalogService
+@using IDB.MW.Application.MrBlueModule.Enums
+@using IDB.MW.Domain.Contracts.ModelRepositories.Security
+@using IDB.MW.Domain.EntityHelpers
+@using IDB.MW.Domain.Session
+@using IDB.MW.Infrastructure.Data.Optima.Repositories.Models
+@model IDB.MW.Application.Core.ViewModels.FormRendering.FormDataViewModel
+
+@{
+    if (ViewData["pageName"] == null)
+    {
+        throw new Exception("'pageName' key is not found in ViewData");
+    }
+
+    string pageName = ViewData["pageName"].ToString();
+
+    ISecurityModelRepository objSecurityModelRepository = new SecurityModelRepository();
+
+    var operationNumber = IDBContext.Current.Operation ?? string.Empty;
+    var arrPermissions = IDBContext.Current.Permissions ?? new List<string>();
+
+    Model.SecurityFieldAccess = objSecurityModelRepository.GetFieldBehaviorByPermissions(operationNumber, pageName, arrPermissions, 0, 0);
+}
+
+    @if (Model != null)
+    {
+            foreach (var section in Model.Formulary.Sections)
+            {
+                <div class="col-md-12">
+
+                    @Confluence.LabelSubTitleGroup(section.GroupLabel, htmlClass: "attributesSectionLabel")
+
+                    @foreach (var layout in section.Layouts)
+                    {
+                        <div class="row row-body-10 font-body">
+                            @foreach (var cell in layout.Cells)
+                            {
+                                    foreach (var element in cell.Elements)
+                                    {
+                                        switch (element.Type)
+                                        {
+                                            case "GroupLabel": @Confluence.LabelSubTitleGroup(element.Text, htmlClass: "attributesGroupLabel"); break;
+                                            case "Attribute":
+
+                                                var field = Model.Fields.FirstOrDefault(o => o.Name == element.Code);
+
+                                                if (field != null)
+                                                {
+                                                    var securityItem = Model.SecurityFieldAccess.SingleOrDefault(a => a.FieldName == field.Name);
+                                                    field.IsVisible = securityItem == null || securityItem.IsVisible;
+                                                    field.HasReadPermission = true;
+                                                    field.HasWritePermission = true;
+
+                                                    if (field.IsVisible)
+                                                    {
+                                                        <div class="col-md-3">
+                                                            @Html.Partial("FormRendering/FieldRenderer2", field)
+                                                        </div>
+                                                    }
+                                                }
+                                                break;
+
+                                        }
+                                    }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+    }
+
+
+

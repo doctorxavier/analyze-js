@@ -1,0 +1,151 @@
+﻿@using System.Configuration
+
+@using IDB.MW.Application.OPUSModule.ViewModels.ApprovalOperationService
+@using IDB.Presentation.MVC4.Helpers
+
+@model ApprovalDocumentViewModel
+
+@{
+    var approvalNumbers = Html.BuildSelectItemList(
+        dataSource: Model.ApprovalNumbers,
+        textExpression: approval => approval.Text,
+        valueExpression: approval => approval.Value);
+
+    var approvalNumbersIncreases = Html.BuildSelectItemList(
+        dataSource: Model.ApprovalNumbersIncreases,
+        textExpression: approval => approval.Text,
+        valueExpression: approval => approval.Value);
+
+    var transactionTypes = Html.BuildSelectItemList(
+        dataSource: Model.TransactionTypes,
+        textExpression: transaction => transaction.Text,
+        valueExpression: transaction => transaction.Value);
+
+    var increaseSequences = Html.BuildSelectItemList(
+        Model.IncreaseSequenceNumbers,
+        sequence => sequence.Text,
+        sequence => sequence.Value,
+        sequence => sequence.AdditionalData);
+}
+
+@foreach (var document in Model.Documents)
+{
+    <tr role="row" data-id="@document.DocumentId">
+        <td data-id="approvalTransactionType">
+            <span data-pagemode="read">
+                @Confluence.LabelGetDropDown(
+                    document.TransactionType ?? string.Empty,
+                    transactionTypes.ToList())
+            </span>
+            <span data-pagemode="edit">
+                @Confluence.InputDropDown(
+                    document.TransactionType ?? string.Empty,
+                    "ddlTransactionTypeDoc",
+                    transactionTypes,
+                    disabled: !approvalNumbers.Any(),
+                    width: "120px")
+
+                @Confluence.InputHidden(
+                    document.TransactionType ?? string.Empty,
+                    "originalTransactionType")
+            </span>
+        </td>
+        <td data-id="approvalNumberDoc">
+            <span data-pagemode="read">
+                @Confluence.Label(document.ApprovalNumber ?? string.Empty)
+            </span>
+            <span data-pagemode="edit">
+                @Confluence.InputDropDown(
+                    document.ApprovalNumber ?? string.Empty,
+                    "ddlApprovalNumber",
+                    approvalNumbers,
+                    required: false,
+                    disabled: !approvalNumbers.Any(),
+                    htmlClass: document.IsIncrease ? "own-hide" : string.Empty,
+                    width: "160px")
+
+                @Confluence.InputDropDown(
+                    document.ApprovalNumber ?? string.Empty,
+                    "ddlApprovalNumberIncrease",
+                    approvalNumbersIncreases,
+                    required: document.IsIncrease,
+                    disabled: !approvalNumbersIncreases.Any(),
+                    htmlClass: document.IsIncrease ? string.Empty : "own-hide",
+                    width: "160px")
+
+                @Confluence.InputHidden(
+                    document.ApprovalNumber ?? string.Empty,
+                    "originalApprovalNumber")
+            </span>
+        </td>
+        <td data-id="increaseSequence" class="text-center">
+            <span data-pagemode="read">
+                @Confluence.Label(document.IncreaseSequenceNumber)
+            </span>
+            <span data-pagemode="edit">
+                @Confluence.InputDropDown(
+                    document.FundOperationIncreaseId.ToString(),
+                    "ddlIncreaseSequence",
+                    increaseSequences.Where(inc => inc.Group.Name == document.ApprovalNumber),
+                    required: document.IsIncrease,
+                    disabled: !increaseSequences.Any() || !approvalNumbersIncreases.Any(),
+                    htmlClass: document.IsIncrease ? string.Empty : "own-hide",
+                    width: "80px")
+
+                @Confluence.InputHidden(
+                    document.FundOperationIncreaseId.ToString(),
+                    "originalIncreaseSequence")
+            </span>
+        </td>
+        <td data-id="approvalDate" class="text-center">
+            @Confluence.Label(document.ApprovalDate ?? string.Empty)
+        </td>
+        <td name="docNumber">
+            @Confluence.Label(document.DocNumber ?? string.Empty)
+        </td>
+        <td class="documentDescription">
+            <span data-pagemode="read">
+                @Confluence.Label(document.Description ?? string.Empty)
+            </span>
+            <span data-pagemode="edit">
+                @if (document.IsEditableDescription)
+                {
+                    @Confluence.InputText(
+                        value: document.Description,
+                        name: "documentDescription",
+                        maxLength: 250,
+                        width: "100%",
+                        required: false,
+                        dataAttributes: new Dictionary<string, string>
+                        {
+                            { "idb-fieldname", "txtDocumentDescription" }
+                        })
+                }
+                else
+                {
+                    @Confluence.Label(document.Description ?? string.Empty)
+                }
+            </span>
+        </td>
+        <td>
+            @Confluence.Label(document.User ?? string.Empty)
+        </td>
+        <td class="text-center">
+            <div class="col-md-6 text-right" style="margin-top:12px">
+                <a href=@(IDB.MW.Domain.EntityHelpers.DownloadDocumentHelper.GetDocumentLink(document.DocNumber)) target="_blank">
+                    @Confluence.ButtonDownload(text: "")
+                </a>
+            </div>
+            <div data-pagemode="edit" class="col-md-6 text-left">
+                @Confluence.ButtonTrash(
+                    "",
+                    action: "deleteDocument",
+                    dataAttributes: new Dictionary<string, string>
+                    {
+                        { "idb-fieldname", "btnDeleteDocument" },
+                        { "docnumber", document.DocNumber }
+                    })
+            </div>
+        </td>
+    </tr>
+}

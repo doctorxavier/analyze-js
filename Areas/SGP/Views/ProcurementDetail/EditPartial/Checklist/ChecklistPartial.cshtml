@@ -1,0 +1,221 @@
+﻿@using System.Web.Mvc
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.Presentation.MVC4.General
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+
+@model ProcurementDetailViewModel
+
+@if ((Model != null) && (Model.ChecklistTab != null))
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+
+    <div class="hide">
+        @Display.AddModalButton(new ModalViewModel(contentSelector: "[data-name=\"cancel-edit-modal-checklist\"]",
+        title: Localization.GetText("Common.Warning"),
+        type: CssClass.ModalWarningNoIcon,
+        moveOriginalContent: true,
+        name: "btn-open-popup-cancel-edit-checklist",
+        closeOnOverlay: false,
+        allowClose: true,
+        actionOnClose: "")
+        .AddButton(name: "btn-cancel-cancel",
+                    text: Localization.GetText("Common.Cancel"),
+                    type: CssClass.ButtonLink,
+                    callback: "")
+        .AddButton(name: "btn-cancel-ok",
+                    text: Localization.GetText("Common.Ok"),
+                    type: CssClass.Button05,
+                    callback: "okCancelChecklist",
+                    closeAtEnd: true))
+        <div data-name="cancel-edit-modal-checklist" class="hide modalBody">
+            @Localization.GetText("SGP.Message.CommonCancel")
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Checklist/Buttons")
+            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.CheckList"), htmlClass: "subTitleSG mb10")
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="col-xs-12">
+            @Confluence.Label(Localization.GetText("SGP.Label.TheFollowingItemsMustbeCompleted"))
+        </div>
+    </div>
+    <div class="row mb40">
+        <div class="col-xs-12">
+            @Confluence.InputDatePicker(value: DateTime.Today, name: "todayDate-checklist", required: false, disabled: true, htmlClass: "hide")
+            @Confluence.InputDatePicker(value: Model.ChecklistTab.LastDisbursementDate, name: "lastDisbursementDate-checklist", required: false, disabled: true, htmlClass: "hide")
+            @Html.Partial("EditPartial/Checklist/ChecklistDataTablePartial", Model.ChecklistTab)
+        </div>
+    </div>
+    <div class="row mb10">
+        <div class="col-xs-12">
+            @Html.Partial("EditPartial/Checklist/Buttons")
+        </div>
+    </div>
+@Html.ScriptBlock(
+    @<script type="text/javascript">
+
+        /*------- Validations ------ */
+        registerCallback(function () {
+
+            $('[data-toggle="tooltip"]').tooltip();
+
+            $('label[data-title]').each(function () {
+                var source = $(this);
+                var title = source.attr('data-title');
+                source.attr('data-original-title', title);
+                source.removeAttr('data-title');
+                source.removeAttr('title');
+            });
+
+            window.ParsleyValidator.addValidator('greaterThanToday', function (value, requirement) {
+                var compareInput = $('input[name="todayDate-checklist"]');
+                var compareValue = compareInput.val();
+                if ((compareValue == null) || (compareValue == "") || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                if ((dateValue == null) || (dateCompare == null)) {
+                    return false;
+                }
+
+                return dateValue <= dateCompare;
+            }, 32).addMessage('en', 'greaterThanToday', '@Localization.GetText("SGP.Label.ValidationCompletionDate")');
+
+
+            window.ParsleyValidator.addValidator('greaterThanFirstDate', function (value, requirement) {
+                var initialDate = $('input[name="baselineDate-checklist"]:first').val();
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(initialDate);
+
+                if ((dateValue == null) || (dateCompare == null)) {
+                    return false;
+                }
+
+                return dateValue >= dateCompare;
+            }, 32).addMessage('en', 'greaterThanFirstDate', '@Localization.GetText("SGP.Message.ValidateInitialDate")');
+
+
+            window.ParsleyValidator.addValidator('greaterThanLastDate', function (value, requirement) {
+                var finalDate = $('input[name="baselineDate-checklist"]:last').val();
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(finalDate);
+
+                if ((dateValue == null) || (dateCompare == null)) {
+                    return false;
+                }
+
+                return dateValue <= dateCompare;
+            }, 32).addMessage('en', 'greaterThanLastDate', '@Localization.GetText("SGP.Message.ValidateFinalDate")');
+
+
+            window.ParsleyValidator.addValidator('updatePlaningGreaterCompletionDate', function (value, requirement) {
+                var tr = $('tr[data-id="' + requirement + '"]');
+                value = tr.find('input[name="updatePlanningDate-checklist"]').val();
+                var trPrev = tr.prev();
+
+                if ((trPrev == null) || (trPrev.length == 0) || (value == null) || (value == "")) {
+                    return true;
+                }
+
+                var compareValue = trPrev.find('input[name="completionDate-checklist"]').val();
+
+                if ((compareValue == null) || (compareValue == "")) {
+                    return true;
+                }
+
+                var dateValue = convertStringToDateDDMMMYYYY(value);
+                var dateCompare = convertStringToDateDDMMMYYYY(compareValue);
+
+                if ((dateValue == null) || (dateCompare == null)) {
+                    return false;
+                }
+
+                return dateValue >= dateCompare;
+
+            }, 32).addMessage('en', 'updatePlaningGreaterCompletionDate', '@Localization.GetText("SGP.Message.UpdatedPlanningDate")');
+        });
+
+
+        /*------- BUTTONS CANCEL-EDIT------ */
+
+        registerCallback(function () {
+            $(document).on('click', '[name="cancel-edit-Checklist"]', function () {
+                var modalBtn = $('[name="btn-open-popup-cancel-edit-checklist"]');
+                modalBtn.click();
+            });
+
+            /*------- BUTTONS SAVE------- */
+            function Save(formSelector, hiddenViewModelSelector) {
+
+                var response = saveContainer($(formSelector), hiddenViewModelSelector, false, null, null, false, true, null);
+                if (response !== false) {
+                    response.done(function (data) {
+                        if ((data.ErrorMessage != null) && (data.ErrorMessage != "")) {
+                            showMessage(data.ErrorMessage);
+                        }
+                    });
+                }
+            }
+
+            registerCallback(function () {
+                $(document).on('click', '[name="save-Checklist"]', function () {
+                    var formSelector = '[name="formChecklist"]';
+                    var hiddenViewModelSelector = '[name="serializedModel"]';
+                    Save(formSelector, hiddenViewModelSelector);
+                });
+            });
+
+            /*------- CHANGE COMPLETION METHOD------ */
+            $(document).on('change', '[name="isComplete-checklist"]', function () {
+                var source = $(this);
+                var tr = source.closest('tr');
+                var completionDate = tr.find('[name="completionDate-checklist"]')
+                if (source.is(':checked')) {
+                    completionDate.removeAttr('disabled');
+
+                    var date = new Date();
+                    var day = date.getDate()
+                    var month = $.datepicker._defaults.monthNamesShort[date.getMonth()];
+                    var year = date.getFullYear();
+
+                    completionDate.val(day + ' ' + month + ' ' + year);
+
+                } else {
+                    completionDate.attr('disabled', 'disabled');
+                    completionDate.val('');
+                }
+
+                initParsley();
+                destroyParsley();
+                initParsley();
+                destroyParsley();
+            });
+        });
+
+        function okCancelChecklist() {
+            var promise = $.Deferred();
+            var procurementId = $('input[name="details-procurementId"]').val();
+            var url = '@Url.Action("Read", "ProcurementDetail", new { area = "SGP", tabName = ProcurementDetailNavigation.TAB_NAME_CHECKLIST})';
+            url = url + "&procurementId=@Model.ProcurementId";
+            LocationAssign(url);
+            promise.resolve();
+            return promise;
+        }
+
+    </script>)
+}

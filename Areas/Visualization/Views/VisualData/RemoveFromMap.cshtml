@@ -1,0 +1,422 @@
+﻿@using IDB.MW.Domain.Models.Architecture.Enumerations;
+@using IDB.MW.Domain.Models.Architecture.Visualization;
+@using IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs;
+@using IDB.Presentation.MVC4.MVCCommon;
+@using IDB.Presentation.MVC4.Areas.Visualization.Business;
+@using IDB.Presentation.MVC4.Areas.Visualization.Enums;
+@using OutputsCompModel = IDB.MW.Domain.Models.Architecture.ResultMatrix.Outputs;
+
+@model IDB.Presentation.MVC4.Areas.Visualization.Business.VisualizationBusinessContext
+
+@{
+    var outputs = Model.ResultsMatrixContext.Current.Components.SelectMany(cp => cp.Outputs).ToList();
+}
+
+@section JavaScript {
+    <script type="text/javascript" src="@Url.Content("~/Scripts/botonActivo/botonActivo.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/foldingTable/Outputs/tableFold.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visualization/sendRemoveFromMapCommon.js")"></script>
+    <script type="text/javascript" src="@Url.Content("~/Scripts/Modules/Visualization/removeFromMap.js")"></script>
+}
+
+@section CSS {
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/common.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/general.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/modulos.css")" />
+    <link rel="stylesheet" type="text/css" href="@Url.Content("~/Content/Modules/Visualization/sendRemoveFromMap.css")" />
+}
+
+@helper RenderOutputs(OutputsCompModel.OutputModel output)
+{
+    var hasRoleRMAdministrator = IDBContext.Current.HasRole(Role.RM_ADMINISTRATOR);
+    var hasPermissionVisuWriteTL = IDBContext.Current.HasPermission(Permission.VISUALIZATION_WRITE_TL);
+
+    //Get the Visual Outputs for the given Output
+    var voyp = output.OutputYearPlans
+        .OrderBy(oyp => oyp.Year)
+        .Select(oyp => oyp.OutputYearPlanId);
+
+    var vovms = Model.VisualOutputs.Select(vo => vo.VisualOutputVersionsData)
+        .Where(vov0 => vov0.OutputYearPlanId != null && voyp.Contains((int)vov0.OutputYearPlanId));
+
+    if (!vovms.Any(vovm => (vovm.IsDeleted == null || vovm.IsDeleted.Value == false) &&
+                    Model.IsSelectableForRemoval(vovm.ValidationStageId) &&
+                    vovm.IsCompleteToPublish.HasValue && vovm.IsCompleteToPublish.Value &&
+                    vovm.VisualOutputId == vovm.VisualOutputId &&
+                    !Model.IsK2WorkflowInProgress(vovm)))
+    {
+        return;
+    }
+
+    <div class="mod_tabla_impacts table_outputs milestone" style="margin-top:1em">
+        <div class="minimizeTable">
+            <div class="minimizeBar">
+                <div class="tableOperator">@Localization.GetText("Minimize/Maximize")</div>
+            </div>
+
+            <h4 class="headingh3 plegableTitle">@output.Definition</h4>
+
+            <div class="tableGrid">
+                @foreach (var vovm in vovms)
+                {
+                    if ((vovm.IsDeleted == null || vovm.IsDeleted.Value == false) &&
+                        Model.IsSelectableForRemoval(vovm.ValidationStageId) &&
+                        vovm.IsCompleteToPublish.HasValue && vovm.IsCompleteToPublish.Value &&
+                        vovm.VisualOutputId == vovm.VisualOutputId &&
+                        !Model.IsK2WorkflowInProgress(vovm))
+                    {
+                        <div class="operatorBar"></div>
+
+                        <div class="clear content-block content-block content-list three">
+                            <div class="minimizeTable" style="margin-top: 4em;">
+                                <div class="minimizeBar">
+                                    <div class="tableOperator">@Localization.GetText("Minimize/Maximize")</div>
+                                </div>
+
+                                <h4 class="headingh3 plegableTitle">@vovm.NameEn</h4>
+
+                                <div class="tableGrid">
+
+                                    <div class="operatorBar"></div>
+
+                                    <div class=" listwrapper ftl datatext"
+                                         style="float: left; text-align: left; width: 70%; margin-left: 2em; margin-bottom: 1em; ">
+                                        @Localization.GetText("Description"):
+                                        <div class="datatext"
+                                             style=" text-align: justify; width: 96%; margin-left: 2em;">
+                                            @vovm.DescriptionEn
+                                        </div>
+                                    </div>
+
+                                    <div class=" listwrapper ftl datatext" style=" text-align: left; margin-left: 1em;">
+                                        @Localization.GetText("Year"):
+                                        <div class="datatext" style=" text-align: right;">
+                                            @vovm.OutputYearPlan.Year
+                                        </div>
+                                    </div>
+
+
+                                    <div style="float: right; margin: 0 0 0 0px; height: 150px; overflow: hidden; padding-right: 0.1em;">
+                                        <iframe id="map" style="width:100%; height:150px;"
+                                                src="@Url.Action("SendToMapSelectionMap",
+                                                        new
+                                                        {
+                                                            language = IDBContext.Current.CurrentLanguage,
+                                                            visualobjectid = vovm.VisualOutputId,
+                                                            visualobjectversionid = vovm.VisualOutputVersionId,
+                                                            objecttype = "vo",
+                                                            height = 150,
+                                                            width = 150,
+                                                            showrightblock = 0
+                                                        })"></iframe>
+                                    </div>
+                                    <div class="clear" style="margin-top: 6em; margin-bottom: 2em; margin-left:2em;margin-left :50px">
+                                        <div class="checkboxContainer" vo-id="@vovm.VisualOutputId"
+                                             vov-id="@vovm.VisualOutputVersionId"
+                                             vov-selectable="@(Model.IsSelectableForPublication(vovm.ValidationStageId).ToString())"
+                                             style="display: inline-block; float: left">
+                                            <div style="display: inline-block; float: left">
+
+                                                <label>@Localization.GetText("Published"):</label>
+                                                <br />
+                                                @if (vovm.ValidationStage.Code == "VIS_TL")
+                                                {
+                                                    <span style="margin-left:10px;"><b>@Localization.GetText("Internal")</b></span>
+                                                }
+                                                else
+                                                {
+                                                    <span style="margin-left:10px;"><b>@Localization.GetText("External")</b></span>
+                                                }
+                                            </div>
+                                            <div style="display: inline-block; float:right;margin-left:250px">
+                                                <span style="display:block;margin-bottom:5px;">@Localization.GetText("VIS.select.option"):</span>
+
+                                                @if (vovm.ValidationStageId == Model.VIS_COO.MasterId && vovm.IsValidated == true)
+                                                {
+                                                    if (hasPermissionVisuWriteTL && !hasRoleRMAdministrator)
+                                                    {
+                                                        <div>
+                                                            <span class="radiobutton" style="margin-top:5px;">
+                                                                <input type="checkbox" id="internal-check" name="sendtointernalmap"
+                                                                       disabled />
+                                                                <label for="internal-check" style="vertical-align:middle;">@Localization.GetText("Internal Map")</label>
+                                                            </span>
+
+                                                            &nbsp; &nbsp;
+
+                                                            <span class="radiobutton">
+                                                                <input type="checkbox" id="external-check" name="sendtoexternalmap"
+                                                                       disabled />
+                                                                <label for="external-check" style="vertical-align:middle;">@Localization.GetText("External Map")</label>
+                                                            </span>
+                                                            <div class="square-MandatoryInformation">
+                                                                <span class="insideSquare-MandatoryInformation">@Localization.GetText("VIS.the.current.version.of.mo.is.published.to.ext")</span>
+                                                            </div>
+                                                        </div>
+
+                                                    }
+                                                    else if (hasRoleRMAdministrator)
+                                                    {
+                                                        var isInternalChecked = vovm.StatusRemove.HasValue ?
+                                                            vovm.StatusRemove.Value == (int)SendToMapDestinationEnum.Internal :
+                                                            false;
+                                                        var isExternalChecked = vovm.StatusRemove.HasValue ?
+                                                            vovm.StatusRemove.Value != (int)SendToMapDestinationEnum.None :
+                                                            false;
+
+                                                        <div>
+                                                            <span class="radiobutton" style="margin-top:5px;">
+                                                                <input type="checkbox" id="internal-check" name="sendtointernalmap"
+                                                                       value="@((int)SendToMapDestinationEnum.Internal)"
+                                                                       onclick="internalRemoveCheckClicked(this)"
+                                                                       vov-intinitval="@isInternalChecked.ToString()"
+                                                                       @(isInternalChecked ? "checked " : string.Empty) />
+                                                                <label for="internal-check" style="vertical-align:middle;">@Localization.GetText("Internal Map")</label>
+                                                            </span>
+
+                                                            &nbsp; &nbsp;
+
+                                                            <span class="radiobutton">
+                                                                <input type="checkbox" id="external-check" name="sendtoexternalmap"
+                                                                       value="@((int)SendToMapDestinationEnum.External)"
+                                                                       onclick="externalRemoveCheckClicked(this)"
+                                                                       vov-extinitval="@isExternalChecked.ToString()"
+                                                                       @(isExternalChecked ? "checked " : string.Empty) />
+                                                                <label for="external-check" style="vertical-align:middle;">@Localization.GetText("External Map")</label>
+                                                            </span>
+                                                        </div>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    var isInternalChecked = vovm.StatusRemove.HasValue ?
+                                                            vovm.StatusRemove.Value == (int)SendToMapDestinationEnum.Internal :
+                                                            false;
+
+                                                    <div>
+                                                        <span class="radiobutton" style="margin-top:5px;">
+                                                            <input type="checkbox" id="internal-check" name="sendtointernalmap"
+                                                                   value="@((int)SendToMapDestinationEnum.Internal)"
+                                                                   onclick="internalRemoveCheckClicked(this)"
+                                                                   vov-intinitval="@isInternalChecked.ToString()"
+                                                                   @(isInternalChecked ? "checked " : string.Empty) />
+                                                            <label for="internal-check" style="vertical-align:middle;">@Localization.GetText("Internal Map")</label>
+                                                        </span>
+
+                                                        <span class="radiobutton" hidden="hidden">
+                                                            <input type="checkbox" id="external-check" name="sendtoexternalmap"
+                                                                   value="@((int)SendToMapDestinationEnum.External)"
+                                                                   vov-extinitval="false" />
+                                                            <label for="external-check" style="vertical-align:middle;">@Localization.GetText("External Map")</label>
+                                                        </span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="carrousel" data-pos="-2" style="width: 70%;">
+                                        <div class="paginator" style="max-width:100%;">
+                                            <input type="button"
+                                                   class="button click-action left-paginate"
+                                                   value="&lt;"
+                                                   onclick="Images.scrollLeft(this)" />
+
+                                            <input type="button"
+                                                   class="button click-action right-paginate"
+                                                   value="&gt;"
+                                                   style="float:right"
+                                                   onclick="Images.scrollRight(this)" />
+                                        </div>
+
+                                        <div class="images" style="max-width:98%;">
+                                            <div class="images-container">
+                                                @foreach (var vom in vovm.VisualOutputMedia)
+                                                {
+                                                    var mediaDocument = vom.Media.DocumentMedias.OrderByDescending(x => x.DocumentId).FirstOrDefault();
+                                                    var documentDesc = mediaDocument == null ? string.Empty : mediaDocument.Description;
+                                                    var documentUrl = mediaDocument == null ?
+                                                        string.Empty :
+                                                        Url.Action("GetDocument", "Document", new
+                                                            {
+                                                                area = string.Empty,
+                                                                docNum = mediaDocument.DocumentReference
+                                                            });
+
+                                                    <div class="img-block" style="vertical-align:top">
+                                                        <a href="javascript: void(0)"
+                                                           onclick="Images.openModalDialog('@vom.Media.MediaUrl','@vom.Media.Name.Trim()','@vom.Media.Year','@vom.Media.MediaSource.Trim()','@vom.Media.Content','@documentUrl','@documentDesc','@MasterDefinitions.GetMasterName(vom.Media.HistoryStatusId)')">
+                                                            <img src='@vom.Media.MediaUrl' />
+                                                        </a>
+                                                        <div class="datatext" style="text-align:center;">@Localization.GetText("Photo Source"): @vom.Media.MediaSource</div>
+                                                        <a href="@documentUrl"><div class="datatext" style="text-align:center;">@documentDesc</div></a>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<nav class="mod_tabs03 w95 paddingBottom2">
+    <ul>
+        <li>
+            <a title="Send to Map" href="#" class="itemList"
+               onclick="ConfirmDialog.ChangeTab('@Url.Action("SendToMap")')">
+                @Localization.GetText("VIS.send.to.map")
+            </a>
+        </li>
+        <li>
+            <a title="Remove From Map" href="#" class="itemList active">
+                @Localization.GetText("VIS.remove.to.map")
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<div class="mod_contenido_central impacts" style="border-top: 10em; border-left: 2em;">
+    <div style=" float: right; text-align: right; padding-right: 0.1em;">
+        <div class="content-block">
+            <div class="center">
+                @{
+                    if (Model.AttributeCode == "TCM")
+                    {
+                        <input type="button" class="button click-action" value="@Localization.GetText("Cancel")"
+                               data-route="@Url.Action("Index", "Components", new { area = "TCM", isTCM = "true" })" />
+                    }
+                    else
+                    {
+                        <input type="button" class="button click-action" value="@Localization.GetText("Cancel")"
+                               data-route="@(Url.Action("Grid"))" />
+
+                    }
+                }
+
+                &nbsp;&nbsp;
+
+                <input type="button" class="button click-action" value="@Localization.GetText("Save")"
+                       onclick="removeItemsFromMap('@Url.Action("VisualOutputRemoveFromMap")', @((int) SendToMapOperTypeEnum.Save), false, @((int) SendToMapSourceEnum.Visual), '@Url.Action("Grid")')" />
+                &nbsp;&nbsp;
+
+                <input type="button" class="button click-action" value="@Localization.GetText("VIS.remove.to.map")"
+                       onclick="removeItemsFromMap('@Url.Action("VisualOutputRemoveFromMap")', @((int) SendToMapOperTypeEnum.SaveAndValidate), true, @((int) SendToMapSourceEnum.Visual), '@Url.Action("Grid")')" />
+            </div>
+        </div>
+
+        <div class="" style="padding: 20px 20px 10px;width: 366px">
+            <div class="btn btn-action-group activo">
+                <label class="btn btn-action-fondo" for="btn-actionid">
+                    <span class="btn btn-action-punto" style="position: absolute; left: 0;"></span>
+                </label>
+                <input type="button" class="btn btn-action"
+                       value="@Localization.GetText("Collapse All")" id="btn-actionid">
+            </div>
+            <div class="content">
+                <span class="title-maps">
+                    @Localization.GetText("IDB.Visualization.K2.ComboBox.Title.SentToMapRemoveFromMap") 
+                </span>
+            </div>
+
+            @{
+                var selectOptionsItems = new List<SelectListItem>();
+                selectOptionsItems.Add(new SelectListItem { Value = "0", Text = Localization.GetText("VIS.select.deselect.all"), Selected = true });
+                selectOptionsItems.Add(new SelectListItem { Value = "1", Text = Localization.GetText("VIS.select.all.internal") });
+                selectOptionsItems.Add(new SelectListItem { Value = "2", Text = Localization.GetText("VIS.deselect.all.internal") });
+                selectOptionsItems.Add(new SelectListItem { Value = "3", Text = Localization.GetText("VIS.select.all.external") });
+                selectOptionsItems.Add(new SelectListItem { Value = "4", Text = Localization.GetText("VIS.deselect.all.external") });
+            }
+
+            <span class="vo-dropdown-container">
+                <span class="vo-dropdown-wrap">
+                    @Html.DropDownList(
+                        "itemsSelectOptions",
+                        selectOptionsItems,
+                        new
+                        {
+                            @class = "vo-input",
+                            @onChange = "selectDeselectVORemoveItems(this)"
+                        })
+                </span>
+            </span>
+        </div>
+    </div>
+
+    <h4 class="headingh3 plegableTitle" style="border-top: 2em;">@Localization.GetText("VIS.remove.to.map")</h4> <br />
+
+    <div class="content" style="border-left: 1.5em;margin-left:35px">@Localization.GetText("VIS.select.to.send.vo")</div>
+
+    <div>
+        @foreach (var output in outputs)
+        {
+            @RenderOutputs(output)
+        }
+    </div>
+</div>
+
+<div id="confirmWindow" class="hidden">
+    <div class="k-window-content k-content" data-role="window" tabindex="0"
+         style="overflow: visible;" id="SendToMapDialog">
+        <div style="padding: 20px;">
+            <a href="javascript: void(0)" onclick="Images.openModalDialog()">
+                <img id="media-url" src="" />
+            </a>
+            <br /><hr />
+            <span id="media-name"></span>
+            <br />
+            <span id="media-years"></span>
+            <br />
+            @Localization.GetText("Photo Source"): <span id="media-source"></span>
+            <br />
+            @Localization.GetText("Status"): <span id="media-status"></span>
+            <br />
+            @Localization.GetText("Comment"): <span id="media-comments"></span>
+            <br />
+            <a href="" id="media-doc-url"><span id="media-document"></span></a>
+            <br /><br />
+        </div>
+        <div class="pie pieReassign">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;margin-top:10px;">
+                <input type="button" class="button click-action white" value="OK"
+                       onclick="Images.openModalDialog.Dialog.close()" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="hidden">
+    <div class="k-window-content k-content warning" data-role="window" tabindex="0"
+         style="overflow: visible;" id="changeTabDialog">
+        <div style="padding: 20px;">
+            @Localization.GetText("VIS.move.to.diff.place").
+            @Localization.GetText("VIS.modificationsbe.lost").
+            <br /><br />
+            @Localization.GetText("VIS.are.you.sure")?
+            <br /><br />
+        </div>
+
+        <div class="pie pieReassign">
+            <div class="botones" style="text-align: right; padding: 0 20px 20px;">
+                <input type="button" class="button click-action white"
+                       value="@Localization.GetText("Cancel")"
+                       onclick="ConfirmDialog.ChangeTab.Dialog.close()" />
+                &nbsp;&nbsp;&nbsp;
+                <input type="button" class="button click-action yellow"
+                       value="@Localization.GetText("Accept")"
+                       onclick="ChangeTab('@Url.Action("SendToMap")')" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    var collapseBtnActiveTextVIS = '@Localization.GetText("Collapse All")';
+    var collapseBtnInactiveTextVIS = '@Localization.GetText("Expand All")';
+    var visualOutputsPopupTitlePhotoDetails = '@Localization.GetText("VIS.photo.details")';
+    var visualOutputsPopupTitleChangeTab = '@Localization.GetText("VIS.change.tab")';
+</script>

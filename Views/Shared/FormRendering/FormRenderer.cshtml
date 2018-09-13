@@ -1,0 +1,99 @@
+﻿@using System.Web.Mvc.Html
+@using System;
+@using System.Collections.Generic;
+@using IDB.MW.Domain.Contracts.ModelRepositories.Security
+@using IDB.MW.Domain.Session
+@using IDB.MW.Infrastructure.Data.Optima.Repositories.Models
+@using IDB.MW.Domain.Models.Security
+@using IDB.MW.Domain.Values
+
+@model IDB.MW.Application.Core.ViewModels.FormRendering.FormDataViewModel
+
+@{
+
+    if (ViewData["pageName"] == null)
+    {
+        throw new Exception("'pageName' key is not found in ViewData");
+    }
+
+    string pageName = ViewData["pageName"].ToString();
+
+
+    ISecurityModelRepository objSecurityModelRepository = new SecurityModelRepository();
+
+    var operationNumber = IDBContext.Current.Operation ?? string.Empty;
+    var arrPermissions = IDBContext.Current.Permissions ?? new List<string>();
+
+    if (pageName.Equals("OperationDataBasicDataPartial"))
+    {
+        Model.SecurityFieldAccess =  Enumerable.Empty<FieldAccessModel>();
+    }
+    else if (pageName == "UI-OPE-001Partial-TabBasicDataRelatedOperation")
+    {
+        Model.SecurityFieldAccess = objSecurityModelRepository
+            .GetFieldBehaviorByPermissions(operationNumber, pageName, arrPermissions, 0, 0)
+            .Where(x =>
+                x.FieldName == AttributeCode.TC_TAXONOMY ||
+                x.FieldName == AttributeCode.SUPPORT_TYPE);
+    }
+    else
+    {
+        Model.SecurityFieldAccess = objSecurityModelRepository
+            .GetFieldBehaviorByPermissions(operationNumber, pageName, arrPermissions, 0, 0);
+    }
+}
+
+<div class="@Model.CssClass">
+
+    @if (Model != null)
+    {
+        <div class="row">
+            @foreach (var section in Model.Formulary.Sections)
+            {
+                <div class="col-md-12">
+
+                    @Confluence.LabelSubTitleGroup(section.GroupLabel, htmlClass: "attributesSectionLabel")
+
+                    @foreach (var layout in section.Layouts)
+                    {
+                        <div class="row row-eq-height">
+                            @foreach (var cell in layout.Cells)
+                            {
+                                <div class="attributeRightColumnGray @cell.Class">
+                                    @foreach (var element in cell.Elements)
+                                    {
+                                        switch (element.Type)
+                                        {
+                                            case "GroupLabel": @Confluence.LabelSubTitleGroup(element.Text, htmlClass: "attributesGroupLabel"); break;
+                                            case "Attribute":
+
+                                                var field = Model.Fields.FirstOrDefault(o => o.Name == element.Code);
+
+                                                if (field != null)
+                                                {
+                                                    var securityItem = Model.SecurityFieldAccess.SingleOrDefault(a => a.FieldName == field.Name);
+                                                    field.IsVisible = securityItem == null || securityItem.IsVisible;
+                                                    field.HasReadPermission = securityItem == null || (field.IsVisible);
+                                                    field.HasWritePermission = securityItem == null || (!securityItem.IsReadOnly && field.IsVisible);
+
+                                                    if (field.IsVisible)
+                                                    {
+                                                        @Html.Partial("FormRendering/FieldRenderer", field)
+                                                    }
+                                                }
+                                                break;
+
+                                        }
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+
+

@@ -1,0 +1,287 @@
+﻿@using System.Web.Mvc
+@using System.Globalization
+
+@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MW.Infrastructure.SecurityService.Enums
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Architecture.Language
+@using IDB.MW.Application.SGPModule.Constants
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MW.Application.SGPModule.ViewModels.ProcurementDetail
+@using IDB.MW.Application.SGPModule.ViewModels
+@using IDB.MW.Infrastructure.BaseClasses
+@using IDB.MW.Application.Core.ViewModels
+@using IDB.Presentation.MVC4.Areas.SGP.Mappers
+@using IDB.MW.Application.SGPModule.Mappers
+
+@model PackageDetailViewModel
+
+@if (Model != null)
+{
+    @Confluence.InputHidden(PageSerializationHelper.SerializeObject(Model), name: "serializedPackageDetail")
+
+    <div class="row mb20">
+        <div class="col-xs-12">
+            @Confluence.LabelTitleGroup(Model.NamePackage)
+        </div>
+    </div>
+
+    <div class="row mb10">
+        <div class="col-xs-3">
+            @Confluence.LabelMainSubTitle(Localization.GetText("SGP.Label.BiddingDocuments"), htmlClass: "fontSize20px subTitleSG mb0 mt0")
+        </div>
+        <div class="col-xs-9" style="padding-top:5px;">
+            @Confluence.LabelLink(Localization.GetText("SGP.COMMON.ViewTemplates"),htmlClass:"hide")
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            @{
+                var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+                var formatDate = appSettings.FormatDate;
+
+                var user = Model.ViewContainer.GetValue<string>("User");
+                var biddingDocumentsTypeList = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("BiddingDocumentsTypeList").ConvertToSelectListItems();
+                var nonObjectionStatusBidder = Model.ViewContainer.GetValue<CustomEnumDictionary<MasterDataViewModel>>("NonObjectionStatusBidder").ConvertToSelectListItems();
+                var nonDraftId = Model.ViewContainer.GetValue<int>("NonDraftId");
+
+                var config = Html.RenderDataTable(Model.BiddingDocRow)
+                .Name("BiddingDocumentPackage")
+                .PrimaryKey(x => x.DocumentId.ToString(CultureInfo.InvariantCulture))
+                .UseDataTableNet(false)
+                .AddPrimaryKeyToName(false)
+                .UsePageMode(false)
+                .Columns(columns =>
+                {
+                    columns.Template(c => DocumentTypeTemplate(c, biddingDocumentsTypeList, false))
+                    .HeaderAttribute("style", "width: 200px;min-width: 200px;max-width: 200px;")
+                    .Header(Localization.GetText("SGP.Label.DocumentType"));
+
+                    if (Model.HaveResut)
+                    {
+                        columns.Template(c => ResultsTypeTemplate(c, false))
+                        .HeaderAttribute("style", "width: 180px;min-width: 180px;max-width: 180px;")
+                        .Header(Localization.GetText("SGP.Label.Result"));
+                    }
+
+                    columns.Bound(c => c.User)
+                    .CssClass("textalign-center")
+                    .HeaderAttribute("style", "width: 90px;min-width: 90px;max-width: 90px;")
+                    .Header(Localization.GetText("COMMON.User"));
+
+                    columns.Bound(c => FormatHelper.Format(c.Date, formatDate))
+                    .HeaderAttribute("style", "width: 100px;min-width: 100px;max-width: 100px;")
+                    .CssClass("textalign-center")
+                    .Header(Localization.GetText("COMMON.Date"));
+
+                    columns.Template(c => Confluence.ButtonLink(c.DocumentNumber, "documentNumberLink", htmlClass: "bold"))
+                    .CssClass("document-number textalign-center")
+                    .HeaderAttribute("style", "width: 70px;min-width: 70px;max-width: 70px;")
+                    .Header(Localization.GetText("COMMON.SVQ.DocNumber#"));
+
+                    columns.Template(c => DescriptionTemplate(c, false))
+                    .HeaderAttribute("style", "width: 112px;min-width: 112px;max-width: 112px;")
+                    .Header(Localization.GetText("COMMON.Description"));
+
+                    columns.Template(c => NonObjectionStatusTemplate(c, nonObjectionStatusBidder, nonDraftId, false))
+                    .HeaderAttribute("style", "width: 107px;min-width: 107px;max-width: 107px;")
+                    .Header(Localization.GetText("SGP.Label.NonObjectionStatus"));
+
+                    columns.Template(c => ActionsTermsReference(c, false))
+                    .HeaderAttribute("style", "width: 105px;min-width: 105px;max-width: 105px;")
+                    .CssClass("colPadding1px columnAction-draft-request textalign-center")
+                    .Header(Localization.GetText("COMMON.Action"));
+                })
+                .RowTemplates(x =>
+                {
+                    x.Create(RowTemplateType.FirstRow, t => DrawRowTemplate(
+                        new BiddingDocRowViewModel()
+                        {
+                            User = user,
+                            ResultTypeOption = SGPBidPackageConfProcMapper.RESULT_BIDDERS
+                        },
+                        biddingDocumentsTypeList, nonObjectionStatusBidder, nonDraftId, true));
+                });
+                config.TableClass = "tableNormal";
+            }
+
+            @Html.Partial("Controls/DataTable", config)
+
+        </div>
+    </div>
+    <div class="row mt20">
+        <div class="col-xs-12" style="text-align: center;">
+            @Confluence.ButtonAddNewRows(text: Localization.GetText("SGP.Button.AddAditionalDocument"), tableid: string.Empty, name: "addNewRowDoc-bidding")
+        </div>
+    </div>
+}
+
+
+@helper DescriptionTemplate(BiddingDocRowViewModel row, bool isTemplate)
+{
+    var responseBankTypeId = Model.ViewContainer.GetValue<int>("BankResponseTypeId");
+    var completeId = Model.ViewContainer.GetValue<int>("NonCompleteId");
+    var publishedId = Model.ViewContainer.GetValue<int>("Published");
+
+    var isResponseBank = false;
+
+    if (!string.IsNullOrEmpty(row.DocumentTypeId))
+    {
+        // DocumentTypeId has got a head next '-' and Id number
+        isResponseBank = row.DocumentTypeId.Split('-')[1] == responseBankTypeId.ToString();
+    }
+
+    if (isTemplate)
+    {
+        @Confluence.InputText(row.Description, name: "description-bidding", width: "100%", disabled: true, required: false, maxLength: 250, htmlClass: "document-description")
+    }
+    else
+    {
+        if (!isResponseBank && (row.NonObjectionStatusTypeId != completeId) && (row.NonObjectionStatusTypeId != publishedId))
+        {
+            @Confluence.InputText(row.Description, name: "description-bidding", width: "100%", disabled: string.IsNullOrEmpty(row.DocumentNumber), required: false, maxLength: 250, htmlClass: "document-description")
+        }
+        else
+        {
+            @Confluence.Label(row.Description)
+            @Confluence.InputText(row.Description, name: "description-bidding", required: false, htmlClass: "hide")
+        }
+    }
+}
+
+@helper ActionsTermsReference(BiddingDocRowViewModel row, bool isTemplate)
+{
+    var responseBankTypeId = Model.ViewContainer.GetValue<int>("BankResponseTypeId");
+    var completeId = Model.ViewContainer.GetValue<int>("NonCompleteId");
+    var publishedId = Model.ViewContainer.GetValue<int>("Published");
+    var isResponseBank = false;
+
+    if (!string.IsNullOrEmpty(row.DocumentTypeId))
+    {
+        // DocumentTypeId has got a head next '-' and Id number
+        isResponseBank = row.DocumentTypeId.Split('-')[1] == responseBankTypeId.ToString();
+    }
+
+
+    if ((row.NonObjectionStatusTypeId == completeId) || (row.NonObjectionStatusTypeId == publishedId))
+    {
+        @Confluence.ButtonDownload("", "DownLoadDoc")
+    }
+    else
+    {
+        if (!isResponseBank)
+        {
+            @Confluence.ButtonUpload("", "UploadDoc")
+        }
+
+        if ((isTemplate || row.CanBeEdited) && !row.IsMandatory && !isResponseBank)
+        {
+            @Confluence.ButtonTrash("", "removeRow-bidding")
+        }
+    }
+}
+
+@helper NonObjectionStatusTemplate(BiddingDocRowViewModel row, List<System.Web.Mvc.SelectListItem> nonObjectionStatusBidder, int nonDraftId, bool isTemplate)
+{
+    var valueStatus = row.NonObjectionStatusTypeId.ToString();
+    if (isTemplate)
+    {
+        @Confluence.LabelGetDropDown(nonDraftId.ToString(), nonObjectionStatusBidder, false)
+        valueStatus = nonDraftId.ToString();
+    }
+    else
+    {
+        @Confluence.Label(row.NonObjectionStatusTypeText)
+    }
+
+    @Confluence.InputText(valueStatus, name: "nonObjectionStatus-bidding", required: true, disabled: true, htmlClass: "hide")
+}
+
+@helper ResultsTypeTemplate(BiddingDocRowViewModel row, bool isTemplate)
+{
+    var awarderBidderList = Model.ViewContainer.GetValue<List<ListItemViewModel>>(row.ResultTypeOption).ConvertToSelectListItems();
+
+    if (isTemplate || row.CanBeEdited)
+    {
+        <span data-section="result-bidding" class="@(row.ShowResut ? "" : "hide")">
+            @Confluence.InputDropDown(row.ResultTypeId, name: "resultType-bidding", width: "160px", disabled: isTemplate || !row.ShowResut || string.IsNullOrEmpty(row.DocumentNumber), required: true, elements: awarderBidderList)
+        </span>
+    }
+    else
+    {
+        @Confluence.Label(row.ResultTypeText)
+        @Confluence.InputDropDown(row.ResultTypeId, name: "resultType-bidding", width: "160px", disabled: true, required: false, elements: awarderBidderList, htmlClass: "hide")
+    }
+}
+
+@helper DrawRowTemplate(BiddingDocRowViewModel row, List<System.Web.Mvc.SelectListItem> biddingDocumentsTypeList, List<System.Web.Mvc.SelectListItem> nonObjectionStatusBidder, int nonDraftId, bool isTemplate)
+{
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDate = appSettings.FormatDate;
+
+    <tr class="template hide">
+        <td>@DocumentTypeTemplate(row, biddingDocumentsTypeList, isTemplate)</td>
+        @if (Model.HaveResut)
+        {
+            <td>@ResultsTypeTemplate(row, isTemplate) </td>
+        }
+        <td class="textalign-center">@row.User</td>
+        <td class="textalign-center"></td>
+        <td class="document-number textalign-center">@string.Empty</td>
+        <td>@DescriptionTemplate(row, isTemplate)</td>
+        <td>@NonObjectionStatusTemplate(row, nonObjectionStatusBidder, nonDraftId, isTemplate)</td>
+        <td class="colPadding1px columnAction-draft-request textalign-center">@ActionsTermsReference(row, isTemplate)</td>
+    </tr>
+}
+
+@helper DocumentTypeTemplate(BiddingDocRowViewModel row, List<System.Web.Mvc.SelectListItem> biddingDocumentsTypeList, bool isTemplate)
+{
+    var documentsTypeLIstId = Model.ProcurementTypeList.ConvertToSelectListItems();
+    var responseBankTypeId = Model.ViewContainer.GetValue<int>("BankResponseTypeId");
+    var completeId = Model.ViewContainer.GetValue<int>("NonCompleteId");
+    var publishedId = Model.ViewContainer.GetValue<int>("Published");
+    var isResponseBank = false;
+
+    if (!string.IsNullOrEmpty(row.DocumentTypeId))
+    {
+        // DocumentTypeId has got a head next '-' and Id number
+        isResponseBank = row.DocumentTypeId.Split('-')[1] == responseBankTypeId.ToString();
+    }
+
+    var responseBankTypeItem = documentsTypeLIstId.FirstOrDefault(x => x.Value.Split('-')[1] == responseBankTypeId.ToString());
+    documentsTypeLIstId.Remove(responseBankTypeItem);
+
+    if (row.IsMandatory)
+    {
+        @Confluence.Label(row.DocumentTypeText)
+        @Confluence.InputText(row.DocumentTypeId, name: "documentType-bidding", width: "180px", required: true, htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-notDuplicateProcurementType", "input[name=\"documentType-bidding\"]" } })
+    }
+    else
+    {
+        if ((isTemplate || row.CanBeEdited) && (row.NonObjectionStatusTypeId != completeId) && (row.NonObjectionStatusTypeId != publishedId))
+        {
+            if (!isResponseBank)
+            {   
+                <div data-name="selectable">
+                    @Confluence.InputDropDown(row.DocumentTypeId, name: "documentType-bidding", width: "180px", required: true, disabled: isTemplate, elements: documentsTypeLIstId, dataAttributes: new Dictionary<string, string> { { "parsley-notDuplicateProcurementType", "input[name=\"documentType-bidding\"]" } })
+                </div>
+            }
+            else
+            {
+                @Confluence.Label(row.DocumentTypeText)
+                @Confluence.InputText(row.DocumentTypeId, name: "documentType-bidding", width: "180px", required: true, htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-notDuplicateProcurementType", "input[name=\"documentType-bidding\"]" } })
+            }
+        }
+        else
+        {
+            @Confluence.Label(row.DocumentTypeText)
+            @Confluence.InputText(row.DocumentTypeId, name: "documentType-bidding", width: "180px", required: true, htmlClass: "hide", dataAttributes: new Dictionary<string, string> { { "parsley-notDuplicateProcurementType", "input[name=\"documentType-bidding\"]" } })
+        }
+    }
+
+    @Confluence.InputText(row.DocumentNumber, "DocumentIDBDoc-bidding", disabled: false, width: "100%", required: false, htmlClass: "hide")
+    @Confluence.InputCheckbox(isTemplate ? false : row.IsMandatory, "isMandatory-bidding", disabled: false, htmlClass: "hide")
+    @Confluence.InputCheckbox(row.IsAmendmet, "isAmendment-bidding", disabled: false, htmlClass: "hide")
+}

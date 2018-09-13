@@ -1,0 +1,214 @@
+﻿@using IDB.MVCControls.General.Helpers
+@using IDB.MW.Application.TCAbstractModule.ViewModels.ReviewTCAbstractPostValidation
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.Presentation.MVC4.Areas.TC.Enums
+@using IDB.Presentation.MVC4.Areas.TC.Controllers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.Presentation.MVC4.Models.Modal
+@using IDB.Presentation.MVC4.General
+
+@model ReviewTCAbstractPostValidationViewModel
+
+@{
+    var formatDate = ConfigurationServiceFactory.Current.GetApplicationSettings().FormatDate;
+}
+
+@section Header{
+    <div class="header">
+        @Html.Partial("Partials/Headers/ReviewPostValidationTitle", Model.TCAbstract.Header)
+    </div>
+}
+
+@if (ViewBag.ReadRole)
+{
+    <div class="page">
+        <div data-pagemode="edit">
+            <input type="hidden"
+                   name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"
+                   value="@SaveControllerTypeEnum.Save" />
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <h4>@Localization.GetText("TC.TCAbstract.Comments.Title")</h4>
+            </div>
+        </div>
+        <div class="row row-header row-header-comment">
+            <div class="col-md-12">
+                <span>@FormatHelper.Format(Convert.ToDateTime(Model.Date), formatDate).HtmlEncode()</span>
+                <span>@Localization.GetText("TC.TCAbstract.Comments.FullUserName").HtmlEncode() &nbsp; @Model.UserFullName.HtmlEncode()</span>
+            </div>
+        </div>
+        <div class="row repeater-item-comment">
+            <div class="col-md-12">
+                <div class="font-comment">
+                    @Model.Explanation.HtmlEncode()
+                </div>
+            </div>
+        </div>
+        <div data-id="header-tcAbstract"
+             data-loadurl="@Url.Action("TCAbstractHeader", "View", new { area = "TC"} )">
+            @Html.Partial("_TCHeader", Model.TCAbstract.Header)
+        </div>
+        <div id="ReviewTCData"
+             class="row-body-40 font-body"
+             data-custom-validate="true"
+             data-parsley-validate="data-parsley-validate"
+             data-parsley-excluded="[disabled]"
+             data-ignore-nullable-values="true"
+             data-loadurl="@Url.Action("ReviewPostValidationEdit", "View", new { area = "TC", trustFundId = Model.TrustFundId } )"
+             data-url="@Url.Action("ReviewPostValidation", "Save", new { area = "TC" })">
+            @Html.Partial("Partials/TCAbstract", Model.TCAbstract)
+        </div>
+        @Html.Partial("Partials/Controls/TCAbstractWordExcelButtonsDownload")
+        <div id="ReviewTCButtons">
+            <div class="row">
+                <div class="col-md-12">
+                    @Html.Partial("Partials/Controls/ReviewPostValidationButtons")
+                </div>
+            </div>
+        </div>
+        <div id="saveModal" class="hide modalBody">
+            @Localization.GetText("TC.ReviewEditTCPostValidation.Message.Save")
+        </div>
+        <div id="sendFundCoordinatorModal" class="hide modalBody">
+            @Localization.GetText("TC.ReviewEditTCPostValidation.Message.Send.Fund.Coordinator")
+        </div>
+        <div id="operationStatusModal">
+        </div>
+        <div id="dataMemberModal" class="hide">
+            @Html.Partial("Partials/Modals/TCMemberDataModal", Model.TCAbstract.MembersData)
+        </div>
+    </div>
+    <div data-id="HiddenButtonRegion" class="hide">
+        @Display.AddModalButton(new ModalViewModel(name: "buttonChangeStatusModal",
+            allowClose: true,
+            contentSelector: "#operationStatusModal",
+            type: CssClass.ModalInformation,
+            title: Localization.GetText("TC.TCAbstractModalFundingProcess.Title"),
+            validateForm: false))
+    </div>
+    <div id="sendModal" class="hide modalBody">
+        @Localization.GetText("TC.ReviewValidationTC.Send.Message").HtmlEncode()
+    </div>
+}
+
+@section scripts{
+
+    @ModuleScripts.TCAbstractCommon()
+    @ModuleScripts.AddArithmeticSumValidator()
+    @ModuleScripts.MinNumOfElementsFilled()
+    @ModuleScripts.NonZero()
+    @ModuleScripts.K2UIIntegration()
+    
+    <script type="text/javascript"
+            src="@Url.Content("~/Scripts/Modules/TC/TCAbstract/TCAbstractElementsValidation.js")">
+    </script>
+
+    <script type="text/javascript">
+        var containerTCA = $('#ReviewTCData');
+
+        registerCallback(function () {
+            $(document).on('change', '[name=trustFundSelector]', function () {
+                var trustFundSelectorValue = $(this).val();
+                var reloadUrl = "@Url.Action( "RedirectToCustomAction" , "View" , new { area = "TC" , actionName = "ReviewPostValidation" } )&trustFundId=" + trustFundSelectorValue;
+                document.location = reloadUrl;
+            });
+        });
+
+        function editReviewPostValidation(source) {
+            var sucess = enterEditMode(true, containerTCA, true);
+            if (sucess) {
+                setInitialTCAbstractState();
+                enterEditMode(false, $('.reviewPValidationButtons'), false);
+                reloadContainer($('[data-id=header-tcAbstract]'), false);
+                setDataLabbelAttribute(containerTCA);
+                firstCounterpartFinancingValidation();
+            }
+        }
+
+        function cancelReviewPostValidation(source) {
+            exitEditMode(true, containerTCA, true, true);
+            exitEditMode(false, $('.reviewPValidationButtons'), false, false);
+            reloadContainer($('[data-id=header-tcAbstract]'), false);
+            setInitialTCAbstractState();
+        }
+
+        function saveReviewPostValidation(source) {
+            disableValidations();
+            var deferred = genericSubmit(source, '@SaveControllerTypeEnum.Save');
+            return deferred;
+        }
+
+        function sendReviewPostValidation(source) {
+            var deferred = genericSubmit(source, '@SaveControllerTypeEnum.SaveAndSend');
+            return deferred;
+        }
+
+        function setModalRedirectUrl(url) {
+            $("#operationStatusModal").attr('data-new-modal-redirectOnCloseToUrl', url);
+        }
+
+        function setOperationStatusModal(data) {
+            var modal = $('#operationStatusModal');
+            modal.html(data);
+        }
+
+        function genericSubmit(source, submitType) {
+            $('[name="@SaveController.SAVE_CONTROLLER_SUBMITTYPE"]').val(submitType);
+            var resp = $.Deferred();
+            var response = saveContainer(containerTCA, '#hidViewModel', true, $('.reviewPValidationButtons'), $(source.target), true, false);
+            if (response !== false) {
+                response
+                    .done(function (data) {
+                        if (!data.IsValid && data.ErrorMessage != null && data.ErrorMessage != "") {
+                            showMessage(data.ErrorMessage);
+                        }
+                        else if (data.IsValid) {
+                            if (data.ContentHTML != null) {
+                                setOperationStatusModal(data.ContentHTML);
+                            }
+                            if (data.UrlRedirect != null) {
+                                setModalRedirectUrl(data.UrlRedirect);
+                            }
+                        }
+                        resp.resolve();
+                    }).always(function () {
+                        reloadContainer($('[data-id=header-tcAbstract]'), false);
+                        setInitialTCAbstractState();
+                    });
+            }
+            return resp;
+        }
+
+        function showOperationStatusModal(target) {
+            if (target === "sendFunCoordinator") {
+                $("[name=operationStatusModalButton]").first().click();
+            }
+        }
+
+        function downloadWord(source) {
+            var url = '@Url.Action("TCAbstractExportToWord", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadPdf(source) {
+            var url = '@Url.Action("TCAbstractExportToPDF", "View", new { area = "TC" })';
+            window.open(url, '_blank');
+        }
+
+        function downloadXls(source) {
+            console.log('Download Xls');
+        }
+
+        function openModalSendToSingleWindow(target) {
+            if (target === "EditTCAbstract_SSW_Send") {
+                $("[name=buttonChangeStatusModal]").first().click();
+            }
+        }
+
+        function setDataLabbelAttribute(container) {
+            container.find('[id="financingTable"]')
+                .attr('data-label', '@Localization.GetText("TC.TCAbstract.Financing.Title")');
+        }
+    </script>
+}

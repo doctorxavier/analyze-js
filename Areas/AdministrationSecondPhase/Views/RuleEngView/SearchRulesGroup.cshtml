@@ -1,0 +1,448 @@
+﻿@using IDB.MW.Domain.Values
+@{
+    Layout = "~/Areas/AdministrationSecondPhase/Views/Shared/_Layout.cshtml";
+}
+<div class="col-md-12 mb40">
+    @Confluence.LabelMainTitle(Localization.GetText("AD.RE.RuleGroup"))
+</div>
+
+<div class="col-md-12 mb20">
+    <div class="filterNormal mb20" name="searchInstitutionContent">
+        <div class="row">
+            <div class="col-md-4">
+                @Confluence.LabelBold(Localization.GetText("AD.RE.Module"))
+            </div>
+            <div class="col-md-4">
+                @Confluence.LabelBold(Localization.GetText("AD.RE.GroupRule"))
+            </div>
+            <div class="col-md-4">
+                @Confluence.LabelBold(Localization.GetText("PCR.Summary.NonCore.colClassification"))
+            </div>
+        </div>
+
+        <div class="row mb20">
+            <div class="col-md-4">
+                @Confluence.InputDropDown(null, "SearchRuleGroupModule", ViewBag.RuleGroupModule, width: "100%", required: false)
+            </div>
+            <div class="col-md-4">
+                @Confluence.InputDropDown(null, "SearchRuleGroupGroupRule", null, width: "100%", required: false, disabled: true)
+            </div>
+            <div class="col-md-4">
+                @Confluence.InputDropDown(null, "SearchRuleGroupClasification", null, width: "100%", required: false, disabled: true)
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-9">
+                @Confluence.LabelBold(Localization.GetText("AD.RE.RuleName"))
+            </div>
+            <div class="col-md-3">
+                @Confluence.LabelBold(Localization.GetText("COMMON.Status"))
+            </div>
+        </div>
+
+        <div class="row mb20">
+            <div class="col-md-9">
+                @Confluence.InputText(string.Empty, "SearchRuleGroupRuleName", width: "100%", required: false)
+            </div>
+            <div class="col-md-3">
+                @Confluence.InputDropDown(null, "SearchRuleGroupStatus", ViewBag.Status, width: "100%", required: false)
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="floatRight">
+                    @Confluence.ButtonBlue(@Localization.GetText("Common.ClearAll"), action: "cleanfilter")
+                    @Confluence.ButtonBlue(@Localization.GetText("OP.IN.Filter"), name: "filterButton", action: "searchRuleGroupFilter")
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-12 mb20">
+    <div id="tableRuleGroupContent"></div>
+</div>
+
+@section Scripts{
+    <script type="text/javascript">
+
+        $(document).ready(function(){
+            var modules = $('ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupModule"] a');
+
+            if (modules.length > 1) {
+                modules.SelectIndex(1);
+                modules[1].click();
+            }
+        });
+
+        function searchRuleGroupFilter() {
+            var searchModule = convertToInt($("[name='SearchRuleGroupModule']").val());
+            var searchGroupRule = convertToInt($("[name='SearchRuleGroupGroupRule']").val());
+            var searchGroupClasification = convertToInt($("[name='SearchRuleGroupClasification']").val());
+            var searchRuleName = $("[name='SearchRuleGroupRuleName']").val();
+            var groupStatus = $("[name='SearchRuleGroupStatus']");
+            var searchRuleGroupStatus = groupStatus.val() !== "" ? groupStatus.val() : 99;
+            var classificationCode = $('ul[aria-labelledby="id-SearchRuleGroupClasification"]').GetText();
+
+            postUrlWithOptions("@Url.Action("RulesGroupCreateAndEdit", "RuleEngView", new { area = "AdministrationSecondPhase" } )",
+                { async: false },
+                {
+                    searchModule: searchModule,
+                    searchGroupRule: searchGroupRule,
+                    searchGroupClasification: searchGroupClasification,
+                    searchRuleName: searchRuleName,
+                    searchRuleGroupStatus: searchRuleGroupStatus,
+                    searchClassificationCode: classificationCode
+                })
+            .done(function(data) {
+                var resultSearchPanel = $('#tableRuleGroupContent');
+                resultSearchPanel.html(data);
+                exitEditMode(false, $('#pageContainer'), true, true);
+                bindHandlers(resultSearchPanel);
+
+                addPaginationToRulesTable();
+            });
+        }
+
+        function fillDropdown(list, controlName) {
+            $('#id-' + controlName).removeAttr("disabled");
+
+            var data = $.map(list, function (item) {
+                return "<li><a dd-value=" + item.Value + ">" + item.Text + "</a></li>";
+            });
+
+            data.unshift("<li><a dd-value>(select an option)</a></li>");
+
+            var ddl = $('ul.dropdown-menu[aria-labelledby="id-' + controlName + '"]');
+            ddl.html(data.join(""));
+            $('[name="' + controlName + '"]').attr("data-parsley-required", "true");
+
+            ddl.SelectIndex(ddl.find('li').length > 1 ? 1 : 0);
+        }
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupGroupRule"] a', function () {
+            var item = $(this).attr("dd-value");
+            if (item !== "") {
+
+                var url = "@Url.Action("GetItems", "RuleEngView", new { area = "AdministrationSecondPhase" })";
+                var response = postUrl(url, { item: item, type: "classification" }).responseJSON.Data;
+
+                fillDropdown(response.GetItemsGroup, 'SearchRuleGroupClasification');
+                
+                $('[name="filterButton"]').click();
+
+            } else {
+                var searchRule = $('[name="SearchRuleGroupClasification"]');
+                searchRule.first().val("");
+                $('[id="id-SearchRuleGroupClasification"]').prop("disabled", true);
+                searchRule.FirstorDefault();
+            }
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupModule"] a', function () {
+            var item = $(this).attr("dd-value");
+            if (item !== "") {
+
+                postUrlWithOptions("@Url.Action("GetItems", "RuleEngView", new { area = "AdministrationSecondPhase" } )",
+                    { async: false },
+                    {
+                        item: item,
+                        type: "group"
+                    })
+                .done(function (data) {
+                    var response = data.Data;
+
+                    fillDropdown(response.GetItemsGroup, 'SearchRuleGroupGroupRule');
+                    fillDropdown(response.GetItemsRuleEngClassification, 'SearchRuleGroupClasification');
+
+                    $('[name="filterButton"]').click();
+                });
+
+            } else {
+                var searchRuleGroup = $('[name="SearchRuleGroupGroupRule"]');
+                searchRuleGroup.first().val("");
+                $('[id="id-SearchRuleGroupGroupRule"]').prop("disabled", true);
+                searchRuleGroup.FirstorDefault();
+            }
+        });
+
+
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupClasification"] a', function () {
+            var item = $(this).attr("dd-value");
+            if (item !== "") {
+                $('[name="filterButton"]').click();
+            } else {
+                var searchRule = $('[name="SearchRuleGroupClasification"]');
+                searchRule.first().val("");
+                $('[id="id-SearchRuleGroupClasification"]').prop("disabled", true);
+                searchRule.FirstorDefault();
+            }
+        });
+
+        function cleanfilter() {
+            $('[name=SearchRuleGroupRuleName]').val('');
+            $("[name='SearchRuleGroupStatus']").FirstorDefault();
+            var modules = $('ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupModule"] a');
+            modules.SelectIndex(1);
+            modules[1].click();
+        }
+
+        $('[name=SearchRuleGroupRuleName]').keyup(function (event) {
+            var enterValue = @RulesEngAttributes.ENTER_VALUE;
+            if (event.which == enterValue) {
+                $('[name="filterButton"]').click();
+            }
+        });
+
+        function edit() {
+            var success = enterEditMode(false, $("#pageContainer"), false);
+            if (success) {
+                enterEditMode(false, $("[data-id=headerButtons]"), false);
+            }
+        }
+
+        function cancel() {
+            var msg = "@Localization.GetText("OP.IN.Message.Cancelnstitutions")";
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    showLoader();
+                    setDataLoadUrl();
+                    exitEditMode(true, $('#pageContainer'), true, true);
+                    addPaginationToRulesTable();
+                }
+            });
+        }
+
+        function newRule() {
+            var code = $('[name="hdSearchRuleGroupRuleCode"]').val();
+            var idRuleEng = $('[name="SearchRuleGroupRuleCode"]').val();
+            var name = $('[name="SearchRuleGroupRuleNameEdit"]').val();
+            var description = $('[name="SearchRuleGroupRuleDescription"]').val();
+            var priority = $('[name="SearchRuleGroupRulePriority"]').val();
+            var result = $('[name="SearchRuleGroupRuleResult"]').val();
+            var isActive = $('[name="isActive"]').prop('checked');
+            var container = $("#RuleTable").find('tbody');
+            var idRule = $('[name="SearchRuleGroupGroupRule"]').val();
+
+            if (code !== '@string.Empty' && name !== '@string.Empty' && description !== '@string.Empty' && priority !== '@string.Empty' && result !== '@string.Empty') {
+                $.get("@Url.Action("GetRowGroup", "RuleEngView")",
+                    {
+                        idRule: idRule,
+                        code: code,
+                        idRuleEng: idRuleEng,
+                        name: name,
+                        description: description,
+                        priority: priority,
+                        isActive: isActive,
+                        result: result
+                    },
+                    function (data) {
+                        $(container).prepend(data);
+                        enterEditMode(false, $(container), false);
+                    }).done(function () {
+                        $('[name="SearchRuleGroupRuleCode"]').Clean();
+                        $('[name="SearchRuleGroupRuleCode_text"]').val("");
+                        $('[name="SearchRuleGroupRuleNameEdit"]').val("");
+                        $('[name="SearchRuleGroupRuleDescription"]').val("");
+                        $('[name="SearchRuleGroupRulePriority"]').val("");
+                        $('[name="SearchRuleGroupRuleResult"]').val("");
+                        $('[name="isActive"]').prop('checked', true);
+                    });
+            } else {
+                var msg = '@Localization.GetText("AD.RE.Message.RequieredParameters")';
+                showMessage(msg);
+            }
+        }
+
+        function deleteRule(source) {
+            var row = source.closest('tr');
+            var ruleCode = row.find('[name="codeER"]').val();
+            var ruleName = row.find('[name="nameER"]').val();
+            var id = row.find('[name="ruleEngIdResultValue"]').val();
+            var hidDelete = $('#hidDelete');
+
+            var msg = '@Localization.GetText("AD.RE.Message.DeleteRule")';
+            msg = msg.replace("{0}", ruleCode).replace("{1}", ruleName);
+            confirmAction(msg).done(function (pressOk) {
+                if (pressOk) {
+                    hidDelete.val(hidDelete.val() == '' ? id : hidDelete.val() + ',' + id);
+                    row.remove();
+                }
+            });
+        }
+
+        function saveRuleEng() {
+
+            setDataLoadUrl();
+
+            var response = saveContainer($('#pageContainer'), '#hidViewModel', true, $('#headerButtons'));
+            if (response !== false) {
+                response.done(function (data) {
+                    if (data.IsValid) {
+                        addPaginationToRulesTable();
+                    } else {
+                        showMessage(response.ErrorMessage);
+                    }
+                });
+            }
+        }
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupClasification"] a', function () {
+            var classificationId = $('[name="SearchRuleGroupClasification"]').val();
+            var item = $(this).attr("dd-value");
+            if (item !== "") {
+
+                var url = "@Url.Action("GetBreakFirst", "RuleEngView", new { area = "AdministrationSecondPhase" })";
+                var response = postUrl(url, { classification: classificationId }).responseJSON.Data;
+
+                $('[name="breakFirst"]').prop('checked', response);
+
+            } else {
+                $('[name="SearchRuleGroupClasification"]').FirstorDefault();
+            }
+        });
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-SearchRuleGroupRuleCode"] a', function () {
+            var item = $(this).attr("dd-value");
+            SearchRuleCode(item);
+        });
+
+        function SearchRuleCode(item) {
+
+            if (item !== "") {
+
+                var url = "@Url.Action("GetRuleEngItems", "RuleEngView", new { area = "AdministrationSecondPhase" })";
+                var response = postUrl(url, { item: item }).responseJSON.Data;
+
+                $('input[name="SearchRuleGroupRuleNameEdit"]').val(response.Name);
+                $('input[name="SearchRuleGroupRuleDescription"]').val(response.Description);
+                $('input[name="hdSearchRuleGroupRuleCode"]').val(response.Code);
+                $('input[name="SearchRuleGroupRulePriority"]').val(response.Priority);
+            }
+        }
+
+        function setCode(event){
+            if (event.which == '@RulesEngAttributes.ENTER_VALUE') {
+                var codeRule = $('[name="SearchRuleGroupRuleCode_text"]')
+                var item = codeRule.closest('div').find('[dd-text=' + codeRule.val() + ']').attr("dd-value");
+
+                SearchRuleCode(item);
+            }
+        }
+
+        function newResult() {
+            $('[data-id="buttonModal"]').click();
+            allowMultiPopUp();
+
+            var first = $('ul.dropdown-menu[aria-labelledby="id-masterTypeResult"] li a').first()
+
+            first.attr('dd-selected', '');
+            $('[name=masterTypeResult_text]').val(first.text());
+
+            loadMasterData(first.attr('dd-value'));
+        }
+
+        $(document).on('click', 'ul.dropdown-menu[aria-labelledby="id-masterTypeResult"] a', function () {
+            var index = $(this).attr('dd-value');
+            $('[name=masterTypeResult_text]').val($(this).text());
+            loadMasterData(index);
+        });
+
+        function loadMasterData(index) {
+            var url = "@Url.Action("GetMasterData", "RuleEngView", new { area = "AdministrationSecondPhase" })";
+            var response = postUrl(url, { typeId: index });
+
+            $('[data-id=masterDataPanel]').html(response.responseText);
+
+            var elements = $('[data-id=masterDataPanel] .list-group a');
+
+            if (elements.length > 0) {
+                elements.first().addClass('active');
+            }
+        }
+
+        $(document).on('click', '[data-id=masterDataPanel] .list-group a', function () {
+
+            $(this).parent().find('.active').removeClass('active');
+            $(this).addClass('active');
+
+        });
+
+        function setResultCode() {
+            var selected = $('[data-id=masterDataPanel] a.active').attr('dd-value');
+
+            $('[name=SearchRuleGroupRuleResult]').val(selected);
+            vex.close();
+        }
+
+        function showAllTypes() {
+
+            var input = $('[name=masterTypeResult_text]');
+            var parentDiv = input.closest('div');
+            var dropdown = parentDiv.find('ul.dropdown-menu');
+            var hidden = parentDiv.find('input.hidden');
+            var element = dropdown.find('a[dd-value]');
+
+            input.val('');
+
+            dropdown.find('li').removeClass('hidden');
+            hidden.val('');
+            parentDiv.addClass('open');
+
+            element.hover(function () {
+                dropdown.find('[dd-selected]').removeAttr('dd-selected');
+                $(this).attr('dd-selected', '');
+            });
+
+            element.click(function () {
+                input.val($(this).text());
+                hidden.val($(this).attr('dd-value'));
+                hidden.trigger('change');
+                parentDiv.removeClass('open');
+            });
+
+            $(document).not(parentDiv).click(function () {
+                parentDiv.removeClass('open');
+            });
+
+            input.focus();
+        }
+
+        function setDataLoadUrl() {
+            var containerUrl = $('#pageContainer').attr('data-loadurl');
+            var index = containerUrl.indexOf('?');
+
+            if (index == -1) {
+                containerUrl += '?'
+            } else {
+                containerUrl = containerUrl.substring(0, index + 1);
+            }
+
+            var status = $("[name='SearchRuleGroupStatus']").GetValue();
+            var classification = $("[name='SearchRuleGroupClasification']");
+            var idStatus = status === '' ? 99 : status;
+
+            containerUrl += 'searchModule=' + $("[name='SearchRuleGroupModule']").GetValue();
+            containerUrl += '&searchGroupRule=' + $("[name='SearchRuleGroupGroupRule']").GetValue();
+            containerUrl += '&searchGroupClasification=' + classification.GetValue();
+            containerUrl += '&searchRuleName=' + $("[name='SearchRuleGroupRuleName']").val();
+            containerUrl += '&searchRuleGroupStatus=' + idStatus;
+            containerUrl += '&searchClassificationCode=' + classification.GetText();
+
+            $('#pageContainer').attr('data-loadurl', containerUrl);
+        }
+
+        function convertToInt(value) {
+            return value = value != '' ?  parseInt(value) : 0;
+        }
+
+        function addPaginationToRulesTable(){
+            var table = $('#RuleTable');
+            table.paginationConfluense(@RulesEngAttributes.MAX_PAGINATION);
+            table.sortableConfluense();
+        }
+    </script>
+}

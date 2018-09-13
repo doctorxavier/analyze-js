@@ -1,0 +1,146 @@
+@using System.Globalization;
+@using System.Text;
+
+@using IDB.MW.Infrastructure.Configuration
+@using IDB.MVCControls.DataTable.Helpers
+@using IDB.MVCControls.DataTable.Models
+@using IDB.MVCControls.General.Helpers
+@using IDB.Presentation.MVC4.Helpers
+@using IDB.MW.Application.BEOProcurementModule.ViewModels.FirmProcurement
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Helper.ConstantHelper
+@using IDB.Presentation.MVC4.Areas.BEOProcurement.Components
+
+
+@model NegotiationViewModel
+
+@{
+    if (ViewBag.FirmList == null)
+    {
+        ViewBag.FirmList = new List<SelectListItem>();
+    }
+
+
+    var appSettings = ConfigurationServiceFactory.Current.GetApplicationSettings();
+    var formatDecimal = appSettings.FormatDecimal;
+    var formatDate = appSettings.FormatDate;
+    var tableName = "FinalFirmScorings";
+    var modality = "Framework";
+
+    var config = Html.RenderDataTable(Model.FinalFirmScorings)
+        .Name(tableName)
+        .AddPrimaryKeyToName(false)
+        .PrimaryKey(x => x.OfferId.ToString(CultureInfo.InvariantCulture))
+        .UseDataTableNet(false)
+        .UsePageMode(false)
+        .Columns(columns =>
+        {
+            columns.Template(c => Confluence.LabelGetDropDown(c.OfferId, ViewBag.FirmList, false))
+                .Orderable(false)
+                .CssClass("negFinalFirmScoringFirmName")
+                .CssHeaderClass("negFinalFirmScoringFirmName")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.FirmName"))
+                .HeaderAttribute("style", "")
+                .Attribute("name", c => "firmName")
+                .Hidden(false);
+            columns.Bound(c => c.TotalScoring)
+                .Orderable(false)
+                .CssClass("textalign-center negFinalFirmScoringTotalScore")
+                .CssHeaderClass("negFinalFirmScoringTotalScore")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.TotalScore"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.InputHidden(
+                    value: c.TotalScoring.ToString(),
+                    name: tableName + "-TotalScoring"))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header("")
+                .HeaderAttribute("style", "")
+                .Hidden(true);
+            columns.Template(c => ViewBag.Modality == modality ?
+                Confluence.InputCheckbox(
+                    isChecked: c.IsWinner,
+                    name: tableName + "-Winner",
+                    disabled: true) :
+                Confluence.InputCheckbox(
+                    isChecked: c.IsWinner,
+                    name: tableName + "-Winner",
+                    disabled: true))
+                .Orderable(false)
+                .CssClass("textalign-center negFinalFirmScoringWinners")
+                .CssHeaderClass("negFinalFirmScoringWinners")
+                .Header(Localization.GetText("TCP.FirmProcurement.TableHeader.Winners"))
+                .HeaderAttribute("style", "")
+                .Hidden(false);
+            columns.Template(c => Confluence.InputHidden(
+                    value: c.StatusId.ToString(),
+                    name: tableName + "-StatusId"))
+                .Orderable(false)
+                .CssClass("")
+                .CssHeaderClass("")
+                .Header("")
+                .HeaderAttribute("style", "")
+                .Hidden(true);
+        })
+        .RowTemplates(x =>
+        {
+            x.Create(RowTemplateType.LastRow, t => DrawRowTemplate(Model));
+        })
+    ;
+    config.TableClass = "tableNormal";
+}
+
+<div class="row mb5">
+    <div class="col-xs-9 aligment">
+        @Confluence.LabelMainSubTitle(Localization.GetText("TCP.FirmProcurement.TableTitle.FinalFirmScoring"))
+    </div>
+
+@if (Model.Modality != Modality.TaskSingleSourceSelection && Model.Modality != Modality.SingleSourceSelection)
+{
+    <div class="col-xs-3">
+        @Confluence.ButtonWhite(
+            text: Localization.GetText("TCP.FirmProcurement.PopupTitle.ChangeWinner"),
+            name: "btnChangeWinner",
+            htmlClass: "w100p")
+    </div>
+}
+    
+</div>
+
+<div class="row mb20">
+    <div class="col-xs-12">
+        @Html.Partial("Controls/DataTable", config)
+    </div>
+</div>
+
+@helper DrawRowTemplate(NegotiationViewModel model)
+{
+    if (model.WinnerChanges != null)
+    {
+        var originalWinnerList = model.WinnerChanges.OldWinners.Select(x => x.FirmName);
+        var newWinnerList = model.WinnerChanges.Winners.Select(x => x.FirmName);
+        char[] charsToTrim = { ',', ' ' };
+        
+        var justification = model.WinnerChanges.Justification;
+
+        var originalWinners = string.Join(", ", originalWinnerList).TrimEnd(charsToTrim);
+        var newWinners = string.Join(", ", newWinnerList).TrimEnd(charsToTrim);
+
+        <tr class="rowInfo @(Model.IsInfoWinnerChangeVisible ? null : "hide")">
+            <td colspan="3">
+                   <table>
+                       <tr>
+                           <td class="icon-container-align">@Confluence.Information()</td>
+                           <td class="text-container-align">
+                               @Confluence.Label(Localization.GetText("Winner Change: "), htmlClass: "bold infoText")
+                               @Confluence.Label(Localization.GetText("The winner was "), htmlClass: "infoText")
+                               @Confluence.Label(Localization.GetText("manually changed"), htmlClass: "infoText linkLook", tooltip: justification)
+                               @Confluence.Label(Localization.GetText(string.Format("from {0} to {1}", originalWinners, newWinners)), htmlClass: "infoText")
+                           </td>
+                   </tr>
+                  </table>
+            </td>
+        </tr>
+    }
+}
